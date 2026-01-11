@@ -1,0 +1,14 @@
+[
+  { 
+    "id": "leadership", 
+    "name": "LDS Leadership", 
+    "path": "/data/leadership",
+    "type": "folder"
+  },
+  { 
+    "id": "financial", 
+    "name": "210 Financial", 
+    "path": "/data/financial",
+    "type": "folder"
+  }
+]

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LDS Leadership Strategist | CRUX</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        background-color: #cbcbcb; /* Dark Gray Background */
+        position: relative;
+        overflow-x: hidden;
+      }
+
+      /* This creates the repeating, rotated watermark */
+      body::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%; /* Larger than screen to cover area after rotation */
+        height: 500%;
+        /* Point to your logo in the public folder */
+        background-image: url('/crux-logo.png'); 
+        background-repeat: repeat;
+        background-size: 90px; /* Adjust this to change logo size */
+        opacity: 0.03; /* 20% Opacity */
+        transform: rotate(-45deg);
+        transform-origin: top left;
+        pointer-events: none; /* Allows clicking through the watermark */
+        z-index: -1; /* Sits behind your content */
+      }
+
+      #root {
+        position: relative;
+        z-index: 1;
+      }
+    </style>
+  </head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
