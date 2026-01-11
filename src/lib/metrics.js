@@ -4,6 +4,7 @@ export function filterRows(rows, { range, channels, typeFilter, query }){
   const now = new Date();
   const startEnd = (() => {
     if(!range || range.kind === "all") return { start: null, end: null };
+    if(range.kind === "last7") return { start: new Date(now.getTime() - 7*24*3600*1000), end: now };
     if(range.kind === "last30") return { start: new Date(now.getTime() - 30*24*3600*1000), end: now };
     if(range.kind === "last90") return { start: new Date(now.getTime() - 90*24*3600*1000), end: now };
     if(range.kind === "ytd") return { start: new Date(Date.UTC(now.getUTCFullYear(), 0, 1)), end: now };

@@ -162,12 +162,13 @@ export default function FiltersBar({
 
       {/* 2. DATE RANGE */}
       <div style={{ position: "relative" }}>
-        <select 
+        <select
           style={{ ...s.inputBase, cursor: "pointer" }}
-          value={range.kind} 
+          value={range.kind}
           onChange={(e) => setRange({ kind: e.target.value })}
         >
           <option value="all">All Time</option>
+          <option value="last7">Last 7 Days</option>
           <option value="last30">Last 30 Days</option>
           <option value="last90">Last 90 Days</option>
           <option value="ytd">Year to Date</option>
