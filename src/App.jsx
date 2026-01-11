@@ -652,7 +652,7 @@ export default function App() {
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           <img src="/Full_View_Logo.png" alt="Full View Analytics" style={{ height: "72px", objectFit: "contain" }} />
           <div style={{ fontSize: "11px", color: "#666", fontWeight: "500", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "4px", marginLeft: "40px" }}>
-            POWERED BY <img src="/crux-logo.png" alt="CRUX" style={{ height: "18px", objectFit: "contain", opacity: 0.7 }} />
+            POWERED BY <a href="https://crux.media/" target="_blank" rel="noopener noreferrer"><img src="/crux-logo.png" alt="CRUX" style={{ height: "18px", objectFit: "contain", opacity: 0.7 }} /></a>
           </div>
         </div>
         <div style={{ flex: 1 }} />
@@ -2464,7 +2464,7 @@ export default function App() {
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
               <img src="/Full_View_Logo.png" alt="Full View Analytics" style={{ height: "56px", objectFit: "contain" }} />
               <div style={{ fontSize: "12px", color: "#9E9E9E", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
-                Powered by <img src="/crux-logo.png" alt="CRUX" style={{ height: "18px", objectFit: "contain", opacity: 0.7 }} />
+                Powered by <a href="https://crux.media/" target="_blank" rel="noopener noreferrer"><img src="/crux-logo.png" alt="CRUX" style={{ height: "18px", objectFit: "contain", opacity: 0.7 }} /></a>
               </div>
             </div>
             <div style={{ fontSize: "12px", color: "#666", fontStyle: "italic" }}>
