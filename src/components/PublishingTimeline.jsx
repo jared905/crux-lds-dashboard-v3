@@ -265,6 +265,25 @@ export default function PublishingTimeline({ rows, dateRange = '28d' }) {
         </div>
       </div>
 
+      {/* Label row */}
+      <div style={{
+        display: "flex",
+        justifyContent: "center",
+        marginBottom: "8px",
+        paddingBottom: "8px",
+        borderBottom: "1px solid #333"
+      }}>
+        <div style={{
+          fontSize: "10px",
+          color: "#888",
+          textTransform: "uppercase",
+          letterSpacing: "0.5px",
+          fontWeight: "600"
+        }}>
+          Total Uploads
+        </div>
+      </div>
+
       <div style={{ position: "relative" }}>
         <div style={s.chart}>
           {/* Average line */}
