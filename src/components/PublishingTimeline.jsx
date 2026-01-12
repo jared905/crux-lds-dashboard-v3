@@ -171,7 +171,11 @@ export default function PublishingTimeline({ rows, dateRange = '28d' }) {
       height: `${height}px`,
       backgroundColor: color,
       borderRadius: "4px 4px 0 0",
-      transition: "all 0.2s"
+      transition: "all 0.2s",
+      position: "relative",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
     }),
     weekLabel: {
       fontSize: "10px",
@@ -317,8 +321,34 @@ function WeekBar({ week, maxUploads, chartHeight, formatDate, s }) {
       {week.total > 0 && <div style={s.count(true)}>{week.total}</div>}
 
       <div style={s.barStack}>
-        {week.shorts > 0 && <div style={s.bar(shortsHeight, "#f97316")} />}
-        {week.longs > 0 && <div style={s.bar(longsHeight, "#0ea5e9")} />}
+        {week.shorts > 0 && (
+          <div style={s.bar(shortsHeight, "#f97316")}>
+            {shortsHeight > 20 && (
+              <span style={{
+                fontSize: "10px",
+                fontWeight: "700",
+                color: "#fff",
+                textShadow: "0 1px 2px rgba(0,0,0,0.3)"
+              }}>
+                {week.shorts}
+              </span>
+            )}
+          </div>
+        )}
+        {week.longs > 0 && (
+          <div style={s.bar(longsHeight, "#0ea5e9")}>
+            {longsHeight > 20 && (
+              <span style={{
+                fontSize: "10px",
+                fontWeight: "700",
+                color: "#fff",
+                textShadow: "0 1px 2px rgba(0,0,0,0.3)"
+              }}>
+                {week.longs}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={s.weekLabel}>{formatDate(week.weekStart)}</div>
