@@ -1616,7 +1616,7 @@ export default function App() {
                               fill="none"
                               stroke="#f97316"
                               strokeWidth="18"
-                              strokeDasharray={`${(kpis.shortsMetrics.views / (kpis.shortsMetrics.views + kpis.longsMetrics.views)) * 219.8} 219.8`}
+                              strokeDasharray={`${((kpis.shortsMetrics.views + kpis.longsMetrics.views) > 0 ? (kpis.shortsMetrics.views / (kpis.shortsMetrics.views + kpis.longsMetrics.views)) : 0.5) * 219.8} 219.8`}
                               transform="rotate(-90 50 50)"
                               strokeLinecap="round"
                             />
@@ -1627,8 +1627,8 @@ export default function App() {
                               fill="none"
                               stroke="#0ea5e9"
                               strokeWidth="18"
-                              strokeDasharray={`${(kpis.longsMetrics.views / (kpis.shortsMetrics.views + kpis.longsMetrics.views)) * 219.8} 219.8`}
-                              transform={`rotate(${(kpis.shortsMetrics.views / (kpis.shortsMetrics.views + kpis.longsMetrics.views)) * 360 - 90} 50 50)`}
+                              strokeDasharray={`${((kpis.shortsMetrics.views + kpis.longsMetrics.views) > 0 ? (kpis.longsMetrics.views / (kpis.shortsMetrics.views + kpis.longsMetrics.views)) : 0.5) * 219.8} 219.8`}
+                              transform={`rotate(${((kpis.shortsMetrics.views + kpis.longsMetrics.views) > 0 ? (kpis.shortsMetrics.views / (kpis.shortsMetrics.views + kpis.longsMetrics.views)) : 0.5) * 360 - 90} 50 50)`}
                               strokeLinecap="round"
                             />
                           </svg>
@@ -1687,7 +1687,7 @@ export default function App() {
                               fill="none"
                               stroke="#f97316"
                               strokeWidth="18"
-                              strokeDasharray={`${(kpis.shortsMetrics.subs / (kpis.shortsMetrics.subs + kpis.longsMetrics.subs)) * 219.8} 219.8`}
+                              strokeDasharray={`${((kpis.shortsMetrics.subs + kpis.longsMetrics.subs) > 0 ? (kpis.shortsMetrics.subs / (kpis.shortsMetrics.subs + kpis.longsMetrics.subs)) : 0.5) * 219.8} 219.8`}
                               transform="rotate(-90 50 50)"
                               strokeLinecap="round"
                             />
@@ -1698,8 +1698,8 @@ export default function App() {
                               fill="none"
                               stroke="#0ea5e9"
                               strokeWidth="18"
-                              strokeDasharray={`${(kpis.longsMetrics.subs / (kpis.shortsMetrics.subs + kpis.longsMetrics.subs)) * 219.8} 219.8`}
-                              transform={`rotate(${(kpis.shortsMetrics.subs / (kpis.shortsMetrics.subs + kpis.longsMetrics.subs)) * 360 - 90} 50 50)`}
+                              strokeDasharray={`${((kpis.shortsMetrics.subs + kpis.longsMetrics.subs) > 0 ? (kpis.longsMetrics.subs / (kpis.shortsMetrics.subs + kpis.longsMetrics.subs)) : 0.5) * 219.8} 219.8`}
+                              transform={`rotate(${((kpis.shortsMetrics.subs + kpis.longsMetrics.subs) > 0 ? (kpis.shortsMetrics.subs / (kpis.shortsMetrics.subs + kpis.longsMetrics.subs)) : 0.5) * 360 - 90} 50 50)`}
                               strokeLinecap="round"
                             />
                           </svg>
@@ -1758,7 +1758,7 @@ export default function App() {
                               fill="none"
                               stroke="#f97316"
                               strokeWidth="18"
-                              strokeDasharray={`${(kpis.shortsMetrics.imps / (kpis.shortsMetrics.imps + kpis.longsMetrics.imps)) * 219.8} 219.8`}
+                              strokeDasharray={`${((kpis.shortsMetrics.imps + kpis.longsMetrics.imps) > 0 ? (kpis.shortsMetrics.imps / (kpis.shortsMetrics.imps + kpis.longsMetrics.imps)) : 0.5) * 219.8} 219.8`}
                               transform="rotate(-90 50 50)"
                               strokeLinecap="round"
                             />
@@ -1769,8 +1769,8 @@ export default function App() {
                               fill="none"
                               stroke="#0ea5e9"
                               strokeWidth="18"
-                              strokeDasharray={`${(kpis.longsMetrics.imps / (kpis.shortsMetrics.imps + kpis.longsMetrics.imps)) * 219.8} 219.8`}
-                              transform={`rotate(${(kpis.shortsMetrics.imps / (kpis.shortsMetrics.imps + kpis.longsMetrics.imps)) * 360 - 90} 50 50)`}
+                              strokeDasharray={`${((kpis.shortsMetrics.imps + kpis.longsMetrics.imps) > 0 ? (kpis.longsMetrics.imps / (kpis.shortsMetrics.imps + kpis.longsMetrics.imps)) : 0.5) * 219.8} 219.8`}
+                              transform={`rotate(${((kpis.shortsMetrics.imps + kpis.longsMetrics.imps) > 0 ? (kpis.shortsMetrics.imps / (kpis.shortsMetrics.imps + kpis.longsMetrics.imps)) : 0.5) * 360 - 90} 50 50)`}
                               strokeLinecap="round"
                             />
                           </svg>
