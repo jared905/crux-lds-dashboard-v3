@@ -31,7 +31,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange }) {
       container.style.left = '-9999px';
       container.style.width = '1200px';
       container.style.backgroundColor = '#ffffff';
-      container.style.padding = '60px';
+      container.style.padding = '40px';
       container.style.fontFamily = 'system-ui, -apple-system, sans-serif';
       document.body.appendChild(container);
 
@@ -46,111 +46,115 @@ export default function PDFExport({ kpis, top, filtered, dateRange }) {
       container.innerHTML = `
         <div style="max-width: 1080px; margin: 0 auto;">
           <!-- Header -->
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #2563eb;">
-            <div>
-              <h1 style="margin: 0; font-size: 32px; font-weight: 700; color: #1e293b;">YouTube Performance Report</h1>
-              <p style="margin: 8px 0 0 0; font-size: 16px; color: #64748b;">${dateLabel} • Generated ${dateStr}</p>
-            </div>
-            <div style="text-align: right; color: #94a3b8; font-size: 14px;">
-              <div style="font-weight: 600; color: #2563eb; font-size: 18px;">CRUX</div>
-              <div style="font-size: 12px; margin-top: 4px;">Leadership Dashboard</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 36px; padding-bottom: 20px; border-bottom: 3px solid #2563eb;">
+            <div style="display: flex; align-items: center; gap: 20px;">
+              <div style="background: #1a1a1a; padding: 16px 20px; border-radius: 10px;">
+                <img src="/Full_View_Logo.png" alt="Full View Analytics" style="height: 85px; object-fit: contain; display: block;" />
+              </div>
+              <div style="border-left: 2px solid #cbd5e1; padding-left: 20px;">
+                <h1 style="margin: 0; font-size: 38px; font-weight: 700; color: #1e293b; line-height: 1.2;">Strategic YouTube Insights</h1>
+                <p style="margin: 8px 0 0 0; font-size: 18px; color: #64748b; font-weight: 500;">${dateLabel} • ${dateStr}</p>
+              </div>
             </div>
           </div>
 
           <!-- Key Metrics Grid -->
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 48px;">
-            <div style="background: #f8fafc; padding: 24px; border-radius: 12px; border-left: 4px solid #2563eb;">
-              <div style="font-size: 14px; color: #64748b; font-weight: 600; margin-bottom: 8px;">TOTAL VIEWS</div>
-              <div style="font-size: 36px; font-weight: 700; color: #1e293b;">${kpis.views.toLocaleString()}</div>
-              ${kpis.viewsChange !== undefined ? `<div style="font-size: 13px; color: ${kpis.viewsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 8px;">${kpis.viewsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.viewsChange).toFixed(1)}% vs previous period</div>` : ''}
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 40px;">
+            <div style="background: #f8fafc; padding: 28px; border-radius: 14px; border-left: 5px solid #2563eb;">
+              <div style="font-size: 16px; color: #64748b; font-weight: 600; margin-bottom: 10px; letter-spacing: 0.5px;">TOTAL VIEWS</div>
+              <div style="font-size: 42px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.views.toLocaleString()}</div>
+              ${kpis.viewsChange !== undefined ? `<div style="font-size: 15px; color: ${kpis.viewsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 10px; font-weight: 600;">${kpis.viewsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.viewsChange).toFixed(1)}% vs previous period</div>` : ''}
             </div>
 
-            <div style="background: #f8fafc; padding: 24px; border-radius: 12px; border-left: 4px solid #16a34a;">
-              <div style="font-size: 14px; color: #64748b; font-weight: 600; margin-bottom: 8px;">WATCH HOURS</div>
-              <div style="font-size: 36px; font-weight: 700; color: #1e293b;">${kpis.watchHours.toLocaleString()}</div>
-              ${kpis.watchHoursChange !== undefined ? `<div style="font-size: 13px; color: ${kpis.watchHoursChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 8px;">${kpis.watchHoursChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.watchHoursChange).toFixed(1)}% vs previous period</div>` : ''}
+            <div style="background: #f8fafc; padding: 28px; border-radius: 14px; border-left: 5px solid #16a34a;">
+              <div style="font-size: 16px; color: #64748b; font-weight: 600; margin-bottom: 10px; letter-spacing: 0.5px;">WATCH HOURS</div>
+              <div style="font-size: 42px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.watchHours.toLocaleString()}</div>
+              ${kpis.watchHoursChange !== undefined ? `<div style="font-size: 15px; color: ${kpis.watchHoursChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 10px; font-weight: 600;">${kpis.watchHoursChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.watchHoursChange).toFixed(1)}% vs previous period</div>` : ''}
             </div>
 
-            <div style="background: #f8fafc; padding: 24px; border-radius: 12px; border-left: 4px solid #f59e0b;">
-              <div style="font-size: 14px; color: #64748b; font-weight: 600; margin-bottom: 8px;">SUBSCRIBERS</div>
-              <div style="font-size: 36px; font-weight: 700; color: #1e293b;">${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}</div>
-              ${kpis.subsChange !== undefined ? `<div style="font-size: 13px; color: ${kpis.subsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 8px;">${kpis.subsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.subsChange).toFixed(1)}% vs previous period</div>` : ''}
+            <div style="background: #f8fafc; padding: 28px; border-radius: 14px; border-left: 5px solid #f59e0b;">
+              <div style="font-size: 16px; color: #64748b; font-weight: 600; margin-bottom: 10px; letter-spacing: 0.5px;">SUBSCRIBERS</div>
+              <div style="font-size: 42px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}</div>
+              ${kpis.subsChange !== undefined ? `<div style="font-size: 15px; color: ${kpis.subsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 10px; font-weight: 600;">${kpis.subsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.subsChange).toFixed(1)}% vs previous period</div>` : ''}
             </div>
           </div>
 
           <!-- Content Performance -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 48px;">
-            <div style="background: #fff7ed; padding: 24px; border-radius: 12px; border: 2px solid #f97316;">
-              <div style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">📱 Shorts Performance</div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px;">
+            <div style="background: #fff7ed; padding: 24px; border-radius: 14px; border: 3px solid #f97316;">
+              <div style="font-size: 24px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">📱 Shorts Performance</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;">
                 <div>
-                  <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">Videos</div>
-                  <div style="font-size: 24px; font-weight: 700; color: #f97316;">${kpis.shortsMetrics.count}</div>
+                  <div style="font-size: 15px; color: #64748b; margin-bottom: 8px; font-weight: 600;">Videos</div>
+                  <div style="font-size: 32px; font-weight: 700; color: #f97316;">${kpis.shortsMetrics.count}</div>
                 </div>
                 <div>
-                  <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">Views</div>
-                  <div style="font-size: 24px; font-weight: 700; color: #f97316;">${(kpis.shortsMetrics.views / 1000).toFixed(1)}K</div>
+                  <div style="font-size: 15px; color: #64748b; margin-bottom: 8px; font-weight: 600;">Views</div>
+                  <div style="font-size: 32px; font-weight: 700; color: #f97316;">${(kpis.shortsMetrics.views / 1000).toFixed(1)}K</div>
                 </div>
                 <div>
-                  <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">Avg CTR</div>
-                  <div style="font-size: 20px; font-weight: 600; color: #1e293b;">${(kpis.shortsMetrics.avgCtr * 100).toFixed(1)}%</div>
+                  <div style="font-size: 15px; color: #64748b; margin-bottom: 8px; font-weight: 600;">Avg CTR</div>
+                  <div style="font-size: 28px; font-weight: 600; color: #1e293b;">${(kpis.shortsMetrics.avgCtr * 100).toFixed(1)}%</div>
                 </div>
                 <div>
-                  <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">Avg Retention</div>
-                  <div style="font-size: 20px; font-weight: 600; color: #1e293b;">${(kpis.shortsMetrics.avgRet * 100).toFixed(1)}%</div>
+                  <div style="font-size: 15px; color: #64748b; margin-bottom: 8px; font-weight: 600;">Avg Retention</div>
+                  <div style="font-size: 28px; font-weight: 600; color: #1e293b;">${(kpis.shortsMetrics.avgRet * 100).toFixed(1)}%</div>
                 </div>
               </div>
             </div>
 
-            <div style="background: #eff6ff; padding: 24px; border-radius: 12px; border: 2px solid #0ea5e9;">
-              <div style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">🎥 Long-form Performance</div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div style="background: #eff6ff; padding: 24px; border-radius: 14px; border: 3px solid #0ea5e9;">
+              <div style="font-size: 24px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">🎥 Long-form Performance</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;">
                 <div>
-                  <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">Videos</div>
-                  <div style="font-size: 24px; font-weight: 700; color: #0ea5e9;">${kpis.longsMetrics.count}</div>
+                  <div style="font-size: 15px; color: #64748b; margin-bottom: 8px; font-weight: 600;">Videos</div>
+                  <div style="font-size: 32px; font-weight: 700; color: #0ea5e9;">${kpis.longsMetrics.count}</div>
                 </div>
                 <div>
-                  <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">Views</div>
-                  <div style="font-size: 24px; font-weight: 700; color: #0ea5e9;">${(kpis.longsMetrics.views / 1000).toFixed(1)}K</div>
+                  <div style="font-size: 15px; color: #64748b; margin-bottom: 8px; font-weight: 600;">Views</div>
+                  <div style="font-size: 32px; font-weight: 700; color: #0ea5e9;">${(kpis.longsMetrics.views / 1000).toFixed(1)}K</div>
                 </div>
                 <div>
-                  <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">Avg CTR</div>
-                  <div style="font-size: 20px; font-weight: 600; color: #1e293b;">${(kpis.longsMetrics.avgCtr * 100).toFixed(1)}%</div>
+                  <div style="font-size: 15px; color: #64748b; margin-bottom: 8px; font-weight: 600;">Avg CTR</div>
+                  <div style="font-size: 28px; font-weight: 600; color: #1e293b;">${(kpis.longsMetrics.avgCtr * 100).toFixed(1)}%</div>
                 </div>
                 <div>
-                  <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">Avg Retention</div>
-                  <div style="font-size: 20px; font-weight: 600; color: #1e293b;">${(kpis.longsMetrics.avgRet * 100).toFixed(1)}%</div>
+                  <div style="font-size: 15px; color: #64748b; margin-bottom: 8px; font-weight: 600;">Avg Retention</div>
+                  <div style="font-size: 28px; font-weight: 600; color: #1e293b;">${(kpis.longsMetrics.avgRet * 100).toFixed(1)}%</div>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Top Performers -->
-          <div style="margin-bottom: 48px;">
-            <h2 style="font-size: 24px; font-weight: 700; color: #1e293b; margin-bottom: 24px;">🏆 Top Performing Videos</h2>
-            <div style="background: #f8fafc; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0;">
+          <div style="margin-bottom: 32px;">
+            <h2 style="font-size: 30px; font-weight: 700; color: #1e293b; margin-bottom: 20px;">🏆 Top Performing Videos</h2>
+            <div style="background: #f8fafc; border-radius: 14px; overflow: hidden; border: 2px solid #e2e8f0;">
               <table style="width: 100%; border-collapse: collapse;">
                 <thead>
                   <tr style="background: #e2e8f0;">
-                    <th style="text-align: left; padding: 12px 16px; font-size: 12px; color: #64748b; font-weight: 600;">TITLE</th>
-                    <th style="text-align: center; padding: 12px 16px; font-size: 12px; color: #64748b; font-weight: 600;">TYPE</th>
-                    <th style="text-align: right; padding: 12px 16px; font-size: 12px; color: #64748b; font-weight: 600;">VIEWS</th>
-                    <th style="text-align: right; padding: 12px 16px; font-size: 12px; color: #64748b; font-weight: 600;">CTR</th>
-                    <th style="text-align: right; padding: 12px 16px; font-size: 12px; color: #64748b; font-weight: 600;">RETENTION</th>
+                    <th style="text-align: left; padding: 16px 20px; font-size: 15px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TITLE</th>
+                    <th style="text-align: center; padding: 16px 20px; font-size: 15px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TYPE</th>
+                    <th style="text-align: right; padding: 16px 20px; font-size: 15px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">VIEWS</th>
+                    <th style="text-align: right; padding: 16px 20px; font-size: 15px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">CTR</th>
+                    <th style="text-align: right; padding: 16px 20px; font-size: 15px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">RETENTION</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${top.slice(0, 8).map((video, idx) => `
                     <tr style="border-bottom: 1px solid #e2e8f0;">
-                      <td style="padding: 14px 16px; font-size: 13px; color: #1e293b; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${video.title || 'Untitled'}</td>
-                      <td style="padding: 14px 16px; text-align: center;">
-                        <span style="display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; background: ${video.type === 'short' ? '#fff7ed' : '#eff6ff'}; color: ${video.type === 'short' ? '#f97316' : '#0ea5e9'};">
+                      <td style="padding: 18px 20px; font-size: 16px; color: #1e293b; max-width: 400px; font-weight: 500;">
+                        <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 5px;">${video.title || 'Untitled'}</div>
+                        ${video.channel ? `<div style="font-size: 13px; color: #94a3b8; font-weight: 400;">${video.channel}</div>` : ''}
+                      </td>
+                      <td style="padding: 18px 20px; text-align: center;">
+                        <span style="display: inline-block; padding: 6px 14px; border-radius: 7px; font-size: 13px; font-weight: 700; background: ${video.type === 'short' ? '#fff7ed' : '#eff6ff'}; color: ${video.type === 'short' ? '#f97316' : '#0ea5e9'};">
                           ${video.type === 'short' ? 'SHORT' : 'LONG'}
                         </span>
                       </td>
-                      <td style="padding: 14px 16px; text-align: right; font-size: 14px; font-weight: 600; color: #1e293b;">${(video.views || 0).toLocaleString()}</td>
-                      <td style="padding: 14px 16px; text-align: right; font-size: 13px; color: #64748b;">${((video.ctr || 0) * 100).toFixed(1)}%</td>
-                      <td style="padding: 14px 16px; text-align: right; font-size: 13px; color: #64748b;">${((video.retention || 0) * 100).toFixed(1)}%</td>
+                      <td style="padding: 18px 20px; text-align: right; font-size: 17px; font-weight: 600; color: #1e293b;">${(video.views || 0).toLocaleString()}</td>
+                      <td style="padding: 18px 20px; text-align: right; font-size: 16px; color: #64748b; font-weight: 500;">${((video.ctr || 0) * 100).toFixed(1)}%</td>
+                      <td style="padding: 18px 20px; text-align: right; font-size: 16px; color: #64748b; font-weight: 500;">${((video.retention || 0) * 100).toFixed(1)}%</td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -159,31 +163,36 @@ export default function PDFExport({ kpis, top, filtered, dateRange }) {
           </div>
 
           <!-- Summary Stats -->
-          <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 32px; border-radius: 12px; border: 2px solid #cbd5e1;">
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; text-align: center;">
+          <div style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 28px; border-radius: 14px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: center;">
               <div>
-                <div style="font-size: 14px; color: #64748b; margin-bottom: 8px;">Total Videos</div>
-                <div style="font-size: 32px; font-weight: 700; color: #1e293b;">${filtered.length}</div>
+                <div style="font-size: 16px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">TOTAL VIDEOS</div>
+                <div style="font-size: 38px; font-weight: 700; color: #ffffff;">${filtered.length}</div>
               </div>
               <div>
-                <div style="font-size: 14px; color: #64748b; margin-bottom: 8px;">Avg Views/Video</div>
-                <div style="font-size: 32px; font-weight: 700; color: #1e293b;">${filtered.length > 0 ? Math.round(kpis.views / filtered.length).toLocaleString() : '0'}</div>
+                <div style="font-size: 16px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">AVG VIEWS/VIDEO</div>
+                <div style="font-size: 38px; font-weight: 700; color: #ffffff;">${filtered.length > 0 ? Math.round(kpis.views / filtered.length).toLocaleString() : '0'}</div>
               </div>
               <div>
-                <div style="font-size: 14px; color: #64748b; margin-bottom: 8px;">Avg CTR</div>
-                <div style="font-size: 32px; font-weight: 700; color: #1e293b;">${(kpis.avgCtr * 100).toFixed(1)}%</div>
+                <div style="font-size: 16px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">AVG CTR</div>
+                <div style="font-size: 38px; font-weight: 700; color: #ffffff;">${(kpis.avgCtr * 100).toFixed(1)}%</div>
               </div>
               <div>
-                <div style="font-size: 14px; color: #64748b; margin-bottom: 8px;">Avg Retention</div>
-                <div style="font-size: 32px; font-weight: 700; color: #1e293b;">${(kpis.avgRet * 100).toFixed(1)}%</div>
+                <div style="font-size: 16px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">AVG RETENTION</div>
+                <div style="font-size: 38px; font-weight: 700; color: #ffffff;">${(kpis.avgRet * 100).toFixed(1)}%</div>
               </div>
             </div>
           </div>
 
           <!-- Footer -->
-          <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 12px;">
-            <div>Generated by CRUX Leadership Dashboard • ${dateStr}</div>
-            <div style="margin-top: 8px; color: #cbd5e1;">This report contains confidential information</div>
+          <div style="margin-top: 28px; padding-top: 18px; border-top: 1px solid #e2e8f0; text-align: center;">
+            <div style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 8px;">
+              <span style="color: #64748b; font-size: 14px; font-weight: 500;">Generated by Full View Analytics</span>
+              <span style="color: #cbd5e1; font-size: 14px;">•</span>
+              <span style="color: #94a3b8; font-size: 14px; font-weight: 500;">Powered by</span>
+              <img src="/crux-logo.png" alt="CRUX" style="height: 32px; object-fit: contain; vertical-align: middle;" />
+            </div>
+            <div style="color: #cbd5e1; font-size: 13px;">${dateStr} • This report contains confidential information</div>
           </div>
         </div>
       `;

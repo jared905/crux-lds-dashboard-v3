@@ -521,7 +521,19 @@ export default function App() {
       watchHoursPerHour: longsMetrics.productionHours > 0 ? longsMetrics.watchHours / longsMetrics.productionHours : 0
     };
 
-    return { views, watchHours, subs, avgCtr, avgRet, shortsMetrics, longsMetrics, shortsROI, longsROI };
+    // Calculate period-over-period changes (will be populated after previousKpis is calculated)
+    return {
+      views,
+      watchHours,
+      subs,
+      avgCtr,
+      avgRet,
+      shortsMetrics,
+      longsMetrics,
+      shortsROI,
+      longsROI,
+      // Changes will be added by kpisWithChanges memo below
+    };
   }, [filtered]);
 
   // Calculate previous period KPIs for delta indicators
@@ -652,6 +664,21 @@ export default function App() {
     return { views, watchHours, subs, avgCtr, avgRet, shortsMetrics, longsMetrics, shortsROI, longsROI };
   }, [rows, dateRange, selectedChannel, query]);
 
+  // Combine KPIs with period-over-period changes
+  const kpisWithChanges = useMemo(() => {
+    const calculateChange = (current, previous) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return ((current - previous) / previous) * 100;
+    };
+
+    return {
+      ...kpis,
+      viewsChange: calculateChange(kpis.views, previousKpis.views),
+      watchHoursChange: calculateChange(kpis.watchHours, previousKpis.watchHours),
+      subsChange: calculateChange(kpis.subs, previousKpis.subs),
+    };
+  }, [kpis, previousKpis]);
+
   const top = useMemo(() => [...filtered].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 10), [filtered]);
 
   return (
@@ -711,7 +738,7 @@ export default function App() {
 
             {/* PDF Export Button */}
             <PDFExport
-              kpis={kpis}
+              kpis={kpisWithChanges}
               top={top}
               filtered={filtered}
               dateRange={dateRange}
