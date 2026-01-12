@@ -8,6 +8,7 @@ import CompetitorAnalysis from "./components/CompetitorAnalysis.jsx";
 import UploadCalendar from "./components/UploadCalendar.jsx";
 import PublishingTimeline from "./components/PublishingTimeline.jsx";
 import PublishingInsights from "./components/PublishingInsights.jsx";
+import PDFExport from "./components/PDFExport.jsx";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { Menu, X, Upload, Home, Database, Eye, Clock, Users, Target, BarChart3, Settings, TrendingUp, TrendingDown, ChevronDown, TrendingUpDown, MessageSquare, Video, PlaySquare, Activity } from "lucide-react";
@@ -707,6 +708,14 @@ export default function App() {
                 </span>
               </div>
             )}
+
+            {/* PDF Export Button */}
+            <PDFExport
+              kpis={kpis}
+              top={top}
+              filtered={filtered}
+              dateRange={dateRange}
+            />
             
             {/* Client Manager Button */}
             <ClientManager 
