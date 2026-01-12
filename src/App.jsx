@@ -5,6 +5,9 @@ import TopVideos from "./components/TopVideos.jsx";
 import ClientManager from "./ClientManager.jsx";
 import UnifiedStrategy from "./components/UnifiedStrategy.jsx";
 import CompetitorAnalysis from "./components/CompetitorAnalysis.jsx";
+import UploadCalendar from "./components/UploadCalendar.jsx";
+import PublishingTimeline from "./components/PublishingTimeline.jsx";
+import PublishingInsights from "./components/PublishingInsights.jsx";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { Menu, X, Upload, Home, Database, Eye, Clock, Users, Target, BarChart3, Settings, TrendingUp, TrendingDown, ChevronDown, TrendingUpDown, MessageSquare, Video, PlaySquare, Activity } from "lucide-react";
@@ -1381,6 +1384,11 @@ export default function App() {
 
                 {/* Top Videos */}
                 <TopVideos rows={filtered} n={8} />
+
+                {/* Upload Cadence Visualizations */}
+                <UploadCalendar rows={filtered} />
+                <PublishingTimeline rows={filtered} />
+                <PublishingInsights rows={filtered} />
 
                 {/* Brand Funnel - Conversion Funnel Analysis */}
                 <BrandFunnel rows={filtered} dateRange={dateRange} />
