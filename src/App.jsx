@@ -1386,8 +1386,8 @@ export default function App() {
                 <TopVideos rows={filtered} n={8} />
 
                 {/* Upload Cadence Visualizations */}
-                <UploadCalendar rows={filtered} />
-                <PublishingTimeline rows={filtered} />
+                <UploadCalendar rows={filtered} dateRange={dateRange} />
+                <PublishingTimeline rows={filtered} dateRange={dateRange} />
                 <PublishingInsights rows={filtered} />
 
                 {/* Brand Funnel - Conversion Funnel Analysis */}

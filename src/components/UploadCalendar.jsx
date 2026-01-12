@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
  * Upload Calendar Heatmap
  * GitHub-style contribution calendar showing upload patterns
  */
-export default function UploadCalendar({ rows }) {
+export default function UploadCalendar({ rows, dateRange = '28d' }) {
   const calendarData = useMemo(() => {
     if (!rows || rows.length === 0) return null;
 
@@ -12,15 +12,44 @@ export default function UploadCalendar({ rows }) {
     const videosWithDates = rows.filter(r => r.publishDate);
     if (videosWithDates.length === 0) return null;
 
-    // Find date range (last 12 weeks)
+    // Calculate time period based on dateRange
     const now = new Date();
-    const twelveWeeksAgo = new Date(now.getTime() - 12 * 7 * 24 * 60 * 60 * 1000);
+    let periodDays;
+    let numWeeks;
+
+    switch(dateRange) {
+      case '7d':
+        periodDays = 7;
+        numWeeks = 1;
+        break;
+      case '28d':
+        periodDays = 28;
+        numWeeks = 4;
+        break;
+      case '90d':
+        periodDays = 90;
+        numWeeks = 13;
+        break;
+      case 'ytd':
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
+        periodDays = Math.floor((now - startOfYear) / (1000 * 60 * 60 * 24));
+        numWeeks = Math.ceil(periodDays / 7);
+        break;
+      case 'all':
+      default:
+        // For "all", show last 12 weeks
+        periodDays = 84;
+        numWeeks = 12;
+        break;
+    }
+
+    const periodStart = new Date(now.getTime() - periodDays * 24 * 60 * 60 * 1000);
 
     // Group uploads by date
     const uploadsByDate = {};
     videosWithDates.forEach(video => {
       const date = new Date(video.publishDate);
-      if (date < twelveWeeksAgo) return; // Only show last 12 weeks
+      if (date < periodStart) return; // Only show selected period
 
       const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
       if (!uploadsByDate[dateKey]) {
@@ -36,13 +65,13 @@ export default function UploadCalendar({ rows }) {
       uploadsByDate[dateKey].videos.push(video);
     });
 
-    // Build 12 weeks of calendar data
+    // Build calendar data for the selected period
     const weeks = [];
-    const startDate = new Date(twelveWeeksAgo);
+    const startDate = new Date(periodStart);
     // Start from the most recent Sunday
     startDate.setDate(startDate.getDate() - startDate.getDay());
 
-    for (let week = 0; week < 12; week++) {
+    for (let week = 0; week < numWeeks; week++) {
       const days = [];
       for (let day = 0; day < 7; day++) {
         const currentDate = new Date(startDate);
@@ -66,12 +95,20 @@ export default function UploadCalendar({ rows }) {
     const daysWithUploads = Object.keys(uploadsByDate).length;
     const avgUploadsPerDay = daysWithUploads > 0 ? totalUploads / daysWithUploads : 0;
 
-    return { weeks, totalUploads, daysWithUploads, avgUploadsPerDay };
-  }, [rows]);
+    return { weeks, totalUploads, daysWithUploads, avgUploadsPerDay, numWeeks };
+  }, [rows, dateRange]);
 
   if (!calendarData) return null;
 
-  const { weeks, totalUploads, daysWithUploads } = calendarData;
+  const { weeks, totalUploads, daysWithUploads, numWeeks } = calendarData;
+
+  // Generate description based on date range
+  const getPeriodDescription = () => {
+    if (numWeeks === 1) return '7 days';
+    if (numWeeks === 4) return '4 weeks';
+    if (numWeeks === 13) return '90 days';
+    return `${numWeeks} weeks`;
+  };
 
   // Styles
   const s = {
@@ -199,7 +236,7 @@ export default function UploadCalendar({ rows }) {
         <div style={s.stats}>
           <div style={s.stat}>
             <span>{totalUploads}</span>
-            <span>uploads in 12 weeks</span>
+            <span>uploads in {getPeriodDescription()}</span>
           </div>
           <div style={s.stat}>
             <span style={s.statValue}>{daysWithUploads}</span>

@@ -4,25 +4,54 @@ import React, { useMemo } from "react";
  * Publishing Pattern Timeline
  * Shows uploads per week over time with shorts/longs breakdown
  */
-export default function PublishingTimeline({ rows }) {
+export default function PublishingTimeline({ rows, dateRange = '28d' }) {
   const timelineData = useMemo(() => {
     if (!rows || rows.length === 0) return null;
 
     const videosWithDates = rows.filter(r => r.publishDate);
     if (videosWithDates.length === 0) return null;
 
-    // Get last 12 weeks of data
+    // Calculate time period based on dateRange
     const now = new Date();
-    const twelveWeeksAgo = new Date(now.getTime() - 12 * 7 * 24 * 60 * 60 * 1000);
+    let periodDays;
+    let numWeeks;
+
+    switch(dateRange) {
+      case '7d':
+        periodDays = 7;
+        numWeeks = 1;
+        break;
+      case '28d':
+        periodDays = 28;
+        numWeeks = 4;
+        break;
+      case '90d':
+        periodDays = 90;
+        numWeeks = 13;
+        break;
+      case 'ytd':
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
+        periodDays = Math.floor((now - startOfYear) / (1000 * 60 * 60 * 24));
+        numWeeks = Math.ceil(periodDays / 7);
+        break;
+      case 'all':
+      default:
+        // For "all", show last 12 weeks
+        periodDays = 84;
+        numWeeks = 12;
+        break;
+    }
+
+    const periodStart = new Date(now.getTime() - periodDays * 24 * 60 * 60 * 1000);
 
     // Group by week
     const weeklyData = {};
     videosWithDates.forEach(video => {
       const date = new Date(video.publishDate);
-      if (date < twelveWeeksAgo) return;
+      if (date < periodStart) return;
 
-      // Get week number (starting from twelveWeeksAgo)
-      const weekNumber = Math.floor((date - twelveWeeksAgo) / (7 * 24 * 60 * 60 * 1000));
+      // Get week number (starting from periodStart)
+      const weekNumber = Math.floor((date - periodStart) / (7 * 24 * 60 * 60 * 1000));
 
       if (!weeklyData[weekNumber]) {
         weeklyData[weekNumber] = {
@@ -47,11 +76,11 @@ export default function PublishingTimeline({ rows }) {
 
     // Fill in missing weeks with zeros
     const weeks = [];
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < numWeeks; i++) {
       const weekData = weeklyData[i] || { week: i, shorts: 0, longs: 0, total: 0, totalViews: 0, videos: [] };
 
       // Calculate week start date
-      const weekStart = new Date(twelveWeeksAgo);
+      const weekStart = new Date(periodStart);
       weekStart.setDate(weekStart.getDate() + (i * 7));
 
       weeks.push({
@@ -63,15 +92,22 @@ export default function PublishingTimeline({ rows }) {
 
     // Calculate averages
     const totalUploads = weeks.reduce((sum, w) => sum + w.total, 0);
-    const avgUploadsPerWeek = totalUploads / 12;
+    const avgUploadsPerWeek = numWeeks > 0 ? totalUploads / numWeeks : 0;
     const maxUploads = Math.max(...weeks.map(w => w.total), 1);
 
-    return { weeks, avgUploadsPerWeek, maxUploads };
-  }, [rows]);
+    return { weeks, avgUploadsPerWeek, maxUploads, numWeeks, periodDays };
+  }, [rows, dateRange]);
 
   if (!timelineData) return null;
 
-  const { weeks, avgUploadsPerWeek, maxUploads } = timelineData;
+  const { weeks, avgUploadsPerWeek, maxUploads, numWeeks } = timelineData;
+
+  // Generate subtitle based on date range
+  const getSubtitle = () => {
+    if (numWeeks === 1) return 'Daily uploads (last 7 days)';
+    if (numWeeks <= 4) return `Uploads per week (last ${numWeeks} weeks)`;
+    return `Uploads per week (last ${numWeeks} weeks)`;
+  };
 
   const s = {
     container: {
@@ -217,7 +253,7 @@ export default function PublishingTimeline({ rows }) {
       <div style={s.header}>
         <div>
           <div style={s.title}>📈 Publishing Pattern</div>
-          <div style={s.subtitle}>Uploads per week (last 12 weeks)</div>
+          <div style={s.subtitle}>{getSubtitle()}</div>
         </div>
         <div style={s.avg}>
           <div style={s.avgValue}>{avgUploadsPerWeek.toFixed(1)}</div>
