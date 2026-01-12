@@ -437,6 +437,8 @@ export default function App() {
       let startDate;
       if (dateRange === "ytd") {
         startDate = new Date(now.getFullYear(), 0, 1);
+      } else if (dateRange === "7d") {
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       } else if (dateRange === "28d") {
         startDate = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
       } else if (dateRange === "90d") {
@@ -537,6 +539,11 @@ export default function App() {
 
     // Define current and previous periods based on dateRange filter
     switch(dateRange) {
+      case '7d':
+        currentStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        previousStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+        previousEnd = currentStart;
+        break;
       case '28d':
         currentStart = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
         previousStart = new Date(now.getTime() - 56 * 24 * 60 * 60 * 1000);
@@ -730,6 +737,7 @@ export default function App() {
                   <option value="ytd">YTD</option>
                   <option value="90d">90 Days</option>
                   <option value="28d">28 Days</option>
+                  <option value="7d">7 Days</option>
                 </select>
               </div>
 
@@ -1035,6 +1043,7 @@ export default function App() {
                       {dateRange === "all" ? "All Time Performance" :
                        dateRange === "ytd" ? "Year-to-Date Performance" :
                        dateRange === "90d" ? "Last 90 Days Performance" :
+                       dateRange === "7d" ? "Last 7 Days Performance" :
                        "Last 28 Days Performance"}
                     </div>
                   </div>
@@ -1072,7 +1081,8 @@ export default function App() {
                           // Calculate days in current period for upload frequency
                           const now = new Date();
                           let daysInPeriod = 30;
-                          if (dateRange === '28d') daysInPeriod = 28;
+                          if (dateRange === '7d') daysInPeriod = 7;
+                          else if (dateRange === '28d') daysInPeriod = 28;
                           else if (dateRange === '90d') daysInPeriod = 90;
                           else if (dateRange === 'ytd') {
                             const startOfYear = new Date(now.getFullYear(), 0, 1);
@@ -1229,7 +1239,8 @@ export default function App() {
                           // Calculate days in current period for upload frequency
                           const now = new Date();
                           let daysInPeriod = 30;
-                          if (dateRange === '28d') daysInPeriod = 28;
+                          if (dateRange === '7d') daysInPeriod = 7;
+                          else if (dateRange === '28d') daysInPeriod = 28;
                           else if (dateRange === '90d') daysInPeriod = 90;
                           else if (dateRange === 'ytd') {
                             const startOfYear = new Date(now.getFullYear(), 0, 1);
@@ -2290,7 +2301,7 @@ export default function App() {
                   <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
                     <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>📊 Executive Summary</div>
                     <div style={{ fontSize: "12px", color: "#9E9E9E", background: "#252525", padding: "4px 10px", borderRadius: "6px" }}>
-                      {dateRange === "all" ? "All Time" : dateRange === "ytd" ? "Year to Date" : dateRange === "90d" ? "Last 90 Days" : "Last 28 Days"}
+                      {dateRange === "all" ? "All Time" : dateRange === "ytd" ? "Year to Date" : dateRange === "90d" ? "Last 90 Days" : dateRange === "7d" ? "Last 7 Days" : "Last 28 Days"}
                     </div>
                   </div>
 
