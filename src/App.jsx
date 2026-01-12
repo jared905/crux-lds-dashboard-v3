@@ -1034,17 +1034,10 @@ export default function App() {
                     background: "linear-gradient(90deg, #f97316 0%, #0ea5e9 100%)"
                   }} />
 
-                  {/* Header with date range */}
+                  {/* Header */}
                   <div style={{ marginBottom: "24px" }}>
-                    <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", marginBottom: "6px" }}>
+                    <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
                       Performance Metrics
-                    </div>
-                    <div style={{ fontSize: "13px", color: "#888" }}>
-                      {dateRange === "all" ? "All Time Performance" :
-                       dateRange === "ytd" ? "Year-to-Date Performance" :
-                       dateRange === "90d" ? "Last 90 Days Performance" :
-                       dateRange === "7d" ? "Last 7 Days Performance" :
-                       "Last 28 Days Performance"}
                     </div>
                   </div>
 
@@ -2300,9 +2293,6 @@ export default function App() {
                   
                   <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
                     <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>📊 Executive Summary</div>
-                    <div style={{ fontSize: "12px", color: "#9E9E9E", background: "#252525", padding: "4px 10px", borderRadius: "6px" }}>
-                      {dateRange === "all" ? "All Time" : dateRange === "ytd" ? "Year to Date" : dateRange === "90d" ? "Last 90 Days" : dateRange === "7d" ? "Last 7 Days" : "Last 28 Days"}
-                    </div>
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "12px" }}>
