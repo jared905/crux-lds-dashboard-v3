@@ -22,14 +22,18 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0 }) {
 
     if (!rows || rows.length === 0) return defaultBaselines;
 
-    // Filter for recent data (last 12 months) for more accurate baselines
+    // Filter for recent data (last 12 months) for CTR/retention baselines
     const cutoffDate = new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - 12);
-    
+
     const recentRows = rows.filter(r => {
-      if (!r.publishedAt) return true;
-      return new Date(r.publishedAt) >= cutoffDate;
+      if (!r.publishDate) return true;
+      return new Date(r.publishDate) >= cutoffDate;
     });
+
+    // For content cadence, use ALL uploads to get accurate frequency
+    const allLongs = rows.filter(r => r.type !== 'short' && !r.isTotal);
+    const allShorts = rows.filter(r => r.type === 'short' && !r.isTotal);
 
     const longs = recentRows.filter(r => r.type !== 'short');
     const shorts = recentRows.filter(r => r.type === 'short');
@@ -53,15 +57,41 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0 }) {
     const totalShortViews = shorts.reduce((a, r) => a + r.views, 0);
     const shortConvRate = totalShortViews > 0 ? totalShortSubs / totalShortViews : defaultBaselines.shortConvRate;
 
-    const avgCtr = recentRows.length ? recentRows.reduce((a, r) => a + (r.ctr || 0), 0) / recentRows.length : defaultBaselines.avgCtr;
+    // Use ONLY long-form CTR since it has the most impact on growth
+    // Shorts CTR is typically higher but less meaningful for subscriber conversion
+    const avgCtr = longs.length
+      ? longs.reduce((a, r) => a + (r.ctr || 0), 0) / longs.length
+      : defaultBaselines.avgCtr;
+
     const avgRet = recentRows.length ? recentRows.reduce((a, r) => a + (r.retention || r.avgViewDuration / r.duration || 0.5), 0) / recentRows.length : defaultBaselines.avgRet;
 
     const totalSubs = totalLongSubs + totalShortSubs;
     const totalViews = totalLongViews + totalShortViews;
     const avgConv = totalViews > 0 ? totalSubs / totalViews : defaultBaselines.avgConv;
 
-    const currentLongFreq = Math.max(1, Math.round(longs.length / 12));
-    const currentShortFreq = Math.max(1, Math.round(shorts.length / 12));
+    // Calculate actual monthly cadence from ALL uploads to get true posting frequency
+    // Find the date range of all uploads
+    const calculateCadence = (videos) => {
+      if (videos.length === 0) return 0;
+
+      // Get videos with valid dates
+      const datedVideos = videos.filter(v => v.publishDate);
+      if (datedVideos.length === 0) return videos.length; // Fallback if no dates
+
+      // Find earliest and latest publish dates
+      const dates = datedVideos.map(v => new Date(v.publishDate).getTime());
+      const earliest = Math.min(...dates);
+      const latest = Math.max(...dates);
+
+      // Calculate months between first and last upload
+      const monthsSpan = Math.max(1, (latest - earliest) / (1000 * 60 * 60 * 24 * 30));
+
+      // Videos per month = total videos / months span
+      return Math.round(datedVideos.length / monthsSpan);
+    };
+
+    const currentLongFreq = calculateCadence(allLongs) || defaultBaselines.currentLongFreq;
+    const currentShortFreq = calculateCadence(allShorts) || defaultBaselines.currentShortFreq;
 
     return {
       avgLongViews: Math.round(avgLongViews),

@@ -11,7 +11,14 @@ import PublishingInsights from "./components/PublishingInsights.jsx";
 import PDFExport from "./components/PDFExport.jsx";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
-import { Menu, X, Upload, Home, Database, Eye, Clock, Users, Target, BarChart3, Settings, TrendingUp, TrendingDown, ChevronDown, TrendingUpDown, MessageSquare, Video, PlaySquare, Activity } from "lucide-react";
+import { Menu, X, Upload, Home, Database, Eye, Clock, Users, Target, BarChart3, Settings, TrendingUp, TrendingDown, ChevronDown, TrendingUpDown, MessageSquare, Video, PlaySquare, Activity, Sparkles, Lightbulb, Key } from "lucide-react";
+
+// AI-Powered Components
+import APISettings from "./components/APISettings.jsx";
+import VideoIdeaGenerator from "./components/VideoIdeaGenerator.jsx";
+import CommentAnalysis from "./components/CommentAnalysis.jsx";
+import EnhancedContentIntelligence from "./components/EnhancedContentIntelligence.jsx";
+import AIExecutiveSummary from "./components/AIExecutiveSummary.jsx";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -19,13 +26,10 @@ const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
 const normalizeData = (rawData) => {
   if (!Array.isArray(rawData)) return [];
 
-  // Filter out invalid rows BEFORE processing
+  // PRESERVE the Total row but mark it specially
+  // We'll need it later to extract current subscriber count
   const filteredData = rawData.filter(r => {
     const title = r['Video title'] || r.title || "";
-    const titleLower = title.toLowerCase().trim();
-
-    // Remove rows with "Total" as title (case-insensitive)
-    if (titleLower === "total") return false;
 
     // Remove rows with no title or empty title
     if (!title || title.trim() === "") return false;
@@ -80,6 +84,10 @@ const normalizeData = (rawData) => {
     // Extract channel from Content column if available, otherwise use default
     const channel = r['Content'] || r.channel || "Main Channel";
 
+    // Check if this is the Total row
+    const titleLower = title.toLowerCase().trim();
+    const isTotal = titleLower === "total";
+
     return {
       channel: String(channel).trim(),
       title: title,
@@ -93,12 +101,14 @@ const normalizeData = (rawData) => {
       avgViewPct: retention,
       type: type.toLowerCase(),
       publishDate: publishDate ? new Date(publishDate).toISOString() : null,
-      video_id: r['Content'] || r.videoId || `vid-${Date.now()}-${Math.random()}`
+      video_id: r['Content'] || r.videoId || `vid-${Date.now()}-${Math.random()}`,
+      isTotal: isTotal  // Mark the Total row so we can filter it later
     };
   });
 
-  // Filter out videos with 0 views for display purposes
-  return processedRows.filter(r => r.views > 0);
+  // Keep Total rows for subscriber count extraction, but filter them out from final data
+  // Also filter out videos with 0 views for display purposes
+  return processedRows;
 };
 
 const Sidebar = ({ open, onClose, tab, setTab, onUpload }) => (
@@ -120,7 +130,11 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload }) => (
           { id: "Strategy", icon: Target },
           { id: "Competitors", icon: Users },
           { id: "Intelligence", icon: MessageSquare },
+          { id: "AI Ideas", icon: Lightbulb },
+          { id: "Comments", icon: MessageSquare },
+          { id: "AI Summary", icon: Sparkles },
           { id: "Data", icon: Database },
+          { id: "API Settings", icon: Key },
           { id: "Standardizer", icon: Settings }
         ].map(t => {
           const Icon = t.icon;
@@ -434,8 +448,9 @@ export default function App() {
   const channelOpts = useMemo(() => [...new Set(rows.map(r => r.channel).filter(Boolean))].sort(), [rows]);
   
   const filtered = useMemo(() => {
-    let result = rows;
-    
+    // Always filter out Total rows from display data
+    let result = rows.filter(r => !r.isTotal && r.views > 0);
+
     if (dateRange !== "all") {
       const now = new Date();
       let startDate;
@@ -452,7 +467,7 @@ export default function App() {
         result = result.filter(r => r.publishDate && new Date(r.publishDate) >= startDate);
       }
     }
-    
+
     if (selectedChannel !== "all") {
       result = result.filter(r => r.channel === selectedChannel);
     }
@@ -2055,26 +2070,22 @@ export default function App() {
               <UnifiedStrategy
                 rows={filtered}
                 channelSubscriberCount={(() => {
-                  // Calculate subscriber count based on filtered data
-                  // This ensures it updates when channel filter changes
+                  // Calculate subscriber count from the Total row in the data
                   if (!activeClient?.rows) return 0;
 
                   // Get all rows for the selected channel(s)
                   let relevantRows = activeClient.rows;
                   if (selectedChannel !== "all") {
                     relevantRows = relevantRows.filter(r =>
-                      (r['Content'] || r.channel || "Main Channel").trim() === selectedChannel
+                      r.channel === selectedChannel
                     );
                   }
 
-                  // Find the Total row for the selected channel(s)
-                  const totalRow = relevantRows.find(r => {
-                    const title = r['Video title'] || r.title || "";
-                    return title.toLowerCase().trim() === 'total';
-                  });
+                  // Find the Total row (marked with isTotal flag)
+                  const totalRow = relevantRows.find(r => r.isTotal === true);
 
                   if (totalRow) {
-                    const count = Number(String(totalRow['Subscribers'] || totalRow['Subscribers gained'] || totalRow.subscribers || 0).replace(/[^0-9.-]/g, "")) || 0;
+                    const count = totalRow.subscribers || 0;
                     console.log(`Found Total row for channel "${selectedChannel}":`, count);
                     return count;
                   }
@@ -2085,7 +2096,7 @@ export default function App() {
                   // - Result is cumulative history, not current total
                   // For now, return 0 to indicate missing data
                   console.warn(`No Total row found for channel "${selectedChannel}". Cannot determine accurate subscriber count.`);
-                  console.warn('To fix: Export each channel separately from YouTube Studio, or ensure Total row is included.');
+                  console.warn('To fix: Export data from YouTube Studio with "Total" row included (usually at the bottom of the CSV).');
 
                   // Return 0 instead of inaccurate sum
                   return 0;
@@ -2098,7 +2109,32 @@ export default function App() {
             )}
 
             {tab === "Intelligence" && (
-              <ContentIntelligence rows={filtered} />
+              <EnhancedContentIntelligence rows={filtered} />
+            )}
+
+            {tab === "AI Ideas" && (
+              <VideoIdeaGenerator data={filtered} />
+            )}
+
+            {tab === "Comments" && (
+              <CommentAnalysis data={filtered} />
+            )}
+
+            {tab === "AI Summary" && (
+              <AIExecutiveSummary
+                rows={rows}
+                analysis={(() => {
+                  // Pass the same analysis data that ExecutiveSummary uses
+                  const now = new Date();
+                  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                  const currentMonth = rows.filter(r => r.publishDate && new Date(r.publishDate) >= thirtyDaysAgo);
+                  return { currentMonth };
+                })()}
+              />
+            )}
+
+            {tab === "API Settings" && (
+              <APISettings />
             )}
 
             {tab === "OldStrategist_TO_DELETE" && (

@@ -383,6 +383,23 @@ export default function CompetitorAnalysis({ rows }) {
     setError("");
   };
 
+  const updateProfile = (profileId) => {
+    const profile = profiles.find(p => p.id === profileId);
+    if (!profile) return;
+
+    const updatedProfile = {
+      ...profile,
+      competitors: competitors,
+      updatedAt: new Date().toISOString(),
+      competitorCount: competitors.length
+    };
+
+    const updated = profiles.map(p => p.id === profileId ? updatedProfile : p);
+    setProfiles(updated);
+    localStorage.setItem('competitor_profiles', JSON.stringify(updated));
+    setError("");
+  };
+
   const deleteProfile = (profileId) => {
     const updated = profiles.filter(p => p.id !== profileId);
     setProfiles(updated);
@@ -898,6 +915,28 @@ export default function CompetitorAnalysis({ rows }) {
                   </option>
                 ))}
               </select>
+              {activeProfile && (
+                <button
+                  onClick={() => updateProfile(activeProfile)}
+                  style={{
+                    background: "#10b981",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "10px 16px",
+                    color: "#fff",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    whiteSpace: "nowrap"
+                  }}
+                >
+                  <Save size={16} />
+                  Update Profile
+                </button>
+              )}
               <button
                 onClick={() => setShowProfileManager(!showProfileManager)}
                 style={{
@@ -1009,6 +1048,7 @@ export default function CompetitorAnalysis({ rows }) {
                         </div>
                         <div style={{ fontSize: "10px", color: "#666", marginTop: "2px" }}>
                           {profile.competitorCount} competitors • Created {new Date(profile.createdAt).toLocaleDateString()}
+                          {profile.updatedAt && ` • Updated ${new Date(profile.updatedAt).toLocaleDateString()}`}
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: "6px" }}>
