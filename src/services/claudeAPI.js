@@ -1,10 +1,14 @@
 /**
  * Claude API Service
- * Handles all interactions with Anthropic's Claude API
+ * Handles all interactions with Anthropic's Claude API via backend proxy
  * Includes rate limiting, error handling, cost tracking, and budget management
  */
 
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+// Use our Vercel serverless function to proxy requests (fixes CORS)
+const CLAUDE_API_URL = window.location.hostname === 'localhost'
+  ? 'http://localhost:3000/api/claude'  // Local dev
+  : '/api/claude';  // Production (Vercel serverless function)
+
 const CLAUDE_MODEL = 'claude-3-5-sonnet-20241022';
 const MAX_TOKENS = 4096;
 
@@ -141,29 +145,29 @@ class ClaudeAPIService {
     }
 
     try {
+      // Call our proxy endpoint instead of Anthropic directly
       const response = await fetch(CLAUDE_API_URL, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
-          'anthropic-version': '2023-06-01'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: CLAUDE_MODEL,
-          max_tokens: maxTokens,
+          apiKey: this.apiKey,  // Pass API key in body to proxy
+          maxTokens: maxTokens,
           system: systemPrompt || undefined,
           messages: [
             {
               role: 'user',
               content: prompt
             }
-          ]
+          ],
+          stream: false
         })
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `API request failed: ${response.status}`);
+        throw new Error(errorData.error || `API request failed: ${response.status}`);
       }
 
       const data = await response.json();
@@ -200,13 +204,11 @@ class ClaudeAPIService {
       const response = await fetch(CLAUDE_API_URL, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
-          'anthropic-version': '2023-06-01'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: CLAUDE_MODEL,
-          max_tokens: maxTokens,
+          apiKey: this.apiKey,  // Pass API key in body to proxy
+          maxTokens: maxTokens,
           system: systemPrompt || undefined,
           messages: [{ role: 'user', content: prompt }],
           stream: true
