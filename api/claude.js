@@ -32,6 +32,19 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'API key is required' });
     }
 
+    // Build request body
+    const requestBody = {
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: maxTokens || 4096,
+      messages: messages,
+      stream: stream || false
+    };
+
+    // Only add system if it has content
+    if (system && system.trim()) {
+      requestBody.system = system;
+    }
+
     // Make request to Claude API
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -40,13 +53,7 @@ export default async function handler(req, res) {
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: maxTokens || 4096,
-        system: system || undefined,
-        messages: messages,
-        stream: stream || false
-      })
+      body: JSON.stringify(requestBody)
     });
 
     // Handle error responses
