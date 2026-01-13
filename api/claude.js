@@ -32,6 +32,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'API key is required' });
     }
 
+    // Validate messages array
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: 'Messages array is required' });
+    }
+
     // Build request body
     const requestBody = {
       model: 'claude-3-5-sonnet-20241022',
@@ -44,6 +49,8 @@ export default async function handler(req, res) {
     if (system && system.trim()) {
       requestBody.system = system;
     }
+
+    console.log('Sending to Claude API:', JSON.stringify(requestBody, null, 2));
 
     // Make request to Claude API
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -59,8 +66,23 @@ export default async function handler(req, res) {
     // Handle error responses
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('Claude API error:', response.status, errorData);
+
+      // Extract error message properly
+      let errorMessage = `API request failed: ${response.status}`;
+      if (errorData.error) {
+        if (typeof errorData.error === 'string') {
+          errorMessage = errorData.error;
+        } else if (errorData.error.message) {
+          errorMessage = errorData.error.message;
+        } else if (errorData.error.type) {
+          errorMessage = `${errorData.error.type}: ${JSON.stringify(errorData.error)}`;
+        }
+      }
+
       return res.status(response.status).json({
-        error: errorData.error?.message || `API request failed: ${response.status}`
+        error: errorMessage,
+        details: errorData
       });
     }
 
