@@ -9,7 +9,7 @@
 const CLAUDE_API_URL = '/api/claude-proxy';  // Changed URL to bypass browser cache
 const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';  // Latest Sonnet 4.5 model
 const MAX_TOKENS = 4096;
-const API_VERSION = '2.1.0'; // Force bundle refresh
+const API_VERSION = '2.1.1'; // Force bundle refresh
 
 // Pricing per million tokens (as of Jan 2025)
 // Note: These are Sonnet prices. Opus is higher: $15 input / $75 output

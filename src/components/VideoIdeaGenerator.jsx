@@ -1,12 +1,38 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Lightbulb, Sparkles, TrendingUp, Clock, AlertCircle, Loader2 } from 'lucide-react';
 import claudeAPI from '../services/claudeAPI';
 
 export default function VideoIdeaGenerator({ data }) {
-  const [ideas, setIdeas] = useState([]);
+  // Load from localStorage on mount
+  const loadFromStorage = () => {
+    try {
+      const saved = localStorage.getItem('ai_video_ideas');
+      return saved ? JSON.parse(saved) : null;
+    } catch (err) {
+      console.error('Error loading saved ideas:', err);
+      return null;
+    }
+  };
+
+  const [ideas, setIdeas] = useState(() => loadFromStorage()?.ideas || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [estimatedCost, setEstimatedCost] = useState(null);
+  const [estimatedCost, setEstimatedCost] = useState(() => loadFromStorage()?.estimatedCost || null);
+
+  // Save to localStorage whenever ideas change
+  useEffect(() => {
+    if (ideas.length > 0) {
+      try {
+        localStorage.setItem('ai_video_ideas', JSON.stringify({
+          ideas,
+          estimatedCost,
+          timestamp: new Date().toISOString()
+        }));
+      } catch (err) {
+        console.error('Error saving ideas:', err);
+      }
+    }
+  }, [ideas, estimatedCost]);
 
   const generateIdeas = async () => {
     setLoading(true);
@@ -117,6 +143,13 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
     return 'bg-gray-100 text-gray-800';
   };
 
+  const clearIdeas = () => {
+    setIdeas([]);
+    setEstimatedCost(null);
+    setError(null);
+    localStorage.removeItem('ai_video_ideas');
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -189,8 +222,23 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
             <div className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-green-600" />
               <span className="font-medium text-green-900">Ideas Generated Successfully</span>
+              <span className="text-sm text-green-700">• Cost: ${estimatedCost.toFixed(4)}</span>
             </div>
-            <span className="text-sm text-green-700">Cost: ${estimatedCost.toFixed(4)}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={generateIdeas}
+                disabled={loading}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                Generate New Ideas
+              </button>
+              <button
+                onClick={clearIdeas}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+              >
+                Clear
+              </button>
+            </div>
           </div>
         </div>
       )}

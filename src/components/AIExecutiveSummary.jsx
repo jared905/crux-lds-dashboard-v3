@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, FileText, Loader2, AlertCircle, Copy, Check } from 'lucide-react';
 import claudeAPI from '../services/claudeAPI';
 
@@ -7,10 +7,21 @@ import claudeAPI from '../services/claudeAPI';
  * Generates natural language summaries and reports using Claude AI
  */
 export default function AIExecutiveSummary({ rows, analysis }) {
-  const [narrative, setNarrative] = useState(null);
+  // Load from localStorage on mount
+  const loadFromStorage = () => {
+    try {
+      const saved = localStorage.getItem('ai_executive_summary');
+      return saved ? JSON.parse(saved) : null;
+    } catch (err) {
+      console.error('Error loading saved summary:', err);
+      return null;
+    }
+  };
+
+  const [narrative, setNarrative] = useState(() => loadFromStorage()?.narrative || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [estimatedCost, setEstimatedCost] = useState(null);
+  const [estimatedCost, setEstimatedCost] = useState(() => loadFromStorage()?.estimatedCost || null);
   const [copied, setCopied] = useState(false);
 
   // Context fields for better AI guidance
@@ -22,7 +33,23 @@ export default function AIExecutiveSummary({ rows, analysis }) {
   // Refinement state
   const [refinementQuestion, setRefinementQuestion] = useState('');
   const [refining, setRefining] = useState(false);
-  const [conversationHistory, setConversationHistory] = useState([]);
+  const [conversationHistory, setConversationHistory] = useState(() => loadFromStorage()?.conversationHistory || []);
+
+  // Save to localStorage whenever narrative or cost changes
+  useEffect(() => {
+    if (narrative) {
+      try {
+        localStorage.setItem('ai_executive_summary', JSON.stringify({
+          narrative,
+          estimatedCost,
+          conversationHistory,
+          timestamp: new Date().toISOString()
+        }));
+      } catch (err) {
+        console.error('Error saving summary:', err);
+      }
+    }
+  }, [narrative, estimatedCost, conversationHistory]);
 
   const generateNarrative = async () => {
     setLoading(true);
@@ -225,6 +252,14 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
     }
   };
 
+  const clearSummary = () => {
+    setNarrative(null);
+    setEstimatedCost(null);
+    setConversationHistory([]);
+    setError(null);
+    localStorage.removeItem('ai_executive_summary');
+  };
+
   // If no analysis data, show message
   if (!analysis || !rows || rows.length === 0) {
     return (
@@ -412,6 +447,12 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors"
               >
                 Regenerate
+              </button>
+              <button
+                onClick={clearSummary}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+              >
+                Clear
               </button>
             </div>
           </div>
