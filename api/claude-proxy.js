@@ -1,5 +1,5 @@
 /**
- * Vercel Serverless Function - Claude API Proxy v2.0.6
+ * Vercel Serverless Function - Claude API Proxy v2.0.7
  * Handles CORS and proxies requests to Anthropic's Claude API
  * Deploy: ES module with default export
  */
@@ -31,7 +31,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { apiKey, messages, system, maxTokens, stream } = req.body;
+    const { apiKey, messages, system, maxTokens, stream, model } = req.body;
 
     // Validate API key is provided
     if (!apiKey) {
@@ -43,9 +43,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Messages array is required' });
     }
 
-    // Build request body
+    // Build request body - use provided model or default to stable version
     const requestBody = {
-      model: 'claude-3-5-sonnet-20241022',
+      model: model || 'claude-3-5-sonnet-20240620',
       max_tokens: maxTokens || 4096,
       messages: messages,
       stream: stream || false
