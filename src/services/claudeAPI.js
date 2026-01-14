@@ -6,9 +6,12 @@
  */
 
 // Use our Vercel serverless function to proxy requests (fixes CORS)
-const CLAUDE_API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://localhost:3000/api/claude'  // Local dev
-  : '/api/claude';  // Production (Vercel serverless function)
+// In development, call Anthropic directly (CORS doesn't apply to localhost)
+// In production, use our proxy to avoid CORS issues
+const IS_DEV = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const CLAUDE_API_URL = IS_DEV
+  ? 'https://api.anthropic.com/v1/messages'  // Direct API in dev (no CORS issue)
+  : '/api/claude';  // Proxy in production
 
 const CLAUDE_MODEL = 'claude-3-5-sonnet-20241022';
 const MAX_TOKENS = 4096;
@@ -147,24 +150,34 @@ class ClaudeAPIService {
     }
 
     try {
-      // Call our proxy endpoint instead of Anthropic directly
+      // Prepare request based on environment
+      const requestBody = IS_DEV ? {
+        // Direct API call in development
+        model: CLAUDE_MODEL,
+        max_tokens: maxTokens,
+        system: systemPrompt || undefined,
+        messages: [{ role: 'user', content: prompt }]
+      } : {
+        // Proxy call in production
+        apiKey: this.apiKey,
+        maxTokens: maxTokens,
+        system: systemPrompt || undefined,
+        messages: [{ role: 'user', content: prompt }],
+        stream: false
+      };
+
+      const requestHeaders = IS_DEV ? {
+        'Content-Type': 'application/json',
+        'x-api-key': this.apiKey,
+        'anthropic-version': '2023-06-01'
+      } : {
+        'Content-Type': 'application/json'
+      };
+
       const response = await fetch(CLAUDE_API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          apiKey: this.apiKey,  // Pass API key in body to proxy
-          maxTokens: maxTokens,
-          system: systemPrompt || undefined,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          stream: false
-        })
+        headers: requestHeaders,
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
