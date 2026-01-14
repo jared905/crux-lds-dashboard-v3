@@ -154,51 +154,74 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Lightbulb className="w-6 h-6 text-yellow-500" />
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">AI Video Idea Generator</h2>
-            <p className="text-sm text-gray-600">
-              Generate data-driven video ideas based on your top performers
-            </p>
+      {/* Header Card */}
+      <div className="bg-gradient-to-br from-purple-50 via-white to-blue-50 rounded-2xl border-2 border-purple-200 shadow-lg p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Lightbulb className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                AI Video Idea Generator
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Generate data-driven video ideas based on your top performers
+              </p>
+            </div>
           </div>
-        </div>
 
-        <button
-          onClick={generateIdeas}
-          disabled={loading || !data || data.length === 0}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Generating Ideas...
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-5 h-5" />
-              Generate Video Ideas
-            </>
-          )}
-        </button>
+          <button
+            onClick={generateIdeas}
+            disabled={loading || !data || data.length === 0}
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Generating Ideas...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5" />
+                Generate Video Ideas
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Info Banner */}
       {!ideas.length && !loading && !error && (
-        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-6">
-          <div className="flex gap-4">
-            <Sparkles className="w-6 h-6 text-purple-600 flex-shrink-0" />
+        <div className="bg-gradient-to-br from-purple-50 via-blue-50 to-purple-50 border-2 border-purple-200 rounded-2xl p-8 shadow-lg">
+          <div className="flex gap-6">
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
+              <Sparkles className="w-6 h-6 text-white" />
+            </div>
             <div>
-              <h3 className="font-semibold text-gray-900 mb-2">How It Works</h3>
-              <ul className="space-y-2 text-sm text-gray-700">
-                <li>• Analyzes your top 20% performing videos</li>
-                <li>• Identifies patterns in topics, titles, and engagement</li>
-                <li>• Generates 10 new ideas tailored to your LDS audience</li>
-                <li>• Includes titles, hooks, and thumbnail concepts</li>
-                <li>• Estimated cost: $0.20-0.40 per generation</li>
-              </ul>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">How It Works</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-purple-100">
+                  <div className="w-2 h-2 bg-purple-600 rounded-full mt-1.5"></div>
+                  <span className="text-sm text-gray-700">Analyzes your top 20% performing videos</span>
+                </div>
+                <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-purple-100">
+                  <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5"></div>
+                  <span className="text-sm text-gray-700">Identifies patterns in topics, titles, and engagement</span>
+                </div>
+                <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-purple-100">
+                  <div className="w-2 h-2 bg-purple-600 rounded-full mt-1.5"></div>
+                  <span className="text-sm text-gray-700">Generates 10 new ideas tailored to your LDS audience</span>
+                </div>
+                <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-purple-100">
+                  <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5"></div>
+                  <span className="text-sm text-gray-700">Includes titles, hooks, and thumbnail concepts</span>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center gap-2 text-sm">
+                <TrendingUp className="w-4 h-4 text-green-600" />
+                <span className="font-semibold text-green-700">Estimated cost: $0.20-0.40 per generation</span>
+              </div>
             </div>
           </div>
         </div>
@@ -206,11 +229,13 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+        <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-5 shadow-md">
+          <div className="flex gap-4">
+            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+            </div>
             <div>
-              <p className="font-medium text-red-900">Error</p>
+              <p className="font-bold text-red-900 text-lg">Error</p>
               <p className="text-sm text-red-700 mt-1">{error}</p>
             </div>
           </div>
@@ -219,39 +244,43 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
 
       {/* Cost Estimate */}
       {estimatedCost && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-green-600" />
-              <span className="font-medium text-green-900">Ideas Generated Successfully</span>
-              <span className="text-sm text-green-700">• Cost: ${estimatedCost.toFixed(4)}</span>
+        <div className="bg-gradient-to-br from-green-50 via-emerald-50 to-green-50 border-2 border-green-300 rounded-2xl p-6 shadow-lg">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-md">
+                <TrendingUp className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <span className="font-bold text-green-900 text-lg">Ideas Generated Successfully</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-sm text-green-700">Cost: ${estimatedCost.toFixed(4)}</span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="flex items-center gap-2 cursor-pointer bg-white px-4 py-2 rounded-xl border-2 border-green-200 hover:border-green-300 transition-colors shadow-sm">
                 <input
                   type="checkbox"
                   checked={includeInPDF}
                   onChange={(e) => setIncludeInPDF(e.target.checked)}
                   className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                 />
-                <span className="text-sm font-medium text-green-900">Include in PDF Export</span>
+                <span className="text-sm font-semibold text-green-900">Include in PDF Export</span>
               </label>
-              <div className="flex items-center gap-2">
               <button
                 onClick={generateIdeas}
                 disabled={loading}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors"
+                className="px-5 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50"
               >
                 Generate New Ideas
               </button>
               <button
                 onClick={clearIdeas}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
+                className="px-5 py-2 bg-white hover:bg-gray-50 border-2 border-gray-300 text-gray-700 text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow-md"
               >
                 Clear
               </button>
             </div>
-          </div>
           </div>
         </div>
       )}
@@ -328,11 +357,13 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
 
       {/* No Data Message */}
       {(!data || data.length === 0) && !loading && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex gap-3">
-            <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-xl p-5 shadow-md">
+          <div className="flex gap-4">
+            <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-5 h-5 text-yellow-600" />
+            </div>
             <div>
-              <p className="font-medium text-yellow-900">No Video Data Available</p>
+              <p className="font-bold text-yellow-900 text-lg">No Video Data Available</p>
               <p className="text-sm text-yellow-700 mt-1">
                 Please upload your YouTube Studio data first to generate video ideas.
               </p>

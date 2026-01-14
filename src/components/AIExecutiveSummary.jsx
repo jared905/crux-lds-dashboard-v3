@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, FileText, Loader2, AlertCircle, Copy, Check } from 'lucide-react';
+import { Sparkles, FileText, Loader2, AlertCircle, Copy, Check, TrendingUp } from 'lucide-react';
 import claudeAPI from '../services/claudeAPI';
 
 /**
@@ -281,37 +281,43 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <FileText className="w-6 h-6 text-purple-600" />
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">AI Executive Summary</h2>
-            <p className="text-sm text-gray-600">
-              Generate stakeholder-ready performance narratives
-            </p>
+      {/* Header Card */}
+      <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 rounded-2xl border-2 border-blue-200 shadow-lg p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+              <FileText className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                AI Executive Summary
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Generate stakeholder-ready performance narratives
+              </p>
+            </div>
           </div>
-        </div>
 
-        {!narrative && (
-          <button
-            onClick={generateNarrative}
-            disabled={loading}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5" />
-                Generate Summary (~$0.30)
-              </>
-            )}
-          </button>
-        )}
+          {!narrative && (
+            <button
+              onClick={generateNarrative}
+              disabled={loading}
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  Generate Summary (~$0.30)
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Context Fields (before generation) */}
@@ -320,22 +326,23 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
           {/* Toggle Context Fields */}
           <button
             onClick={() => setShowContextFields(!showContextFields)}
-            className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center gap-2"
+            className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 hover:border-purple-300 rounded-xl px-5 py-3 text-sm font-semibold text-purple-700 flex items-center gap-2 transition-all shadow-sm hover:shadow-md"
           >
             {showContextFields ? '▼' : '▶'} Customize Summary Focus (Optional - Improves Quality)
           </button>
 
           {/* Context Fields */}
           {showContextFields && (
-            <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+            <div className="bg-gradient-to-br from-white to-purple-50 border-2 border-purple-200 rounded-2xl p-6 space-y-5 shadow-lg">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                  <span className="w-1.5 h-6 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full"></span>
                   Focus Area
                 </label>
                 <select
                   value={focusArea}
                   onChange={(e) => setFocusArea(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-3 bg-white border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 transition-all shadow-sm font-medium"
                 >
                   <option value="balanced">Balanced Overview (Default)</option>
                   <option value="growth">Growth & Subscriber Acquisition</option>
@@ -347,7 +354,8 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                  <span className="w-1.5 h-6 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full"></span>
                   Specific Questions or Goals (Optional)
                 </label>
                 <textarea
@@ -355,21 +363,23 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
                   onChange={(e) => setSpecificGoals(e.target.value)}
                   placeholder="Example: Why did views drop in week 3? Which video topics perform best? How do we compare to similar channels?"
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                  className="w-full px-4 py-3 bg-white border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 transition-all resize-none shadow-sm"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-600 mt-2 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" />
                   The AI will address these specific questions throughout the analysis
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                  <span className="w-1.5 h-6 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full"></span>
                   Report Style
                 </label>
                 <select
                   value={reportStyle}
                   onChange={(e) => setReportStyle(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-3 bg-white border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 transition-all shadow-sm font-medium"
                 >
                   <option value="executive">Executive Brief (Concise)</option>
                   <option value="detailed">Detailed Analysis (Comprehensive)</option>
@@ -380,21 +390,47 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
           )}
 
           {/* Info Banner */}
-          <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-6">
-            <div className="flex gap-4">
-              <Sparkles className="w-6 h-6 text-purple-600 flex-shrink-0" />
+          <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-blue-50 border-2 border-blue-200 rounded-2xl p-8 shadow-lg">
+            <div className="flex gap-6">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
               <div>
-                <h3 className="font-semibold text-gray-900 mb-2">What You'll Get</h3>
-                <ul className="space-y-2 text-sm text-gray-700">
-                  <li>• <strong>Professional narrative summary</strong> suitable for stakeholders and leadership</li>
-                  <li>• <strong>Strategic insights</strong> explaining why performance changed, not just what changed</li>
-                  <li>• <strong>Actionable recommendations</strong> tailored to your channel's LDS audience</li>
-                  <li>• <strong>Context-aware analysis</strong> considering seasonal trends, topics, and format performance</li>
-                  <li>• <strong>Board-ready format</strong> you can copy directly into reports or presentations</li>
-                </ul>
-                <p className="text-xs text-gray-600 mt-4">
-                  Estimated cost: $0.15-0.45 • Takes 10-15 seconds to generate • Can refine after generation
-                </p>
+                <h3 className="text-xl font-bold text-gray-900 mb-4">What You'll Get</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-blue-100">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5"></div>
+                    <div>
+                      <span className="text-sm font-semibold text-gray-900">Professional narrative summary</span>
+                      <p className="text-xs text-gray-600 mt-1">Suitable for stakeholders and leadership</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-blue-100">
+                    <div className="w-2 h-2 bg-purple-600 rounded-full mt-1.5"></div>
+                    <div>
+                      <span className="text-sm font-semibold text-gray-900">Strategic insights</span>
+                      <p className="text-xs text-gray-600 mt-1">Explaining why performance changed</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-blue-100">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5"></div>
+                    <div>
+                      <span className="text-sm font-semibold text-gray-900">Actionable recommendations</span>
+                      <p className="text-xs text-gray-600 mt-1">Tailored to your channel's LDS audience</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-blue-100">
+                    <div className="w-2 h-2 bg-purple-600 rounded-full mt-1.5"></div>
+                    <div>
+                      <span className="text-sm font-semibold text-gray-900">Board-ready format</span>
+                      <p className="text-xs text-gray-600 mt-1">Copy directly into reports or presentations</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center gap-2 text-sm">
+                  <TrendingUp className="w-4 h-4 text-green-600" />
+                  <span className="font-semibold text-green-700">Cost: $0.15-0.45 • Takes 10-15 seconds • Can refine after generation</span>
+                </div>
               </div>
             </div>
           </div>
@@ -403,11 +439,13 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+        <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-5 shadow-md">
+          <div className="flex gap-4">
+            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+            </div>
             <div>
-              <p className="font-medium text-red-900">Error</p>
+              <p className="font-bold text-red-900 text-lg">Error</p>
               <p className="text-sm text-red-700 mt-1">{error}</p>
             </div>
           </div>
@@ -418,56 +456,62 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
       {narrative && (
         <div className="space-y-4">
           {/* Cost & Actions */}
-          <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-green-600" />
-              <span className="font-medium text-green-900">Summary Generated</span>
-              {estimatedCost && (
-                <span className="text-sm text-green-700">• Cost: ${estimatedCost.toFixed(4)}</span>
-              )}
+          <div className="bg-gradient-to-br from-green-50 via-emerald-50 to-green-50 border-2 border-green-300 rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-md">
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <span className="font-bold text-green-900 text-lg">Summary Generated</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    {estimatedCost && (
+                      <span className="text-sm text-green-700">Cost: ${estimatedCost.toFixed(4)}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer bg-white px-4 py-2 rounded-xl border-2 border-green-200 hover:border-green-300 transition-colors shadow-sm">
+                  <input
+                    type="checkbox"
+                    checked={includeInPDF}
+                    onChange={(e) => setIncludeInPDF(e.target.checked)}
+                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                  />
+                  <span className="text-sm font-semibold text-green-900">Include in PDF Export</span>
+                </label>
+                <button
+                  onClick={copyToClipboard}
+                  className="flex items-center gap-2 px-5 py-2 bg-white hover:bg-gray-50 border-2 border-gray-300 text-gray-700 text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow-md"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-4 h-4 text-green-600" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Copy
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={generateNarrative}
+                  disabled={loading}
+                  className="px-5 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+                >
+                  Regenerate
+                </button>
+                <button
+                  onClick={clearSummary}
+                  className="px-5 py-2 bg-white hover:bg-gray-50 border-2 border-gray-300 text-gray-700 text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow-md"
+                >
+                  Clear
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeInPDF}
-                  onChange={(e) => setIncludeInPDF(e.target.checked)}
-                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
-                />
-                <span className="text-sm font-medium text-green-900">Include in PDF Export</span>
-              </label>
-              <div className="flex items-center gap-2">
-              <button
-                onClick={copyToClipboard}
-                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-sm font-medium transition-colors"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4 text-green-600" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" />
-                    Copy to Clipboard
-                  </>
-                )}
-              </button>
-              <button
-                onClick={generateNarrative}
-                disabled={loading}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                Regenerate
-              </button>
-              <button
-                onClick={clearSummary}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
           </div>
 
           {/* Narrative Content - Dashboard Styled */}
@@ -517,55 +561,59 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
           </div>
 
           {/* Refinement Section */}
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6">
-            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-blue-600" />
-              Refine This Summary
-            </h3>
+          <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-blue-50 border-2 border-blue-200 rounded-2xl p-6 shadow-lg">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">
+                Refine This Summary
+              </h3>
+            </div>
 
             {/* Quick Actions */}
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">Quick refinements:</p>
+            <div className="mb-5">
+              <p className="text-sm font-semibold text-gray-700 mb-3">Quick refinements:</p>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => refineNarrative('shorter')}
                   disabled={refining}
-                  className="px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-white hover:bg-blue-50 border-2 border-blue-200 hover:border-blue-300 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
                 >
                   Make Shorter
                 </button>
                 <button
                   onClick={() => refineNarrative('longer')}
                   disabled={refining}
-                  className="px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-white hover:bg-purple-50 border-2 border-purple-200 hover:border-purple-300 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
                 >
                   Add More Detail
                 </button>
                 <button
                   onClick={() => refineNarrative('moreData')}
                   disabled={refining}
-                  className="px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-white hover:bg-blue-50 border-2 border-blue-200 hover:border-blue-300 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
                 >
                   More Data Points
                 </button>
                 <button
                   onClick={() => refineNarrative('moreRecs')}
                   disabled={refining}
-                  className="px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-white hover:bg-purple-50 border-2 border-purple-200 hover:border-purple-300 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
                 >
                   More Recommendations
                 </button>
                 <button
                   onClick={() => refineNarrative('focusGrowth')}
                   disabled={refining}
-                  className="px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-white hover:bg-green-50 border-2 border-green-200 hover:border-green-300 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
                 >
                   Focus on Growth
                 </button>
                 <button
                   onClick={() => refineNarrative('focusEngagement')}
                   disabled={refining}
-                  className="px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-white hover:bg-orange-50 border-2 border-orange-200 hover:border-orange-300 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
                 >
                   Focus on Engagement
                 </button>
@@ -574,8 +622,8 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
 
             {/* Custom Refinement */}
             <div>
-              <p className="text-sm text-gray-600 mb-2">Or ask a specific question:</p>
-              <div className="flex gap-2">
+              <p className="text-sm font-semibold text-gray-700 mb-3">Or ask a specific question:</p>
+              <div className="flex gap-3">
                 <input
                   type="text"
                   value={refinementQuestion}
@@ -583,12 +631,12 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
                   onKeyPress={(e) => e.key === 'Enter' && refineNarrative()}
                   placeholder="Example: Add a section about competitor analysis..."
                   disabled={refining}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                  className="flex-1 px-4 py-3 bg-white border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 disabled:opacity-50 transition-all shadow-sm"
                 />
                 <button
                   onClick={() => refineNarrative()}
                   disabled={refining || !refinementQuestion.trim()}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {refining ? (
                     <>
@@ -596,13 +644,19 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
                       Refining...
                     </>
                   ) : (
-                    'Refine'
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Refine
+                    </>
                   )}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Each refinement costs ~$0.05-0.15 depending on complexity
-              </p>
+              <div className="flex items-center gap-2 mt-3">
+                <TrendingUp className="w-3 h-3 text-green-600" />
+                <p className="text-xs text-green-700 font-medium">
+                  Each refinement costs ~$0.05-0.15 depending on complexity
+                </p>
+              </div>
             </div>
           </div>
         </div>
