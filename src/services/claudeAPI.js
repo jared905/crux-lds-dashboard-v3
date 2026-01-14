@@ -5,17 +5,11 @@
  * Cache buster: 2026-01-14
  */
 
-// Use our Vercel serverless function to proxy requests (fixes CORS)
-// In development, call Anthropic directly (CORS doesn't apply to localhost)
-// In production, use our proxy to avoid CORS issues
-const IS_DEV = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const CLAUDE_API_URL = IS_DEV
-  ? 'https://api.anthropic.com/v1/messages'  // Direct API in dev (no CORS issue)
-  : '/api/claude';  // Proxy in production
-
+// Always use proxy endpoint to avoid CORS (works in all environments via Vercel)
+const CLAUDE_API_URL = '/api/claude';
 const CLAUDE_MODEL = 'claude-3-5-sonnet-20241022';
 const MAX_TOKENS = 4096;
-const API_VERSION = '2.0.1'; // Force bundle refresh
+const API_VERSION = '2.0.2'; // Force bundle refresh
 
 // Pricing per million tokens (as of Jan 2025)
 const PRICING = {
@@ -150,34 +144,19 @@ class ClaudeAPIService {
     }
 
     try {
-      // Prepare request based on environment
-      const requestBody = IS_DEV ? {
-        // Direct API call in development
-        model: CLAUDE_MODEL,
-        max_tokens: maxTokens,
-        system: systemPrompt || undefined,
-        messages: [{ role: 'user', content: prompt }]
-      } : {
-        // Proxy call in production
-        apiKey: this.apiKey,
-        maxTokens: maxTokens,
-        system: systemPrompt || undefined,
-        messages: [{ role: 'user', content: prompt }],
-        stream: false
-      };
-
-      const requestHeaders = IS_DEV ? {
-        'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
-        'anthropic-version': '2023-06-01'
-      } : {
-        'Content-Type': 'application/json'
-      };
-
+      // Always use proxy format
       const response = await fetch(CLAUDE_API_URL, {
         method: 'POST',
-        headers: requestHeaders,
-        body: JSON.stringify(requestBody)
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          apiKey: this.apiKey,
+          maxTokens: maxTokens,
+          system: systemPrompt || undefined,
+          messages: [{ role: 'user', content: prompt }],
+          stream: false
+        })
       });
 
       if (!response.ok) {
