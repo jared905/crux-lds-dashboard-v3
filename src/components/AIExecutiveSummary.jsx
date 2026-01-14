@@ -468,6 +468,7 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
               </button>
             </div>
           </div>
+          </div>
 
           {/* Narrative Content - Dashboard Styled */}
           <div id="ai-summary-content" className="bg-gradient-to-br from-white to-gray-50 rounded-xl border-2 border-blue-100 shadow-lg p-8">

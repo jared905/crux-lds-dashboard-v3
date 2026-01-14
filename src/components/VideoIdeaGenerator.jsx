@@ -252,6 +252,7 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
               </button>
             </div>
           </div>
+          </div>
         </div>
       )}
 
