@@ -5,6 +5,7 @@ import claudeAPI from '../services/claudeAPI';
 /**
  * AI-Powered Executive Summary Generator
  * Generates natural language summaries and reports using Claude AI
+ * v2.2.1 - Updated styling
  */
 export default function AIExecutiveSummary({ rows, analysis }) {
   // Load from localStorage on mount

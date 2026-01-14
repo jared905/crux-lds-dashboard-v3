@@ -3,6 +3,7 @@ import { Lightbulb, Sparkles, TrendingUp, Clock, AlertCircle, Loader2 } from 'lu
 import claudeAPI from '../services/claudeAPI';
 
 export default function VideoIdeaGenerator({ data }) {
+  // v2.2.1 - Updated styling
   // Load from localStorage on mount
   const loadFromStorage = () => {
     try {
