@@ -13,7 +13,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { Menu, X, Upload, Home, Database, Eye, Clock, Users, Target, BarChart3, Settings, TrendingUp, TrendingDown, ChevronDown, TrendingUpDown, MessageSquare, Video, PlaySquare, Activity, Sparkles, Lightbulb, Key } from "lucide-react";
 
-// AI-Powered Components
+// AI-Powered Components (v2.0.2)
 import APISettings from "./components/APISettings.jsx";
 import VideoIdeaGenerator from "./components/VideoIdeaGenerator.jsx";
 import CommentAnalysis from "./components/CommentAnalysis.jsx";
