@@ -1,16 +1,18 @@
 /**
- * Claude API Service
+ * Claude API Service - v2.0.1
  * Handles all interactions with Anthropic's Claude API via backend proxy
  * Includes rate limiting, error handling, cost tracking, and budget management
+ * Cache buster: 2026-01-14
  */
 
 // Use our Vercel serverless function to proxy requests (fixes CORS)
-const CLAUDE_API_URL = window.location.hostname === 'localhost'
+const CLAUDE_API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? 'http://localhost:3000/api/claude'  // Local dev
   : '/api/claude';  // Production (Vercel serverless function)
 
 const CLAUDE_MODEL = 'claude-3-5-sonnet-20241022';
 const MAX_TOKENS = 4096;
+const API_VERSION = '2.0.1'; // Force bundle refresh
 
 // Pricing per million tokens (as of Jan 2025)
 const PRICING = {
