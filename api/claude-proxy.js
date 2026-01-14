@@ -1,10 +1,10 @@
 /**
- * Vercel Serverless Function - Claude API Proxy v2.0.5
+ * Vercel Serverless Function - Claude API Proxy v2.0.6
  * Handles CORS and proxies requests to Anthropic's Claude API
- * Deploy: CommonJS export test
+ * Deploy: ES module with default export
  */
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   // Prevent CDN caching - always hit the serverless function
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private, max-age=0');
   res.setHeader('Pragma', 'no-cache');
@@ -125,4 +125,4 @@ module.exports = async (req, res) => {
       error: error.message || 'Internal server error'
     });
   }
-};
+}
