@@ -2,6 +2,7 @@
   "name": "crux-lds-dashboard-v2",
   "private": true,
   "version": "2.0.3",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

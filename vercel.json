@@ -5,7 +5,7 @@
   "installCommand": "npm install",
   "framework": "vite",
   "functions": {
-    "api/**/*.js": {
+    "api/**/*.{js,cjs}": {
       "memory": 1024,
       "maxDuration": 10
     }
