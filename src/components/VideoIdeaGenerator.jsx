@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Lightbulb, Sparkles, TrendingUp, Clock, AlertCircle, Loader2 } from 'lucide-react';
 import claudeAPI from '../services/claudeAPI';
 
-export default function VideoIdeaGenerator({ data }) {
+export default function VideoIdeaGenerator({ data, activeClient }) {
   // v2.2.1 - Updated styling
   // Load from localStorage on mount
   const loadFromStorage = () => {
@@ -61,10 +61,12 @@ export default function VideoIdeaGenerator({ data }) {
         retention: v.retention
       }));
 
-      const systemPrompt = `You are a YouTube content strategist specializing in Latter-day Saints (LDS/Mormon) content.
-Your goal is to analyze successful videos and generate creative, data-driven video ideas that will resonate with an LDS audience.`;
+      const clientName = activeClient?.name || 'this channel';
 
-      const userPrompt = `Analyze these top-performing videos from an LDS YouTube channel:
+      const systemPrompt = `You are a YouTube content strategist.
+Your goal is to analyze successful videos and generate creative, data-driven video ideas that will resonate with ${clientName}'s audience.`;
+
+      const userPrompt = `Analyze these top-performing videos from ${clientName}'s YouTube channel:
 
 ${JSON.stringify(videoData, null, 2)}
 
@@ -76,7 +78,7 @@ Channel Performance Context:
 Based on these successful videos, generate 10 new video ideas that:
 1. Follow similar patterns and topics that already work for this audience
 2. Are specific and actionable (not generic)
-3. Are tailored to LDS/Mormon audience interests
+3. Are tailored to the channel's audience interests
 4. Include engaging, clickable titles
 5. Suggest a compelling thumbnail concept
 6. Provide a strong hook for the first 30 seconds
@@ -212,7 +214,7 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
                 </div>
                 <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-purple-100">
                   <div className="w-2 h-2 bg-purple-600 rounded-full mt-1.5"></div>
-                  <span className="text-sm text-gray-700">Generates 10 new ideas tailored to your LDS audience</span>
+                  <span className="text-sm text-gray-700">Generates 10 new ideas tailored to your audience</span>
                 </div>
                 <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-purple-100">
                   <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5"></div>

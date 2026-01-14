@@ -2113,7 +2113,7 @@ export default function App() {
             )}
 
             {tab === "AI Ideas" && (
-              <VideoIdeaGenerator data={filtered} />
+              <VideoIdeaGenerator data={filtered} activeClient={activeClient} />
             )}
 
             {tab === "Comments" && (
@@ -2130,6 +2130,7 @@ export default function App() {
                   const currentMonth = rows.filter(r => r.publishDate && new Date(r.publishDate) >= thirtyDaysAgo);
                   return { currentMonth };
                 })()}
+                activeClient={activeClient}
               />
             )}
 

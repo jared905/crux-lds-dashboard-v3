@@ -7,7 +7,7 @@ import claudeAPI from '../services/claudeAPI';
  * Generates natural language summaries and reports using Claude AI
  * v2.2.1 - Updated styling
  */
-export default function AIExecutiveSummary({ rows, analysis }) {
+export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
   // Load from localStorage on mount
   const loadFromStorage = () => {
     try {
@@ -98,11 +98,13 @@ export default function AIExecutiveSummary({ rows, analysis }) {
       }));
 
       // Build context-aware system prompt
+      const clientName = activeClient?.name || 'this channel';
+
       const focusGuidance = {
         growth: 'Focus heavily on subscriber growth, reach expansion, and audience acquisition metrics. Analyze what content drives new viewers.',
         engagement: 'Prioritize engagement metrics like CTR, retention, comments, and watch time. Identify what keeps audiences engaged.',
-        content: 'Emphasize content strategy, topic performance, video formats, and what resonates with the LDS audience.',
-        competitive: 'Focus on competitive positioning, market trends, and how this channel compares to similar LDS content creators.',
+        content: `Emphasize content strategy, topic performance, video formats, and what resonates with ${clientName}'s audience.`,
+        competitive: `Focus on competitive positioning, market trends, and how this channel compares to similar content creators in ${clientName}'s niche.`,
         monetization: 'Analyze revenue potential, ad performance, and opportunities to maximize earnings.',
         balanced: 'Provide a well-rounded analysis covering growth, engagement, and content strategy.'
       };
@@ -113,7 +115,7 @@ export default function AIExecutiveSummary({ rows, analysis }) {
         actionable: 'Emphasize concrete next steps and tactical recommendations. Include specific action items with expected outcomes.'
       };
 
-      let systemPrompt = `You are an executive communications specialist for YouTube content creators in the Latter-day Saints (LDS/Mormon) space.
+      let systemPrompt = `You are an executive communications specialist for YouTube content creators.
 
 Your goal is to write compelling, data-driven executive summaries that:
 1. Tell a story about channel performance (not just list statistics)
@@ -123,13 +125,15 @@ Your goal is to write compelling, data-driven executive summaries that:
 5. Focus on "why" things happened, not just "what" happened
 6. Include specific, actionable recommendations
 
+Context: You are analyzing performance for ${clientName}.
+
 ${focusGuidance[focusArea]}
 
 ${styleGuidance[reportStyle]}
 
 Write in a narrative style that executives would expect in a monthly board report.`;
 
-      let userPrompt = `Write a comprehensive executive summary for this LDS YouTube channel's performance for the last 30 days.`;
+      let userPrompt = `Write a comprehensive executive summary for ${clientName}'s YouTube channel performance for the last 30 days.`;
 
       // Add user-specific goals if provided
       if (specificGoals && specificGoals.trim()) {
@@ -175,7 +179,7 @@ Please write a comprehensive executive summary with these sections:
 ## Outlook
 [1-2 sentences about what to watch for next month]
 
-Write in a professional narrative style. Use specific numbers. Focus on insights, not just data reporting. Consider the LDS audience context in your analysis.`;
+Write in a professional narrative style. Use specific numbers. Focus on insights, not just data reporting. Consider the specific audience context in your analysis.`;
 
       const result = await claudeAPI.call(userPrompt, systemPrompt, 'executive-summary', 4096);
 
@@ -417,7 +421,7 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
                     <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5"></div>
                     <div>
                       <span className="text-sm font-semibold text-gray-900">Actionable recommendations</span>
-                      <p className="text-xs text-gray-600 mt-1">Tailored to your channel's LDS audience</p>
+                      <p className="text-xs text-gray-600 mt-1">Tailored to your channel's audience</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-blue-100">
