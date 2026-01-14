@@ -144,19 +144,26 @@ class ClaudeAPIService {
     }
 
     try {
+      // Build request body
+      const requestBody = {
+        apiKey: this.apiKey,
+        maxTokens: maxTokens,
+        messages: [{ role: 'user', content: prompt }],
+        stream: false
+      };
+
+      // Only add system prompt if it has content
+      if (systemPrompt && systemPrompt.trim()) {
+        requestBody.system = systemPrompt;
+      }
+
       // Always use proxy format
       const response = await fetch(CLAUDE_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          apiKey: this.apiKey,
-          maxTokens: maxTokens,
-          system: systemPrompt || undefined,
-          messages: [{ role: 'user', content: prompt }],
-          stream: false
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
@@ -195,18 +202,25 @@ class ClaudeAPIService {
     }
 
     try {
+      // Build request body
+      const requestBody = {
+        apiKey: this.apiKey,
+        maxTokens: maxTokens,
+        messages: [{ role: 'user', content: prompt }],
+        stream: true
+      };
+
+      // Only add system prompt if it has content
+      if (systemPrompt && systemPrompt.trim()) {
+        requestBody.system = systemPrompt;
+      }
+
       const response = await fetch(CLAUDE_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          apiKey: this.apiKey,  // Pass API key in body to proxy
-          maxTokens: maxTokens,
-          system: systemPrompt || undefined,
-          messages: [{ role: 'user', content: prompt }],
-          stream: true
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
