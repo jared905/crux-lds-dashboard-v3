@@ -7,9 +7,9 @@
 
 // Always use proxy endpoint to avoid CORS (works in all environments via Vercel)
 const CLAUDE_API_URL = '/api/claude-proxy';  // Changed URL to bypass browser cache
-const CLAUDE_MODEL = 'claude-3-5-sonnet-20240620';
+const CLAUDE_MODEL = 'claude-3-5-sonnet-20241022';
 const MAX_TOKENS = 4096;
-const API_VERSION = '2.0.4'; // Force bundle refresh
+const API_VERSION = '2.0.5'; // Force bundle refresh
 
 // Pricing per million tokens (as of Jan 2025)
 const PRICING = {
