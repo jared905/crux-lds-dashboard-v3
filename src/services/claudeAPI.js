@@ -1,8 +1,8 @@
 /**
- * Claude API Service - v2.0.1
+ * Claude API Service - v2.0.3
  * Handles all interactions with Anthropic's Claude API via backend proxy
  * Includes rate limiting, error handling, cost tracking, and budget management
- * Cache buster: 2026-01-14
+ * Build: 2026-01-13-v3
  */
 
 // Always use proxy endpoint to avoid CORS (works in all environments via Vercel)
