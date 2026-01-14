@@ -6,9 +6,29 @@ import { FileDown } from "lucide-react";
 /**
  * PDF Export Component
  * Creates a clean, presentation-ready PDF with key executive metrics
+ * Can optionally include AI-generated summary and video ideas
  */
 export default function PDFExport({ kpis, top, filtered, dateRange }) {
   const [exporting, setExporting] = useState(false);
+
+  // Load AI content from localStorage if it should be included
+  const getAIContent = () => {
+    try {
+      const summary = localStorage.getItem('ai_executive_summary');
+      const ideas = localStorage.getItem('ai_video_ideas');
+
+      const summaryData = summary ? JSON.parse(summary) : null;
+      const ideasData = ideas ? JSON.parse(ideas) : null;
+
+      return {
+        summary: summaryData?.includeInPDF ? summaryData.narrative : null,
+        ideas: ideasData?.includeInPDF ? ideasData.ideas : null
+      };
+    } catch (err) {
+      console.error('Error loading AI content:', err);
+      return { summary: null, ideas: null };
+    }
+  };
 
   const getDateRangeLabel = () => {
     switch(dateRange) {
@@ -41,6 +61,9 @@ export default function PDFExport({ kpis, top, filtered, dateRange }) {
         month: 'long',
         day: 'numeric'
       });
+
+      // Get AI content
+      const aiContent = getAIContent();
 
       // Build the PDF content
       container.innerHTML = `
@@ -183,6 +206,77 @@ export default function PDFExport({ kpis, top, filtered, dateRange }) {
               </div>
             </div>
           </div>
+
+          ${aiContent.summary ? `
+          <!-- AI Executive Summary -->
+          <div style="margin-top: 36px; page-break-before: always;">
+            <h2 style="font-size: 32px; font-weight: 700; color: #1e293b; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 3px solid #2563eb; background: linear-gradient(90deg, #2563eb, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+              🤖 AI Executive Summary
+            </h2>
+            <div style="background: linear-gradient(135deg, #f8fafc, #e0e7ff); padding: 28px; border-radius: 14px; border: 2px solid #818cf8;">
+              ${aiContent.summary.split('\n').map(line => {
+                if (line.startsWith('# ')) {
+                  return `<h3 style="font-size: 26px; font-weight: 700; color: #1e3a8a; margin: 20px 0 12px 0;">${line.substring(2)}</h3>`;
+                }
+                if (line.startsWith('## ')) {
+                  return `<h4 style="font-size: 22px; font-weight: 600; color: #312e81; margin: 18px 0 10px 0; padding-left: 12px; border-left: 4px solid #6366f1;">${line.substring(3)}</h4>`;
+                }
+                if (line.startsWith('### ')) {
+                  return `<h5 style="font-size: 18px; font-weight: 600; color: #4338ca; margin: 14px 0 8px 0;">${line.substring(4)}</h5>`;
+                }
+                if (line.startsWith('- ') || line.startsWith('• ')) {
+                  return `<li style="margin-left: 24px; margin-bottom: 8px; color: #374151; font-size: 15px; line-height: 1.6;">${line.substring(2)}</li>`;
+                }
+                if (line.trim() === '') {
+                  return '<div style="height: 12px;"></div>';
+                }
+                const boldText = line.replace(/\*\*(.+?)\*\*/g, '<strong style="color: #1d4ed8; font-weight: 600;">$1</strong>');
+                return `<p style="color: #374151; font-size: 15px; line-height: 1.7; margin-bottom: 12px;">${boldText}</p>`;
+              }).join('')}
+            </div>
+          </div>
+          ` : ''}
+
+          ${aiContent.ideas && aiContent.ideas.length > 0 ? `
+          <!-- AI Video Ideas -->
+          <div style="margin-top: 36px; page-break-before: always;">
+            <h2 style="font-size: 32px; font-weight: 700; color: #1e293b; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 3px solid #7c3aed; background: linear-gradient(90deg, #7c3aed, #2563eb); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+              💡 AI-Generated Video Ideas
+            </h2>
+            ${aiContent.ideas.map((idea, idx) => `
+              <div style="background: linear-gradient(135deg, #faf5ff, #ede9fe); padding: 24px; border-radius: 14px; margin-bottom: 20px; border: 2px solid #a78bfa;">
+                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+                  <div style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #7c3aed, #2563eb); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; color: white; box-shadow: 0 4px 8px rgba(124, 58, 237, 0.3);">
+                    ${idx + 1}
+                  </div>
+                  <div>
+                    <div style="display: inline-block; padding: 6px 14px; border-radius: 8px; background: #e0e7ff; color: #4338ca; font-size: 13px; font-weight: 600; margin-right: 8px;">
+                      ${idea.topic}
+                    </div>
+                    <div style="display: inline-block; padding: 6px 14px; border-radius: 8px; border: 2px solid #10b981; background: #d1fae5; color: #065f46; font-size: 13px; font-weight: 600;">
+                      ${idea.confidence} confidence
+                    </div>
+                  </div>
+                </div>
+                <h3 style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 16px; line-height: 1.3;">
+                  ${idea.title}
+                </h3>
+                <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); padding: 16px; border-radius: 10px; margin-bottom: 12px; border-left: 4px solid #2563eb;">
+                  <div style="font-size: 12px; font-weight: 700; color: #1e3a8a; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Opening Hook</div>
+                  <div style="font-size: 14px; color: #1e40af; line-height: 1.6;">${idea.hook}</div>
+                </div>
+                <div style="background: linear-gradient(135deg, #f3e8ff, #e9d5ff); padding: 16px; border-radius: 10px; margin-bottom: 12px; border-left: 4px solid #7c3aed;">
+                  <div style="font-size: 12px; font-weight: 700; color: #5b21b6; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Thumbnail Concept</div>
+                  <div style="font-size: 14px; color: #6b21a8; line-height: 1.6;">${idea.thumbnailConcept}</div>
+                </div>
+                <div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); padding: 16px; border-radius: 10px; border-left: 4px solid #10b981;">
+                  <div style="font-size: 12px; font-weight: 700; color: #065f46; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Why This Works</div>
+                  <div style="font-size: 14px; color: #047857; line-height: 1.6;">${idea.whyItWorks}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          ` : ''}
 
           <!-- Footer -->
           <div style="margin-top: 28px; padding-top: 18px; border-top: 1px solid #e2e8f0; text-align: center;">

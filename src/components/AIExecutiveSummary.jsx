@@ -34,6 +34,7 @@ export default function AIExecutiveSummary({ rows, analysis }) {
   const [refinementQuestion, setRefinementQuestion] = useState('');
   const [refining, setRefining] = useState(false);
   const [conversationHistory, setConversationHistory] = useState(() => loadFromStorage()?.conversationHistory || []);
+  const [includeInPDF, setIncludeInPDF] = useState(() => loadFromStorage()?.includeInPDF || false);
 
   // Save to localStorage whenever narrative or cost changes
   useEffect(() => {
@@ -43,13 +44,14 @@ export default function AIExecutiveSummary({ rows, analysis }) {
           narrative,
           estimatedCost,
           conversationHistory,
+          includeInPDF,
           timestamp: new Date().toISOString()
         }));
       } catch (err) {
         console.error('Error saving summary:', err);
       }
     }
-  }, [narrative, estimatedCost, conversationHistory]);
+  }, [narrative, estimatedCost, conversationHistory, includeInPDF]);
 
   const generateNarrative = async () => {
     setLoading(true);
@@ -424,7 +426,17 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
                 <span className="text-sm text-green-700">• Cost: ${estimatedCost.toFixed(4)}</span>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeInPDF}
+                  onChange={(e) => setIncludeInPDF(e.target.checked)}
+                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                />
+                <span className="text-sm font-medium text-green-900">Include in PDF Export</span>
+              </label>
+              <div className="flex items-center gap-2">
               <button
                 onClick={copyToClipboard}
                 className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-sm font-medium transition-colors"
@@ -457,36 +469,45 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
             </div>
           </div>
 
-          {/* Narrative Content */}
-          <div className="bg-white rounded-xl border border-gray-200 p-8">
+          {/* Narrative Content - Dashboard Styled */}
+          <div id="ai-summary-content" className="bg-gradient-to-br from-white to-gray-50 rounded-xl border-2 border-blue-100 shadow-lg p-8">
             <div className="prose prose-lg max-w-none">
               {narrative.split('\n').map((line, index) => {
-                // Markdown-style rendering
+                // Markdown-style rendering with dashboard styling
                 if (line.startsWith('# ')) {
-                  return <h1 key={index} className="text-3xl font-bold text-gray-900 mt-8 mb-4">{line.substring(2)}</h1>;
+                  return (
+                    <h1 key={index} className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mt-0 mb-6 pb-4 border-b-3 border-blue-200">
+                      {line.substring(2)}
+                    </h1>
+                  );
                 }
                 if (line.startsWith('## ')) {
-                  return <h2 key={index} className="text-2xl font-bold text-gray-900 mt-6 mb-3">{line.substring(3)}</h2>;
+                  return (
+                    <h2 key={index} className="text-2xl font-bold text-gray-900 mt-8 mb-4 flex items-center gap-3">
+                      <span className="w-1.5 h-8 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full"></span>
+                      {line.substring(3)}
+                    </h2>
+                  );
                 }
                 if (line.startsWith('### ')) {
-                  return <h3 key={index} className="text-xl font-semibold text-gray-900 mt-4 mb-2">{line.substring(4)}</h3>;
+                  return <h3 key={index} className="text-xl font-semibold text-gray-800 mt-6 mb-3">{line.substring(4)}</h3>;
                 }
                 if (line.startsWith('- ') || line.startsWith('• ')) {
                   return (
-                    <li key={index} className="ml-6 text-gray-700 leading-relaxed">
+                    <li key={index} className="ml-6 text-gray-700 leading-relaxed mb-2 pl-2 border-l-2 border-blue-200">
                       {line.substring(2)}
                     </li>
                   );
                 }
                 if (line.trim() === '') {
-                  return <div key={index} className="h-4" />;
+                  return <div key={index} className="h-3" />;
                 }
-                // Bold text
-                const boldText = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                // Bold text with blue highlight
+                const boldText = line.replace(/\*\*(.+?)\*\*/g, '<strong class="text-blue-700 font-semibold">$1</strong>');
                 return (
                   <p
                     key={index}
-                    className="text-gray-700 leading-relaxed mb-3"
+                    className="text-gray-700 leading-relaxed mb-4 text-base"
                     dangerouslySetInnerHTML={{ __html: boldText }}
                   />
                 );

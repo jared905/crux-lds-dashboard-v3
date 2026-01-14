@@ -18,6 +18,7 @@ export default function VideoIdeaGenerator({ data }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [estimatedCost, setEstimatedCost] = useState(() => loadFromStorage()?.estimatedCost || null);
+  const [includeInPDF, setIncludeInPDF] = useState(() => loadFromStorage()?.includeInPDF || false);
 
   // Save to localStorage whenever ideas change
   useEffect(() => {
@@ -26,13 +27,14 @@ export default function VideoIdeaGenerator({ data }) {
         localStorage.setItem('ai_video_ideas', JSON.stringify({
           ideas,
           estimatedCost,
+          includeInPDF,
           timestamp: new Date().toISOString()
         }));
       } catch (err) {
         console.error('Error saving ideas:', err);
       }
     }
-  }, [ideas, estimatedCost]);
+  }, [ideas, estimatedCost, includeInPDF]);
 
   const generateIdeas = async () => {
     setLoading(true);
@@ -224,7 +226,17 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
               <span className="font-medium text-green-900">Ideas Generated Successfully</span>
               <span className="text-sm text-green-700">• Cost: ${estimatedCost.toFixed(4)}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeInPDF}
+                  onChange={(e) => setIncludeInPDF(e.target.checked)}
+                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                />
+                <span className="text-sm font-medium text-green-900">Include in PDF Export</span>
+              </label>
+              <div className="flex items-center gap-2">
               <button
                 onClick={generateIdeas}
                 disabled={loading}
@@ -243,61 +255,67 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
         </div>
       )}
 
-      {/* Generated Ideas */}
+      {/* Generated Ideas - Dashboard Styled */}
       {ideas.length > 0 && (
-        <div className="grid gap-6">
+        <div id="video-ideas-content" className="grid gap-6">
           {ideas.map((idea, index) => (
             <div
               key={index}
-              className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-shadow"
+              className="bg-gradient-to-br from-white to-gray-50 rounded-xl border-2 border-purple-100 p-6 hover:shadow-xl hover:border-purple-200 transition-all"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
                     {index + 1}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTopicColor(idea.topic)}`}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`px-3 py-1 rounded-lg text-xs font-semibold shadow-sm ${getTopicColor(idea.topic)}`}>
                       {idea.topic}
                     </span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getConfidenceColor(idea.confidence)}`}>
+                    <span className={`px-3 py-1 rounded-lg text-xs font-semibold border-2 shadow-sm ${getConfidenceColor(idea.confidence)}`}>
                       {idea.confidence} confidence
                     </span>
                   </div>
                 </div>
               </div>
 
-              <h3 className="text-lg font-bold text-gray-900 mb-3">
+              <h3 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-4 leading-tight">
                 {idea.title}
               </h3>
 
-              <div className="space-y-4">
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <div className="flex items-start gap-2">
-                    <Clock className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-semibold text-blue-900 uppercase mb-1">Opening Hook</p>
-                      <p className="text-sm text-blue-800">{idea.hook}</p>
+              <div className="space-y-3">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-blue-600 rounded-lg p-2">
+                      <Clock className="w-4 h-4 text-white flex-shrink-0" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-blue-900 uppercase mb-2 tracking-wide">Opening Hook</p>
+                      <p className="text-sm text-blue-900 font-medium leading-relaxed">{idea.hook}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-purple-50 rounded-lg p-4">
-                  <div className="flex items-start gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-semibold text-purple-900 uppercase mb-1">Thumbnail Concept</p>
-                      <p className="text-sm text-purple-800">{idea.thumbnailConcept}</p>
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-purple-600 rounded-lg p-2">
+                      <Sparkles className="w-4 h-4 text-white flex-shrink-0" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-purple-900 uppercase mb-2 tracking-wide">Thumbnail Concept</p>
+                      <p className="text-sm text-purple-900 font-medium leading-relaxed">{idea.thumbnailConcept}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-start gap-2">
-                    <TrendingUp className="w-4 h-4 text-gray-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-semibold text-gray-900 uppercase mb-1">Why This Works</p>
-                      <p className="text-sm text-gray-700">{idea.whyItWorks}</p>
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-green-600 rounded-lg p-2">
+                      <TrendingUp className="w-4 h-4 text-white flex-shrink-0" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-green-900 uppercase mb-2 tracking-wide">Why This Works</p>
+                      <p className="text-sm text-green-900 font-medium leading-relaxed">{idea.whyItWorks}</p>
                     </div>
                   </div>
                 </div>
