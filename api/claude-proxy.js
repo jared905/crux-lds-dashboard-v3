@@ -1,6 +1,7 @@
 /**
- * Vercel Serverless Function - Claude API Proxy
+ * Vercel Serverless Function - Claude API Proxy v2.0.2
  * Handles CORS and proxies requests to Anthropic's Claude API
+ * Updated: Force cache invalidation
  */
 
 export default async function handler(req, res) {
