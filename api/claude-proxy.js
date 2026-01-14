@@ -43,9 +43,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Messages array is required' });
     }
 
-    // Build request body - use provided model or default to latest Sonnet
+    // Build request body - use provided model or default to latest Sonnet 4.5
     const requestBody = {
-      model: model || 'claude-3-5-sonnet-20241022',
+      model: model || 'claude-sonnet-4-5-20250929',
       max_tokens: maxTokens || 4096,
       messages: messages,
       stream: stream || false

@@ -7,11 +7,12 @@
 
 // Always use proxy endpoint to avoid CORS (works in all environments via Vercel)
 const CLAUDE_API_URL = '/api/claude-proxy';  // Changed URL to bypass browser cache
-const CLAUDE_MODEL = 'claude-3-5-sonnet-20241022';
+const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';  // Latest Sonnet 4.5 model
 const MAX_TOKENS = 4096;
-const API_VERSION = '2.0.5'; // Force bundle refresh
+const API_VERSION = '2.0.6'; // Force bundle refresh
 
 // Pricing per million tokens (as of Jan 2025)
+// Note: These are Sonnet prices. Opus is higher: $15 input / $75 output
 const PRICING = {
   input: 3.00,   // $3 per million input tokens
   output: 15.00  // $15 per million output tokens
