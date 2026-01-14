@@ -5,7 +5,7 @@ import claudeAPI from '../services/claudeAPI';
 /**
  * AI-Powered Executive Summary Generator
  * Generates natural language summaries and reports using Claude AI
- * v2.2.1 - Updated styling
+ * v2.2.2 - Dark theme styling
  */
 export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
   // Load from localStorage on mount
@@ -270,34 +270,76 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
   // If no analysis data, show message
   if (!analysis || !rows || rows.length === 0) {
     return (
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <div className="flex gap-3">
-          <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
-          <div>
-            <p className="font-medium text-yellow-900">No Data Available</p>
-            <p className="text-sm text-yellow-700 mt-1">
-              Please upload video data to generate an executive summary.
-            </p>
-          </div>
+      <div style={{
+        backgroundColor: "#1E1E1E",
+        border: "1px solid #f59e0b",
+        borderLeft: "4px solid #f59e0b",
+        borderRadius: "8px",
+        padding: "16px",
+        display: "flex",
+        gap: "12px"
+      }}>
+        <div style={{
+          width: "40px",
+          height: "40px",
+          borderRadius: "8px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "rgba(245, 158, 11, 0.1)",
+          color: "#f59e0b",
+          flexShrink: 0
+        }}>
+          <AlertCircle size={20} />
+        </div>
+        <div>
+          <p style={{ fontWeight: "600", color: "#fff", marginBottom: "4px" }}>No Data Available</p>
+          <p style={{ fontSize: "13px", color: "#9E9E9E" }}>
+            Please upload video data to generate an executive summary.
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* Header Card */}
-      <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 rounded-2xl border-2 border-blue-200 shadow-lg p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-              <FileText className="w-7 h-7 text-white" />
+      <div style={{
+        backgroundColor: "#1E1E1E",
+        border: "1px solid #333",
+        borderRadius: "12px",
+        padding: "24px",
+        position: "relative",
+        overflow: "hidden"
+      }}>
+        <div style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "4px",
+          background: "linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899)"
+        }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <div style={{
+              width: "48px",
+              height: "48px",
+              borderRadius: "8px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(59, 130, 246, 0.1)",
+              color: "#60a5fa"
+            }}>
+              <FileText size={24} />
             </div>
             <div>
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
                 AI Executive Summary
               </h2>
-              <p className="text-sm text-gray-600 mt-1">
+              <p style={{ fontSize: "13px", color: "#9E9E9E" }}>
                 Generate stakeholder-ready performance narratives
               </p>
             </div>
@@ -307,16 +349,29 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
             <button
               onClick={generateNarrative}
               disabled={loading}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                background: "#2962FF",
+                border: "none",
+                borderRadius: "8px",
+                padding: "12px 20px",
+                color: "#fff",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: loading ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                opacity: loading ? 0.6 : 1
+              }}
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
                   Generating...
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-5 h-5" />
+                  <Sparkles size={18} />
                   Generate Summary (~$0.30)
                 </>
               )}
@@ -327,27 +382,57 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
 
       {/* Context Fields (before generation) */}
       {!narrative && !loading && (
-        <div className="space-y-4">
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* Toggle Context Fields */}
           <button
             onClick={() => setShowContextFields(!showContextFields)}
-            className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 hover:border-purple-300 rounded-xl px-5 py-3 text-sm font-semibold text-purple-700 flex items-center gap-2 transition-all shadow-sm hover:shadow-md"
+            style={{
+              background: "#252525",
+              border: "1px solid #333",
+              borderRadius: "8px",
+              padding: "12px 16px",
+              color: "#8b5cf6",
+              fontSize: "13px",
+              fontWeight: "600",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              textAlign: "left"
+            }}
           >
-            {showContextFields ? '▼' : '▶'} Customize Summary Focus (Optional - Improves Quality)
+            <span>{showContextFields ? '▼' : '▶'}</span>
+            Customize Summary Focus (Optional - Improves Quality)
           </button>
 
           {/* Context Fields */}
           {showContextFields && (
-            <div className="bg-gradient-to-br from-white to-purple-50 border-2 border-purple-200 rounded-2xl p-6 space-y-5 shadow-lg">
+            <div style={{
+              backgroundColor: "#1E1E1E",
+              border: "1px solid #333",
+              borderRadius: "12px",
+              padding: "24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "20px"
+            }}>
               <div>
-                <label className="block text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                  <span className="w-1.5 h-6 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full"></span>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: "#E0E0E0", marginBottom: "8px" }}>
                   Focus Area
                 </label>
                 <select
                   value={focusArea}
                   onChange={(e) => setFocusArea(e.target.value)}
-                  className="w-full px-4 py-3 bg-white border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 transition-all shadow-sm font-medium"
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    backgroundColor: "#252525",
+                    border: "1px solid #333",
+                    borderRadius: "8px",
+                    color: "#E0E0E0",
+                    fontSize: "14px",
+                    cursor: "pointer"
+                  }}
                 >
                   <option value="balanced">Balanced Overview (Default)</option>
                   <option value="growth">Growth & Subscriber Acquisition</option>
@@ -359,8 +444,7 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                  <span className="w-1.5 h-6 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full"></span>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: "#E0E0E0", marginBottom: "8px" }}>
                   Specific Questions or Goals (Optional)
                 </label>
                 <textarea
@@ -368,23 +452,40 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
                   onChange={(e) => setSpecificGoals(e.target.value)}
                   placeholder="Example: Why did views drop in week 3? Which video topics perform best? How do we compare to similar channels?"
                   rows={3}
-                  className="w-full px-4 py-3 bg-white border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 transition-all resize-none shadow-sm"
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    backgroundColor: "#252525",
+                    border: "1px solid #333",
+                    borderRadius: "8px",
+                    color: "#E0E0E0",
+                    fontSize: "14px",
+                    resize: "vertical"
+                  }}
                 />
-                <p className="text-xs text-gray-600 mt-2 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" />
+                <p style={{ fontSize: "11px", color: "#9E9E9E", marginTop: "6px", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <Sparkles size={12} />
                   The AI will address these specific questions throughout the analysis
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                  <span className="w-1.5 h-6 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full"></span>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: "#E0E0E0", marginBottom: "8px" }}>
                   Report Style
                 </label>
                 <select
                   value={reportStyle}
                   onChange={(e) => setReportStyle(e.target.value)}
-                  className="w-full px-4 py-3 bg-white border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 transition-all shadow-sm font-medium"
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    backgroundColor: "#252525",
+                    border: "1px solid #333",
+                    borderRadius: "8px",
+                    color: "#E0E0E0",
+                    fontSize: "14px",
+                    cursor: "pointer"
+                  }}
                 >
                   <option value="executive">Executive Brief (Concise)</option>
                   <option value="detailed">Detailed Analysis (Comprehensive)</option>
@@ -395,46 +496,63 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
           )}
 
           {/* Info Banner */}
-          <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-blue-50 border-2 border-blue-200 rounded-2xl p-8 shadow-lg">
-            <div className="flex gap-6">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                <Sparkles className="w-6 h-6 text-white" />
+          <div style={{
+            backgroundColor: "#1E1E1E",
+            border: "1px solid #333",
+            borderRadius: "12px",
+            padding: "24px",
+            position: "relative",
+            overflow: "hidden"
+          }}>
+            <div style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "4px",
+              background: "linear-gradient(90deg, #3b82f6, #8b5cf6)"
+            }} />
+            <div style={{ display: "flex", gap: "20px" }}>
+              <div style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "8px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(139, 92, 246, 0.1)",
+                color: "#a78bfa",
+                flexShrink: 0
+              }}>
+                <Sparkles size={20} />
               </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">What You'll Get</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-blue-100">
-                    <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5"></div>
-                    <div>
-                      <span className="text-sm font-semibold text-gray-900">Professional narrative summary</span>
-                      <p className="text-xs text-gray-600 mt-1">Suitable for stakeholders and leadership</p>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>What You'll Get</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
+                  {[
+                    { label: "Professional narrative summary", sub: "Suitable for stakeholders and leadership" },
+                    { label: "Strategic insights", sub: "Explaining why performance changed" },
+                    { label: "Actionable recommendations", sub: "Tailored to your channel's audience" },
+                    { label: "Board-ready format", sub: "Copy directly into reports or presentations" }
+                  ].map((item, i) => (
+                    <div key={i} style={{
+                      background: "rgba(59, 130, 246, 0.05)",
+                      border: "1px solid #333",
+                      borderRadius: "8px",
+                      padding: "12px"
+                    }}>
+                      <div style={{ fontSize: "13px", fontWeight: "600", color: "#E0E0E0", marginBottom: "4px" }}>
+                        {item.label}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#9E9E9E" }}>
+                        {item.sub}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-blue-100">
-                    <div className="w-2 h-2 bg-purple-600 rounded-full mt-1.5"></div>
-                    <div>
-                      <span className="text-sm font-semibold text-gray-900">Strategic insights</span>
-                      <p className="text-xs text-gray-600 mt-1">Explaining why performance changed</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-blue-100">
-                    <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5"></div>
-                    <div>
-                      <span className="text-sm font-semibold text-gray-900">Actionable recommendations</span>
-                      <p className="text-xs text-gray-600 mt-1">Tailored to your channel's audience</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-blue-100">
-                    <div className="w-2 h-2 bg-purple-600 rounded-full mt-1.5"></div>
-                    <div>
-                      <span className="text-sm font-semibold text-gray-900">Board-ready format</span>
-                      <p className="text-xs text-gray-600 mt-1">Copy directly into reports or presentations</p>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-                <div className="mt-4 flex items-center gap-2 text-sm">
-                  <TrendingUp className="w-4 h-4 text-green-600" />
-                  <span className="font-semibold text-green-700">Cost: $0.15-0.45 • Takes 10-15 seconds • Can refine after generation</span>
+                <div style={{ marginTop: "16px", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+                  <TrendingUp size={16} style={{ color: "#10b981" }} />
+                  <span style={{ color: "#10b981", fontWeight: "600" }}>Cost: $0.15-0.45 • Takes 10-15 seconds • Can refine after generation</span>
                 </div>
               </div>
             </div>
@@ -444,60 +562,115 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
 
       {/* Error Message */}
       {error && (
-        <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-5 shadow-md">
-          <div className="flex gap-4">
-            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <AlertCircle className="w-5 h-5 text-red-600" />
-            </div>
-            <div>
-              <p className="font-bold text-red-900 text-lg">Error</p>
-              <p className="text-sm text-red-700 mt-1">{error}</p>
-            </div>
+        <div style={{
+          backgroundColor: "#1E1E1E",
+          border: "1px solid #ef4444",
+          borderLeft: "4px solid #ef4444",
+          borderRadius: "8px",
+          padding: "16px",
+          display: "flex",
+          gap: "12px"
+        }}>
+          <div style={{
+            width: "40px",
+            height: "40px",
+            borderRadius: "8px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(239, 68, 68, 0.1)",
+            color: "#ef4444",
+            flexShrink: 0
+          }}>
+            <AlertCircle size={20} />
+          </div>
+          <div>
+            <p style={{ fontWeight: "700", color: "#fff", fontSize: "14px", marginBottom: "4px" }}>Error</p>
+            <p style={{ fontSize: "13px", color: "#9E9E9E" }}>{error}</p>
           </div>
         </div>
       )}
 
       {/* Generated Narrative */}
       {narrative && (
-        <div className="space-y-4">
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* Cost & Actions */}
-          <div className="bg-gradient-to-br from-green-50 via-emerald-50 to-green-50 border-2 border-green-300 rounded-2xl p-6 shadow-lg">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-md">
-                  <Sparkles className="w-5 h-5 text-white" />
+          <div style={{
+            backgroundColor: "#1E1E1E",
+            border: "1px solid #10b981",
+            borderLeft: "4px solid #10b981",
+            borderRadius: "12px",
+            padding: "20px"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "rgba(16, 185, 129, 0.1)",
+                  color: "#10b981"
+                }}>
+                  <Sparkles size={18} />
                 </div>
                 <div>
-                  <span className="font-bold text-green-900 text-lg">Summary Generated</span>
-                  <div className="flex items-center gap-2 mt-1">
-                    {estimatedCost && (
-                      <span className="text-sm text-green-700">Cost: ${estimatedCost.toFixed(4)}</span>
-                    )}
-                  </div>
+                  <span style={{ fontWeight: "700", color: "#fff", fontSize: "14px" }}>Summary Generated</span>
+                  {estimatedCost && (
+                    <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "2px" }}>
+                      Cost: ${estimatedCost.toFixed(4)}
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <label className="flex items-center gap-2 cursor-pointer bg-white px-4 py-2 rounded-xl border-2 border-green-200 hover:border-green-300 transition-colors shadow-sm">
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                <label style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  cursor: "pointer",
+                  background: "#252525",
+                  padding: "8px 14px",
+                  borderRadius: "8px",
+                  border: "1px solid #333",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  color: "#E0E0E0"
+                }}>
                   <input
                     type="checkbox"
                     checked={includeInPDF}
                     onChange={(e) => setIncludeInPDF(e.target.checked)}
-                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                    style={{ width: "16px", height: "16px", cursor: "pointer" }}
                   />
-                  <span className="text-sm font-semibold text-green-900">Include in PDF Export</span>
+                  Include in PDF Export
                 </label>
                 <button
                   onClick={copyToClipboard}
-                  className="flex items-center gap-2 px-5 py-2 bg-white hover:bg-gray-50 border-2 border-gray-300 text-gray-700 text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow-md"
+                  style={{
+                    background: "#252525",
+                    border: "1px solid #333",
+                    borderRadius: "8px",
+                    padding: "8px 14px",
+                    color: "#E0E0E0",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
                 >
                   {copied ? (
                     <>
-                      <Check className="w-4 h-4 text-green-600" />
+                      <Check size={16} style={{ color: "#10b981" }} />
                       Copied!
                     </>
                   ) : (
                     <>
-                      <Copy className="w-4 h-4" />
+                      <Copy size={16} />
                       Copy
                     </>
                   )}
@@ -505,13 +678,32 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
                 <button
                   onClick={generateNarrative}
                   disabled={loading}
-                  className="px-5 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+                  style={{
+                    background: "#2962FF",
+                    border: "none",
+                    borderRadius: "8px",
+                    padding: "8px 14px",
+                    color: "#fff",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    opacity: loading ? 0.6 : 1
+                  }}
                 >
                   Regenerate
                 </button>
                 <button
                   onClick={clearSummary}
-                  className="px-5 py-2 bg-white hover:bg-gray-50 border-2 border-gray-300 text-gray-700 text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow-md"
+                  style={{
+                    background: "#252525",
+                    border: "1px solid #333",
+                    borderRadius: "8px",
+                    padding: "8px 14px",
+                    color: "#E0E0E0",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    cursor: "pointer"
+                  }}
                 >
                   Clear
                 </button>
@@ -519,45 +711,83 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
             </div>
           </div>
 
-          {/* Narrative Content - Dashboard Styled */}
-          <div id="ai-summary-content" className="bg-gradient-to-br from-white to-gray-50 rounded-xl border-2 border-blue-100 shadow-lg p-8">
-            <div className="prose prose-lg max-w-none">
+          {/* Narrative Content */}
+          <div id="ai-summary-content" style={{
+            backgroundColor: "#1E1E1E",
+            border: "1px solid #333",
+            borderRadius: "12px",
+            padding: "32px"
+          }}>
+            <div style={{ fontSize: "15px", lineHeight: "1.7", color: "#E0E0E0" }}>
               {narrative.split('\n').map((line, index) => {
-                // Markdown-style rendering with dashboard styling
+                // Markdown-style rendering
                 if (line.startsWith('# ')) {
                   return (
-                    <h1 key={index} className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mt-0 mb-6 pb-4 border-b-3 border-blue-200">
+                    <h1 key={index} style={{
+                      fontSize: "28px",
+                      fontWeight: "700",
+                      color: "#fff",
+                      marginTop: 0,
+                      marginBottom: "24px",
+                      paddingBottom: "12px",
+                      borderBottom: "2px solid #333"
+                    }}>
                       {line.substring(2)}
                     </h1>
                   );
                 }
                 if (line.startsWith('## ')) {
                   return (
-                    <h2 key={index} className="text-2xl font-bold text-gray-900 mt-8 mb-4 flex items-center gap-3">
-                      <span className="w-1.5 h-8 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full"></span>
+                    <h2 key={index} style={{
+                      fontSize: "20px",
+                      fontWeight: "700",
+                      color: "#fff",
+                      marginTop: "32px",
+                      marginBottom: "12px"
+                    }}>
                       {line.substring(3)}
                     </h2>
                   );
                 }
                 if (line.startsWith('### ')) {
-                  return <h3 key={index} className="text-xl font-semibold text-gray-800 mt-6 mb-3">{line.substring(4)}</h3>;
+                  return (
+                    <h3 key={index} style={{
+                      fontSize: "17px",
+                      fontWeight: "600",
+                      color: "#E0E0E0",
+                      marginTop: "24px",
+                      marginBottom: "10px"
+                    }}>
+                      {line.substring(4)}
+                    </h3>
+                  );
                 }
                 if (line.startsWith('- ') || line.startsWith('• ')) {
                   return (
-                    <li key={index} className="ml-6 text-gray-700 leading-relaxed mb-2 pl-2 border-l-2 border-blue-200">
+                    <li key={index} style={{
+                      marginLeft: "24px",
+                      color: "#E0E0E0",
+                      lineHeight: "1.7",
+                      marginBottom: "8px",
+                      paddingLeft: "8px"
+                    }}>
                       {line.substring(2)}
                     </li>
                   );
                 }
                 if (line.trim() === '') {
-                  return <div key={index} className="h-3" />;
+                  return <div key={index} style={{ height: "12px" }} />;
                 }
-                // Bold text with blue highlight
-                const boldText = line.replace(/\*\*(.+?)\*\*/g, '<strong class="text-blue-700 font-semibold">$1</strong>');
+                // Bold text
+                const boldText = line.replace(/\*\*(.+?)\*\*/g, '<strong style="color: #60a5fa; font-weight: 600">$1</strong>');
                 return (
                   <p
                     key={index}
-                    className="text-gray-700 leading-relaxed mb-4 text-base"
+                    style={{
+                      color: "#E0E0E0",
+                      lineHeight: "1.7",
+                      marginBottom: "12px"
+                    }}
                     dangerouslySetInnerHTML={{ __html: boldText }}
                   />
                 );
@@ -566,69 +796,78 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
           </div>
 
           {/* Refinement Section */}
-          <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-blue-50 border-2 border-blue-200 rounded-2xl p-6 shadow-lg">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-                <Sparkles className="w-5 h-5 text-white" />
+          <div style={{
+            backgroundColor: "#1E1E1E",
+            border: "1px solid #333",
+            borderRadius: "12px",
+            padding: "24px",
+            position: "relative",
+            overflow: "hidden"
+          }}>
+            <div style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "4px",
+              background: "linear-gradient(90deg, #8b5cf6, #3b82f6)"
+            }} />
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+              <div style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "8px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(139, 92, 246, 0.1)",
+                color: "#a78bfa"
+              }}>
+                <Sparkles size={18} />
               </div>
-              <h3 className="text-xl font-bold text-gray-900">
+              <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>
                 Refine This Summary
               </h3>
             </div>
 
             {/* Quick Actions */}
-            <div className="mb-5">
-              <p className="text-sm font-semibold text-gray-700 mb-3">Quick refinements:</p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => refineNarrative('shorter')}
-                  disabled={refining}
-                  className="px-4 py-2 bg-white hover:bg-blue-50 border-2 border-blue-200 hover:border-blue-300 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
-                >
-                  Make Shorter
-                </button>
-                <button
-                  onClick={() => refineNarrative('longer')}
-                  disabled={refining}
-                  className="px-4 py-2 bg-white hover:bg-purple-50 border-2 border-purple-200 hover:border-purple-300 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
-                >
-                  Add More Detail
-                </button>
-                <button
-                  onClick={() => refineNarrative('moreData')}
-                  disabled={refining}
-                  className="px-4 py-2 bg-white hover:bg-blue-50 border-2 border-blue-200 hover:border-blue-300 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
-                >
-                  More Data Points
-                </button>
-                <button
-                  onClick={() => refineNarrative('moreRecs')}
-                  disabled={refining}
-                  className="px-4 py-2 bg-white hover:bg-purple-50 border-2 border-purple-200 hover:border-purple-300 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
-                >
-                  More Recommendations
-                </button>
-                <button
-                  onClick={() => refineNarrative('focusGrowth')}
-                  disabled={refining}
-                  className="px-4 py-2 bg-white hover:bg-green-50 border-2 border-green-200 hover:border-green-300 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
-                >
-                  Focus on Growth
-                </button>
-                <button
-                  onClick={() => refineNarrative('focusEngagement')}
-                  disabled={refining}
-                  className="px-4 py-2 bg-white hover:bg-orange-50 border-2 border-orange-200 hover:border-orange-300 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-sm hover:shadow-md"
-                >
-                  Focus on Engagement
-                </button>
+            <div style={{ marginBottom: "20px" }}>
+              <p style={{ fontSize: "13px", fontWeight: "600", color: "#9E9E9E", marginBottom: "12px" }}>Quick refinements:</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {[
+                  { key: 'shorter', label: 'Make Shorter' },
+                  { key: 'longer', label: 'Add More Detail' },
+                  { key: 'moreData', label: 'More Data Points' },
+                  { key: 'moreRecs', label: 'More Recommendations' },
+                  { key: 'focusGrowth', label: 'Focus on Growth' },
+                  { key: 'focusEngagement', label: 'Focus on Engagement' }
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => refineNarrative(key)}
+                    disabled={refining}
+                    style={{
+                      background: "#252525",
+                      border: "1px solid #333",
+                      borderRadius: "8px",
+                      padding: "8px 14px",
+                      fontSize: "13px",
+                      fontWeight: "600",
+                      color: "#E0E0E0",
+                      cursor: refining ? "not-allowed" : "pointer",
+                      opacity: refining ? 0.6 : 1
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* Custom Refinement */}
             <div>
-              <p className="text-sm font-semibold text-gray-700 mb-3">Or ask a specific question:</p>
-              <div className="flex gap-3">
+              <p style={{ fontSize: "13px", fontWeight: "600", color: "#9E9E9E", marginBottom: "12px" }}>Or ask a specific question:</p>
+              <div style={{ display: "flex", gap: "12px" }}>
                 <input
                   type="text"
                   value={refinementQuestion}
@@ -636,29 +875,50 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
                   onKeyPress={(e) => e.key === 'Enter' && refineNarrative()}
                   placeholder="Example: Add a section about competitor analysis..."
                   disabled={refining}
-                  className="flex-1 px-4 py-3 bg-white border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-400 disabled:opacity-50 transition-all shadow-sm"
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    backgroundColor: "#252525",
+                    border: "1px solid #333",
+                    borderRadius: "8px",
+                    color: "#E0E0E0",
+                    fontSize: "14px"
+                  }}
                 />
                 <button
                   onClick={() => refineNarrative()}
                   disabled={refining || !refinementQuestion.trim()}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  style={{
+                    background: "#2962FF",
+                    border: "none",
+                    borderRadius: "8px",
+                    padding: "12px 20px",
+                    color: "#fff",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    cursor: (refining || !refinementQuestion.trim()) ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    opacity: (refining || !refinementQuestion.trim()) ? 0.6 : 1
+                  }}
                 >
                   {refining ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
                       Refining...
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-4 h-4" />
+                      <Sparkles size={16} />
                       Refine
                     </>
                   )}
                 </button>
               </div>
-              <div className="flex items-center gap-2 mt-3">
-                <TrendingUp className="w-3 h-3 text-green-600" />
-                <p className="text-xs text-green-700 font-medium">
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "10px" }}>
+                <TrendingUp size={14} style={{ color: "#10b981" }} />
+                <p style={{ fontSize: "11px", color: "#9E9E9E" }}>
                   Each refinement costs ~$0.05-0.15 depending on complexity
                 </p>
               </div>
@@ -666,6 +926,15 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
           </div>
         </div>
       )}
+
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
     </div>
   );
 }

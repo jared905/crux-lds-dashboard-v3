@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react';
 import { Lightbulb, Sparkles, TrendingUp, Clock, AlertCircle, Loader2 } from 'lucide-react';
 import claudeAPI from '../services/claudeAPI';
 
+/**
+ * AI Video Idea Generator
+ * v2.2.2 - Dark theme styling
+ */
 export default function VideoIdeaGenerator({ data, activeClient }) {
-  // v2.2.1 - Updated styling
   // Load from localStorage on mount
   const loadFromStorage = () => {
     try {
@@ -124,28 +127,28 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
 
   const getConfidenceColor = (confidence) => {
     switch (confidence?.toLowerCase()) {
-      case 'high': return 'bg-green-100 text-green-800 border-green-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': return 'bg-gray-100 text-gray-800 border-gray-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'high': return { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '#10b981' };
+      case 'medium': return { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '#f59e0b' };
+      case 'low': return { bg: 'rgba(107, 114, 128, 0.1)', color: '#9ca3af', border: '#9ca3af' };
+      default: return { bg: 'rgba(107, 114, 128, 0.1)', color: '#9ca3af', border: '#9ca3af' };
     }
   };
 
   const getTopicColor = (topic) => {
     const colors = {
-      'Temple': 'bg-purple-100 text-purple-800',
-      'Scripture': 'bg-blue-100 text-blue-800',
-      'Faith': 'bg-green-100 text-green-800',
-      'Family': 'bg-pink-100 text-pink-800',
-      'Testimony': 'bg-yellow-100 text-yellow-800',
-      'History': 'bg-orange-100 text-orange-800',
+      'Temple': { bg: 'rgba(139, 92, 246, 0.1)', color: '#a78bfa' },
+      'Scripture': { bg: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa' },
+      'Faith': { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981' },
+      'Family': { bg: 'rgba(236, 72, 153, 0.1)', color: '#f472b6' },
+      'Testimony': { bg: 'rgba(251, 191, 36, 0.1)', color: '#fbbf24' },
+      'History': { bg: 'rgba(251, 146, 60, 0.1)', color: '#fb923c' },
     };
 
-    for (const [key, color] of Object.entries(colors)) {
-      if (topic?.includes(key)) return color;
+    for (const [key, value] of Object.entries(colors)) {
+      if (topic?.includes(key)) return value;
     }
 
-    return 'bg-gray-100 text-gray-800';
+    return { bg: 'rgba(107, 114, 128, 0.1)', color: '#9ca3af' };
   };
 
   const clearIdeas = () => {
@@ -156,19 +159,43 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
   };
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* Header Card */}
-      <div className="bg-gradient-to-br from-purple-50 via-white to-blue-50 rounded-2xl border-2 border-purple-200 shadow-lg p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Lightbulb className="w-7 h-7 text-white" />
+      <div style={{
+        backgroundColor: "#1E1E1E",
+        border: "1px solid #333",
+        borderRadius: "12px",
+        padding: "24px",
+        position: "relative",
+        overflow: "hidden"
+      }}>
+        <div style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "4px",
+          background: "linear-gradient(90deg, #8b5cf6, #3b82f6, #ec4899)"
+        }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <div style={{
+              width: "48px",
+              height: "48px",
+              borderRadius: "8px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(139, 92, 246, 0.1)",
+              color: "#a78bfa"
+            }}>
+              <Lightbulb size={24} />
             </div>
             <div>
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+              <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
                 AI Video Idea Generator
               </h2>
-              <p className="text-sm text-gray-600 mt-1">
+              <p style={{ fontSize: "13px", color: "#9E9E9E" }}>
                 Generate data-driven video ideas based on your top performers
               </p>
             </div>
@@ -177,16 +204,29 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
           <button
             onClick={generateIdeas}
             disabled={loading || !data || data.length === 0}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              background: "#2962FF",
+              border: "none",
+              borderRadius: "8px",
+              padding: "12px 20px",
+              color: "#fff",
+              fontSize: "14px",
+              fontWeight: "600",
+              cursor: (loading || !data || data.length === 0) ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              opacity: (loading || !data || data.length === 0) ? 0.6 : 1
+            }}
           >
             {loading ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
                 Generating Ideas...
               </>
             ) : (
               <>
-                <Sparkles className="w-5 h-5" />
+                <Sparkles size={18} />
                 Generate Video Ideas
               </>
             )}
@@ -196,34 +236,60 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
 
       {/* Info Banner */}
       {!ideas.length && !loading && !error && (
-        <div className="bg-gradient-to-br from-purple-50 via-blue-50 to-purple-50 border-2 border-purple-200 rounded-2xl p-8 shadow-lg">
-          <div className="flex gap-6">
-            <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-              <Sparkles className="w-6 h-6 text-white" />
+        <div style={{
+          backgroundColor: "#1E1E1E",
+          border: "1px solid #333",
+          borderRadius: "12px",
+          padding: "24px",
+          position: "relative",
+          overflow: "hidden"
+        }}>
+          <div style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "4px",
+            background: "linear-gradient(90deg, #8b5cf6, #3b82f6)"
+          }} />
+          <div style={{ display: "flex", gap: "20px" }}>
+            <div style={{
+              width: "40px",
+              height: "40px",
+              borderRadius: "8px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(139, 92, 246, 0.1)",
+              color: "#a78bfa",
+              flexShrink: 0
+            }}>
+              <Sparkles size={20} />
             </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 mb-4">How It Works</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-purple-100">
-                  <div className="w-2 h-2 bg-purple-600 rounded-full mt-1.5"></div>
-                  <span className="text-sm text-gray-700">Analyzes your top 20% performing videos</span>
-                </div>
-                <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-purple-100">
-                  <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5"></div>
-                  <span className="text-sm text-gray-700">Identifies patterns in topics, titles, and engagement</span>
-                </div>
-                <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-purple-100">
-                  <div className="w-2 h-2 bg-purple-600 rounded-full mt-1.5"></div>
-                  <span className="text-sm text-gray-700">Generates 10 new ideas tailored to your audience</span>
-                </div>
-                <div className="flex items-start gap-3 bg-white/70 rounded-lg p-3 border border-purple-100">
-                  <div className="w-2 h-2 bg-blue-600 rounded-full mt-1.5"></div>
-                  <span className="text-sm text-gray-700">Includes titles, hooks, and thumbnail concepts</span>
-                </div>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>How It Works</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
+                {[
+                  "Analyzes your top 20% performing videos",
+                  "Identifies patterns in topics, titles, and engagement",
+                  "Generates 10 new ideas tailored to your audience",
+                  "Includes titles, hooks, and thumbnail concepts"
+                ].map((text, i) => (
+                  <div key={i} style={{
+                    background: "rgba(139, 92, 246, 0.05)",
+                    border: "1px solid #333",
+                    borderRadius: "8px",
+                    padding: "12px",
+                    fontSize: "13px",
+                    color: "#E0E0E0"
+                  }}>
+                    {text}
+                  </div>
+                ))}
               </div>
-              <div className="mt-4 flex items-center gap-2 text-sm">
-                <TrendingUp className="w-4 h-4 text-green-600" />
-                <span className="font-semibold text-green-700">Estimated cost: $0.20-0.40 per generation</span>
+              <div style={{ marginTop: "16px", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+                <TrendingUp size={16} style={{ color: "#10b981" }} />
+                <span style={{ color: "#10b981", fontWeight: "600" }}>Estimated cost: $0.20-0.40 per generation</span>
               </div>
             </div>
           </div>
@@ -232,54 +298,116 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
 
       {/* Error Message */}
       {error && (
-        <div className="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-5 shadow-md">
-          <div className="flex gap-4">
-            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <AlertCircle className="w-5 h-5 text-red-600" />
-            </div>
-            <div>
-              <p className="font-bold text-red-900 text-lg">Error</p>
-              <p className="text-sm text-red-700 mt-1">{error}</p>
-            </div>
+        <div style={{
+          backgroundColor: "#1E1E1E",
+          border: "1px solid #ef4444",
+          borderLeft: "4px solid #ef4444",
+          borderRadius: "8px",
+          padding: "16px",
+          display: "flex",
+          gap: "12px"
+        }}>
+          <div style={{
+            width: "40px",
+            height: "40px",
+            borderRadius: "8px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(239, 68, 68, 0.1)",
+            color: "#ef4444",
+            flexShrink: 0
+          }}>
+            <AlertCircle size={20} />
+          </div>
+          <div>
+            <p style={{ fontWeight: "700", color: "#fff", fontSize: "14px", marginBottom: "4px" }}>Error</p>
+            <p style={{ fontSize: "13px", color: "#9E9E9E" }}>{error}</p>
           </div>
         </div>
       )}
 
       {/* Cost Estimate */}
       {estimatedCost && (
-        <div className="bg-gradient-to-br from-green-50 via-emerald-50 to-green-50 border-2 border-green-300 rounded-2xl p-6 shadow-lg">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-md">
-                <TrendingUp className="w-5 h-5 text-white" />
+        <div style={{
+          backgroundColor: "#1E1E1E",
+          border: "1px solid #10b981",
+          borderLeft: "4px solid #10b981",
+          borderRadius: "12px",
+          padding: "20px"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "8px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(16, 185, 129, 0.1)",
+                color: "#10b981"
+              }}>
+                <TrendingUp size={18} />
               </div>
               <div>
-                <span className="font-bold text-green-900 text-lg">Ideas Generated Successfully</span>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-sm text-green-700">Cost: ${estimatedCost.toFixed(4)}</span>
+                <span style={{ fontWeight: "700", color: "#fff", fontSize: "14px" }}>Ideas Generated Successfully</span>
+                <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "2px" }}>
+                  Cost: ${estimatedCost.toFixed(4)}
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <label className="flex items-center gap-2 cursor-pointer bg-white px-4 py-2 rounded-xl border-2 border-green-200 hover:border-green-300 transition-colors shadow-sm">
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+              <label style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: "pointer",
+                background: "#252525",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                border: "1px solid #333",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#E0E0E0"
+              }}>
                 <input
                   type="checkbox"
                   checked={includeInPDF}
                   onChange={(e) => setIncludeInPDF(e.target.checked)}
-                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                  style={{ width: "16px", height: "16px", cursor: "pointer" }}
                 />
-                <span className="text-sm font-semibold text-green-900">Include in PDF Export</span>
+                Include in PDF Export
               </label>
               <button
                 onClick={generateIdeas}
                 disabled={loading}
-                className="px-5 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+                style={{
+                  background: "#2962FF",
+                  border: "none",
+                  borderRadius: "8px",
+                  padding: "8px 14px",
+                  color: "#fff",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.6 : 1
+                }}
               >
                 Generate New Ideas
               </button>
               <button
                 onClick={clearIdeas}
-                className="px-5 py-2 bg-white hover:bg-gray-50 border-2 border-gray-300 text-gray-700 text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow-md"
+                style={{
+                  background: "#252525",
+                  border: "1px solid #333",
+                  borderRadius: "8px",
+                  padding: "8px 14px",
+                  color: "#E0E0E0",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: "pointer"
+                }}
               >
                 Clear
               </button>
@@ -288,92 +416,255 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
         </div>
       )}
 
-      {/* Generated Ideas - Dashboard Styled */}
+      {/* Generated Ideas */}
       {ideas.length > 0 && (
-        <div id="video-ideas-content" className="grid gap-6">
-          {ideas.map((idea, index) => (
-            <div
-              key={index}
-              className="bg-gradient-to-br from-white to-gray-50 rounded-xl border-2 border-purple-100 p-6 hover:shadow-xl hover:border-purple-200 transition-all"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                    {index + 1}
+        <div id="video-ideas-content" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {ideas.map((idea, index) => {
+            const topicColors = getTopicColor(idea.topic);
+            const confidenceColors = getConfidenceColor(idea.confidence);
+
+            return (
+              <div
+                key={index}
+                style={{
+                  backgroundColor: "#1E1E1E",
+                  border: "1px solid #333",
+                  borderRadius: "12px",
+                  padding: "24px",
+                  position: "relative",
+                  overflow: "hidden"
+                }}
+              >
+                <div style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: "3px",
+                  background: `linear-gradient(90deg, ${topicColors.color}, ${confidenceColors.color})`
+                }} />
+
+                <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", marginBottom: "16px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{
+                      width: "40px",
+                      height: "40px",
+                      borderRadius: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "linear-gradient(135deg, #8b5cf6, #3b82f6)",
+                      color: "#fff",
+                      fontSize: "18px",
+                      fontWeight: "700",
+                      flexShrink: 0
+                    }}>
+                      {index + 1}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <span style={{
+                        padding: "4px 10px",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        fontWeight: "700",
+                        textTransform: "uppercase",
+                        backgroundColor: topicColors.bg,
+                        color: topicColors.color,
+                        border: `1px solid ${topicColors.color}`
+                      }}>
+                        {idea.topic}
+                      </span>
+                      <span style={{
+                        padding: "4px 10px",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        fontWeight: "700",
+                        textTransform: "uppercase",
+                        backgroundColor: confidenceColors.bg,
+                        color: confidenceColors.color,
+                        border: `1px solid ${confidenceColors.border}`
+                      }}>
+                        {idea.confidence} confidence
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`px-3 py-1 rounded-lg text-xs font-semibold shadow-sm ${getTopicColor(idea.topic)}`}>
-                      {idea.topic}
-                    </span>
-                    <span className={`px-3 py-1 rounded-lg text-xs font-semibold border-2 shadow-sm ${getConfidenceColor(idea.confidence)}`}>
-                      {idea.confidence} confidence
-                    </span>
+                </div>
+
+                <h3 style={{
+                  fontSize: "18px",
+                  fontWeight: "700",
+                  color: "#fff",
+                  marginBottom: "16px",
+                  lineHeight: "1.4"
+                }}>
+                  {idea.title}
+                </h3>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {/* Hook */}
+                  <div style={{
+                    background: "rgba(59, 130, 246, 0.05)",
+                    border: "1px solid #334155",
+                    borderRadius: "8px",
+                    padding: "14px"
+                  }}>
+                    <div style={{ display: "flex", alignItems: "start", gap: "12px" }}>
+                      <div style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "6px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: "rgba(59, 130, 246, 0.1)",
+                        color: "#60a5fa",
+                        flexShrink: 0
+                      }}>
+                        <Clock size={16} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{
+                          fontSize: "10px",
+                          fontWeight: "700",
+                          color: "#60a5fa",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          marginBottom: "6px"
+                        }}>
+                          Opening Hook
+                        </p>
+                        <p style={{ fontSize: "13px", color: "#E0E0E0", lineHeight: "1.6" }}>
+                          {idea.hook}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Thumbnail */}
+                  <div style={{
+                    background: "rgba(139, 92, 246, 0.05)",
+                    border: "1px solid #334155",
+                    borderRadius: "8px",
+                    padding: "14px"
+                  }}>
+                    <div style={{ display: "flex", alignItems: "start", gap: "12px" }}>
+                      <div style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "6px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: "rgba(139, 92, 246, 0.1)",
+                        color: "#a78bfa",
+                        flexShrink: 0
+                      }}>
+                        <Sparkles size={16} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{
+                          fontSize: "10px",
+                          fontWeight: "700",
+                          color: "#a78bfa",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          marginBottom: "6px"
+                        }}>
+                          Thumbnail Concept
+                        </p>
+                        <p style={{ fontSize: "13px", color: "#E0E0E0", lineHeight: "1.6" }}>
+                          {idea.thumbnailConcept}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Why It Works */}
+                  <div style={{
+                    background: "rgba(16, 185, 129, 0.05)",
+                    border: "1px solid #334155",
+                    borderRadius: "8px",
+                    padding: "14px"
+                  }}>
+                    <div style={{ display: "flex", alignItems: "start", gap: "12px" }}>
+                      <div style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "6px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: "rgba(16, 185, 129, 0.1)",
+                        color: "#10b981",
+                        flexShrink: 0
+                      }}>
+                        <TrendingUp size={16} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{
+                          fontSize: "10px",
+                          fontWeight: "700",
+                          color: "#10b981",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          marginBottom: "6px"
+                        }}>
+                          Why This Works
+                        </p>
+                        <p style={{ fontSize: "13px", color: "#E0E0E0", lineHeight: "1.6" }}>
+                          {idea.whyItWorks}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-
-              <h3 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-4 leading-tight">
-                {idea.title}
-              </h3>
-
-              <div className="space-y-3">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
-                  <div className="flex items-start gap-3">
-                    <div className="bg-blue-600 rounded-lg p-2">
-                      <Clock className="w-4 h-4 text-white flex-shrink-0" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-blue-900 uppercase mb-2 tracking-wide">Opening Hook</p>
-                      <p className="text-sm text-blue-900 font-medium leading-relaxed">{idea.hook}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
-                  <div className="flex items-start gap-3">
-                    <div className="bg-purple-600 rounded-lg p-2">
-                      <Sparkles className="w-4 h-4 text-white flex-shrink-0" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-purple-900 uppercase mb-2 tracking-wide">Thumbnail Concept</p>
-                      <p className="text-sm text-purple-900 font-medium leading-relaxed">{idea.thumbnailConcept}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
-                  <div className="flex items-start gap-3">
-                    <div className="bg-green-600 rounded-lg p-2">
-                      <TrendingUp className="w-4 h-4 text-white flex-shrink-0" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-green-900 uppercase mb-2 tracking-wide">Why This Works</p>
-                      <p className="text-sm text-green-900 font-medium leading-relaxed">{idea.whyItWorks}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* No Data Message */}
       {(!data || data.length === 0) && !loading && (
-        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-xl p-5 shadow-md">
-          <div className="flex gap-4">
-            <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <AlertCircle className="w-5 h-5 text-yellow-600" />
-            </div>
-            <div>
-              <p className="font-bold text-yellow-900 text-lg">No Video Data Available</p>
-              <p className="text-sm text-yellow-700 mt-1">
-                Please upload your YouTube Studio data first to generate video ideas.
-              </p>
-            </div>
+        <div style={{
+          backgroundColor: "#1E1E1E",
+          border: "1px solid #f59e0b",
+          borderLeft: "4px solid #f59e0b",
+          borderRadius: "8px",
+          padding: "16px",
+          display: "flex",
+          gap: "12px"
+        }}>
+          <div style={{
+            width: "40px",
+            height: "40px",
+            borderRadius: "8px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(245, 158, 11, 0.1)",
+            color: "#f59e0b",
+            flexShrink: 0
+          }}>
+            <AlertCircle size={20} />
+          </div>
+          <div>
+            <p style={{ fontWeight: "700", color: "#fff", fontSize: "14px", marginBottom: "4px" }}>No Video Data Available</p>
+            <p style={{ fontSize: "13px", color: "#9E9E9E" }}>
+              Please upload your YouTube Studio data first to generate video ideas.
+            </p>
           </div>
         </div>
       )}
+
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
     </div>
   );
 }
