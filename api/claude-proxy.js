@@ -4,6 +4,11 @@
  */
 
 export default async function handler(req, res) {
+  // Prevent CDN caching - always hit the serverless function
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
