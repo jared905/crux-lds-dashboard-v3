@@ -45,7 +45,7 @@ export default async function handler(req, res) {
 
     // Build request body
     const requestBody = {
-      model: 'claude-3-5-sonnet-20250107',
+      model: 'claude-3-5-sonnet-latest',
       max_tokens: maxTokens || 4096,
       messages: messages,
       stream: stream || false
