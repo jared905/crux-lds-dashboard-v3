@@ -75,7 +75,7 @@ export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
         return r.publishDate && new Date(r.publishDate) >= sixtyDaysAgo && new Date(r.publishDate) < thirtyDaysAgo;
       });
 
-      // Calculate stats
+      // Calculate basic stats
       const calcStats = (videos) => {
         if (videos.length === 0) return { views: 0, uploads: 0, avgViews: 0, avgCTR: 0, avgRetention: 0 };
         return {
@@ -90,11 +90,72 @@ export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
       const currentStats = calcStats(currentMonthData);
       const previousStats = calcStats(previousMonthData);
 
+      // === SEPARATE CTR AND RETENTION ANALYSIS ===
+
+      // CTR Analysis - categorize videos by CTR performance
+      const videosWithCTR = currentMonthData.filter(v => v.ctr && v.ctr > 0);
+      const sortedByCTR = [...videosWithCTR].sort((a, b) => b.ctr - a.ctr);
+      const topCTRVideos = sortedByCTR.slice(0, 5).map(v => ({
+        title: v.title,
+        ctr: (v.ctr * 100).toFixed(1) + '%',
+        views: v.views,
+        retention: v.retention ? (v.retention * 100).toFixed(1) + '%' : 'N/A'
+      }));
+      const bottomCTRVideos = sortedByCTR.slice(-5).reverse().map(v => ({
+        title: v.title,
+        ctr: (v.ctr * 100).toFixed(1) + '%',
+        views: v.views,
+        retention: v.retention ? (v.retention * 100).toFixed(1) + '%' : 'N/A'
+      }));
+
+      // CTR distribution buckets
+      const ctrDistribution = {
+        excellent: videosWithCTR.filter(v => v.ctr >= 0.10).length, // 10%+
+        good: videosWithCTR.filter(v => v.ctr >= 0.06 && v.ctr < 0.10).length, // 6-10%
+        average: videosWithCTR.filter(v => v.ctr >= 0.03 && v.ctr < 0.06).length, // 3-6%
+        poor: videosWithCTR.filter(v => v.ctr < 0.03).length // <3%
+      };
+
+      // Retention Analysis - categorize videos by retention performance
+      const videosWithRetention = currentMonthData.filter(v => v.retention && v.retention > 0);
+      const sortedByRetention = [...videosWithRetention].sort((a, b) => b.retention - a.retention);
+      const topRetentionVideos = sortedByRetention.slice(0, 5).map(v => ({
+        title: v.title,
+        retention: (v.retention * 100).toFixed(1) + '%',
+        views: v.views,
+        ctr: v.ctr ? (v.ctr * 100).toFixed(1) + '%' : 'N/A'
+      }));
+      const bottomRetentionVideos = sortedByRetention.slice(-5).reverse().map(v => ({
+        title: v.title,
+        retention: (v.retention * 100).toFixed(1) + '%',
+        views: v.views,
+        ctr: v.ctr ? (v.ctr * 100).toFixed(1) + '%' : 'N/A'
+      }));
+
+      // Retention distribution buckets
+      const retentionDistribution = {
+        excellent: videosWithRetention.filter(v => v.retention >= 0.50).length, // 50%+
+        good: videosWithRetention.filter(v => v.retention >= 0.35 && v.retention < 0.50).length, // 35-50%
+        average: videosWithRetention.filter(v => v.retention >= 0.20 && v.retention < 0.35).length, // 20-35%
+        poor: videosWithRetention.filter(v => v.retention < 0.20).length // <20%
+      };
+
+      // Cross-metric analysis - find interesting patterns
+      const highCTRLowRetention = videosWithCTR
+        .filter(v => v.ctr >= 0.08 && v.retention && v.retention < 0.30)
+        .slice(0, 3)
+        .map(v => ({ title: v.title, ctr: (v.ctr * 100).toFixed(1) + '%', retention: (v.retention * 100).toFixed(1) + '%' }));
+
+      const lowCTRHighRetention = videosWithRetention
+        .filter(v => v.retention >= 0.45 && v.ctr && v.ctr < 0.05)
+        .slice(0, 3)
+        .map(v => ({ title: v.title, ctr: (v.ctr * 100).toFixed(1) + '%', retention: (v.retention * 100).toFixed(1) + '%' }));
+
       const topVideos = currentMonthData.slice(0, 5).map(v => ({
         title: v.title,
         views: v.views,
-        ctr: v.ctr,
-        retention: v.retention
+        ctr: v.ctr ? (v.ctr * 100).toFixed(1) + '%' : 'N/A',
+        retention: v.retention ? (v.retention * 100).toFixed(1) + '%' : 'N/A'
       }));
 
       // Build context-aware system prompt
@@ -144,17 +205,65 @@ Write in a narrative style that executives would expect in a monthly board repor
 - Total Views: ${currentStats.views.toLocaleString()}
 - Videos Published: ${currentStats.uploads}
 - Average Views per Video: ${Math.round(currentStats.avgViews).toLocaleString()}
-- Average CTR: ${(currentStats.avgCTR * 100).toFixed(1)}%
-- Average Retention: ${(currentStats.avgRetention * 100).toFixed(1)}%
 
 **Previous Month Performance (30-60 Days Ago):**
 - Total Views: ${previousStats.views.toLocaleString()}
 - Videos Published: ${previousStats.uploads}
 - Average Views per Video: ${Math.round(previousStats.avgViews).toLocaleString()}
-- Average CTR: ${(previousStats.avgCTR * 100).toFixed(1)}%
-- Average Retention: ${(previousStats.avgRetention * 100).toFixed(1)}%
 
-**Top 5 Performing Videos This Month:**
+---
+
+## CTR ANALYSIS (Click-Through Rate - Thumbnail/Title Appeal)
+*CTR measures how compelling your thumbnails and titles are at getting clicks from impressions*
+
+**Current Month CTR:** ${(currentStats.avgCTR * 100).toFixed(1)}% average
+**Previous Month CTR:** ${(previousStats.avgCTR * 100).toFixed(1)}% average
+
+**CTR Distribution (${videosWithCTR.length} videos with CTR data):**
+- Excellent (10%+): ${ctrDistribution.excellent} videos
+- Good (6-10%): ${ctrDistribution.good} videos
+- Average (3-6%): ${ctrDistribution.average} videos
+- Poor (<3%): ${ctrDistribution.poor} videos
+
+**Top 5 CTR Performers (Best Thumbnails/Titles):**
+${JSON.stringify(topCTRVideos, null, 2)}
+
+**Bottom 5 CTR Performers (Thumbnails/Titles Need Work):**
+${JSON.stringify(bottomCTRVideos, null, 2)}
+
+---
+
+## RETENTION ANALYSIS (Average View Duration - Content Quality)
+*Retention measures how engaging your actual content is at keeping viewers watching*
+
+**Current Month Retention:** ${(currentStats.avgRetention * 100).toFixed(1)}% average
+**Previous Month Retention:** ${(previousStats.avgRetention * 100).toFixed(1)}% average
+
+**Retention Distribution (${videosWithRetention.length} videos with retention data):**
+- Excellent (50%+): ${retentionDistribution.excellent} videos
+- Good (35-50%): ${retentionDistribution.good} videos
+- Average (20-35%): ${retentionDistribution.average} videos
+- Poor (<20%): ${retentionDistribution.poor} videos
+
+**Top 5 Retention Performers (Most Engaging Content):**
+${JSON.stringify(topRetentionVideos, null, 2)}
+
+**Bottom 5 Retention Performers (Content Engagement Issues):**
+${JSON.stringify(bottomRetentionVideos, null, 2)}
+
+---
+
+## CROSS-METRIC PATTERNS
+
+**High CTR but Low Retention (Potential "Clickbait" - Great packaging, content doesn't deliver):**
+${highCTRLowRetention.length > 0 ? JSON.stringify(highCTRLowRetention, null, 2) : 'None found - good sign!'}
+
+**Low CTR but High Retention ("Hidden Gems" - Great content, needs better packaging):**
+${lowCTRHighRetention.length > 0 ? JSON.stringify(lowCTRHighRetention, null, 2) : 'None found'}
+
+---
+
+**Top 5 Videos by Views This Month:**
 ${JSON.stringify(topVideos, null, 2)}
 
 Please write a comprehensive executive summary with these sections:
@@ -167,19 +276,25 @@ Please write a comprehensive executive summary with these sections:
 ## Key Highlights
 [3-5 bullet points of major wins or notable achievements]
 
-## Performance Analysis
-[2-3 paragraphs analyzing what drove the performance - be specific about topics, formats, patterns]
+## CTR Analysis (Thumbnail & Title Performance)
+[Analyze CTR separately - what's working, what's not, patterns in top/bottom performers. CTR reflects packaging appeal.]
+
+## Retention Analysis (Content Quality & Engagement)
+[Analyze retention separately - what content keeps viewers watching, what loses them. Retention reflects actual content quality.]
+
+## Cross-Metric Insights
+[Analyze the relationship between CTR and retention. Identify any "clickbait" patterns (high CTR, low retention) or "hidden gems" (low CTR, high retention). What does this tell us about content strategy?]
 
 ## Challenges & Areas for Improvement
-[2-3 sentences about concerning trends or areas needing attention]
+[Based on the separated CTR and retention data, what specific areas need attention?]
 
 ## Strategic Recommendations
-[3-5 actionable recommendations with rationale]
+[3-5 actionable recommendations - be specific about whether each addresses CTR (packaging) or retention (content) issues]
 
 ## Outlook
 [1-2 sentences about what to watch for next month]
 
-Write in a professional narrative style. Use specific numbers. Focus on insights, not just data reporting. Consider the specific audience context in your analysis.`;
+Write in a professional narrative style. Use specific numbers. Focus on insights, not just data reporting. IMPORTANT: Keep CTR and retention analysis separate - they measure different things (CTR = packaging appeal, Retention = content quality).`;
 
       const result = await claudeAPI.call(userPrompt, systemPrompt, 'executive-summary', 4096);
 
