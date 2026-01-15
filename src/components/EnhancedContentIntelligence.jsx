@@ -4,44 +4,249 @@ import ContentIntelligence from './ContentIntelligence';
 import claudeAPI from '../services/claudeAPI';
 
 /**
- * Enhanced Content Intelligence with Claude AI
+ * Enhanced Content Intelligence with Claude AI (v2.2.3)
  * Wraps the existing rule-based ContentIntelligence with optional AI-powered analysis
+ * Dark theme styling to match dashboard
  */
-export default function EnhancedContentIntelligence({ rows }) {
+export default function EnhancedContentIntelligence({ rows, activeClient }) {
   const [useAI, setUseAI] = useState(false);
   const [question, setQuestion] = useState('');
   const [conversation, setConversation] = useState([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState(null);
 
+  const clientName = activeClient?.name || 'this channel';
+
+  // Dark theme styles
+  const styles = {
+    container: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '16px'
+    },
+    bannerCard: {
+      backgroundColor: '#1E1E1E',
+      border: '1px solid #333',
+      borderRadius: '12px',
+      padding: '24px',
+      position: 'relative',
+      overflow: 'hidden'
+    },
+    gradientAccent: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: '4px',
+      background: 'linear-gradient(90deg, #8b5cf6, #3b82f6, #06b6d4)'
+    },
+    iconBox: {
+      width: '48px',
+      height: '48px',
+      borderRadius: '12px',
+      backgroundColor: 'rgba(139, 92, 246, 0.15)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0
+    },
+    headerText: {
+      color: '#fff',
+      fontSize: '18px',
+      fontWeight: '600',
+      marginBottom: '8px'
+    },
+    bodyText: {
+      color: '#E0E0E0',
+      fontSize: '14px',
+      lineHeight: '1.6',
+      marginBottom: '12px'
+    },
+    mutedText: {
+      color: '#9E9E9E',
+      fontSize: '13px'
+    },
+    listItem: {
+      color: '#B0B0B0',
+      fontSize: '13px',
+      marginBottom: '6px'
+    },
+    primaryButton: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '12px 20px',
+      background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+      color: '#fff',
+      fontSize: '14px',
+      fontWeight: '600',
+      border: 'none',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease'
+    },
+    secondaryButton: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '10px 16px',
+      backgroundColor: '#252525',
+      color: '#E0E0E0',
+      fontSize: '13px',
+      fontWeight: '500',
+      border: '1px solid #444',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease'
+    },
+    activeModeBanner: {
+      backgroundColor: '#1E1E1E',
+      border: '1px solid #8b5cf6',
+      borderRadius: '12px',
+      padding: '16px 20px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: '12px'
+    },
+    errorCard: {
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      border: '1px solid rgba(239, 68, 68, 0.3)',
+      borderRadius: '10px',
+      padding: '16px'
+    },
+    userMessage: {
+      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+      border: '1px solid rgba(59, 130, 246, 0.3)',
+      borderRadius: '12px',
+      padding: '16px',
+      marginLeft: '48px'
+    },
+    assistantMessage: {
+      backgroundColor: '#252525',
+      border: '1px solid #333',
+      borderRadius: '12px',
+      padding: '16px',
+      marginRight: '48px'
+    },
+    userAvatar: {
+      width: '36px',
+      height: '36px',
+      borderRadius: '50%',
+      backgroundColor: '#3b82f6',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#fff',
+      fontSize: '14px',
+      fontWeight: '600',
+      flexShrink: 0
+    },
+    assistantAvatar: {
+      width: '36px',
+      height: '36px',
+      borderRadius: '50%',
+      background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#fff',
+      flexShrink: 0
+    },
+    inputCard: {
+      backgroundColor: '#1E1E1E',
+      border: '1px solid #333',
+      borderRadius: '12px',
+      padding: '16px',
+      position: 'sticky',
+      bottom: '16px'
+    },
+    textarea: {
+      flex: 1,
+      padding: '14px 16px',
+      backgroundColor: '#252525',
+      border: '1px solid #444',
+      borderRadius: '8px',
+      color: '#fff',
+      fontSize: '14px',
+      resize: 'none',
+      outline: 'none',
+      fontFamily: 'inherit',
+      lineHeight: '1.5'
+    },
+    submitButton: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '14px 24px',
+      background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+      color: '#fff',
+      fontSize: '14px',
+      fontWeight: '600',
+      border: 'none',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+      whiteSpace: 'nowrap'
+    },
+    exampleCard: {
+      backgroundColor: '#252525',
+      border: '1px solid #333',
+      borderRadius: '12px',
+      padding: '20px'
+    },
+    exampleButton: {
+      textAlign: 'left',
+      padding: '12px 16px',
+      backgroundColor: '#1E1E1E',
+      border: '1px solid #444',
+      borderRadius: '8px',
+      color: '#B0B0B0',
+      fontSize: '13px',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+      width: '100%'
+    }
+  };
+
   // If AI is not enabled, use the original component
   if (!useAI) {
     return (
-      <div className="space-y-4">
+      <div style={styles.container}>
         {/* Toggle AI Mode Banner */}
-        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex gap-4">
-              <Sparkles className="w-6 h-6 text-purple-600 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2">Upgrade to AI-Powered Analysis</h3>
-                <p className="text-sm text-gray-700 mb-3">
-                  Ask ANY question about your data with Claude AI. No pattern matching limits - ask anything!
-                </p>
-                <ul className="text-sm text-gray-600 space-y-1 mb-4">
-                  <li>• Answer complex multi-factor questions</li>
-                  <li>• Discover unexpected patterns in your data</li>
-                  <li>• Get natural language explanations and insights</li>
-                  <li>• Estimated cost: $0.10-0.30 per question</li>
-                </ul>
-                <button
-                  onClick={() => setUseAI(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Enable AI Mode
-                </button>
+        <div style={styles.bannerCard}>
+          <div style={styles.gradientAccent} />
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', paddingTop: '8px' }}>
+            <div style={styles.iconBox}>
+              <Sparkles style={{ width: '24px', height: '24px', color: '#8b5cf6' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h3 style={styles.headerText}>Upgrade to AI-Powered Analysis</h3>
+              <p style={styles.bodyText}>
+                Ask ANY question about your data with Claude AI. No pattern matching limits - ask anything!
+              </p>
+              <div style={{ marginBottom: '16px' }}>
+                <div style={styles.listItem}>• Answer complex multi-factor questions</div>
+                <div style={styles.listItem}>• Discover unexpected patterns in your data</div>
+                <div style={styles.listItem}>• Get natural language explanations and insights</div>
+                <div style={{ ...styles.listItem, color: '#9E9E9E' }}>• Estimated cost: $0.10-0.30 per question</div>
               </div>
+              <button
+                onClick={() => setUseAI(true)}
+                style={styles.primaryButton}
+                onMouseEnter={(e) => {
+                  e.target.style.transform = 'translateY(-2px)';
+                  e.target.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = 'none';
+                }}
+              >
+                <Sparkles style={{ width: '18px', height: '18px' }} />
+                Enable AI Mode
+              </button>
             </div>
           </div>
         </div>
@@ -83,9 +288,9 @@ export default function EnhancedContentIntelligence({ rows }) {
         date: v.date
       }));
 
-      const systemPrompt = `You are a YouTube analytics expert specializing in Latter-day Saints (LDS/Mormon) content.
+      const systemPrompt = `You are a YouTube analytics expert helping analyze content performance.
 
-You have access to data from ${rows.length} videos from an LDS YouTube channel.
+You have access to data from ${rows.length} videos from ${clientName}'s YouTube channel.
 
 Channel Overview:
 - Total videos: ${rows.length}
@@ -101,7 +306,7 @@ Analyze the data and answer questions with:
 
 Format your response in markdown for readability.`;
 
-      const userPrompt = `Based on this LDS YouTube channel data, please answer my question:
+      const userPrompt = `Based on this YouTube channel data for ${clientName}, please answer my question:
 
 **Question:** ${question}
 
@@ -144,21 +349,68 @@ Please provide a detailed, data-driven answer.`;
     }
   };
 
+  const clearConversation = () => {
+    setConversation([]);
+    setQuestion('');
+    setError(null);
+  };
+
   return (
-    <div className="space-y-4">
+    <div style={styles.container}>
       {/* Toggle Back to Rule-Based Mode */}
-      <div className="bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-300 rounded-xl p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-600" />
-            <span className="font-medium text-gray-900">AI Mode Active</span>
-            <span className="text-sm text-gray-600">Ask any question about your data</span>
+      <div style={styles.activeModeBanner}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <Sparkles style={{ width: '18px', height: '18px', color: '#fff' }} />
           </div>
+          <div>
+            <span style={{ color: '#fff', fontWeight: '600', fontSize: '14px' }}>AI Mode Active</span>
+            <span style={{ color: '#9E9E9E', fontSize: '13px', marginLeft: '12px' }}>
+              Ask any question about your data
+            </span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          {conversation.length > 0 && (
+            <button
+              onClick={clearConversation}
+              style={{
+                ...styles.secondaryButton,
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                borderColor: 'rgba(239, 68, 68, 0.3)',
+                color: '#ef4444'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+              }}
+            >
+              Clear Chat
+            </button>
+          )}
           <button
             onClick={() => setUseAI(false)}
-            className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg text-sm font-medium transition-colors"
+            style={styles.secondaryButton}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#333';
+              e.target.style.borderColor = '#555';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = '#252525';
+              e.target.style.borderColor = '#444';
+            }}
           >
-            <Zap className="w-4 h-4" />
+            <Zap style={{ width: '16px', height: '16px' }} />
             Switch to Rule-Based Mode (Free)
           </button>
         </div>
@@ -166,65 +418,61 @@ Please provide a detailed, data-driven answer.`;
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+        <div style={styles.errorCard}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+            <AlertCircle style={{ width: '20px', height: '20px', color: '#ef4444', flexShrink: 0 }} />
             <div>
-              <p className="font-medium text-red-900">Error</p>
-              <p className="text-sm text-red-700 mt-1">{error}</p>
+              <p style={{ color: '#ef4444', fontWeight: '600', fontSize: '14px', marginBottom: '4px' }}>Error</p>
+              <p style={{ color: '#fca5a5', fontSize: '13px' }}>{error}</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Conversation History */}
-      <div className="space-y-4">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {conversation.map((message, index) => (
           <div
             key={index}
-            className={`rounded-xl p-4 ${
-              message.role === 'user'
-                ? 'bg-blue-50 border border-blue-200 ml-12'
-                : 'bg-white border border-gray-200 mr-12'
-            }`}
+            style={message.role === 'user' ? styles.userMessage : styles.assistantMessage}
           >
-            <div className="flex items-start gap-3">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  message.role === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
-                }`}
-              >
-                {message.role === 'user' ? '?' : <Sparkles className="w-4 h-4" />}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <div style={message.role === 'user' ? styles.userAvatar : styles.assistantAvatar}>
+                {message.role === 'user' ? '?' : <Sparkles style={{ width: '18px', height: '18px' }} />}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-gray-900">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <span style={{ color: '#fff', fontWeight: '600', fontSize: '14px' }}>
                     {message.role === 'user' ? 'You' : 'Claude AI'}
                   </span>
                   {message.cost && (
-                    <span className="text-xs text-gray-500">
+                    <span style={{ color: '#9E9E9E', fontSize: '12px' }}>
                       ${message.cost.toFixed(4)}
                     </span>
                   )}
                 </div>
-                <div className="prose prose-sm max-w-none text-gray-700">
+                <div style={{ color: '#E0E0E0', fontSize: '14px', lineHeight: '1.7' }}>
                   {message.content.split('\n').map((line, i) => {
                     // Simple markdown rendering
                     if (line.startsWith('**') && line.endsWith('**')) {
-                      return <p key={i} className="font-bold my-2">{line.replace(/\*\*/g, '')}</p>;
+                      return <p key={i} style={{ fontWeight: '700', color: '#fff', margin: '12px 0 8px' }}>{line.replace(/\*\*/g, '')}</p>;
                     }
                     if (line.startsWith('# ')) {
-                      return <h3 key={i} className="text-lg font-bold mt-4 mb-2">{line.substring(2)}</h3>;
+                      return <h3 key={i} style={{ fontSize: '16px', fontWeight: '700', color: '#fff', marginTop: '16px', marginBottom: '8px' }}>{line.substring(2)}</h3>;
+                    }
+                    if (line.startsWith('## ')) {
+                      return <h4 key={i} style={{ fontSize: '15px', fontWeight: '600', color: '#fff', marginTop: '14px', marginBottom: '6px' }}>{line.substring(3)}</h4>;
                     }
                     if (line.startsWith('- ') || line.startsWith('• ')) {
-                      return <li key={i} className="ml-4">{line.substring(2)}</li>;
+                      return <div key={i} style={{ marginLeft: '16px', marginBottom: '4px', color: '#B0B0B0' }}>• {line.substring(2)}</div>;
+                    }
+                    if (line.match(/^\d+\.\s/)) {
+                      return <div key={i} style={{ marginLeft: '16px', marginBottom: '4px', color: '#B0B0B0' }}>{line}</div>;
                     }
                     if (line.trim() === '') {
-                      return <br key={i} />;
+                      return <div key={i} style={{ height: '8px' }} />;
                     }
-                    return <p key={i} className="my-1">{line}</p>;
+                    return <p key={i} style={{ margin: '4px 0', color: '#E0E0E0' }}>{line}</p>;
                   })}
                 </div>
               </div>
@@ -234,57 +482,90 @@ Please provide a detailed, data-driven answer.`;
       </div>
 
       {/* Input Area */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 sticky bottom-0">
-        <div className="flex gap-3">
+      <div style={styles.inputCard}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
           <textarea
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ask anything about your video data... (e.g., 'Why did my views drop in December?' or 'What topics perform best on Sundays?')"
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            placeholder={`Ask anything about ${clientName}'s video data... (e.g., 'Why did my views drop in December?' or 'What topics perform best on Sundays?')`}
+            style={{
+              ...styles.textarea,
+              opacity: isAnalyzing ? 0.5 : 1
+            }}
             rows="2"
             disabled={isAnalyzing}
           />
           <button
             onClick={askClaude}
             disabled={isAnalyzing || !question.trim()}
-            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            style={{
+              ...styles.submitButton,
+              opacity: (isAnalyzing || !question.trim()) ? 0.5 : 1,
+              cursor: (isAnalyzing || !question.trim()) ? 'not-allowed' : 'pointer'
+            }}
+            onMouseEnter={(e) => {
+              if (!isAnalyzing && question.trim()) {
+                e.target.style.transform = 'translateY(-2px)';
+                e.target.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.4)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = 'none';
+            }}
           >
             {isAnalyzing ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 style={{ width: '18px', height: '18px', animation: 'spin 1s linear infinite' }} />
                 Analyzing...
               </>
             ) : (
               <>
-                <Sparkles className="w-5 h-5" />
+                <Sparkles style={{ width: '18px', height: '18px' }} />
                 Ask AI
               </>
             )}
           </button>
         </div>
-        <p className="text-xs text-gray-500 mt-2">
+        <p style={{ color: '#666', fontSize: '12px', marginTop: '10px' }}>
           Press Enter to send • Cost: ~$0.10-0.30 per question
         </p>
       </div>
 
       {/* Example Questions (only show if no conversation yet) */}
       {conversation.length === 0 && (
-        <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-          <h3 className="font-semibold text-gray-900 mb-3">Example Questions to Try:</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div style={styles.exampleCard}>
+          <h3 style={{ color: '#fff', fontSize: '15px', fontWeight: '600', marginBottom: '14px' }}>
+            Example Questions to Try:
+          </h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '10px'
+          }}>
             {[
               "Why did my performance drop in the last 30 days?",
               "What topics perform best on weekends?",
               "Which videos have high CTR but low retention?",
               "What patterns do my top 10% videos share?",
-              "Are my temple videos performing better than scripture content?",
+              "What content themes are underperforming?",
               "What's the optimal upload frequency based on my data?"
             ].map((exampleQ, i) => (
               <button
                 key={i}
                 onClick={() => setQuestion(exampleQ)}
-                className="text-left px-4 py-2 bg-white hover:bg-purple-50 border border-gray-200 hover:border-purple-300 rounded-lg text-sm text-gray-700 transition-colors"
+                style={styles.exampleButton}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = '#333';
+                  e.target.style.borderColor = '#8b5cf6';
+                  e.target.style.color = '#E0E0E0';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = '#1E1E1E';
+                  e.target.style.borderColor = '#444';
+                  e.target.style.color = '#B0B0B0';
+                }}
               >
                 {exampleQ}
               </button>
@@ -292,6 +573,14 @@ Please provide a detailed, data-driven answer.`;
           </div>
         </div>
       )}
+
+      {/* Spin animation for loader */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

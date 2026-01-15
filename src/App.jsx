@@ -2109,7 +2109,7 @@ export default function App() {
             )}
 
             {tab === "Intelligence" && (
-              <EnhancedContentIntelligence rows={filtered} />
+              <EnhancedContentIntelligence rows={filtered} activeClient={activeClient} />
             )}
 
             {tab === "AI Ideas" && (
