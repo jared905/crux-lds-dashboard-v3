@@ -11,16 +11,24 @@ export default function PublishingInsights({ rows }) {
     const videosWithDates = rows.filter(r => r.publishDate && r.views != null);
     if (videosWithDates.length < 5) return null; // Need enough data for meaningful insights
 
+    // Use median instead of mean to avoid viral video outliers skewing results
+    const getMedian = (arr) => {
+      if (!arr.length) return 0;
+      const sorted = [...arr].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    };
+
     // Day of Week Analysis
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayStats = Array.from({ length: 7 }, () => ({ count: 0, totalViews: 0, videos: [] }));
 
     // Time of Day Analysis (4 blocks)
     const timeBlocks = [
-      { name: 'Night', displayName: 'Night (12am-6am)', start: 0, end: 6, count: 0, totalViews: 0 },
-      { name: 'Morning', displayName: 'Morning (6am-12pm)', start: 6, end: 12, count: 0, totalViews: 0 },
-      { name: 'Afternoon', displayName: 'Afternoon (12pm-6pm)', start: 12, end: 18, count: 0, totalViews: 0 },
-      { name: 'Evening', displayName: 'Evening (6pm-12am)', start: 18, end: 24, count: 0, totalViews: 0 }
+      { name: 'Night', displayName: 'Night (12am-6am)', start: 0, end: 6, count: 0, totalViews: 0, videos: [] },
+      { name: 'Morning', displayName: 'Morning (6am-12pm)', start: 6, end: 12, count: 0, totalViews: 0, videos: [] },
+      { name: 'Afternoon', displayName: 'Afternoon (12pm-6pm)', start: 12, end: 18, count: 0, totalViews: 0, videos: [] },
+      { name: 'Evening', displayName: 'Evening (6pm-12am)', start: 18, end: 24, count: 0, totalViews: 0, videos: [] }
     ];
 
     videosWithDates.forEach(video => {
@@ -38,34 +46,42 @@ export default function PublishingInsights({ rows }) {
       if (block) {
         block.count++;
         block.totalViews += video.views;
+        block.videos.push(video);
       }
     });
 
-    // Calculate averages and find best
+    // Calculate median views (resistant to viral outliers) and find best
+    // Require at least 2 uploads to be considered for "best" to avoid single-video flukes
+    const MIN_UPLOADS_FOR_BEST = 2;
+
     const dayData = dayStats.map((stat, idx) => ({
       day: dayNames[idx],
       dayShort: dayNames[idx].substring(0, 3),
       count: stat.count,
-      avgViews: stat.count > 0 ? stat.totalViews / stat.count : 0
+      medianViews: getMedian(stat.videos.map(v => v.views))
     })).filter(d => d.count > 0);
 
     const timeData = timeBlocks
       .map(block => ({
         ...block,
-        avgViews: block.count > 0 ? block.totalViews / block.count : 0
+        medianViews: getMedian(block.videos.map(v => v.views))
       }))
       .filter(t => t.count > 0);
 
-    const bestDay = dayData.length > 0
-      ? [...dayData].sort((a, b) => b.avgViews - a.avgViews)[0]
+    // Only consider days/times with enough data to be statistically meaningful
+    const eligibleDays = dayData.filter(d => d.count >= MIN_UPLOADS_FOR_BEST);
+    const eligibleTimes = timeData.filter(t => t.count >= MIN_UPLOADS_FOR_BEST);
+
+    const bestDay = eligibleDays.length > 0
+      ? [...eligibleDays].sort((a, b) => b.medianViews - a.medianViews)[0]
       : null;
 
-    const bestTime = timeData.length > 0
-      ? [...timeData].sort((a, b) => b.avgViews - a.avgViews)[0]
+    const bestTime = eligibleTimes.length > 0
+      ? [...eligibleTimes].sort((a, b) => b.medianViews - a.medianViews)[0]
       : null;
 
-    const maxDayViews = Math.max(...dayData.map(d => d.avgViews), 1);
-    const maxTimeViews = Math.max(...timeData.map(t => t.avgViews), 1);
+    const maxDayViews = Math.max(...dayData.map(d => d.medianViews), 1);
+    const maxTimeViews = Math.max(...timeData.map(t => t.medianViews), 1);
 
     return { dayData, timeData, bestDay, bestTime, maxDayViews, maxTimeViews };
   }, [rows]);
@@ -194,14 +210,14 @@ export default function PublishingInsights({ rows }) {
           <div style={s.sectionTitle}>Best Day of Week</div>
           {bestDay && (
             <div style={s.bestBadge}>
-              ⭐ {bestDay.day} - {formatViews(bestDay.avgViews)} avg views
+              ⭐ {bestDay.day} - {formatViews(bestDay.medianViews)} median views
             </div>
           )}
 
           <div style={s.chart}>
             {dayData.map((day) => {
               const isBest = bestDay && day.day === bestDay.day;
-              const width = (day.avgViews / maxDayViews) * 100;
+              const width = (day.medianViews / maxDayViews) * 100;
 
               return (
                 <div key={day.day}>
@@ -211,7 +227,7 @@ export default function PublishingInsights({ rows }) {
                       <div style={s.barFill(width, isBest)}>
                         {width > 20 && (
                           <span style={s.barValue}>
-                            {formatViews(day.avgViews)} avg
+                            {formatViews(day.medianViews)} median
                           </span>
                         )}
                       </div>
@@ -231,14 +247,14 @@ export default function PublishingInsights({ rows }) {
           <div style={s.sectionTitle}>Best Time of Day</div>
           {bestTime && (
             <div style={s.bestBadge}>
-              ⭐ {bestTime.name} - {formatViews(bestTime.avgViews)} avg views
+              ⭐ {bestTime.name} - {formatViews(bestTime.medianViews)} median views
             </div>
           )}
 
           <div style={s.chart}>
             {timeData.map((time) => {
               const isBest = bestTime && time.name === bestTime.name;
-              const width = (time.avgViews / maxTimeViews) * 100;
+              const width = (time.medianViews / maxTimeViews) * 100;
 
               return (
                 <div key={time.name}>
@@ -248,7 +264,7 @@ export default function PublishingInsights({ rows }) {
                       <div style={s.barFill(width, isBest)}>
                         {width > 20 && (
                           <span style={s.barValue}>
-                            {formatViews(time.avgViews)} avg
+                            {formatViews(time.medianViews)} median
                           </span>
                         )}
                       </div>

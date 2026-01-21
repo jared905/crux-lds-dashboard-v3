@@ -1,5 +1,19 @@
 import React, { useMemo, useEffect, useState } from "react";
-import { TrendingUp, TrendingDown, Minus, AlertCircle, CheckCircle, Zap } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, AlertCircle, CheckCircle, Zap, Clock } from "lucide-react";
+
+// 2026 YouTube Retention Benchmarks by video duration
+// Source: YouTube Retention Benchmark Report 2026
+const getExpectedRetention = (durationSeconds) => {
+  const mins = durationSeconds / 60;
+  if (mins < 1) return 0.70;      // Shorts: 70% average
+  if (mins < 3) return 0.50;      // 1-3 min: 50% average
+  if (mins < 5) return 0.45;      // 3-5 min: 45% average
+  if (mins < 10) return 0.375;    // 5-10 min: 37.5% average
+  if (mins < 20) return 0.325;    // 10-20 min: 32.5% average
+  if (mins < 30) return 0.275;    // 20-30 min: 27.5% average
+  if (mins < 60) return 0.225;    // 30-60 min: 22.5% average
+  return 0.175;                   // 60+ min: 17.5% average
+};
 
 export default function BrandFunnel({ rows, dateRange }) {
   const [particles, setParticles] = useState([]);
@@ -10,22 +24,73 @@ export default function BrandFunnel({ rows, dateRange }) {
     // Calculate totals
     const totalImpressions = rows.reduce((sum, r) => sum + (r.impressions || 0), 0);
     const totalViews = rows.reduce((sum, r) => sum + (r.views || 0), 0);
-    
-    // Qualified Viewers = Views × Retention
-    const qualifiedViewers = rows.reduce((sum, r) => {
+
+    // NEW: Use actual watch hours instead of views × retention
+    const totalWatchHours = rows.reduce((sum, r) => sum + (r.watchHours || 0), 0);
+
+    // Calculate expected watch hours based on industry benchmarks per video
+    const expectedWatchHours = rows.reduce((sum, r) => {
+      const duration = r.duration || 300; // default 5 min if unknown
       const views = r.views || 0;
-      const retention = r.retention || 0;
-      return sum + (views * retention);
+      const expectedRet = getExpectedRetention(duration);
+      // Expected watch hours = views × duration × expected retention / 3600
+      return sum + (views * duration * expectedRet / 3600);
     }, 0);
+
+    // Watch Quality Ratio: actual vs expected (1.0 = meeting benchmarks)
+    const watchQualityRatio = expectedWatchHours > 0
+      ? totalWatchHours / expectedWatchHours
+      : 0;
+
+    // Average minutes watched per view
+    const avgWatchMinutesPerView = totalViews > 0
+      ? (totalWatchHours * 60) / totalViews
+      : 0;
 
     // Calculate conversion rates - use weighted average from CTR column
     // Note: CTR in rows is already converted to decimal by normalizeData (4.69% → 0.0469)
-    const ctr = totalImpressions > 0 ? 
-      rows.reduce((sum, r) => sum + ((r.ctr || 0) * (r.impressions || 0)), 0) / totalImpressions : 
+    const ctr = totalImpressions > 0 ?
+      rows.reduce((sum, r) => sum + ((r.ctr || 0) * (r.impressions || 0)), 0) / totalImpressions :
       0;
-    const qualificationRate = totalViews > 0 ? (qualifiedViewers / totalViews) : 0;
-    // Overall conversion = CTR × Retention (compound conversion through the funnel)
-    const overallConversion = ctr * qualificationRate;
+
+    // Keep qualificationRate for backward compatibility in trends
+    const qualificationRate = totalViews > 0
+      ? rows.reduce((sum, r) => sum + ((r.views || 0) * (r.retention || 0)), 0) / totalViews
+      : 0;
+
+    // NEW: Shorts vs Long-form breakdown
+    const shorts = rows.filter(r => r.type === 'short');
+    const longs = rows.filter(r => r.type === 'long' || r.type !== 'short');
+
+    const shortsMetrics = {
+      count: shorts.length,
+      avgRetention: shorts.length > 0
+        ? shorts.reduce((sum, r) => sum + (r.retention || 0), 0) / shorts.length
+        : 0,
+      totalWatchHours: shorts.reduce((sum, r) => sum + (r.watchHours || 0), 0)
+    };
+
+    const longsMetrics = {
+      count: longs.length,
+      avgRetention: longs.length > 0
+        ? longs.reduce((sum, r) => sum + (r.retention || 0), 0) / longs.length
+        : 0,
+      totalWatchHours: longs.reduce((sum, r) => sum + (r.watchHours || 0), 0)
+    };
+
+    // Flag if >70% of content is Shorts
+    const shortsHeavy = rows.length > 0 && (shorts.length / rows.length) > 0.7;
+
+    // NEW: Staleness detection
+    const mostRecentUpload = rows
+      .filter(r => r.publishDate)
+      .sort((a, b) => new Date(b.publishDate) - new Date(a.publishDate))[0];
+
+    const daysSinceLastUpload = mostRecentUpload
+      ? Math.floor((new Date() - new Date(mostRecentUpload.publishDate)) / (1000 * 60 * 60 * 24))
+      : null;
+
+    const isStale = daysSinceLastUpload !== null && daysSinceLastUpload > 14;
 
     // Split current date range in half and compare recent half vs older half
     // This shows if performance is trending up or down within the selected period
@@ -50,11 +115,9 @@ export default function BrandFunnel({ rows, dateRange }) {
     const calcPeriodMetrics = (data) => {
       const imps = data.reduce((sum, r) => sum + (r.impressions || 0), 0);
       const views = data.reduce((sum, r) => sum + (r.views || 0), 0);
-      const qualified = data.reduce((sum, r) => sum + ((r.views || 0) * (r.retention || 0)), 0);
+      const watchHrs = data.reduce((sum, r) => sum + (r.watchHours || 0), 0);
       const periodCTR = imps > 0 ? data.reduce((sum, r) => sum + ((r.ctr || 0) * (r.impressions || 0)), 0) / imps : 0;
-      const periodQualRate = views > 0 ? (qualified / views) : 0;
-      const periodOverallConv = periodCTR * periodQualRate;
-      return { imps, views, qualified, overallConv: periodOverallConv };
+      return { imps, views, watchHrs, periodCTR };
     };
 
     const recentMetrics = calcPeriodMetrics(recentRows);
@@ -68,20 +131,20 @@ export default function BrandFunnel({ rows, dateRange }) {
     const trends = {
       impressions: calcChange(recentMetrics.imps, olderMetrics.imps),
       views: calcChange(recentMetrics.views, olderMetrics.views),
-      qualified: calcChange(recentMetrics.qualified, olderMetrics.qualified)
+      watchHours: calcChange(recentMetrics.watchHrs, olderMetrics.watchHrs)
     };
 
-    const overallConversionTrend = calcChange(recentMetrics.overallConv, olderMetrics.overallConv);
-
-    // Funnel Health Diagnosis
+    // NEW: Funnel Health Diagnosis based on watchQualityRatio (research-backed)
     let diagnosis = {
-      type: "healthy",
-      title: "Healthy Funnel",
-      message: "Your funnel shows balanced performance across all stages.",
-      icon: CheckCircle,
-      color: "#10b981"
+      type: "developing",
+      title: "Developing Funnel",
+      message: "Building toward industry benchmarks. Focus on consistent improvement.",
+      action: "Analyze top-performing videos and replicate successful patterns",
+      icon: AlertCircle,
+      color: "#3b82f6"
     };
 
+    // Top-Heavy: Low CTR (unchanged from original)
     if (ctr < 0.03 && totalImpressions > 10000) {
       diagnosis = {
         type: "top-heavy",
@@ -91,39 +154,46 @@ export default function BrandFunnel({ rows, dateRange }) {
         icon: AlertCircle,
         color: "#f59e0b"
       };
-    } else if (ctr >= 0.04 && qualificationRate < 0.35) {
+    }
+    // Leaky Bucket: Good clicks but watch time below benchmarks
+    else if (ctr >= 0.04 && watchQualityRatio < 0.7) {
       diagnosis = {
         type: "leaky",
         title: "Leaky Bucket",
-        message: "Great click-through but low retention. Content isn't delivering on the promise.",
-        action: "Tighten intros, deliver value faster, align content with expectations",
+        message: "Great click-through but content isn't holding attention vs industry benchmarks.",
+        action: "Tighten intros, deliver value faster, align content with thumbnail promises",
         icon: AlertCircle,
         color: "#ef4444"
       };
-    } else if (qualificationRate >= 0.5 && ctr >= 0.05) {
+    }
+    // Cylinder: High CTR + exceeds watch time benchmarks
+    else if (ctr >= 0.05 && watchQualityRatio >= 1.2 && !isStale) {
       diagnosis = {
         type: "cylinder",
         title: "The Cylinder (High-Quality Audience)",
-        message: "Strong engagement at every stage. You have a loyal, highly-engaged audience.",
-        action: "Perfect audience for product launches, donations, or premium content",
+        message: "Outperforming industry benchmarks at every stage. Loyal, highly-engaged audience.",
+        action: "Perfect audience for product launches, memberships, or premium content",
         icon: CheckCircle,
         color: "#10b981"
       };
-    } else if (ctr >= 0.04 && qualificationRate >= 0.4) {
+    }
+    // Healthy: Solid across the board
+    else if (ctr >= 0.04 && watchQualityRatio >= 0.9) {
       diagnosis = {
         type: "healthy",
         title: "Healthy Funnel",
-        message: "Solid performance across the board with room for optimization.",
+        message: "Meeting or exceeding industry benchmarks. Solid performance with room to grow.",
         action: "Continue current strategy while testing incremental improvements",
         icon: CheckCircle,
         color: "#10b981"
       };
     }
 
-    // Calculate widths - much wider minimum for better text fit
+    // Calculate widths for funnel visualization
     const maxWidth = 100;
     const viewsWidth = totalImpressions > 0 ? Math.max((totalViews / totalImpressions) * maxWidth, 50) : 65;
-    const qualifiedWidth = totalImpressions > 0 ? Math.max((qualifiedViewers / totalImpressions) * maxWidth, 40) : 50;
+    // Scale watch hours width based on quality ratio (1.0 = baseline width)
+    const watchHoursWidth = Math.max(Math.min(watchQualityRatio * 45, 50), 35);
 
     return {
       stages: [
@@ -146,21 +216,28 @@ export default function BrandFunnel({ rows, dateRange }) {
         },
         {
           name: "Deep Resonance",
-          subtitle: "Qualified Viewers",
-          value: qualifiedViewers,
-          trend: trends.qualified,
+          subtitle: "Watch Hours",
+          value: totalWatchHours,
+          trend: trends.watchHours,
           color: "#ec4899",
-          conversion: qualificationRate,
-          width: qualifiedWidth
+          conversion: watchQualityRatio,
+          isWatchHours: true,
+          width: watchHoursWidth
         }
       ],
-      overallConversion,
-      overallConversionTrend,
+      totalWatchHours,
+      watchQualityRatio,
+      avgWatchMinutesPerView,
       ctr,
       qualificationRate,
+      shortsMetrics,
+      longsMetrics,
+      shortsHeavy,
+      isStale,
+      daysSinceLastUpload,
       diagnosis
     };
-  }, [rows]);
+  }, [rows, dateRange]);
 
   // Particle animation
   useEffect(() => {
@@ -205,6 +282,15 @@ export default function BrandFunnel({ rows, dateRange }) {
     const pct = n * 100;
     // Show 2 decimal places for numbers under 1%, otherwise 1 decimal
     return pct < 1 ? `${pct.toFixed(2)}%` : `${pct.toFixed(1)}%`;
+  };
+  const fmtHours = (n) => {
+    if (!n || isNaN(n)) return "0 hrs";
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}K hrs`;
+    return `${Math.round(n).toLocaleString()} hrs`;
+  };
+  const fmtRatio = (n) => {
+    if (!n || isNaN(n)) return "0x";
+    return `${n.toFixed(2)}x`;
   };
 
   const stages = funnelData.stages;
@@ -331,7 +417,7 @@ export default function BrandFunnel({ rows, dateRange }) {
             <polygon points="350,420 344,413 356,413" fill="#666" />
             {stages[2].conversion && (
               <text x="390" y="407" fill="#cbd5e1" fontSize="14" fontWeight="600">
-                {fmtPct(stages[2].conversion)} Avg Retention
+                {fmtRatio(stages[2].conversion)} vs Benchmark
               </text>
             )}
 
@@ -343,14 +429,17 @@ export default function BrandFunnel({ rows, dateRange }) {
               strokeWidth="3"
               filter="url(#glow)"
             />
-            <text x="350" y="450" textAnchor="middle" fill="#fff" fontSize="20" fontWeight="700">
+            <text x="350" y="448" textAnchor="middle" fill="#fff" fontSize="20" fontWeight="700">
               {stages[2].name}
             </text>
-            <text x="350" y="472" textAnchor="middle" fill="#cbd5e1" fontSize="14">
+            <text x="350" y="468" textAnchor="middle" fill="#cbd5e1" fontSize="14">
               {stages[2].subtitle}
             </text>
-            <text x="350" y="505" textAnchor="middle" fill={stages[2].color} fontSize="32" fontWeight="700">
-              {fmtInt(stages[2].value)}
+            <text x="350" y="498" textAnchor="middle" fill={stages[2].color} fontSize="28" fontWeight="700">
+              {fmtHours(stages[2].value)}
+            </text>
+            <text x="350" y="515" textAnchor="middle" fill="#9E9E9E" fontSize="12">
+              {funnelData.avgWatchMinutesPerView.toFixed(1)} min/view avg
             </text>
 
             {/* Animated particles */}
@@ -405,7 +494,7 @@ export default function BrandFunnel({ rows, dateRange }) {
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
               gap: "12px",
-              marginBottom: "20px",
+              marginBottom: "16px",
               padding: "16px",
               background: "#1E1E1E",
               borderRadius: "8px"
@@ -415,10 +504,67 @@ export default function BrandFunnel({ rows, dateRange }) {
                 <div style={{ fontSize: "18px", fontWeight: "700", color: "#8b5cf6" }}>{fmtPct(funnelData.ctr)}</div>
               </div>
               <div>
-                <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Avg Retention</div>
-                <div style={{ fontSize: "18px", fontWeight: "700", color: "#ec4899" }}>{fmtPct(funnelData.qualificationRate)}</div>
+                <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>vs Benchmark</div>
+                <div style={{ fontSize: "18px", fontWeight: "700", color: funnelData.watchQualityRatio >= 1.0 ? "#10b981" : funnelData.watchQualityRatio >= 0.7 ? "#f59e0b" : "#ef4444" }}>
+                  {fmtRatio(funnelData.watchQualityRatio)}
+                </div>
               </div>
             </div>
+
+            {/* Content Breakdown */}
+            {(funnelData.shortsMetrics.count > 0 || funnelData.longsMetrics.count > 0) && (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "12px",
+                marginBottom: "16px",
+                padding: "14px",
+                background: "#1a1a1a",
+                borderRadius: "8px",
+                border: "1px solid #333"
+              }}>
+                {funnelData.shortsMetrics.count > 0 && (
+                  <div>
+                    <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "6px", fontWeight: "600" }}>
+                      Shorts ({funnelData.shortsMetrics.count})
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#E0E0E0" }}>
+                      {fmtHours(funnelData.shortsMetrics.totalWatchHours)}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#888", marginTop: "2px" }}>
+                      {fmtPct(funnelData.shortsMetrics.avgRetention)} ret
+                    </div>
+                  </div>
+                )}
+                {funnelData.longsMetrics.count > 0 && (
+                  <div>
+                    <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "6px", fontWeight: "600" }}>
+                      Long-form ({funnelData.longsMetrics.count})
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#E0E0E0" }}>
+                      {fmtHours(funnelData.longsMetrics.totalWatchHours)}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#888", marginTop: "2px" }}>
+                      {fmtPct(funnelData.longsMetrics.avgRetention)} ret
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Shorts-heavy warning */}
+            {funnelData.shortsHeavy && (
+              <div style={{
+                fontSize: "11px",
+                color: "#f59e0b",
+                background: "#f59e0b15",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                marginBottom: "16px"
+              }}>
+                High retention % driven by Shorts format - watch hours is a better quality signal
+              </div>
+            )}
 
             {funnelData.diagnosis.action && (
               <div style={{
@@ -435,9 +581,28 @@ export default function BrandFunnel({ rows, dateRange }) {
                 </div>
               </div>
             )}
+
+            {/* Staleness Warning */}
+            {funnelData.isStale && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                marginTop: "16px",
+                padding: "12px 14px",
+                background: "#f59e0b15",
+                border: "1px solid #f59e0b40",
+                borderRadius: "8px"
+              }}>
+                <Clock size={18} style={{ color: "#f59e0b", flexShrink: 0 }} />
+                <div style={{ fontSize: "12px", color: "#f59e0b", lineHeight: "1.4" }}>
+                  <strong>No uploads in {funnelData.daysSinceLastUpload} days</strong> — metrics may not reflect current audience engagement
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Overall Conversion */}
+          {/* Watch Quality vs Industry Benchmark */}
           <div style={{
             background: "#252525",
             border: "1px solid #333",
@@ -445,42 +610,41 @@ export default function BrandFunnel({ rows, dateRange }) {
             padding: "24px"
           }}>
             <div style={{ fontSize: "12px", color: "#9E9E9E", fontWeight: "700", textTransform: "uppercase", marginBottom: "8px" }}>
-              Overall Conversion
+              Watch Quality vs Benchmark
             </div>
             <div style={{ fontSize: "14px", color: "#cbd5e1", marginBottom: "10px" }}>
-              Impressions → Qualified Viewers
+              Actual watch time compared to 2026 industry standards
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "6px" }}>
-              <div style={{ fontSize: "38px", fontWeight: "700", color: "#ec4899" }}>
-                {fmtPct(funnelData.overallConversion)}
+              <div style={{
+                fontSize: "38px",
+                fontWeight: "700",
+                color: funnelData.watchQualityRatio >= 1.3 ? "#10b981"
+                  : funnelData.watchQualityRatio >= 1.0 ? "#8b5cf6"
+                  : funnelData.watchQualityRatio >= 0.7 ? "#f59e0b"
+                  : "#ef4444"
+              }}>
+                {fmtRatio(funnelData.watchQualityRatio)}
               </div>
-              {funnelData.overallConversionTrend !== undefined && funnelData.overallConversionTrend !== 0 && (
-                <div style={{
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  color: funnelData.overallConversionTrend > 0 ? "#10b981" : "#ef4444"
-                }}>
-                  {funnelData.overallConversionTrend > 0 ? "↑ +" : "↓ "}{funnelData.overallConversionTrend.toFixed(1)}%
-                </div>
-              )}
+              <div style={{ fontSize: "14px", color: "#9E9E9E" }}>
+                {fmtHours(funnelData.totalWatchHours)} total
+              </div>
             </div>
             <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "16px" }}>
-              {funnelData.overallConversion >= 0.05
-                ? "Exceptional - Rare performance level"
-                : funnelData.overallConversion >= 0.04
-                ? "Very strong conversion - Push toward 5% for exceptional status"
-                : funnelData.overallConversion >= 0.03
-                ? "Strong performance - Target 4%+ to reach very strong tier"
-                : funnelData.overallConversion >= 0.02
-                ? "Solid baseline - Target 3%+ for strong performance"
-                : funnelData.overallConversion >= 0.01
-                ? "Developing - Target 2%+ for solid performance"
-                : "Needs work - Focus on improving each stage"}
+              {funnelData.watchQualityRatio >= 1.3
+                ? "Excellent — Significantly outperforming industry benchmarks"
+                : funnelData.watchQualityRatio >= 1.0
+                ? "Good — Exceeding industry benchmarks for your content mix"
+                : funnelData.watchQualityRatio >= 0.7
+                ? "Average — Meeting industry benchmarks, room to grow"
+                : funnelData.watchQualityRatio >= 0.5
+                ? "Developing — Below benchmarks, focus on retention improvements"
+                : "Below Average — Significant gap vs industry standards"}
             </div>
 
-            {/* Progress Bar */}
+            {/* Progress Bar - now based on watch quality ratio */}
             <div style={{ marginTop: "16px" }}>
-              {/* The bar itself */}
+              {/* The bar itself - scale: 0.5x to 1.5x+ */}
               <div style={{
                 position: "relative",
                 height: "12px",
@@ -489,39 +653,34 @@ export default function BrandFunnel({ rows, dateRange }) {
                 border: "1px solid #333",
                 overflow: "visible"
               }}>
-                {/* Progress fill */}
+                {/* Progress fill - map 0.5-1.5 to 0-100% */}
                 <div style={{
                   position: "absolute",
                   top: 0,
                   left: 0,
                   bottom: 0,
-                  width: `${Math.min((funnelData.overallConversion / 0.05) * 100, 100)}%`,
-                  background: funnelData.overallConversion >= 0.05
+                  width: `${Math.min(Math.max((funnelData.watchQualityRatio - 0.5) / 1.0 * 100, 0), 100)}%`,
+                  background: funnelData.watchQualityRatio >= 1.3
                     ? "linear-gradient(90deg, #10b981, #059669)"
-                    : funnelData.overallConversion >= 0.04
+                    : funnelData.watchQualityRatio >= 1.0
                     ? "linear-gradient(90deg, #8b5cf6, #7c3aed)"
-                    : funnelData.overallConversion >= 0.03
-                    ? "linear-gradient(90deg, #6366f1, #4f46e5)"
-                    : funnelData.overallConversion >= 0.02
-                    ? "linear-gradient(90deg, #3b82f6, #2563eb)"
-                    : funnelData.overallConversion >= 0.01
+                    : funnelData.watchQualityRatio >= 0.7
                     ? "linear-gradient(90deg, #f59e0b, #d97706)"
                     : "linear-gradient(90deg, #ef4444, #dc2626)",
                   borderRadius: "6px",
                   transition: "width 0.5s ease"
                 }} />
 
-                {/* Tier dividers */}
+                {/* Tier dividers at 0.7x, 1.0x, 1.3x */}
                 <div style={{ position: "absolute", left: "20%", top: 0, bottom: 0, width: "1px", background: "#444" }} />
-                <div style={{ position: "absolute", left: "40%", top: 0, bottom: 0, width: "1px", background: "#444" }} />
-                <div style={{ position: "absolute", left: "60%", top: 0, bottom: 0, width: "1px", background: "#444" }} />
+                <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: "2px", background: "#666" }} />
                 <div style={{ position: "absolute", left: "80%", top: 0, bottom: 0, width: "1px", background: "#444" }} />
 
                 {/* Current position marker */}
                 <div style={{
                   position: "absolute",
                   top: "-4px",
-                  left: `${Math.min((funnelData.overallConversion / 0.05) * 100, 100)}%`,
+                  left: `${Math.min(Math.max((funnelData.watchQualityRatio - 0.5) / 1.0 * 100, 0), 100)}%`,
                   transform: "translateX(-50%)",
                   width: "4px",
                   height: "20px",
@@ -532,24 +691,21 @@ export default function BrandFunnel({ rows, dateRange }) {
                 }} />
               </div>
 
-              {/* Percentage scale */}
+              {/* Ratio scale */}
               <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px", fontSize: "11px", color: "#666", fontWeight: "600" }}>
-                <span>0%</span>
-                <span>1%</span>
-                <span>2%</span>
-                <span>3%</span>
-                <span>4%</span>
-                <span>5%</span>
+                <span>0.5x</span>
+                <span>0.7x</span>
+                <span style={{ color: "#888", fontWeight: "700" }}>1.0x</span>
+                <span>1.3x</span>
+                <span>1.5x+</span>
               </div>
 
               {/* Tier labels below */}
               <div style={{ display: "flex", marginTop: "8px", fontSize: "11px", color: "#888" }}>
-                <div style={{ flex: 1, textAlign: "center", borderLeft: "2px solid #ef4444", paddingLeft: "4px" }}>Needs Work</div>
-                <div style={{ flex: 1, textAlign: "center", borderLeft: "2px solid #f59e0b", paddingLeft: "4px" }}>Developing</div>
-                <div style={{ flex: 1, textAlign: "center", borderLeft: "2px solid #3b82f6", paddingLeft: "4px" }}>Solid</div>
-                <div style={{ flex: 1, textAlign: "center", borderLeft: "2px solid #6366f1", paddingLeft: "4px" }}>Strong</div>
-                <div style={{ flex: 1, textAlign: "center", borderLeft: "2px solid #8b5cf6", paddingLeft: "4px" }}>Very Strong</div>
-                <div style={{ flex: 1, textAlign: "center", borderLeft: "2px solid #10b981", paddingLeft: "4px" }}>Exceptional</div>
+                <div style={{ flex: 1, textAlign: "center", borderLeft: "2px solid #ef4444", paddingLeft: "4px" }}>Below</div>
+                <div style={{ flex: 1.5, textAlign: "center", borderLeft: "2px solid #f59e0b", paddingLeft: "4px" }}>Average</div>
+                <div style={{ flex: 1.5, textAlign: "center", borderLeft: "2px solid #8b5cf6", paddingLeft: "4px" }}>Good</div>
+                <div style={{ flex: 1, textAlign: "center", borderLeft: "2px solid #10b981", paddingLeft: "4px" }}>Excellent</div>
               </div>
             </div>
           </div>

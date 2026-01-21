@@ -127,12 +127,12 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload }) => (
       <div style={{ flex: 1, padding: "16px" }}>
         {[
           { id: "Dashboard", icon: Home },
+          { id: "Channel Summary", icon: Sparkles },
           { id: "Strategy", icon: Target },
           { id: "Competitors", icon: Users },
           { id: "Intelligence", icon: MessageSquare },
-          { id: "AI Ideas", icon: Lightbulb },
+          { id: "Video Ideation", icon: Lightbulb },
           { id: "Comments", icon: MessageSquare },
-          { id: "AI Summary", icon: Sparkles },
           { id: "Data", icon: Database },
           { id: "API Settings", icon: Key },
           { id: "Standardizer", icon: Settings }
@@ -2112,7 +2112,7 @@ export default function App() {
               <EnhancedContentIntelligence rows={filtered} activeClient={activeClient} />
             )}
 
-            {tab === "AI Ideas" && (
+            {tab === "Video Ideation" && (
               <VideoIdeaGenerator data={filtered} activeClient={activeClient} />
             )}
 
@@ -2120,7 +2120,7 @@ export default function App() {
               <CommentAnalysis data={filtered} />
             )}
 
-            {tab === "AI Summary" && (
+            {tab === "Channel Summary" && (
               <AIExecutiveSummary
                 rows={rows}
                 analysis={(() => {

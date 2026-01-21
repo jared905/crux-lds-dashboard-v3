@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, FolderOpen, Save, Upload, Download, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, FolderOpen, Upload, Download, RefreshCw, Edit2, X, Check } from "lucide-react";
 import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../lib/competitorAnalysis";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
@@ -48,7 +48,8 @@ export default function CompetitorAnalysis({ rows }) {
     return saved || Intl.DateTimeFormat().resolvedOptions().timeZone;
   });
 
-  const [showProfileManager, setShowProfileManager] = useState(false);
+  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
+  const [editingProfileId, setEditingProfileId] = useState(null);
   const [newProfileName, setNewProfileName] = useState("");
   const [selectedCategories, setSelectedCategories] = useState([]);
 
@@ -283,6 +284,7 @@ export default function CompetitorAnalysis({ rows }) {
       const updated = [...competitors, competitorData];
       setCompetitors(updated);
       localStorage.setItem('competitors', JSON.stringify(updated));
+      syncCompetitorsToProfile(updated);
       setNewCompetitor("");
       setError("");
     } catch (err) {
@@ -344,31 +346,39 @@ export default function CompetitorAnalysis({ rows }) {
     const updated = competitors.filter(c => c.id !== id);
     setCompetitors(updated);
     localStorage.setItem('competitors', JSON.stringify(updated));
+    syncCompetitorsToProfile(updated);
     if (expandedCompetitor === id) {
       setExpandedCompetitor(null);
     }
   };
 
   // Profile Management Functions
-  const saveCurrentAsProfile = () => {
-    if (!newProfileName.trim()) {
+  const createNewProfile = (name) => {
+    if (!name || !name.trim()) {
       setError("Please enter a profile name");
       return;
     }
 
     const newProfile = {
       id: Date.now().toString(),
-      name: newProfileName.trim(),
-      competitors: competitors,
+      name: name.trim(),
+      competitors: [],
       createdAt: new Date().toISOString(),
-      competitorCount: competitors.length
+      competitorCount: 0
     };
 
     const updated = [...profiles, newProfile];
     setProfiles(updated);
     localStorage.setItem('competitor_profiles', JSON.stringify(updated));
+
+    // Switch to the new profile
+    setCompetitors([]);
+    localStorage.setItem('competitors', JSON.stringify([]));
+    setActiveProfile(newProfile.id);
+    localStorage.setItem('active_profile', newProfile.id);
+
     setNewProfileName("");
-    setShowProfileManager(false);
+    setIsCreatingProfile(false);
     setError("");
   };
 
@@ -376,38 +386,56 @@ export default function CompetitorAnalysis({ rows }) {
     const profile = profiles.find(p => p.id === profileId);
     if (!profile) return;
 
-    setCompetitors(profile.competitors);
-    localStorage.setItem('competitors', JSON.stringify(profile.competitors));
+    setCompetitors(profile.competitors || []);
+    localStorage.setItem('competitors', JSON.stringify(profile.competitors || []));
     setActiveProfile(profileId);
     localStorage.setItem('active_profile', profileId);
     setError("");
   };
 
-  const updateProfile = (profileId) => {
-    const profile = profiles.find(p => p.id === profileId);
-    if (!profile) return;
+  const renameProfile = (profileId, newName) => {
+    if (!newName || !newName.trim()) return;
 
-    const updatedProfile = {
-      ...profile,
-      competitors: competitors,
-      updatedAt: new Date().toISOString(),
-      competitorCount: competitors.length
-    };
-
-    const updated = profiles.map(p => p.id === profileId ? updatedProfile : p);
+    const updated = profiles.map(p =>
+      p.id === profileId
+        ? { ...p, name: newName.trim(), updatedAt: new Date().toISOString() }
+        : p
+    );
     setProfiles(updated);
     localStorage.setItem('competitor_profiles', JSON.stringify(updated));
-    setError("");
+    setEditingProfileId(null);
+    setNewProfileName("");
   };
 
   const deleteProfile = (profileId) => {
     const updated = profiles.filter(p => p.id !== profileId);
     setProfiles(updated);
     localStorage.setItem('competitor_profiles', JSON.stringify(updated));
+
     if (activeProfile === profileId) {
       setActiveProfile(null);
       localStorage.removeItem('active_profile');
+      setCompetitors([]);
+      localStorage.setItem('competitors', JSON.stringify([]));
     }
+  };
+
+  // Auto-sync competitors to active profile
+  const syncCompetitorsToProfile = (updatedCompetitors) => {
+    if (!activeProfile) return;
+
+    const updated = profiles.map(p =>
+      p.id === activeProfile
+        ? {
+            ...p,
+            competitors: updatedCompetitors,
+            competitorCount: updatedCompetitors.length,
+            updatedAt: new Date().toISOString()
+          }
+        : p
+    );
+    setProfiles(updated);
+    localStorage.setItem('competitor_profiles', JSON.stringify(updated));
   };
 
   // Refresh competitor data with historical snapshot
@@ -807,19 +835,345 @@ export default function CompetitorAnalysis({ rows }) {
           </div>
         )}
 
-        {/* Add Competitor */}
+        {/* Profile Tab Bar */}
         <div style={{
           background: "#252525",
           border: "1px solid #333",
           borderRadius: "8px",
-          padding: "16px"
+          padding: "12px 16px",
+          marginBottom: "16px"
         }}>
-          <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff", marginBottom: "8px" }}>
-            Add Competitor Channel
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            {profiles.map(profile => (
+              <button
+                key={profile.id}
+                onClick={() => loadProfile(profile.id)}
+                style={{
+                  background: activeProfile === profile.id ? "#3b82f6" : "#1E1E1E",
+                  border: `1px solid ${activeProfile === profile.id ? "#3b82f6" : "#444"}`,
+                  borderRadius: "6px",
+                  padding: "8px 14px",
+                  color: activeProfile === profile.id ? "#fff" : "#aaa",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                <FolderOpen size={14} />
+                {profile.name}
+                <span style={{
+                  background: activeProfile === profile.id ? "rgba(255,255,255,0.2)" : "#333",
+                  padding: "2px 6px",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  color: activeProfile === profile.id ? "#fff" : "#888"
+                }}>
+                  {profile.competitorCount || 0}
+                </span>
+              </button>
+            ))}
+
+            {/* New Profile Button / Inline Input */}
+            {isCreatingProfile ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <input
+                  autoFocus
+                  type="text"
+                  value={newProfileName}
+                  onChange={(e) => setNewProfileName(e.target.value)}
+                  placeholder="Profile name..."
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && newProfileName.trim()) {
+                      createNewProfile(newProfileName);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setIsCreatingProfile(false);
+                      setNewProfileName("");
+                    }
+                  }}
+                  style={{
+                    background: "#1E1E1E",
+                    border: "1px solid #3b82f6",
+                    borderRadius: "6px",
+                    padding: "8px 12px",
+                    color: "#fff",
+                    fontSize: "13px",
+                    width: "160px"
+                  }}
+                />
+                <button
+                  onClick={() => newProfileName.trim() && createNewProfile(newProfileName)}
+                  style={{
+                    background: "#10b981",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "8px",
+                    color: "#fff",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center"
+                  }}
+                >
+                  <Check size={16} />
+                </button>
+                <button
+                  onClick={() => {
+                    setIsCreatingProfile(false);
+                    setNewProfileName("");
+                  }}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid #555",
+                    borderRadius: "6px",
+                    padding: "8px",
+                    color: "#888",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center"
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsCreatingProfile(true)}
+                style={{
+                  background: "transparent",
+                  border: "1px dashed #555",
+                  borderRadius: "6px",
+                  padding: "8px 14px",
+                  color: "#888",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                <Plus size={14} />
+                New Profile
+              </button>
+            )}
           </div>
-          <div style={{ fontSize: "11px", color: "#888", marginBottom: "12px" }}>
-            Enter a YouTube channel URL or channel ID
+        </div>
+
+        {/* Profile Header - shows when a profile is active */}
+        {activeProfile && profiles.find(p => p.id === activeProfile) && (
+          <div style={{
+            background: "#1E1E1E",
+            border: "1px solid #333",
+            borderRadius: "8px",
+            padding: "12px 16px",
+            marginBottom: "16px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              {editingProfileId === activeProfile ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newProfileName}
+                    onChange={(e) => setNewProfileName(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && newProfileName.trim()) {
+                        renameProfile(activeProfile, newProfileName);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setEditingProfileId(null);
+                        setNewProfileName("");
+                      }
+                    }}
+                    style={{
+                      background: "#252525",
+                      border: "1px solid #3b82f6",
+                      borderRadius: "4px",
+                      padding: "6px 10px",
+                      color: "#fff",
+                      fontSize: "14px",
+                      fontWeight: "600"
+                    }}
+                  />
+                  <button
+                    onClick={() => newProfileName.trim() && renameProfile(activeProfile, newProfileName)}
+                    style={{
+                      background: "#10b981",
+                      border: "none",
+                      borderRadius: "4px",
+                      padding: "6px",
+                      color: "#fff",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center"
+                    }}
+                  >
+                    <Check size={14} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingProfileId(null);
+                      setNewProfileName("");
+                    }}
+                    style={{
+                      background: "transparent",
+                      border: "1px solid #555",
+                      borderRadius: "4px",
+                      padding: "6px",
+                      color: "#888",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center"
+                    }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <span style={{ fontSize: "15px", fontWeight: "600", color: "#fff" }}>
+                    {profiles.find(p => p.id === activeProfile)?.name}
+                  </span>
+                  <span style={{ fontSize: "12px", color: "#888" }}>
+                    {competitors.length} competitor{competitors.length !== 1 ? 's' : ''}
+                  </span>
+                </>
+              )}
+            </div>
+            {editingProfileId !== activeProfile && (
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  onClick={() => {
+                    setEditingProfileId(activeProfile);
+                    setNewProfileName(profiles.find(p => p.id === activeProfile)?.name || "");
+                  }}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid #555",
+                    borderRadius: "6px",
+                    padding: "6px 12px",
+                    color: "#888",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}
+                >
+                  <Edit2 size={12} />
+                  Rename
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm(`Delete profile "${profiles.find(p => p.id === activeProfile)?.name}"? This cannot be undone.`)) {
+                      deleteProfile(activeProfile);
+                    }
+                  }}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid #ef4444",
+                    borderRadius: "6px",
+                    padding: "6px 12px",
+                    color: "#ef4444",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}
+                >
+                  <Trash2 size={12} />
+                  Delete
+                </button>
+              </div>
+            )}
           </div>
+        )}
+
+        {/* Empty State - No profile selected */}
+        {!activeProfile && profiles.length > 0 && (
+          <div style={{
+            background: "#1E1E1E",
+            border: "1px solid #333",
+            borderRadius: "8px",
+            padding: "32px",
+            marginBottom: "16px",
+            textAlign: "center"
+          }}>
+            <FolderOpen size={32} style={{ color: "#555", marginBottom: "12px" }} />
+            <div style={{ fontSize: "14px", color: "#888", marginBottom: "8px" }}>
+              Select a profile above to view and manage competitors
+            </div>
+          </div>
+        )}
+
+        {/* Empty State - No profiles exist */}
+        {profiles.length === 0 && (
+          <div style={{
+            background: "#1E1E1E",
+            border: "1px solid #333",
+            borderRadius: "8px",
+            padding: "32px",
+            marginBottom: "16px",
+            textAlign: "center"
+          }}>
+            <Users size={32} style={{ color: "#555", marginBottom: "12px" }} />
+            <div style={{ fontSize: "15px", fontWeight: "600", color: "#fff", marginBottom: "8px" }}>
+              Create your first competitor profile
+            </div>
+            <div style={{ fontSize: "13px", color: "#888", marginBottom: "16px" }}>
+              Profiles help you organize competitors by client or industry
+            </div>
+            <button
+              onClick={() => setIsCreatingProfile(true)}
+              style={{
+                background: "#3b82f6",
+                border: "none",
+                borderRadius: "8px",
+                padding: "12px 24px",
+                color: "#fff",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px"
+              }}
+            >
+              <Plus size={18} />
+              Create Profile
+            </button>
+          </div>
+        )}
+
+        {/* Add Competitor - Only show when a profile is active */}
+        {activeProfile && (
+          <div style={{
+            background: "#252525",
+            border: "1px solid #333",
+            borderRadius: "8px",
+            padding: "16px"
+          }}>
+            <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff", marginBottom: "8px" }}>
+              Add Competitor Channel
+            </div>
+            <div style={{ fontSize: "11px", color: "#888", marginBottom: "12px" }}>
+              Enter a YouTube channel URL or channel ID
+            </div>
           <div style={{ display: "flex", gap: "8px" }}>
             <input
               type="text"
@@ -878,266 +1232,61 @@ export default function CompetitorAnalysis({ rows }) {
             </div>
           )}
         </div>
+        )}
 
-        {/* Profile Management & Import/Export */}
-        {competitors.length > 0 && (
+        {/* Import/Export - Only show when a profile is active */}
+        {activeProfile && competitors.length > 0 && (
           <div style={{
-            background: "#252525",
-            border: "1px solid #333",
-            borderRadius: "8px",
-            padding: "16px",
+            display: "flex",
+            gap: "8px",
             marginTop: "16px"
           }}>
-            <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff", marginBottom: "12px" }}>
-              Profile Management
-            </div>
-
-            {/* Profile Selector & Actions */}
-            <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-              <select
-                value={activeProfile || ""}
-                onChange={(e) => e.target.value && loadProfile(e.target.value)}
-                style={{
-                  flex: 1,
-                  background: "#1E1E1E",
-                  border: "1px solid #333",
-                  borderRadius: "6px",
-                  padding: "10px 12px",
-                  color: "#fff",
-                  fontSize: "13px",
-                  cursor: "pointer"
-                }}
-              >
-                <option value="">Select a profile to load...</option>
-                {profiles.map(profile => (
-                  <option key={profile.id} value={profile.id}>
-                    {profile.name} ({profile.competitorCount} competitors)
-                  </option>
-                ))}
-              </select>
-              {activeProfile && (
-                <button
-                  onClick={() => updateProfile(activeProfile)}
-                  style={{
-                    background: "#10b981",
-                    border: "none",
-                    borderRadius: "6px",
-                    padding: "10px 16px",
-                    color: "#fff",
-                    fontSize: "13px",
-                    fontWeight: "600",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    whiteSpace: "nowrap"
-                  }}
-                >
-                  <Save size={16} />
-                  Update Profile
-                </button>
-              )}
-              <button
-                onClick={() => setShowProfileManager(!showProfileManager)}
-                style={{
-                  background: "#3b82f6",
-                  border: "none",
-                  borderRadius: "6px",
-                  padding: "10px 16px",
-                  color: "#fff",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  whiteSpace: "nowrap"
-                }}
-              >
-                <Save size={16} />
-                Save Profile
-              </button>
-            </div>
-
-            {/* Save Profile Form */}
-            {showProfileManager && (
-              <div style={{
-                background: "#1E1E1E",
-                border: "1px solid #333",
+            <button
+              onClick={exportCompetitors}
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "1px solid #555",
                 borderRadius: "6px",
-                padding: "12px",
-                marginBottom: "12px"
+                padding: "8px 12px",
+                color: "#888",
+                fontSize: "12px",
+                fontWeight: "600",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px"
+              }}
+            >
+              <Download size={14} />
+              Export JSON
+            </button>
+            <label style={{ flex: 1 }}>
+              <input
+                type="file"
+                accept=".json"
+                onChange={importCompetitors}
+                style={{ display: "none" }}
+              />
+              <div style={{
+                background: "transparent",
+                border: "1px solid #555",
+                borderRadius: "6px",
+                padding: "8px 12px",
+                color: "#888",
+                fontSize: "12px",
+                fontWeight: "600",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px"
               }}>
-                <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>
-                  Save current competitors as a profile
-                </div>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <input
-                    type="text"
-                    value={newProfileName}
-                    onChange={(e) => setNewProfileName(e.target.value)}
-                    placeholder="e.g., Religious Clients, Financial Advisors"
-                    style={{
-                      flex: 1,
-                      background: "#252525",
-                      border: "1px solid #333",
-                      borderRadius: "4px",
-                      padding: "8px 10px",
-                      color: "#fff",
-                      fontSize: "13px"
-                    }}
-                    onKeyPress={(e) => e.key === 'Enter' && saveCurrentAsProfile()}
-                  />
-                  <button
-                    onClick={saveCurrentAsProfile}
-                    style={{
-                      background: "#10b981",
-                      border: "none",
-                      borderRadius: "4px",
-                      padding: "8px 16px",
-                      color: "#fff",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      cursor: "pointer"
-                    }}
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowProfileManager(false);
-                      setNewProfileName("");
-                    }}
-                    style={{
-                      background: "transparent",
-                      border: "1px solid #555",
-                      borderRadius: "4px",
-                      padding: "8px 16px",
-                      color: "#888",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      cursor: "pointer"
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
+                <Upload size={14} />
+                Import JSON
               </div>
-            )}
-
-            {/* Saved Profiles List */}
-            {profiles.length > 0 && (
-              <div style={{ marginBottom: "12px" }}>
-                <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>
-                  Saved Profiles ({profiles.length})
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  {profiles.map(profile => (
-                    <div key={profile.id} style={{
-                      background: activeProfile === profile.id ? "#3b82f620" : "#1E1E1E",
-                      border: `1px solid ${activeProfile === profile.id ? "#3b82f6" : "#333"}`,
-                      borderRadius: "4px",
-                      padding: "8px 10px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center"
-                    }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>
-                          {profile.name}
-                        </div>
-                        <div style={{ fontSize: "10px", color: "#666", marginTop: "2px" }}>
-                          {profile.competitorCount} competitors • Created {new Date(profile.createdAt).toLocaleDateString()}
-                          {profile.updatedAt && ` • Updated ${new Date(profile.updatedAt).toLocaleDateString()}`}
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <button
-                          onClick={() => loadProfile(profile.id)}
-                          style={{
-                            background: "transparent",
-                            border: "1px solid #3b82f6",
-                            borderRadius: "4px",
-                            padding: "4px 10px",
-                            color: "#3b82f6",
-                            fontSize: "11px",
-                            fontWeight: "600",
-                            cursor: "pointer"
-                          }}
-                        >
-                          Load
-                        </button>
-                        <button
-                          onClick={() => deleteProfile(profile.id)}
-                          style={{
-                            background: "transparent",
-                            border: "1px solid #ef4444",
-                            borderRadius: "4px",
-                            padding: "4px 10px",
-                            color: "#ef4444",
-                            fontSize: "11px",
-                            fontWeight: "600",
-                            cursor: "pointer"
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Import/Export */}
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                onClick={exportCompetitors}
-                style={{
-                  flex: 1,
-                  background: "transparent",
-                  border: "1px solid #555",
-                  borderRadius: "6px",
-                  padding: "8px 12px",
-                  color: "#888",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "6px"
-                }}
-              >
-                <Download size={14} />
-                Export JSON
-              </button>
-              <label style={{ flex: 1 }}>
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={importCompetitors}
-                  style={{ display: "none" }}
-                />
-                <div style={{
-                  background: "transparent",
-                  border: "1px solid #555",
-                  borderRadius: "6px",
-                  padding: "8px 12px",
-                  color: "#888",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "6px"
-                }}>
-                  <Upload size={14} />
-                  Import JSON
-                </div>
-              </label>
-            </div>
+            </label>
           </div>
         )}
       </div>
@@ -1425,20 +1574,37 @@ export default function CompetitorAnalysis({ rows }) {
                 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <img
-                        src={competitor.thumbnail}
-                        alt={competitor.name}
-                        style={{
-                          width: "40px",
-                          height: "40px",
-                          borderRadius: "50%",
-                          objectFit: "cover"
-                        }}
-                      />
+                      <a
+                        href={`https://www.youtube.com/channel/${competitor.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "block" }}
+                      >
+                        <img
+                          src={competitor.thumbnail}
+                          alt={competitor.name}
+                          style={{
+                            width: "40px",
+                            height: "40px",
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                            transition: "opacity 0.15s ease"
+                          }}
+                          onMouseOver={(e) => e.target.style.opacity = "0.8"}
+                          onMouseOut={(e) => e.target.style.opacity = "1"}
+                        />
+                      </a>
                       <div>
-                        <div style={{ fontSize: "15px", fontWeight: "700", color: "#fff" }}>
+                        <a
+                          href={`https://www.youtube.com/channel/${competitor.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: "15px", fontWeight: "700", color: "#fff", textDecoration: "none" }}
+                          onMouseOver={(e) => e.target.style.textDecoration = "underline"}
+                          onMouseOut={(e) => e.target.style.textDecoration = "none"}
+                        >
                           {competitor.name}
-                        </div>
+                        </a>
                         <div style={{ fontSize: "11px", color: "#666" }}>
                           {fmtInt(competitor.subscriberCount)} subscribers
                         </div>
@@ -2029,20 +2195,37 @@ function CompetitorCard({ competitor, isExpanded, onToggle, onRemove, onRefresh,
           gap: "12px",
           alignItems: "center"
         }}>
-          <img
-            src={competitor.thumbnail}
-            alt={competitor.name}
-            style={{
-              width: "48px",
-              height: "48px",
-              borderRadius: "50%",
-              objectFit: "cover"
-            }}
-          />
+          <a
+            href={`https://www.youtube.com/channel/${competitor.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "block" }}
+          >
+            <img
+              src={competitor.thumbnail}
+              alt={competitor.name}
+              style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "50%",
+                objectFit: "cover",
+                transition: "opacity 0.15s ease"
+              }}
+              onMouseOver={(e) => e.target.style.opacity = "0.8"}
+              onMouseOut={(e) => e.target.style.opacity = "1"}
+            />
+          </a>
           <div>
-            <div style={{ fontSize: "15px", fontWeight: "600", color: "#fff", marginBottom: "8px" }}>
+            <a
+              href={`https://www.youtube.com/channel/${competitor.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: "15px", fontWeight: "600", color: "#fff", marginBottom: "8px", display: "block", textDecoration: "none" }}
+              onMouseOver={(e) => e.target.style.textDecoration = "underline"}
+              onMouseOut={(e) => e.target.style.textDecoration = "none"}
+            >
               {competitor.name}
-            </div>
+            </a>
             <div style={{ display: "flex", gap: "16px", fontSize: "11px", color: "#888", flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                 <Users size={14} />
@@ -2332,7 +2515,12 @@ function CompetitorCard({ competitor, isExpanded, onToggle, onRemove, onRefresh,
 
                         return (
                           <div key={video.id} style={{ display: "flex", flexDirection: "column" }}>
-                            <div style={{ position: "relative" }}>
+                            <a
+                              href={`https://www.youtube.com/watch?v=${video.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ position: "relative", display: "block" }}
+                            >
                               <img
                                 src={video.thumbnail}
                                 alt={video.title}
@@ -2343,8 +2531,11 @@ function CompetitorCard({ competitor, isExpanded, onToggle, onRemove, onRefresh,
                                   borderRadius: "4px",
                                   objectFit: "cover",
                                   border: "1px solid #333",
-                                  cursor: "pointer"
+                                  cursor: "pointer",
+                                  transition: "opacity 0.15s ease"
                                 }}
+                                onMouseOver={(e) => e.target.style.opacity = "0.8"}
+                                onMouseOut={(e) => e.target.style.opacity = "1"}
                               />
                               <div style={{
                                 position: "absolute",
@@ -2359,7 +2550,7 @@ function CompetitorCard({ competitor, isExpanded, onToggle, onRemove, onRefresh,
                               }}>
                                 {fmtInt(video.views)}
                               </div>
-                            </div>
+                            </a>
                             <div style={{
                               fontSize: "9px",
                               color: "#666",
@@ -2657,20 +2848,36 @@ function CompetitorCard({ competitor, isExpanded, onToggle, onRemove, onRefresh,
                   gap: "12px",
                   alignItems: "center"
                 }}>
-                  <img
-                    src={video.thumbnail}
-                    alt={video.title}
-                    style={{
-                      width: "120px",
-                      height: "68px",
-                      borderRadius: "4px",
-                      objectFit: "cover"
-                    }}
-                  />
+                  <a
+                    href={`https://www.youtube.com/watch?v=${video.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img
+                      src={video.thumbnail}
+                      alt={video.title}
+                      style={{
+                        width: "120px",
+                        height: "68px",
+                        borderRadius: "4px",
+                        objectFit: "cover",
+                        transition: "opacity 0.15s ease"
+                      }}
+                      onMouseOver={(e) => e.target.style.opacity = "0.8"}
+                      onMouseOut={(e) => e.target.style.opacity = "1"}
+                    />
+                  </a>
                   <div>
-                    <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff", marginBottom: "6px", lineHeight: "1.4" }}>
+                    <a
+                      href={`https://www.youtube.com/watch?v=${video.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: "12px", fontWeight: "600", color: "#fff", marginBottom: "6px", lineHeight: "1.4", display: "block", textDecoration: "none" }}
+                      onMouseOver={(e) => e.target.style.textDecoration = "underline"}
+                      onMouseOut={(e) => e.target.style.textDecoration = "none"}
+                    >
                       {video.title}
-                    </div>
+                    </a>
                     <div style={{ display: "flex", gap: "10px", fontSize: "10px", color: "#888" }}>
                       <span>{fmtInt(video.views)} views</span>
                       <span>•</span>

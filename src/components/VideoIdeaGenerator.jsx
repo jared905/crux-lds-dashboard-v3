@@ -7,10 +7,15 @@ import claudeAPI from '../services/claudeAPI';
  * v2.2.3 - Dark theme styling + pre/post generation options
  */
 export default function VideoIdeaGenerator({ data, activeClient }) {
-  // Load from localStorage on mount
-  const loadFromStorage = () => {
+  // Generate storage key based on client ID
+  const getStorageKey = (clientId) => {
+    return clientId ? `ai_video_ideas_${clientId}` : 'ai_video_ideas';
+  };
+
+  // Load from localStorage for a specific client
+  const loadFromStorage = (clientId) => {
     try {
-      const saved = localStorage.getItem('ai_video_ideas');
+      const saved = localStorage.getItem(getStorageKey(clientId));
       return saved ? JSON.parse(saved) : null;
     } catch (err) {
       console.error('Error loading saved ideas:', err);
@@ -18,11 +23,11 @@ export default function VideoIdeaGenerator({ data, activeClient }) {
     }
   };
 
-  const [ideas, setIdeas] = useState(() => loadFromStorage()?.ideas || []);
+  const [ideas, setIdeas] = useState(() => loadFromStorage(activeClient?.id)?.ideas || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [estimatedCost, setEstimatedCost] = useState(() => loadFromStorage()?.estimatedCost || null);
-  const [includeInPDF, setIncludeInPDF] = useState(() => loadFromStorage()?.includeInPDF || false);
+  const [estimatedCost, setEstimatedCost] = useState(() => loadFromStorage(activeClient?.id)?.estimatedCost || null);
+  const [includeInPDF, setIncludeInPDF] = useState(() => loadFromStorage(activeClient?.id)?.includeInPDF || false);
 
   // Pre-generation context fields
   const [showContextFields, setShowContextFields] = useState(false);
@@ -34,13 +39,24 @@ export default function VideoIdeaGenerator({ data, activeClient }) {
   // Post-generation refinement
   const [refinementQuestion, setRefinementQuestion] = useState('');
   const [refining, setRefining] = useState(false);
-  const [conversationHistory, setConversationHistory] = useState(() => loadFromStorage()?.conversationHistory || []);
+  const [conversationHistory, setConversationHistory] = useState(() => loadFromStorage(activeClient?.id)?.conversationHistory || []);
+
+  // Load ideas when client changes
+  useEffect(() => {
+    const savedData = loadFromStorage(activeClient?.id);
+    setIdeas(savedData?.ideas || []);
+    setEstimatedCost(savedData?.estimatedCost || null);
+    setIncludeInPDF(savedData?.includeInPDF || false);
+    setConversationHistory(savedData?.conversationHistory || []);
+    setError(null);
+    setRefinementQuestion('');
+  }, [activeClient?.id]);
 
   // Save to localStorage whenever ideas change
   useEffect(() => {
-    if (ideas.length > 0) {
+    if (ideas.length > 0 && activeClient?.id) {
       try {
-        localStorage.setItem('ai_video_ideas', JSON.stringify({
+        localStorage.setItem(getStorageKey(activeClient.id), JSON.stringify({
           ideas,
           estimatedCost,
           includeInPDF,
@@ -51,7 +67,7 @@ export default function VideoIdeaGenerator({ data, activeClient }) {
         console.error('Error saving ideas:', err);
       }
     }
-  }, [ideas, estimatedCost, includeInPDF, conversationHistory]);
+  }, [ideas, estimatedCost, includeInPDF, conversationHistory, activeClient?.id]);
 
   const generateIdeas = async () => {
     setLoading(true);
@@ -260,7 +276,9 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
     setEstimatedCost(null);
     setConversationHistory([]);
     setError(null);
-    localStorage.removeItem('ai_video_ideas');
+    if (activeClient?.id) {
+      localStorage.removeItem(getStorageKey(activeClient.id));
+    }
   };
 
   return (
@@ -298,7 +316,7 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
             </div>
             <div>
               <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
-                AI Video Idea Generator
+                Video Ideation
               </h2>
               <p style={{ fontSize: "13px", color: "#9E9E9E" }}>
                 Generate data-driven video ideas based on your top performers

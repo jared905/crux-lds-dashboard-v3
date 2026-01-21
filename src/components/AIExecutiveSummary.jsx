@@ -8,10 +8,15 @@ import claudeAPI from '../services/claudeAPI';
  * v2.2.2 - Dark theme styling
  */
 export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
-  // Load from localStorage on mount
-  const loadFromStorage = () => {
+  // Generate storage key based on client ID
+  const getStorageKey = (clientId) => {
+    return clientId ? `ai_executive_summary_${clientId}` : 'ai_executive_summary';
+  };
+
+  // Load from localStorage for a specific client
+  const loadFromStorage = (clientId) => {
     try {
-      const saved = localStorage.getItem('ai_executive_summary');
+      const saved = localStorage.getItem(getStorageKey(clientId));
       return saved ? JSON.parse(saved) : null;
     } catch (err) {
       console.error('Error loading saved summary:', err);
@@ -19,10 +24,10 @@ export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
     }
   };
 
-  const [narrative, setNarrative] = useState(() => loadFromStorage()?.narrative || null);
+  const [narrative, setNarrative] = useState(() => loadFromStorage(activeClient?.id)?.narrative || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [estimatedCost, setEstimatedCost] = useState(() => loadFromStorage()?.estimatedCost || null);
+  const [estimatedCost, setEstimatedCost] = useState(() => loadFromStorage(activeClient?.id)?.estimatedCost || null);
   const [copied, setCopied] = useState(false);
 
   // Context fields for better AI guidance
@@ -34,14 +39,25 @@ export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
   // Refinement state
   const [refinementQuestion, setRefinementQuestion] = useState('');
   const [refining, setRefining] = useState(false);
-  const [conversationHistory, setConversationHistory] = useState(() => loadFromStorage()?.conversationHistory || []);
-  const [includeInPDF, setIncludeInPDF] = useState(() => loadFromStorage()?.includeInPDF || false);
+  const [conversationHistory, setConversationHistory] = useState(() => loadFromStorage(activeClient?.id)?.conversationHistory || []);
+  const [includeInPDF, setIncludeInPDF] = useState(() => loadFromStorage(activeClient?.id)?.includeInPDF || false);
+
+  // Load summary when client changes
+  useEffect(() => {
+    const savedData = loadFromStorage(activeClient?.id);
+    setNarrative(savedData?.narrative || null);
+    setEstimatedCost(savedData?.estimatedCost || null);
+    setConversationHistory(savedData?.conversationHistory || []);
+    setIncludeInPDF(savedData?.includeInPDF || false);
+    setError(null);
+    setRefinementQuestion('');
+  }, [activeClient?.id]);
 
   // Save to localStorage whenever narrative or cost changes
   useEffect(() => {
-    if (narrative) {
+    if (narrative && activeClient?.id) {
       try {
-        localStorage.setItem('ai_executive_summary', JSON.stringify({
+        localStorage.setItem(getStorageKey(activeClient.id), JSON.stringify({
           narrative,
           estimatedCost,
           conversationHistory,
@@ -52,7 +68,7 @@ export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
         console.error('Error saving summary:', err);
       }
     }
-  }, [narrative, estimatedCost, conversationHistory, includeInPDF]);
+  }, [narrative, estimatedCost, conversationHistory, includeInPDF, activeClient?.id]);
 
   const generateNarrative = async () => {
     setLoading(true);
@@ -379,7 +395,9 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
     setEstimatedCost(null);
     setConversationHistory([]);
     setError(null);
-    localStorage.removeItem('ai_executive_summary');
+    if (activeClient?.id) {
+      localStorage.removeItem(getStorageKey(activeClient.id));
+    }
   };
 
   // If no analysis data, show message
@@ -452,7 +470,7 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
             </div>
             <div>
               <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
-                AI Executive Summary
+                Channel Summary
               </h2>
               <p style={{ fontSize: "13px", color: "#9E9E9E" }}>
                 Generate stakeholder-ready performance narratives

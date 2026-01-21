@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, Zap, AlertCircle, Loader2 } from 'lucide-react';
 import ContentIntelligence from './ContentIntelligence';
 import claudeAPI from '../services/claudeAPI';
@@ -14,6 +14,13 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
   const [conversation, setConversation] = useState([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState(null);
+
+  // Clear conversation when client changes
+  useEffect(() => {
+    setConversation([]);
+    setQuestion('');
+    setError(null);
+  }, [activeClient?.id]);
 
   const clientName = activeClient?.name || 'this channel';
 
