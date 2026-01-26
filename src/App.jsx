@@ -21,6 +21,7 @@ import EnhancedContentIntelligence from "./components/EnhancedContentIntelligenc
 import AIExecutiveSummary from "./components/AIExecutiveSummary.jsx";
 
 import { extractYouTubeVideoId, getYouTubeThumbnailUrl, getYouTubeVideoUrl } from "./lib/schema.js";
+import { youtubeAPI } from "./services/youtubeAPI.js";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -373,6 +374,8 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [chartMetric, setChartMetric] = useState("views");
   const [showAllActions, setShowAllActions] = useState(false);
+  const [channelStats, setChannelStats] = useState(null);
+  const [channelStatsLoading, setChannelStatsLoading] = useState(false);
   
   // Save clients to localStorage whenever they change
   useEffect(() => {
@@ -447,7 +450,36 @@ export default function App() {
       setRows([]);
     }
   }, [activeClient]);
-  
+
+  // Fetch channel stats from YouTube API when we have video data with channel IDs
+  useEffect(() => {
+    const fetchChannelStats = async () => {
+      // Find a video with a channel ID from the rows
+      const videoWithChannel = rows.find(r => r.youtubeVideoId && !r.isTotal);
+      if (!videoWithChannel || !youtubeAPI.apiKey) {
+        setChannelStats(null);
+        return;
+      }
+
+      setChannelStatsLoading(true);
+      try {
+        // First get channel ID from a video
+        const videoStats = await youtubeAPI.getVideoStats(videoWithChannel.youtubeVideoId);
+        if (videoStats.channelId) {
+          const stats = await youtubeAPI.getChannelStats(videoStats.channelId);
+          setChannelStats(stats);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch channel stats:', err);
+        setChannelStats(null);
+      } finally {
+        setChannelStatsLoading(false);
+      }
+    };
+
+    fetchChannelStats();
+  }, [rows]);
+
   const handleClientsUpdate = (updatedClients) => {
     setClients(updatedClients);
   };
@@ -561,6 +593,33 @@ export default function App() {
       // Changes will be added by kpisWithChanges memo below
     };
   }, [filtered]);
+
+  // Calculate all-time KPIs (unfiltered by date, but respects channel filter)
+  const allTimeKpis = useMemo(() => {
+    // Filter out Total rows, but include all videos regardless of date
+    let allRows = rows.filter(r => !r.isTotal && r.views > 0);
+
+    // Still respect channel filter if set
+    if (selectedChannel !== "all") {
+      allRows = allRows.filter(r => r.channel === selectedChannel);
+    }
+
+    const views = allRows.reduce((s, r) => s + (r.views || 0), 0);
+    const watchHours = allRows.reduce((s, r) => s + (r.watchHours || 0), 0);
+    const subs = allRows.reduce((s, r) => s + (r.subscribers || 0), 0);
+    const imps = allRows.reduce((s, r) => s + (r.impressions || 0), 0);
+    const avgCtr = imps > 0 ? allRows.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / imps : 0;
+    const avgRet = views > 0 ? allRows.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / views : 0;
+
+    return {
+      count: allRows.length,
+      views,
+      watchHours,
+      subs,
+      avgCtr,
+      avgRet
+    };
+  }, [rows, selectedChannel]);
 
   // Calculate previous period KPIs for delta indicators
   const previousKpis = useMemo(() => {
@@ -872,212 +931,171 @@ export default function App() {
           <>
             {tab === "Dashboard" && (
               <>
-                {/* Key Insights - Executive Summary */}
-                {(() => {
-                  const shorts = filtered.filter(r => r.type === 'short');
-                  const longs = filtered.filter(r => r.type !== 'short');
-                  const avgViewsPerVideo = filtered.length > 0 ? kpis.views / filtered.length : 0;
-                  const topVideo = [...filtered].sort((a, b) => b.views - a.views)[0];
-                  const shortsRatio = filtered.length > 0 ? (shorts.length / filtered.length) * 100 : 0;
+                {/* Channel Stats Section Title */}
+                <div style={{
+                  fontSize: "20px",
+                  fontWeight: "700",
+                  color: "#fff",
+                  marginBottom: "16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px"
+                }}>
+                  <BarChart3 size={22} style={{ color: "#818cf8" }} />
+                  Channel Stats
+                </div>
 
-                  // Calculate recent performance trend (last 90 days vs overall)
-                  const recentVideos = filtered.filter(v => {
-                    if (!v.publishDate) return false;
-                    const daysSince = (Date.now() - new Date(v.publishDate).getTime()) / (1000 * 60 * 60 * 24);
-                    return daysSince <= 90;
-                  });
-                  const recentAvgViews = recentVideos.length > 0 ? recentVideos.reduce((s, v) => s + (v.views || 0), 0) / recentVideos.length : 0;
-                  const trendDirection = recentVideos.length >= 5 && recentAvgViews > avgViewsPerVideo * 1.1 ? "up" :
-                                        recentVideos.length >= 5 && recentAvgViews < avgViewsPerVideo * 0.9 ? "down" : "flat";
-                  const trendPct = recentVideos.length >= 5 ? Math.abs(((recentAvgViews / avgViewsPerVideo) - 1) * 100) : 0;
-
-                  // Calculate format-specific metrics
-                  const shortsViews = shorts.reduce((s, v) => s + (v.views || 0), 0);
-                  const longsViews = longs.reduce((s, v) => s + (v.views || 0), 0);
-                  const topFormat = shortsViews > longsViews ? 'Shorts' : 'Long-form';
-                  const topFormatPct = ((Math.max(shortsViews, longsViews) / kpis.views) * 100);
-
-                  // Shorts-specific averages
-                  const shortsAvgViews = shorts.length > 0 ? shortsViews / shorts.length : 0;
-                  const shortsAvgRetention = shorts.length > 0 ? shorts.reduce((s, v) => s + (v.avgViewPct || 0), 0) / shorts.length : 0;
-
-                  // Long-form-specific averages
-                  const longsAvgViews = longs.length > 0 ? longsViews / longs.length : 0;
-                  const longsAvgRetention = longs.length > 0 ? longs.reduce((s, v) => s + (v.avgViewPct || 0), 0) / longs.length : 0;
-                  const longsAvgCtr = longs.length > 0 ? longs.reduce((s, v) => s + (v.ctr || 0), 0) / longs.length : 0;
-
-                  // Build insights array
-                  const insights = [];
-
-                  // Total performance
-                  insights.push({
-                    text: `${fmtInt(kpis.views)} total views across ${filtered.length} videos (${fmtInt(avgViewsPerVideo)} avg/video)`,
-                    color: "#60a5fa"
-                  });
-
-                  // Top performer
-                  if (topVideo) {
-                    insights.push({
-                      text: `Top video: "${topVideo.title.substring(0, 50)}${topVideo.title.length > 50 ? '...' : ''}" with ${fmtInt(topVideo.views)} views`,
-                      color: "#fbbf24"
-                    });
-                  }
-
-                  // Format mix + leader (if both formats exist)
-                  if (shorts.length > 0 && longs.length > 0) {
-                    insights.push({
-                      text: `Content mix: ${shortsRatio.toFixed(0)}% Shorts, ${(100 - shortsRatio).toFixed(0)}% Long-form — ${topFormat} driving ${topFormatPct.toFixed(0)}% of views`,
-                      color: topFormat === 'Shorts' ? "#f97316" : "#0ea5e9"
-                    });
-                  }
-
-                  // Shorts performance (if they exist)
-                  if (shorts.length > 0) {
-                    insights.push({
-                      text: `Shorts: ${fmtPct(shortsAvgRetention)} avg retention, ${fmtInt(shortsAvgViews)} avg views/video`,
-                      color: "#f97316"
-                    });
-                  }
-
-                  // Long-form performance (if they exist)
-                  if (longs.length > 0) {
-                    // CTR for long-form
-                    if (longsAvgCtr >= 0.05) {
-                      insights.push({
-                        text: `Long-form: ${fmtPct(longsAvgCtr)} CTR (above 5% benchmark), ${fmtPct(longsAvgRetention)} retention`,
-                        color: "#0ea5e9"
-                      });
-                    } else if (longsAvgCtr >= 0.03) {
-                      insights.push({
-                        text: `Long-form: ${fmtPct(longsAvgCtr)} CTR (room to optimize), ${fmtPct(longsAvgRetention)} retention`,
-                        color: "#0ea5e9"
-                      });
-                    } else {
-                      insights.push({
-                        text: `Long-form: ${fmtPct(longsAvgRetention)} retention, ${fmtInt(longsAvgViews)} avg views/video`,
-                        color: "#0ea5e9"
-                      });
-                    }
-                  }
-
-                  // Subscriber acquisition (channel-wide)
-                  if (kpis.subscribers > 0) {
-                    const subsPerVideo = kpis.subscribers / filtered.length;
-                    insights.push({
-                      text: `${fmtInt(kpis.subscribers)} new subscribers (${fmtInt(subsPerVideo)} avg/video)`,
-                      color: "#10b981"
-                    });
-                  }
-
-                  // Recent trend
-                  if (trendDirection === "up") {
-                    insights.push({
-                      text: `Recent trend: ↑ +${trendPct.toFixed(0)}% vs channel average (last 90 days)`,
-                      color: "#10b981"
-                    });
-                  } else if (trendDirection === "down") {
-                    insights.push({
-                      text: `Recent trend: ↓ -${trendPct.toFixed(0)}% vs channel average (last 90 days)`,
-                      color: "#f59e0b"
-                    });
-                  }
-
-                  return (
-                    <div style={{
-                      background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
-                      border: "1px solid #333",
-                      borderRadius: "12px",
-                      padding: "24px",
-                      marginBottom: "24px",
-                      position: "relative",
-                      overflow: "hidden"
-                    }}>
-                      {/* Decorative background */}
-                      <div style={{
-                        position: "absolute",
-                        top: "-50%",
-                        right: "-10%",
-                        width: "300px",
-                        height: "300px",
-                        background: "radial-gradient(circle, rgba(96, 165, 250, 0.05) 0%, transparent 70%)",
-                        borderRadius: "50%",
-                        pointerEvents: "none"
-                      }} />
-
-                      <div style={{ position: "relative", zIndex: 1 }}>
-                        {/* Header */}
-                        <div style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          marginBottom: "20px",
-                          paddingBottom: "12px",
-                          borderBottom: "1px solid rgba(255, 255, 255, 0.1)"
-                        }}>
-                          <div style={{
-                            fontSize: "18px",
-                            fontWeight: "700",
-                            color: "#fff",
-                            letterSpacing: "-0.01em"
-                          }}>
-                            Channel Status
-                          </div>
-                          {trendDirection !== "flat" && (
-                            <div style={{
-                              fontSize: "11px",
-                              fontWeight: "600",
-                              color: trendDirection === "up" ? "#10b981" : "#f59e0b",
-                              backgroundColor: trendDirection === "up" ? "rgba(16, 185, 129, 0.1)" : "rgba(245, 158, 11, 0.1)",
-                              padding: "4px 10px",
-                              borderRadius: "6px",
-                              border: `1px solid ${trendDirection === "up" ? "rgba(16, 185, 129, 0.3)" : "rgba(245, 158, 11, 0.3)"}`,
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "4px"
-                            }}>
-                              {trendDirection === "up" ? "↑" : "↓"} {trendPct.toFixed(0)}% {trendDirection === "up" ? "Growth" : "Decline"}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Insights list */}
-                        <div style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "14px"
-                        }}>
-                          {insights.map((insight, idx) => (
-                            <div key={idx} style={{
-                              display: "flex",
-                              alignItems: "flex-start",
-                              gap: "12px"
-                            }}>
-                              {/* Bullet */}
-                              <div style={{
-                                width: "6px",
-                                height: "6px",
-                                borderRadius: "50%",
-                                backgroundColor: insight.color,
-                                marginTop: "7px",
-                                flexShrink: 0
-                              }} />
-
-                              {/* Text */}
-                              <div style={{
-                                fontSize: "14px",
-                                color: "#d0d0d0",
-                                lineHeight: "1.5",
-                                flex: 1
-                              }}>
-                                {insight.text}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                {/* Top Level KPIs - Period + All Time */}
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: "16px",
+                  marginBottom: "24px"
+                }}>
+                  {/* Videos */}
+                  <div style={{
+                    background: "#1E1E1E",
+                    border: "1px solid #333",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    position: "relative",
+                    overflow: "hidden"
+                  }}>
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "#94a3b8" }} />
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(148, 163, 184, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Video size={16} style={{ color: "#94a3b8" }} />
                       </div>
+                      <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Videos</div>
                     </div>
-                  );
-                })()}
+                    <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+                      {fmtInt(filtered.length)}
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
+                      <span style={{ color: "#aaa" }}>{fmtInt(allTimeKpis.count)}</span> total
+                    </div>
+                  </div>
+
+                  {/* Views */}
+                  <div style={{
+                    background: "#1E1E1E",
+                    border: "1px solid #333",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    position: "relative",
+                    overflow: "hidden"
+                  }}>
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "#818cf8" }} />
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(129, 140, 248, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Eye size={16} style={{ color: "#818cf8" }} />
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Views</div>
+                    </div>
+                    <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+                      {fmtInt(kpis.views)}
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
+                      <span style={{ color: "#aaa" }}>{fmtInt(allTimeKpis.views)}</span> total
+                    </div>
+                  </div>
+
+                  {/* Watch Hours */}
+                  <div style={{
+                    background: "#1E1E1E",
+                    border: "1px solid #333",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    position: "relative",
+                    overflow: "hidden"
+                  }}>
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "#a78bfa" }} />
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(167, 139, 250, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Clock size={16} style={{ color: "#a78bfa" }} />
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Watch Hours</div>
+                    </div>
+                    <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+                      {fmtInt(kpis.watchHours)}
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
+                      <span style={{ color: "#aaa" }}>{fmtInt(allTimeKpis.watchHours)}</span> total
+                    </div>
+                  </div>
+
+                  {/* Subscribers Gained */}
+                  <div style={{
+                    background: "#1E1E1E",
+                    border: "1px solid #333",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    position: "relative",
+                    overflow: "hidden"
+                  }}>
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "#f472b6" }} />
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(244, 114, 182, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Users size={16} style={{ color: "#f472b6" }} />
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Subscribers</div>
+                    </div>
+                    <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+                      {kpis.subs >= 0 ? '+' : ''}{fmtInt(kpis.subs)}
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
+                      <span style={{ color: "#aaa" }}>{allTimeKpis.subs >= 0 ? '+' : ''}{fmtInt(allTimeKpis.subs)}</span> total
+                    </div>
+                  </div>
+
+                  {/* Avg Retention */}
+                  <div style={{
+                    background: "#1E1E1E",
+                    border: "1px solid #333",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    position: "relative",
+                    overflow: "hidden"
+                  }}>
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "#34d399" }} />
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(52, 211, 153, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <BarChart3 size={16} style={{ color: "#34d399" }} />
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Avg Retention</div>
+                    </div>
+                    <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+                      {fmtPct(kpis.avgRet)}
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
+                      <span style={{ color: "#aaa" }}>{fmtPct(allTimeKpis.avgRet)}</span> all-time avg
+                    </div>
+                  </div>
+
+                  {/* Avg CTR */}
+                  <div style={{
+                    background: "#1E1E1E",
+                    border: "1px solid #333",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    position: "relative",
+                    overflow: "hidden"
+                  }}>
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "#fbbf24" }} />
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(251, 191, 36, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Target size={16} style={{ color: "#fbbf24" }} />
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Avg CTR</div>
+                    </div>
+                    <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+                      {fmtPct(kpis.avgCtr)}
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
+                      <span style={{ color: "#aaa" }}>{fmtPct(allTimeKpis.avgCtr)}</span> all-time avg
+                    </div>
+                  </div>
+                </div>
 
                 {/* KPI Cards - Shorts vs Long-form Side by Side */}
                 <div style={{
@@ -1102,7 +1120,7 @@ export default function App() {
                   {/* Header */}
                   <div style={{ marginBottom: "24px" }}>
                     <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
-                      Performance Metrics
+                      Shorts & Long-Form Breakdown
                     </div>
                   </div>
 
