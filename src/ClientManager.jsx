@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Upload, Download, Trash2, Edit2, Plus, X, Calendar, Database } from "lucide-react";
+import { Upload, Download, Trash2, Edit2, Plus, X, Calendar, Database, Youtube, Link } from "lucide-react";
 import Papa from "papaparse";
 
 // Import the normalizeData function from App.jsx
@@ -65,8 +65,9 @@ const normalizeData = (rawData) => {
       }
     }
 
+    // Shorts are < 180 seconds (3 minutes)
     let type = r.type || "long";
-    if (duration > 0 && duration < 60) {
+    if (duration > 0 && duration < 180) {
       type = "short";
     }
 
@@ -102,6 +103,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
   const [clientName, setClientName] = useState("");
   const [uploadedFile, setUploadedFile] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [youtubeChannelUrl, setYoutubeChannelUrl] = useState("");
 
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
@@ -123,7 +125,8 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
           uploadDate: new Date().toISOString(),
           rows: result.data,
           subscriberCount: channelTotalSubscribers,  // CRITICAL: Save the subscriber count
-          channels: [...new Set(result.data.map(r => r['Content'] || r.channel).filter(Boolean))]
+          channels: [...new Set(result.data.map(r => r['Content'] || r.channel).filter(Boolean))],
+          youtubeChannelUrl: youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : ""),
         };
 
         let updatedClients;
@@ -141,6 +144,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
         setClientName("");
         setUploadedFile(null);
         setEditingClient(null);
+        setYoutubeChannelUrl("");
       },
       error: (error) => {
         alert(`Error parsing CSV: ${error.message}`);
@@ -226,6 +230,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
     setClientName("");
     setUploadedFile(null);
     setEditingClient(null);
+    setYoutubeChannelUrl("");
     setShowModal(true);
   };
 
@@ -233,6 +238,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
     setModalMode("update");
     setEditingClient(client);
     setUploadedFile(null);
+    setYoutubeChannelUrl(client.youtubeChannelUrl || "");
     setShowModal(true);
   };
 
@@ -451,6 +457,43 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                   </label>
                 </div>
 
+                <div style={{ marginBottom: "16px" }}>
+                  <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <Youtube size={14} style={{ color: "#FF0000" }} />
+                      YouTube Channel URL (Optional)
+                    </span>
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type="text"
+                      value={youtubeChannelUrl}
+                      onChange={(e) => setYoutubeChannelUrl(e.target.value)}
+                      placeholder="https://www.youtube.com/@channelname or channel URL"
+                      style={{
+                        width: "100%",
+                        background: "#1E1E1E",
+                        border: "1px solid #333",
+                        borderRadius: "8px",
+                        padding: "12px",
+                        paddingLeft: "40px",
+                        color: "#E0E0E0",
+                        fontSize: "14px"
+                      }}
+                    />
+                    <Link size={16} style={{
+                      position: "absolute",
+                      left: "12px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#666"
+                    }} />
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#666", marginTop: "6px" }}>
+                    Adding a channel URL enables video thumbnails and direct YouTube links in the dashboard
+                  </div>
+                </div>
+
                 <div style={{ display: "flex", gap: "12px" }}>
                   <button
                     onClick={modalMode === "add" ? handleAddClient : handleUpdateClient}
@@ -473,6 +516,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                       setEditingClient(null);
                       setClientName("");
                       setUploadedFile(null);
+                      setYoutubeChannelUrl("");
                     }}
                     style={{
                       background: "#333",
@@ -554,6 +598,12 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                           <div>
                             {client.channels?.length || 0} channel{(client.channels?.length || 0) !== 1 ? 's' : ''}
                           </div>
+                          {client.youtubeChannelUrl && (
+                            <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#FF0000" }}>
+                              <Youtube size={12} />
+                              Linked
+                            </div>
+                          )}
                         </div>
                       </div>
 

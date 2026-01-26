@@ -20,6 +20,8 @@ import CommentAnalysis from "./components/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/EnhancedContentIntelligence.jsx";
 import AIExecutiveSummary from "./components/AIExecutiveSummary.jsx";
 
+import { extractYouTubeVideoId, getYouTubeThumbnailUrl, getYouTubeVideoUrl } from "./lib/schema.js";
+
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
 
@@ -75,9 +77,9 @@ const normalizeData = (rawData) => {
       }
     }
 
-    // Determine video type based on duration (Shorts are < 60 seconds)
+    // Determine video type based on duration (Shorts are < 180 seconds / 3 minutes)
     let type = r.type || "long";
-    if (duration > 0 && duration < 60) {
+    if (duration > 0 && duration < 180) {
       type = "short";
     }
 
@@ -87,6 +89,12 @@ const normalizeData = (rawData) => {
     // Check if this is the Total row
     const titleLower = title.toLowerCase().trim();
     const isTotal = titleLower === "total";
+
+    // Extract YouTube video ID from Content column (standard YouTube export)
+    const rawVideoId = r['Content'] || r.videoId || r['Video ID'] || r['YouTube URL'] || r['URL'];
+    const youtubeVideoId = extractYouTubeVideoId(rawVideoId);
+    const thumbnailUrl = getYouTubeThumbnailUrl(youtubeVideoId);
+    const youtubeUrl = getYouTubeVideoUrl(youtubeVideoId);
 
     return {
       channel: String(channel).trim(),
@@ -101,7 +109,10 @@ const normalizeData = (rawData) => {
       avgViewPct: retention,
       type: type.toLowerCase(),
       publishDate: publishDate ? new Date(publishDate).toISOString() : null,
-      video_id: r['Content'] || r.videoId || `vid-${Date.now()}-${Math.random()}`,
+      video_id: rawVideoId || `vid-${Date.now()}-${Math.random()}`,
+      youtubeVideoId,
+      thumbnailUrl,
+      youtubeUrl,
       isTotal: isTotal  // Mark the Total row so we can filter it later
     };
   });

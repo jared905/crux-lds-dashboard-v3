@@ -215,7 +215,7 @@ export default function CompetitorAnalysis({ rows }) {
           likes: parseInt(video.statistics.likeCount) || 0,
           comments: parseInt(video.statistics.commentCount) || 0,
           duration: duration,
-          type: duration < 60 ? 'short' : 'long'
+          type: duration < 180 ? 'short' : 'long' // Shorts are < 3 minutes
         };
       });
 
@@ -507,7 +507,7 @@ export default function CompetitorAnalysis({ rows }) {
           likes: parseInt(video.statistics.likeCount) || 0,
           comments: parseInt(video.statistics.commentCount) || 0,
           duration: duration,
-          type: duration < 60 ? 'short' : 'long'
+          type: duration < 180 ? 'short' : 'long' // Shorts are < 3 minutes
         };
       });
 
