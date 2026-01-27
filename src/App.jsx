@@ -5,9 +5,7 @@ import TopVideos from "./components/TopVideos.jsx";
 import ClientManager from "./ClientManager.jsx";
 import UnifiedStrategy from "./components/UnifiedStrategy.jsx";
 import CompetitorAnalysis from "./components/CompetitorAnalysis.jsx";
-import UploadCalendar from "./components/UploadCalendar.jsx";
 import PublishingTimeline from "./components/PublishingTimeline.jsx";
-import PublishingInsights from "./components/PublishingInsights.jsx";
 import PDFExport from "./components/PDFExport.jsx";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
@@ -1465,10 +1463,8 @@ export default function App() {
                 {/* Top Videos */}
                 <TopVideos rows={filtered} n={8} />
 
-                {/* Upload Cadence Visualizations */}
-                <UploadCalendar rows={filtered} dateRange={dateRange} />
+                {/* Upload Cadence Visualization */}
                 <PublishingTimeline rows={filtered} dateRange={dateRange} />
-                <PublishingInsights rows={filtered} />
 
                 {/* Brand Funnel - Conversion Funnel Analysis */}
                 <BrandFunnel rows={filtered} dateRange={dateRange} />
