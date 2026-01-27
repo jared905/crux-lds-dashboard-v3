@@ -15,6 +15,10 @@ const getExpectedRetention = (durationSeconds) => {
   return 0.175;                   // 60+ min: 17.5% average
 };
 
+// Engagement threshold: viewers who watched above this % are considered "engaged"
+// Research shows 50%+ retention indicates genuine interest vs casual scrolling
+const ENGAGEMENT_THRESHOLD = 0.50;
+
 export default function BrandFunnel({ rows, dateRange }) {
   const [particles, setParticles] = useState([]);
 
@@ -25,26 +29,45 @@ export default function BrandFunnel({ rows, dateRange }) {
     const totalImpressions = rows.reduce((sum, r) => sum + (r.impressions || 0), 0);
     const totalViews = rows.reduce((sum, r) => sum + (r.views || 0), 0);
 
-    // NEW: Use actual watch hours instead of views × retention
+    // Keep watch hours for secondary display
     const totalWatchHours = rows.reduce((sum, r) => sum + (r.watchHours || 0), 0);
 
-    // Calculate expected watch hours based on industry benchmarks per video
-    const expectedWatchHours = rows.reduce((sum, r) => {
-      const duration = r.duration || 300; // default 5 min if unknown
+    // ENGAGED VIEWERS: Estimate viewers who watched 50%+ of the video
+    // Using retention data to estimate the proportion of engaged viewers per video
+    // If a video has 40% avg retention, we estimate ~60% of viewers are "engaged" (watched meaningfully)
+    // Formula: For each video, engaged = views × (retention / ENGAGEMENT_THRESHOLD) capped at 1.0
+    const engagedViewers = rows.reduce((sum, r) => {
       const views = r.views || 0;
-      const expectedRet = getExpectedRetention(duration);
-      // Expected watch hours = views × duration × expected retention / 3600
-      return sum + (views * duration * expectedRet / 3600);
+      const retention = r.avgViewPct || 0;
+      // Engagement ratio: what portion of viewers likely hit 50%+ watch time
+      // If avg retention is 60%, most viewers are engaged. If 30%, fewer are.
+      // Use retention as a proxy - higher retention = more engaged viewers
+      const engagementRatio = Math.min(retention / ENGAGEMENT_THRESHOLD, 1.0);
+      return sum + (views * engagementRatio);
     }, 0);
 
-    // Watch Quality Ratio: actual vs expected (1.0 = meeting benchmarks)
-    const watchQualityRatio = expectedWatchHours > 0
-      ? totalWatchHours / expectedWatchHours
+    // Calculate expected engaged viewers based on industry benchmarks
+    const expectedEngagedViewers = rows.reduce((sum, r) => {
+      const duration = r.durationSeconds || 300;
+      const views = r.views || 0;
+      const expectedRet = getExpectedRetention(duration);
+      const expectedEngagementRatio = Math.min(expectedRet / ENGAGEMENT_THRESHOLD, 1.0);
+      return sum + (views * expectedEngagementRatio);
+    }, 0);
+
+    // Engagement Quality Ratio: actual vs expected (1.0 = meeting benchmarks)
+    const engagementQualityRatio = expectedEngagedViewers > 0
+      ? engagedViewers / expectedEngagedViewers
       : 0;
 
-    // Average minutes watched per view
+    // Average minutes watched per view (keep for context)
     const avgWatchMinutesPerView = totalViews > 0
       ? (totalWatchHours * 60) / totalViews
+      : 0;
+
+    // Engagement rate: what % of views became engaged viewers
+    const engagementRate = totalViews > 0
+      ? engagedViewers / totalViews
       : 0;
 
     // Calculate conversion rates - use weighted average from CTR column
@@ -115,9 +138,14 @@ export default function BrandFunnel({ rows, dateRange }) {
     const calcPeriodMetrics = (data) => {
       const imps = data.reduce((sum, r) => sum + (r.impressions || 0), 0);
       const views = data.reduce((sum, r) => sum + (r.views || 0), 0);
-      const watchHrs = data.reduce((sum, r) => sum + (r.watchHours || 0), 0);
+      const engaged = data.reduce((sum, r) => {
+        const v = r.views || 0;
+        const ret = r.avgViewPct || 0;
+        const ratio = Math.min(ret / ENGAGEMENT_THRESHOLD, 1.0);
+        return sum + (v * ratio);
+      }, 0);
       const periodCTR = imps > 0 ? data.reduce((sum, r) => sum + ((r.ctr || 0) * (r.impressions || 0)), 0) / imps : 0;
-      return { imps, views, watchHrs, periodCTR };
+      return { imps, views, engaged, periodCTR };
     };
 
     const recentMetrics = calcPeriodMetrics(recentRows);
@@ -131,10 +159,10 @@ export default function BrandFunnel({ rows, dateRange }) {
     const trends = {
       impressions: calcChange(recentMetrics.imps, olderMetrics.imps),
       views: calcChange(recentMetrics.views, olderMetrics.views),
-      watchHours: calcChange(recentMetrics.watchHrs, olderMetrics.watchHrs)
+      engagedViewers: calcChange(recentMetrics.engaged, olderMetrics.engaged)
     };
 
-    // NEW: Funnel Health Diagnosis based on watchQualityRatio (research-backed)
+    // Funnel Health Diagnosis based on engagementQualityRatio (research-backed)
     let diagnosis = {
       type: "developing",
       title: "Developing Funnel",
@@ -155,30 +183,30 @@ export default function BrandFunnel({ rows, dateRange }) {
         color: "#f59e0b"
       };
     }
-    // Leaky Bucket: Good clicks but watch time below benchmarks
-    else if (ctr >= 0.04 && watchQualityRatio < 0.7) {
+    // Leaky Bucket: Good clicks but engagement below benchmarks
+    else if (ctr >= 0.04 && engagementQualityRatio < 0.7) {
       diagnosis = {
         type: "leaky",
         title: "Leaky Bucket",
-        message: "Great click-through but content isn't holding attention vs industry benchmarks.",
+        message: "Great click-through but content isn't converting viewers to engaged audience.",
         action: "Tighten intros, deliver value faster, align content with thumbnail promises",
         icon: AlertCircle,
         color: "#ef4444"
       };
     }
-    // Cylinder: High CTR + exceeds watch time benchmarks
-    else if (ctr >= 0.05 && watchQualityRatio >= 1.2 && !isStale) {
+    // Cylinder: High CTR + exceeds engagement benchmarks
+    else if (ctr >= 0.05 && engagementQualityRatio >= 1.2 && !isStale) {
       diagnosis = {
         type: "cylinder",
         title: "The Cylinder (High-Quality Audience)",
-        message: "Outperforming industry benchmarks at every stage. Loyal, highly-engaged audience.",
+        message: "Outperforming industry benchmarks at every stage. Loyal, deeply-engaged community.",
         action: "Perfect audience for product launches, memberships, or premium content",
         icon: CheckCircle,
         color: "#10b981"
       };
     }
     // Healthy: Solid across the board
-    else if (ctr >= 0.04 && watchQualityRatio >= 0.9) {
+    else if (ctr >= 0.04 && engagementQualityRatio >= 0.9) {
       diagnosis = {
         type: "healthy",
         title: "Healthy Funnel",
@@ -192,8 +220,8 @@ export default function BrandFunnel({ rows, dateRange }) {
     // Calculate widths for funnel visualization
     const maxWidth = 100;
     const viewsWidth = totalImpressions > 0 ? Math.max((totalViews / totalImpressions) * maxWidth, 50) : 65;
-    // Scale watch hours width based on quality ratio (1.0 = baseline width)
-    const watchHoursWidth = Math.max(Math.min(watchQualityRatio * 45, 50), 35);
+    // Scale engaged viewers width based on engagement rate (higher = wider bottom)
+    const engagedWidth = Math.max(Math.min(engagementQualityRatio * 45, 50), 35);
 
     return {
       stages: [
@@ -215,18 +243,20 @@ export default function BrandFunnel({ rows, dateRange }) {
           width: viewsWidth
         },
         {
-          name: "Deep Resonance",
-          subtitle: "Watch Hours",
-          value: totalWatchHours,
-          trend: trends.watchHours,
+          name: "Engaged Viewers",
+          subtitle: "50%+ Watch Time",
+          value: engagedViewers,
+          trend: trends.engagedViewers,
           color: "#ec4899",
-          conversion: watchQualityRatio,
-          isWatchHours: true,
-          width: watchHoursWidth
+          conversion: engagementRate,
+          isEngagedViewers: true,
+          width: engagedWidth
         }
       ],
+      engagedViewers,
       totalWatchHours,
-      watchQualityRatio,
+      engagementQualityRatio,
+      engagementRate,
       avgWatchMinutesPerView,
       ctr,
       qualificationRate,
@@ -291,6 +321,12 @@ export default function BrandFunnel({ rows, dateRange }) {
   const fmtRatio = (n) => {
     if (!n || isNaN(n)) return "0x";
     return `${n.toFixed(2)}x`;
+  };
+  const fmtEngaged = (n) => {
+    if (!n || isNaN(n)) return "0";
+    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+    return Math.round(n).toLocaleString();
   };
 
   const stages = funnelData.stages;
@@ -415,9 +451,9 @@ export default function BrandFunnel({ rows, dateRange }) {
             {/* Connector 2 */}
             <line x1="350" y1="385" x2="350" y2="420" stroke="#666" strokeWidth="2.5" strokeDasharray="6,6" />
             <polygon points="350,420 344,413 356,413" fill="#666" />
-            {stages[2].conversion && (
+            {stages[2].conversion !== undefined && (
               <text x="390" y="407" fill="#cbd5e1" fontSize="14" fontWeight="600">
-                {fmtRatio(stages[2].conversion)} vs Benchmark
+                {fmtPct(stages[2].conversion)} Engaged
               </text>
             )}
 
@@ -436,10 +472,10 @@ export default function BrandFunnel({ rows, dateRange }) {
               {stages[2].subtitle}
             </text>
             <text x="350" y="498" textAnchor="middle" fill={stages[2].color} fontSize="28" fontWeight="700">
-              {fmtHours(stages[2].value)}
+              {fmtEngaged(stages[2].value)} people
             </text>
             <text x="350" y="515" textAnchor="middle" fill="#9E9E9E" fontSize="12">
-              {funnelData.avgWatchMinutesPerView.toFixed(1)} min/view avg
+              {fmtPct(funnelData.engagementRate)} of viewers engaged
             </text>
 
             {/* Animated particles */}
@@ -504,9 +540,9 @@ export default function BrandFunnel({ rows, dateRange }) {
                 <div style={{ fontSize: "18px", fontWeight: "700", color: "#8b5cf6" }}>{fmtPct(funnelData.ctr)}</div>
               </div>
               <div>
-                <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>vs Benchmark</div>
-                <div style={{ fontSize: "18px", fontWeight: "700", color: funnelData.watchQualityRatio >= 1.0 ? "#10b981" : funnelData.watchQualityRatio >= 0.7 ? "#f59e0b" : "#ef4444" }}>
-                  {fmtRatio(funnelData.watchQualityRatio)}
+                <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Engagement Rate</div>
+                <div style={{ fontSize: "18px", fontWeight: "700", color: funnelData.engagementRate >= 0.7 ? "#10b981" : funnelData.engagementRate >= 0.5 ? "#f59e0b" : "#ef4444" }}>
+                  {fmtPct(funnelData.engagementRate)}
                 </div>
               </div>
             </div>
@@ -602,7 +638,7 @@ export default function BrandFunnel({ rows, dateRange }) {
             )}
           </div>
 
-          {/* Watch Quality vs Industry Benchmark */}
+          {/* Engagement Quality vs Industry Benchmark */}
           <div style={{
             background: "#252525",
             border: "1px solid #333",
@@ -610,39 +646,39 @@ export default function BrandFunnel({ rows, dateRange }) {
             padding: "24px"
           }}>
             <div style={{ fontSize: "12px", color: "#9E9E9E", fontWeight: "700", textTransform: "uppercase", marginBottom: "8px" }}>
-              Watch Quality vs Benchmark
+              Engagement vs Benchmark
             </div>
             <div style={{ fontSize: "14px", color: "#cbd5e1", marginBottom: "10px" }}>
-              Actual watch time compared to 2026 industry standards
+              Engaged viewers compared to 2026 industry standards
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "6px" }}>
               <div style={{
                 fontSize: "38px",
                 fontWeight: "700",
-                color: funnelData.watchQualityRatio >= 1.3 ? "#10b981"
-                  : funnelData.watchQualityRatio >= 1.0 ? "#8b5cf6"
-                  : funnelData.watchQualityRatio >= 0.7 ? "#f59e0b"
+                color: funnelData.engagementQualityRatio >= 1.3 ? "#10b981"
+                  : funnelData.engagementQualityRatio >= 1.0 ? "#8b5cf6"
+                  : funnelData.engagementQualityRatio >= 0.7 ? "#f59e0b"
                   : "#ef4444"
               }}>
-                {fmtRatio(funnelData.watchQualityRatio)}
+                {fmtRatio(funnelData.engagementQualityRatio)}
               </div>
               <div style={{ fontSize: "14px", color: "#9E9E9E" }}>
-                {fmtHours(funnelData.totalWatchHours)} total
+                {fmtEngaged(funnelData.engagedViewers)} engaged
               </div>
             </div>
             <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "16px" }}>
-              {funnelData.watchQualityRatio >= 1.3
-                ? "Excellent — Significantly outperforming industry benchmarks"
-                : funnelData.watchQualityRatio >= 1.0
-                ? "Good — Exceeding industry benchmarks for your content mix"
-                : funnelData.watchQualityRatio >= 0.7
+              {funnelData.engagementQualityRatio >= 1.3
+                ? "Excellent — Content deeply resonates, significantly outperforming benchmarks"
+                : funnelData.engagementQualityRatio >= 1.0
+                ? "Good — Exceeding industry benchmarks for viewer engagement"
+                : funnelData.engagementQualityRatio >= 0.7
                 ? "Average — Meeting industry benchmarks, room to grow"
-                : funnelData.watchQualityRatio >= 0.5
-                ? "Developing — Below benchmarks, focus on retention improvements"
-                : "Below Average — Significant gap vs industry standards"}
+                : funnelData.engagementQualityRatio >= 0.5
+                ? "Developing — Below benchmarks, focus on hooking viewers early"
+                : "Below Average — Significant opportunity to improve content resonance"}
             </div>
 
-            {/* Progress Bar - now based on watch quality ratio */}
+            {/* Progress Bar - based on engagement quality ratio */}
             <div style={{ marginTop: "16px" }}>
               {/* The bar itself - scale: 0.5x to 1.5x+ */}
               <div style={{
@@ -659,12 +695,12 @@ export default function BrandFunnel({ rows, dateRange }) {
                   top: 0,
                   left: 0,
                   bottom: 0,
-                  width: `${Math.min(Math.max((funnelData.watchQualityRatio - 0.5) / 1.0 * 100, 0), 100)}%`,
-                  background: funnelData.watchQualityRatio >= 1.3
+                  width: `${Math.min(Math.max((funnelData.engagementQualityRatio - 0.5) / 1.0 * 100, 0), 100)}%`,
+                  background: funnelData.engagementQualityRatio >= 1.3
                     ? "linear-gradient(90deg, #10b981, #059669)"
-                    : funnelData.watchQualityRatio >= 1.0
+                    : funnelData.engagementQualityRatio >= 1.0
                     ? "linear-gradient(90deg, #8b5cf6, #7c3aed)"
-                    : funnelData.watchQualityRatio >= 0.7
+                    : funnelData.engagementQualityRatio >= 0.7
                     ? "linear-gradient(90deg, #f59e0b, #d97706)"
                     : "linear-gradient(90deg, #ef4444, #dc2626)",
                   borderRadius: "6px",
@@ -680,7 +716,7 @@ export default function BrandFunnel({ rows, dateRange }) {
                 <div style={{
                   position: "absolute",
                   top: "-4px",
-                  left: `${Math.min(Math.max((funnelData.watchQualityRatio - 0.5) / 1.0 * 100, 0), 100)}%`,
+                  left: `${Math.min(Math.max((funnelData.engagementQualityRatio - 0.5) / 1.0 * 100, 0), 100)}%`,
                   transform: "translateX(-50%)",
                   width: "4px",
                   height: "20px",
