@@ -20,11 +20,39 @@ export default function DataStandardizer() {
     return Number(str.replace(/[^0-9.]/g, "")) || 0;
   };
 
+  // YouTube exports timestamps in Pacific Time (PST/PDT)
+  // We need to interpret them as Pacific and convert to proper UTC for storage
   const parseDate = (val) => {
     if (!val) return "";
     const d = new Date(val);
-    if (isNaN(d.getTime())) return ""; 
-    return d.toISOString(); 
+    if (isNaN(d.getTime())) return "";
+
+    // The date was parsed as local time, but YouTube exports in Pacific Time
+    // Get the "naive" components and reinterpret as Pacific
+    const naiveYear = d.getFullYear();
+    const naiveMonth = d.getMonth();
+    const naiveDay = d.getDate();
+    const naiveHour = d.getHours();
+    const naiveMinute = d.getMinutes();
+    const naiveSecond = d.getSeconds();
+
+    // Find Pacific offset for this date/time
+    const pacificDateStr = `${naiveYear}-${String(naiveMonth + 1).padStart(2, '0')}-${String(naiveDay).padStart(2, '0')}T${String(naiveHour).padStart(2, '0')}:${String(naiveMinute).padStart(2, '0')}:00`;
+    const pacificFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles',
+      hour: '2-digit', hour12: false
+    });
+    const testDate = new Date(pacificDateStr + 'Z');
+    const pacificParts = pacificFormatter.formatToParts(testDate);
+    const pacificHour = parseInt(pacificParts.find(p => p.type === 'hour')?.value || '0', 10);
+    const utcHour = testDate.getUTCHours();
+    let offsetHours = utcHour - pacificHour;
+    if (offsetHours < 0) offsetHours += 24;
+    if (offsetHours > 12) offsetHours -= 24;
+
+    // Create correct UTC: naive time (which is Pacific) + offset = UTC
+    const correctUtc = new Date(Date.UTC(naiveYear, naiveMonth, naiveDay, naiveHour + offsetHours, naiveMinute, naiveSecond));
+    return correctUtc.toISOString();
   };
 
   const cleanHeader = (h) => h.toLowerCase().replace(/[^a-z0-9]/g, "");
