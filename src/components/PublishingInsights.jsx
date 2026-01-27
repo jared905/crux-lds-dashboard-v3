@@ -21,66 +21,19 @@ export default function PublishingInsights({ rows }) {
     };
 
     // Helper to get day of week and hour in Mountain Time
-    // Handles two data sources:
-    // 1. Raw YouTube exports: timestamps in Pacific Time (need conversion)
-    // 2. Standardized data: timestamps already in UTC/ISO format (just display in MT)
+    // Since standardized data now stores proper UTC timestamps, we just need to
+    // display them in Mountain Time. The Intl API handles this automatically.
     const getMountainTimeInfo = (date) => {
-      const dateStr = String(date);
       const dateObj = new Date(date);
 
-      // Check if this is an ISO timestamp (from standardized data) - already UTC
-      // ISO format: "2025-01-26T16:00:00.000Z" or similar with T and Z
-      const isIsoUtc = dateStr.includes('T') && (dateStr.includes('Z') || dateStr.includes('+') || dateStr.includes('-'));
-
-      let finalUtc;
-
-      if (isIsoUtc) {
-        // Data is already in proper UTC - just use it directly
-        finalUtc = dateObj;
-      } else {
-        // Raw YouTube export: timestamp was parsed as local time but represents Pacific Time
-        // We need to reinterpret: treat the local time components as Pacific Time
-
-        // Get the "naive" time components (as they were parsed in local timezone)
-        const naiveYear = dateObj.getFullYear();
-        const naiveMonth = dateObj.getMonth();
-        const naiveDay = dateObj.getDate();
-        const naiveHour = dateObj.getHours();
-        const naiveMinute = dateObj.getMinutes();
-
-        // Create a date string to find Pacific offset for this date/time
-        const pacificDateStr = `${naiveYear}-${String(naiveMonth + 1).padStart(2, '0')}-${String(naiveDay).padStart(2, '0')}T${String(naiveHour).padStart(2, '0')}:${String(naiveMinute).padStart(2, '0')}:00`;
-
-        // Use Intl to find the Pacific timezone offset for this date
-        const pacificFormatter = new Intl.DateTimeFormat('en-US', {
-          timeZone: 'America/Los_Angeles',
-          year: 'numeric', month: '2-digit', day: '2-digit',
-          hour: '2-digit', minute: '2-digit', hour12: false
-        });
-
-        // Find Pacific offset: create date as UTC, see what Pacific shows
-        const testDate = new Date(pacificDateStr + 'Z');
-        const pacificParts = pacificFormatter.formatToParts(testDate);
-        const getPart = (type) => pacificParts.find(p => p.type === type)?.value;
-
-        const utcHour = testDate.getUTCHours();
-        const pacificHour = parseInt(getPart('hour'), 10);
-        let offsetHours = utcHour - pacificHour;
-        if (offsetHours < 0) offsetHours += 24;
-        if (offsetHours > 12) offsetHours -= 24;
-
-        // The naive time IS Pacific time, so UTC = naive + offset
-        finalUtc = new Date(Date.UTC(naiveYear, naiveMonth, naiveDay, naiveHour + offsetHours, naiveMinute));
-      }
-
-      // Format in Mountain Time
+      // Format directly in Mountain Time - Intl handles the conversion from UTC
       const mtFormatter = new Intl.DateTimeFormat('en-US', {
         timeZone: 'America/Denver',
         weekday: 'short',
         hour: 'numeric',
         hour12: false
       });
-      const parts = mtFormatter.formatToParts(finalUtc);
+      const parts = mtFormatter.formatToParts(dateObj);
       const weekdayMap = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
       const weekdayPart = parts.find(p => p.type === 'weekday');
       const hourPart = parts.find(p => p.type === 'hour');
