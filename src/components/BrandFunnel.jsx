@@ -368,8 +368,8 @@ export default function BrandFunnel({ rows, dateRange }) {
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 400px", gap: "40px", alignItems: "start" }}>
         
         {/* Left: SVG Funnel - MUCH WIDER */}
-        <div style={{ position: "relative", minHeight: "540px" }}>
-          <svg width="100%" height="540" viewBox="0 0 700 540" style={{ display: "block" }}>
+        <div style={{ position: "relative", minHeight: "560px" }}>
+          <svg width="100%" height="560" viewBox="0 0 700 560" style={{ display: "block" }}>
             <defs>
               {/* Gradients */}
               {stages.map((stage, idx) => (
@@ -451,36 +451,36 @@ export default function BrandFunnel({ rows, dateRange }) {
             {/* Connector 2 */}
             <line x1="350" y1="385" x2="350" y2="420" stroke="#666" strokeWidth="2.5" strokeDasharray="6,6" />
             <polygon points="350,420 344,413 356,413" fill="#666" />
-            {stages[2].conversion !== undefined && (
+            {funnelData.engagementQualityRatio !== undefined && (
               <text x="390" y="407" fill="#cbd5e1" fontSize="14" fontWeight="600">
-                {fmtPct(stages[2].conversion)} Engaged
+                {fmtRatio(funnelData.engagementQualityRatio)} vs Benchmark
               </text>
             )}
 
-            {/* Stage 3 Trapezoid - STILL WIDE */}
+            {/* Stage 3 Trapezoid - Expanded for readability */}
             <path
-              d={`M ${350 - (stages[2].width * 2.2)} 420 L ${350 + (stages[2].width * 2.2)} 420 L ${350 + (stages[2].width * 1.9)} 515 L ${350 - (stages[2].width * 1.9)} 515 Z`}
+              d={`M ${350 - (stages[2].width * 2.2)} 420 L ${350 + (stages[2].width * 2.2)} 420 L ${350 + (stages[2].width * 1.9)} 530 L ${350 - (stages[2].width * 1.9)} 530 Z`}
               fill="url(#grad2)"
               stroke={stages[2].color}
               strokeWidth="3"
               filter="url(#glow)"
             />
-            <text x="350" y="448" textAnchor="middle" fill="#fff" fontSize="20" fontWeight="700">
+            <text x="350" y="450" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="700">
               {stages[2].name}
             </text>
-            <text x="350" y="468" textAnchor="middle" fill="#cbd5e1" fontSize="14">
-              {stages[2].subtitle}
+            <text x="350" y="480" textAnchor="middle" fill={stages[2].color} fontSize="32" fontWeight="700">
+              {fmtEngaged(stages[2].value)}
             </text>
-            <text x="350" y="498" textAnchor="middle" fill={stages[2].color} fontSize="28" fontWeight="700">
-              {fmtEngaged(stages[2].value)} people
+            <text x="350" y="500" textAnchor="middle" fill="#cbd5e1" fontSize="14">
+              people deeply engaged
             </text>
-            <text x="350" y="515" textAnchor="middle" fill="#9E9E9E" fontSize="12">
-              {fmtPct(funnelData.engagementRate)} of viewers engaged
+            <text x="350" y="520" textAnchor="middle" fill="#9E9E9E" fontSize="12">
+              {funnelData.avgWatchMinutesPerView.toFixed(1)} min avg watch time
             </text>
 
             {/* Animated particles */}
             {particles.map(particle => {
-              const y = (particle.progress / 100) * 495 + 30;
+              const y = (particle.progress / 100) * 510 + 30;
               const stage = y < 190 ? 0 : y < 385 ? 1 : 2;
               const opacity = Math.sin((particle.progress / 100) * Math.PI);
               
