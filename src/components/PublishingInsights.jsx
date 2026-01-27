@@ -3,6 +3,7 @@ import React, { useMemo } from "react";
 /**
  * Best Publishing Time Analysis
  * Shows performance by day of week and time of day
+ * All times are displayed in Mountain Time (America/Denver)
  */
 export default function PublishingInsights({ rows }) {
   const insights = useMemo(() => {
@@ -19,22 +20,40 @@ export default function PublishingInsights({ rows }) {
       return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
     };
 
+    // Helper to get day of week and hour in Mountain Time
+    const getMountainTimeInfo = (date) => {
+      const dateObj = new Date(date);
+      // Format in Mountain Time to extract components
+      const mtFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Denver',
+        weekday: 'short',
+        hour: 'numeric',
+        hour12: false
+      });
+      const parts = mtFormatter.formatToParts(dateObj);
+      const weekdayMap = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
+      const weekdayPart = parts.find(p => p.type === 'weekday');
+      const hourPart = parts.find(p => p.type === 'hour');
+      return {
+        dayOfWeek: weekdayMap[weekdayPart?.value] ?? 0,
+        hour: parseInt(hourPart?.value ?? '0', 10)
+      };
+    };
+
     // Day of Week Analysis
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayStats = Array.from({ length: 7 }, () => ({ count: 0, totalViews: 0, videos: [] }));
 
     // Time of Day Analysis (4 blocks)
     const timeBlocks = [
-      { name: 'Night', displayName: 'Night (12am-6am)', start: 0, end: 6, count: 0, totalViews: 0, videos: [] },
-      { name: 'Morning', displayName: 'Morning (6am-12pm)', start: 6, end: 12, count: 0, totalViews: 0, videos: [] },
-      { name: 'Afternoon', displayName: 'Afternoon (12pm-6pm)', start: 12, end: 18, count: 0, totalViews: 0, videos: [] },
-      { name: 'Evening', displayName: 'Evening (6pm-12am)', start: 18, end: 24, count: 0, totalViews: 0, videos: [] }
+      { name: 'Night', displayName: 'Night (12am-6am MT)', start: 0, end: 6, count: 0, totalViews: 0, videos: [] },
+      { name: 'Morning', displayName: 'Morning (6am-12pm MT)', start: 6, end: 12, count: 0, totalViews: 0, videos: [] },
+      { name: 'Afternoon', displayName: 'Afternoon (12pm-6pm MT)', start: 12, end: 18, count: 0, totalViews: 0, videos: [] },
+      { name: 'Evening', displayName: 'Evening (6pm-12am MT)', start: 18, end: 24, count: 0, totalViews: 0, videos: [] }
     ];
 
     videosWithDates.forEach(video => {
-      const date = new Date(video.publishDate);
-      const dayOfWeek = date.getDay();
-      const hour = date.getHours();
+      const { dayOfWeek, hour } = getMountainTimeInfo(video.publishDate);
 
       // Day stats
       dayStats[dayOfWeek].count++;
@@ -201,7 +220,7 @@ export default function PublishingInsights({ rows }) {
     <div style={s.container}>
       <div style={s.header}>
         <div style={s.title}>🕐 Publishing Insights</div>
-        <div style={s.subtitle}>Performance by day of week and time of day</div>
+        <div style={s.subtitle}>Performance by day of week and time of day (Mountain Time)</div>
       </div>
 
       <div style={s.grid}>
