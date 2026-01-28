@@ -3,6 +3,7 @@ import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronD
 import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../lib/competitorAnalysis";
 import CompetitorDatabasePanel from "./CompetitorDatabasePanel";
 import CategoryManager from "./CategoryManager";
+import ChannelCategoryManager from "./ChannelCategoryManager";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -706,6 +707,9 @@ export default function CompetitorAnalysis({ rows }) {
 
       {/* Category Manager */}
       <CategoryManager />
+
+      {/* Channel Category Assignments */}
+      <ChannelCategoryManager />
 
       {/* Header */}
       <div style={{
