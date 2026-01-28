@@ -462,7 +462,8 @@ export default function App() {
       setRows(clean);
 
       // If subscriberCount wasn't set (for backwards compatibility), calculate it now
-      if (!activeClient.subscriberCount && activeClient.rows) {
+      // Use undefined check, not falsy check, since 0 is a valid subscriber count
+      if (activeClient.subscriberCount === undefined && activeClient.rows) {
         const totalRow = activeClient.rows.find(r => {
           const title = r['Video title'] || r.title || "";
           return title.toLowerCase().trim() === 'total';
@@ -473,22 +474,16 @@ export default function App() {
         if (totalRow) {
           // Extract from Total row
           channelTotalSubscribers = Number(String(totalRow['Subscribers'] || totalRow['Subscribers gained'] || totalRow.subscribers || 0).replace(/[^0-9.-]/g, "")) || 0;
-          console.log('Found Total row with subscribers:', channelTotalSubscribers);
         } else {
           // Fallback: If no Total row exists, sum up all subscribers gained from all videos
-          // This represents total subscribers gained from the videos in the export
           channelTotalSubscribers = activeClient.rows.reduce((sum, r) => {
             if (r['Video title']?.toLowerCase()?.trim() === 'total') return sum;
             const subs = Number(String(r['Subscribers'] || r['Subscribers gained'] || r.subscribers || 0).replace(/[^0-9.-]/g, "")) || 0;
             return sum + subs;
           }, 0);
-          console.log('No Total row found. Sum of subscribers from videos:', channelTotalSubscribers);
         }
 
-        console.log('Active client before update:', activeClient.subscriberCount);
-        console.log('Calculated channel subscribers:', channelTotalSubscribers);
-
-        if (channelTotalSubscribers >= 0) {
+        if (channelTotalSubscribers > 0) {
           // Update the active client with the subscriber count
           setActiveClient({
             ...activeClient,
@@ -507,7 +502,7 @@ export default function App() {
     } else {
       setRows([]);
     }
-  }, [activeClient]);
+  }, [activeClient?.id]);
 
   // Fetch channel stats from YouTube API when we have video data with channel IDs
   useEffect(() => {
