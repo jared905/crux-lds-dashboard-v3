@@ -391,15 +391,19 @@ export default function App() {
   // Load clients from Supabase on startup
   useEffect(() => {
     const loadFromSupabase = async () => {
+      console.log('[Supabase] Starting client load...');
       try {
-        const { connected } = await checkSupabaseConnection();
+        const { connected, error: connError } = await checkSupabaseConnection();
+        console.log('[Supabase] Connection check:', { connected, error: connError });
+
         if (!connected) {
-          console.log('Supabase not connected, using localStorage only');
+          console.log('[Supabase] Not connected, using localStorage only');
           setSupabaseLoading(false);
           return;
         }
 
         const supabaseClients = await getClientsFromSupabase();
+        console.log('[Supabase] Fetched clients:', supabaseClients.length);
 
         if (supabaseClients.length > 0) {
           // Merge Supabase clients with any local-only clients
@@ -417,10 +421,12 @@ export default function App() {
             setActiveClient(activeFromSupabase);
           }
 
-          console.log(`Loaded ${supabaseClients.length} clients from Supabase`);
+          console.log(`[Supabase] Loaded ${supabaseClients.length} clients`);
+        } else {
+          console.log('[Supabase] No clients found in database');
         }
       } catch (error) {
-        console.error('Error loading from Supabase:', error);
+        console.error('[Supabase] Error loading:', error);
       } finally {
         setSupabaseLoading(false);
       }
