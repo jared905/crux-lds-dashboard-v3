@@ -9,11 +9,9 @@ import PublishingTimeline from "./components/PublishingTimeline.jsx";
 import PDFExport from "./components/PDFExport.jsx";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
-import { Menu, X, Upload, Home, Database, Eye, Clock, Users, Target, BarChart3, Settings, TrendingUp, TrendingDown, ChevronDown, TrendingUpDown, MessageSquare, Video, PlaySquare, Activity, Sparkles, Lightbulb, Key, FileEdit } from "lucide-react";
+import { Menu, X, Upload, Home, Database, Eye, Clock, Users, Target, BarChart3, Settings, TrendingUp, TrendingDown, ChevronDown, TrendingUpDown, MessageSquare, Video, PlaySquare, Activity, Sparkles, FileEdit } from "lucide-react";
 
 // AI-Powered Components (v2.0.2)
-import APISettings from "./components/APISettings.jsx";
-import VideoIdeaGenerator from "./components/VideoIdeaGenerator.jsx";
 import CommentAnalysis from "./components/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/EnhancedContentIntelligence.jsx";
 import AIExecutiveSummary from "./components/AIExecutiveSummary.jsx";
@@ -155,11 +153,9 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload }) => (
           { id: "Strategy", icon: Target },
           { id: "Competitors", icon: Users },
           { id: "Intelligence", icon: MessageSquare },
-          { id: "Video Ideation", icon: Lightbulb },
           { id: "Creative Brief", icon: FileEdit },
           { id: "Comments", icon: MessageSquare },
           { id: "Data", icon: Database },
-          { id: "API Settings", icon: Key },
           { id: "Standardizer", icon: Settings }
         ].map(t => {
           const Icon = t.icon;
@@ -2152,10 +2148,6 @@ export default function App() {
               <EnhancedContentIntelligence rows={filtered} activeClient={activeClient} />
             )}
 
-            {tab === "Video Ideation" && (
-              <VideoIdeaGenerator data={filtered} activeClient={activeClient} />
-            )}
-
             {tab === "Creative Brief" && (
               <CreativeBrief activeClient={activeClient} />
             )}
@@ -2176,10 +2168,6 @@ export default function App() {
                 })()}
                 activeClient={activeClient}
               />
-            )}
-
-            {tab === "API Settings" && (
-              <APISettings />
             )}
 
             {tab === "OldStrategist_TO_DELETE" && (
