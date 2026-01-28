@@ -4,6 +4,7 @@ import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats }
 import CompetitorDatabasePanel from "./CompetitorDatabasePanel";
 import CategoryManager from "./CategoryManager";
 import ChannelCategoryManager from "./ChannelCategoryManager";
+import AnalysisSelector from "./AnalysisSelector";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -710,6 +711,9 @@ export default function CompetitorAnalysis({ rows }) {
 
       {/* Channel Category Assignments */}
       <ChannelCategoryManager />
+
+      {/* Analysis Selector with Presets */}
+      <AnalysisSelector onSelectionChange={(selection) => console.log('Selection:', selection)} />
 
       {/* Header */}
       <div style={{
