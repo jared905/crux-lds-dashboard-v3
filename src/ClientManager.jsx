@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Upload, Download, Trash2, Edit2, Plus, X, Calendar, Database, Youtube, Link } from "lucide-react";
+import { Upload, Download, Trash2, Edit2, Plus, X, Calendar, Database, Youtube, Link, Cloud, Loader2 } from "lucide-react";
 import Papa from "papaparse";
+import { saveClientToSupabase, deleteClientFromSupabase } from "./services/clientDataService";
 
 // Import the normalizeData function from App.jsx
 // You'll need to export it from App.jsx first, OR copy it here
@@ -106,6 +107,8 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
   const [uploadedFile, setUploadedFile] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [youtubeChannelUrl, setYoutubeChannelUrl] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
@@ -113,42 +116,80 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
     setUploadedFile(file);
   };
 
-  const processCSV = (file, name, isUpdate = false) => {
+  const processCSV = async (file, name, isUpdate = false) => {
+    setIsSaving(true);
+    setSaveError(null);
+
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: (result) => {
-        // Extract subscriber count from the data
-        const { rows: cleanRows, channelTotalSubscribers } = normalizeData(result.data);
-        
-        const newClient = {
-          id: isUpdate ? editingClient.id : `client-${Date.now()}`,
-          name: name,
-          uploadDate: new Date().toISOString(),
-          rows: result.data,
-          subscriberCount: channelTotalSubscribers,  // CRITICAL: Save the subscriber count
-          channels: [...new Set(result.data.map(r => r['Content'] || r.channel).filter(Boolean))],
-          youtubeChannelUrl: youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : ""),
-        };
+      complete: async (result) => {
+        try {
+          // Extract subscriber count and normalize data
+          const { rows: normalizedRows, channelTotalSubscribers } = normalizeData(result.data);
+          const channelUrl = youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : "");
 
-        let updatedClients;
-        if (isUpdate) {
-          updatedClients = clients.map(c => c.id === editingClient.id ? newClient : c);
-        } else {
-          updatedClients = [...clients, newClient];
+          // Save to Supabase
+          const savedClient = await saveClientToSupabase(
+            name,
+            normalizedRows,
+            channelUrl,
+            channelTotalSubscribers,
+            result.data // Raw rows for backward compatibility
+          );
+
+          // Update local state
+          let updatedClients;
+          if (isUpdate) {
+            updatedClients = clients.map(c =>
+              (c.id === editingClient.id || c.supabaseId === editingClient.supabaseId)
+                ? savedClient
+                : c
+            );
+          } else {
+            updatedClients = [...clients, savedClient];
+          }
+
+          onClientsUpdate(updatedClients);
+          onClientChange(savedClient);
+
+          setShowModal(false);
+          setClientName("");
+          setUploadedFile(null);
+          setEditingClient(null);
+          setYoutubeChannelUrl("");
+        } catch (error) {
+          console.error('Error saving to Supabase:', error);
+          setSaveError(error.message || 'Failed to save to cloud');
+
+          // Fallback: save locally if Supabase fails
+          const localClient = {
+            id: isUpdate ? editingClient.id : `client-${Date.now()}`,
+            name: name,
+            uploadDate: new Date().toISOString(),
+            rows: result.data,
+            subscriberCount: channelTotalSubscribers,
+            channels: [...new Set(result.data.map(r => r['Content'] || r.channel).filter(Boolean))],
+            youtubeChannelUrl: youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : ""),
+            syncedToSupabase: false,
+          };
+
+          let updatedClients;
+          if (isUpdate) {
+            updatedClients = clients.map(c => c.id === editingClient.id ? localClient : c);
+          } else {
+            updatedClients = [...clients, localClient];
+          }
+
+          onClientsUpdate(updatedClients);
+          onClientChange(localClient);
+        } finally {
+          setIsSaving(false);
         }
-
-        onClientsUpdate(updatedClients);
-        
-        onClientChange(newClient);
-        
-        setShowModal(false);
-        setClientName("");
-        setUploadedFile(null);
-        setEditingClient(null);
-        setYoutubeChannelUrl("");
       },
       error: (error) => {
+        setIsSaving(false);
+        setSaveError(error.message);
         alert(`Error parsing CSV: ${error.message}`);
       }
     });
@@ -170,16 +211,28 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
     processCSV(uploadedFile, editingClient.name, true);
   };
 
-  const handleDeleteClient = (clientId) => {
+  const handleDeleteClient = async (clientId) => {
+    const clientToDelete = clients.find(c => c.id === clientId);
+
+    // Delete from Supabase if it was synced
+    if (clientToDelete?.supabaseId || clientToDelete?.syncedToSupabase) {
+      try {
+        await deleteClientFromSupabase(clientToDelete.supabaseId || clientToDelete.id);
+      } catch (error) {
+        console.error('Error deleting from Supabase:', error);
+        // Continue with local delete even if Supabase fails
+      }
+    }
+
     const updatedClients = clients.filter(c => c.id !== clientId);
     onClientsUpdate(updatedClients);
-    
+
     if (activeClient?.id === clientId && updatedClients.length > 0) {
       onClientChange(updatedClients[0]);
     } else if (updatedClients.length === 0) {
       onClientChange(null);
     }
-    
+
     setShowDeleteConfirm(null);
   };
 
@@ -496,21 +549,41 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                   </div>
                 </div>
 
+                {saveError && (
+                  <div style={{
+                    background: "#ef444420",
+                    border: "1px solid #ef4444",
+                    borderRadius: "8px",
+                    padding: "12px",
+                    marginBottom: "16px",
+                    color: "#ef4444",
+                    fontSize: "13px"
+                  }}>
+                    Cloud save failed: {saveError}. Data saved locally.
+                  </div>
+                )}
+
                 <div style={{ display: "flex", gap: "12px" }}>
                   <button
                     onClick={modalMode === "add" ? handleAddClient : handleUpdateClient}
+                    disabled={isSaving}
                     style={{
                       flex: 1,
-                      background: "#2962FF",
+                      background: isSaving ? "#1e40af" : "#2962FF",
                       border: "none",
                       borderRadius: "8px",
                       padding: "12px",
                       fontWeight: "600",
-                      cursor: "pointer",
-                      color: "#fff"
+                      cursor: isSaving ? "not-allowed" : "pointer",
+                      color: "#fff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px"
                     }}
                   >
-                    {modalMode === "add" ? "Add Client" : "Update Data"}
+                    {isSaving && <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />}
+                    {isSaving ? "Saving to Cloud..." : (modalMode === "add" ? "Add Client" : "Update Data")}
                   </button>
                   <button
                     onClick={() => {
@@ -606,6 +679,15 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                               Linked
                             </div>
                           )}
+                          <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            color: client.syncedToSupabase ? "#10b981" : "#f59e0b"
+                          }}>
+                            <Cloud size={12} />
+                            {client.syncedToSupabase ? "Synced" : "Local"}
+                          </div>
                         </div>
                       </div>
 

@@ -19,6 +19,7 @@ import CreativeBrief from "./components/CreativeBrief.jsx";
 
 import { extractYouTubeVideoId, getYouTubeThumbnailUrl, getYouTubeVideoUrl } from "./lib/schema.js";
 import { youtubeAPI } from "./services/youtubeAPI.js";
+import { getClientsFromSupabase, checkSupabaseConnection } from "./services/clientDataService.js";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -385,7 +386,49 @@ export default function App() {
   const [showAllActions, setShowAllActions] = useState(false);
   const [channelStats, setChannelStats] = useState(null);
   const [channelStatsLoading, setChannelStatsLoading] = useState(false);
-  
+  const [supabaseLoading, setSupabaseLoading] = useState(true);
+
+  // Load clients from Supabase on startup
+  useEffect(() => {
+    const loadFromSupabase = async () => {
+      try {
+        const { connected } = await checkSupabaseConnection();
+        if (!connected) {
+          console.log('Supabase not connected, using localStorage only');
+          setSupabaseLoading(false);
+          return;
+        }
+
+        const supabaseClients = await getClientsFromSupabase();
+
+        if (supabaseClients.length > 0) {
+          // Merge Supabase clients with any local-only clients
+          const localOnlyClients = clients.filter(
+            local => !local.syncedToSupabase && !supabaseClients.some(sb => sb.name === local.name)
+          );
+
+          const mergedClients = [...supabaseClients, ...localOnlyClients];
+          setClients(mergedClients);
+
+          // Set active client from Supabase data if available
+          const savedId = localStorage.getItem('fullview_active_client');
+          const activeFromSupabase = mergedClients.find(c => c.id === savedId) || mergedClients[0];
+          if (activeFromSupabase) {
+            setActiveClient(activeFromSupabase);
+          }
+
+          console.log(`Loaded ${supabaseClients.length} clients from Supabase`);
+        }
+      } catch (error) {
+        console.error('Error loading from Supabase:', error);
+      } finally {
+        setSupabaseLoading(false);
+      }
+    };
+
+    loadFromSupabase();
+  }, []); // Run once on mount
+
   // Save clients to localStorage whenever they change
   useEffect(() => {
     try {
