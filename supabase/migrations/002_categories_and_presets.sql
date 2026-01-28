@@ -108,7 +108,8 @@ WITH RECURSIVE category_hierarchy AS (
     icon,
     sort_order,
     0 as depth,
-    ARRAY[sort_order, id] as path
+    ARRAY[id] as path,
+    ARRAY[sort_order] as sort_path
   FROM categories
   WHERE parent_id IS NULL
 
@@ -124,17 +125,26 @@ WITH RECURSIVE category_hierarchy AS (
     c.icon,
     c.sort_order,
     ch.depth + 1,
-    ch.path || ARRAY[c.sort_order, c.id]
+    ch.path || c.id,
+    ch.sort_path || c.sort_order
   FROM categories c
   JOIN category_hierarchy ch ON c.parent_id = ch.id
 )
 SELECT
-  ch.*,
+  ch.id,
+  ch.name,
+  ch.slug,
+  ch.parent_id,
+  ch.color,
+  ch.icon,
+  ch.sort_order,
+  ch.depth,
+  ch.path,
   COUNT(DISTINCT cc.channel_id) as channel_count
 FROM category_hierarchy ch
 LEFT JOIN channel_categories cc ON cc.category_id = ch.id
-GROUP BY ch.id, ch.name, ch.slug, ch.parent_id, ch.color, ch.icon, ch.sort_order, ch.depth, ch.path
-ORDER BY ch.path;
+GROUP BY ch.id, ch.name, ch.slug, ch.parent_id, ch.color, ch.icon, ch.sort_order, ch.depth, ch.path, ch.sort_path
+ORDER BY ch.sort_path;
 
 -- Channels with their categories
 CREATE VIEW channels_with_categories AS
