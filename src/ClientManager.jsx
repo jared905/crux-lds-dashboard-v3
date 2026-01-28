@@ -129,6 +129,8 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
           const { rows: normalizedRows, channelTotalSubscribers } = normalizeData(result.data);
           const channelUrl = youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : "");
 
+          console.log('[Supabase] Saving client:', name, 'with', normalizedRows.length, 'videos');
+
           // Save to Supabase
           const savedClient = await saveClientToSupabase(
             name,
@@ -137,6 +139,8 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
             channelTotalSubscribers,
             result.data // Raw rows for backward compatibility
           );
+
+          console.log('[Supabase] Client saved successfully:', savedClient.id);
 
           // Update local state
           let updatedClients;
@@ -159,7 +163,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
           setEditingClient(null);
           setYoutubeChannelUrl("");
         } catch (error) {
-          console.error('Error saving to Supabase:', error);
+          console.error('[Supabase] Error saving client:', error);
           setSaveError(error.message || 'Failed to save to cloud');
 
           // Fallback: save locally if Supabase fails
