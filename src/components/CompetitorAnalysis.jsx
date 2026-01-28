@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from "react";
 import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, FolderOpen, Upload, Download, RefreshCw, Edit2, X, Check } from "lucide-react";
 import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../lib/competitorAnalysis";
+import CompetitorDatabasePanel from "./CompetitorDatabasePanel";
+import CategoryManager from "./CategoryManager";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -215,7 +217,7 @@ export default function CompetitorAnalysis({ rows }) {
           likes: parseInt(video.statistics.likeCount) || 0,
           comments: parseInt(video.statistics.commentCount) || 0,
           duration: duration,
-          type: duration < 180 ? 'short' : 'long' // Shorts are < 3 minutes
+          type: duration <= 60 ? 'short' : 'long' // YouTube Shorts are ≤60 seconds
         };
       });
 
@@ -507,7 +509,7 @@ export default function CompetitorAnalysis({ rows }) {
           likes: parseInt(video.statistics.likeCount) || 0,
           comments: parseInt(video.statistics.commentCount) || 0,
           duration: duration,
-          type: duration < 180 ? 'short' : 'long' // Shorts are < 3 minutes
+          type: duration <= 60 ? 'short' : 'long' // YouTube Shorts are ≤60 seconds
         };
       });
 
@@ -699,6 +701,12 @@ export default function CompetitorAnalysis({ rows }) {
 
   return (
     <div style={{ padding: "0" }}>
+      {/* Database Status Panel */}
+      <CompetitorDatabasePanel />
+
+      {/* Category Manager */}
+      <CategoryManager />
+
       {/* Header */}
       <div style={{
         background: "#1E1E1E",

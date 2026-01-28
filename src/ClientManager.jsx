@@ -65,10 +65,12 @@ const normalizeData = (rawData) => {
       }
     }
 
-    // Shorts are < 180 seconds (3 minutes)
-    let type = r.type || "long";
-    if (duration > 0 && duration < 180) {
-      type = "short";
+    // Determine video type: prefer explicit type from CSV, fall back to duration for very short videos only
+    // Check multiple possible column names for type
+    let type = r.type || r.Type || r.TYPE || r['Content Type'] || r['content type'] || "";
+    if (!type) {
+      // Only use duration as fallback for very short videos (≤60 seconds)
+      type = (duration > 0 && duration <= 60) ? "short" : "long";
     }
 
     const channel = r['Content'] || r.channel || "Main Channel";

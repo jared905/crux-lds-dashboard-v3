@@ -3,6 +3,7 @@ console.log("data.js loaded", new Date().toISOString());
 import JSZip from "jszip";
 import Papa from "papaparse";
 import { parseDateSafe, safeStr, toLowerKeyed, pickFirst } from "./utils.js";
+import { extractYouTubeVideoId, getYouTubeThumbnailUrl, getYouTubeVideoUrl } from "./schema.js";
 
 // --- ROBUST LOCAL UTILITIES ---
 function safeNumLocal(v) {
@@ -30,10 +31,20 @@ function normalizePctTo01(raw) {
   return n > 1.2 ? n / 100 : n; 
 }
 
-function detectType(rawType, durationSeconds) {
+function detectType(rawType, durationSeconds, youtubeUrl = null) {
+  // 1. Check raw content type field first
   const t = safeStr(rawType).toLowerCase();
   if (t.includes("short")) return "short";
   if (t.includes("long")) return "long";
+
+  // 2. Check URL pattern: /shorts/ = short, /watch?v= = long
+  if (youtubeUrl) {
+    const url = String(youtubeUrl).toLowerCase();
+    if (url.includes("/shorts/")) return "short";
+    if (url.includes("/watch?v=")) return "long";
+  }
+
+  // 3. Fall back to duration-based detection
   if (durationSeconds > 0 && durationSeconds <= 61) return "short";
   return "long";
 }
@@ -85,11 +96,23 @@ function parseStandardFormat(text) {
     const ctr = normalizePctTo01(getVal(row, "impressions click-through rate (%)", ["click", "rate"]));
     const impressions = safeNumLocal(getVal(row, "impressions", ["impressions"]));
     const subscribers = safeNumLocal(getVal(row, "subscribers", ["subscribers"]));
-    const type = detectType(getVal(row, "content type"), durationSeconds);
+
+    // Extract YouTube video ID from various possible fields
+    const rawVideoId = getVal(row, "content", ["video id", "video"]) ||
+                       getVal(row, "youtube url", ["url", "link"]) ||
+                       getVal(row, "youtube video id", ["youtube id", "yt id"]);
+    const youtubeVideoId = extractYouTubeVideoId(rawVideoId);
+    const thumbnailUrl = getYouTubeThumbnailUrl(youtubeVideoId);
+    const youtubeUrl = getYouTubeVideoUrl(youtubeVideoId);
+
+    // Detect type using content type, URL pattern, and duration
+    const rawType = getVal(row, "content type") || getVal(row, "type", ["type"]);
+    const type = detectType(rawType, durationSeconds, rawVideoId);
 
     out.push({
       title, channel, leader: channel, publishDate,
       durationSeconds, type, views, watchHours, avgViewPct, ctr, impressions, subscribers,
+      youtubeVideoId, thumbnailUrl, youtubeUrl,
     });
   }
   return { rows: out, warnings: [] };
@@ -152,11 +175,21 @@ function parseStackedFormat(text) {
       const impressions = safeNumLocal(obj["Impressions"]);
       const avgViewPct = normalizePctTo01(obj["Average percentage viewed (%)"]);
       const ctr = normalizePctTo01(obj["Impressions click-through rate (%)"]);
-      const type = detectType(null, durationSeconds);
+
+      // Extract YouTube video ID from various possible fields
+      const rawVideoId = obj["Content"] || obj["Video ID"] || obj["Video id"] ||
+                         obj["YouTube URL"] || obj["URL"] || obj["Link"];
+      const youtubeVideoId = extractYouTubeVideoId(rawVideoId);
+      const thumbnailUrl = getYouTubeThumbnailUrl(youtubeVideoId);
+      const youtubeUrl = getYouTubeVideoUrl(youtubeVideoId);
+
+      // Detect type using URL pattern and duration
+      const type = detectType(null, durationSeconds, rawVideoId);
 
       out.push({
         title, channel: channelName, leader: channelName, publishDate,
         durationSeconds, type, views, watchHours, avgViewPct, ctr, impressions, subscribers,
+        youtubeVideoId, thumbnailUrl, youtubeUrl,
       });
     }
   }

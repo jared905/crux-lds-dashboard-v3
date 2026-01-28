@@ -1,9 +1,10 @@
 import React from "react";
-import { 
-  Smartphone, MonitorPlay, Eye, 
-  Percent, MousePointerClick, UserPlus, Clock 
+import {
+  Smartphone, MonitorPlay, Eye,
+  Percent, MousePointerClick, UserPlus, Clock, ExternalLink
 } from "lucide-react";
 import { fmtInt, fmtPct } from "../lib/utils";
+import { getYouTubeThumbnailUrl } from "../lib/schema";
 
 /**
  * Robust helper to parse duration from various inputs (Seconds, Strings, ISO 8601)
@@ -122,6 +123,27 @@ export default function TopVideos({ rows, n = 8 }) {
       color: isShort ? "#fbbf24" : "#60a5fa",
       flexShrink: 0,
     }),
+    thumbnail: {
+      width: "80px",
+      height: "45px",
+      borderRadius: "6px",
+      objectFit: "cover",
+      backgroundColor: "#252525",
+      flexShrink: 0,
+      border: "1px solid #333",
+    },
+    thumbnailPlaceholder: {
+      width: "80px",
+      height: "45px",
+      borderRadius: "6px",
+      backgroundColor: "#252525",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+      border: "1px solid #333",
+      color: "#666",
+    },
     info: {
       flex: 1,
       minWidth: 0,
@@ -135,6 +157,25 @@ export default function TopVideos({ rows, n = 8 }) {
       overflow: "hidden",
       textOverflow: "ellipsis",
       marginBottom: "8px",
+    },
+    videoTitleLink: {
+      fontSize: "14px",
+      fontWeight: "600",
+      color: "#E0E0E0",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      marginBottom: "8px",
+      textDecoration: "none",
+      display: "flex",
+      alignItems: "center",
+      gap: "6px",
+      transition: "color 0.15s ease",
+    },
+    linkIcon: {
+      color: "#666",
+      flexShrink: 0,
+      transition: "color 0.15s ease",
     },
     meta: {
       fontSize: "12px",
@@ -221,14 +262,79 @@ export default function TopVideos({ rows, n = 8 }) {
               
               <div style={s.rank(idx)}>#{idx + 1}</div>
 
-              <div style={s.iconBox(isShort)}>
-                {isShort ? <Smartphone size={18} strokeWidth={2.5} /> : <MonitorPlay size={18} strokeWidth={2.5} />}
-              </div>
+              {/* Thumbnail - use YouTube thumbnail if video ID available */}
+              {video.youtubeVideoId ? (
+                <a
+                  href={video.youtubeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ flexShrink: 0 }}
+                >
+                  <img
+                    src={video.thumbnailUrl || getYouTubeThumbnailUrl(video.youtubeVideoId)}
+                    alt={video.title}
+                    style={s.thumbnail}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling && (e.target.nextSibling.style.display = 'flex');
+                    }}
+                  />
+                </a>
+              ) : (
+                <div style={s.thumbnailPlaceholder}>
+                  {isShort ? <Smartphone size={18} /> : <MonitorPlay size={18} />}
+                </div>
+              )}
 
               <div style={s.info}>
-                <div style={s.videoTitle} title={video.title}>{video.title || "Untitled Video"}</div>
+                {/* Title - clickable link if YouTube URL available */}
+                {video.youtubeUrl ? (
+                  <a
+                    href={video.youtubeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={s.videoTitleLink}
+                    title={video.title}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = '#60a5fa';
+                      e.currentTarget.querySelector('svg').style.color = '#60a5fa';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = '#E0E0E0';
+                      e.currentTarget.querySelector('svg').style.color = '#666';
+                    }}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {video.title || "Untitled Video"}
+                    </span>
+                    <ExternalLink size={12} style={s.linkIcon} />
+                  </a>
+                ) : (
+                  <div style={s.videoTitle} title={video.title}>{video.title || "Untitled Video"}</div>
+                )}
                 
                 <div style={s.meta}>
+                  {/* Format indicator (Shorts vs Long-form) */}
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    backgroundColor: isShort ? "rgba(245, 158, 11, 0.15)" : "rgba(59, 130, 246, 0.15)",
+                    padding: "3px 8px",
+                    borderRadius: "4px",
+                    color: isShort ? "#fbbf24" : "#60a5fa",
+                    fontSize: "10px",
+                    fontWeight: "700",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    border: isShort ? "1px solid rgba(245, 158, 11, 0.3)" : "1px solid rgba(59, 130, 246, 0.3)",
+                  }}>
+                    {isShort ? <Smartphone size={11} /> : <MonitorPlay size={11} />}
+                    {isShort ? "Short" : "Long"}
+                  </div>
+
+                  <span style={{color: "#666"}}>•</span>
+
                   {/* Robust Duration Badge */}
                   <div style={s.durationBadge}>
                     <Clock size={11} />

@@ -4,5 +4,11 @@
       "source": "/((?!api).*)",
       "destination": "/index.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/sync-competitors",
+      "schedule": "0 6 * * *"
+    }
   ]
 }

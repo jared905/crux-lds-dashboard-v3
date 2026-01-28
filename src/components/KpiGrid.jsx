@@ -5,26 +5,47 @@ import {
 } from "lucide-react";
 import { fmtInt, fmtPct } from "../lib/utils";
 
-export default function KpiGrid({ kpis }) {
+export default function KpiGrid({ kpis, channelStats }) {
   const safeKpis = kpis || {};
+  const safeChannelStats = channelStats || {};
 
   // Color Palette: We use RGBA for backgrounds so they glow against the dark card
   const cards = [
     {
-      label: "Total Uploads",
-      value: fmtInt(safeKpis.uploads || 0),
-      icon: UploadCloud,
-      color: "#94a3b8", // Slate-400 (Lighter for dark mode)
-      bg: "rgba(148, 163, 184, 0.1)", // Translucent Slate
-      subtext: "All videos",
+      label: "Subscribers",
+      value: safeChannelStats.subscriberCount
+        ? fmtInt(safeChannelStats.subscriberCount)
+        : fmtInt(safeKpis.subscribers || 0),
+      icon: Users,
+      color: "#f472b6", // Pink-400 (Highlight color for the headline metric)
+      bg: "rgba(244, 114, 182, 0.1)", // Translucent Pink
+      subtext: safeChannelStats.subscriberCount
+        ? `+${fmtInt(safeKpis.subscribers || 0)} in period`
+        : "Net gained",
     },
     {
-      label: "Total Views",
-      value: fmtInt(safeKpis.views || 0),
+      label: "Channel Views",
+      value: safeChannelStats.viewCount
+        ? fmtInt(safeChannelStats.viewCount)
+        : fmtInt(safeKpis.views || 0),
       icon: Eye,
       color: "#818cf8", // Indigo-400 (Brighter for dark mode)
       bg: "rgba(129, 140, 248, 0.1)", // Translucent Indigo
-      subtext: "Lifetime views",
+      subtext: safeChannelStats.viewCount
+        ? `${fmtInt(safeKpis.views || 0)} in period`
+        : "Lifetime views",
+    },
+    {
+      label: "Total Videos",
+      value: safeChannelStats.videoCount
+        ? fmtInt(safeChannelStats.videoCount)
+        : fmtInt(safeKpis.uploads || 0),
+      icon: UploadCloud,
+      color: "#94a3b8", // Slate-400 (Lighter for dark mode)
+      bg: "rgba(148, 163, 184, 0.1)", // Translucent Slate
+      subtext: safeChannelStats.videoCount
+        ? `${fmtInt(safeKpis.uploads || 0)} in period`
+        : "All videos",
     },
     {
       label: "Watch Hours",
@@ -32,15 +53,7 @@ export default function KpiGrid({ kpis }) {
       icon: Clock,
       color: "#818cf8", // Indigo-400
       bg: "rgba(129, 140, 248, 0.1)",
-      subtext: "Total consumption",
-    },
-    {
-      label: "Subscribers",
-      value: fmtInt(safeKpis.subscribers || 0),
-      icon: Users,
-      color: "#818cf8", // Indigo-400
-      bg: "rgba(129, 140, 248, 0.1)",
-      subtext: "Net gained",
+      subtext: "In period",
     },
     {
       label: "Avg Retention",

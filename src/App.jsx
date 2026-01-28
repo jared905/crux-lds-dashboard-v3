@@ -9,7 +9,7 @@ import PublishingTimeline from "./components/PublishingTimeline.jsx";
 import PDFExport from "./components/PDFExport.jsx";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
-import { Menu, X, Upload, Home, Database, Eye, Clock, Users, Target, BarChart3, Settings, TrendingUp, TrendingDown, ChevronDown, TrendingUpDown, MessageSquare, Video, PlaySquare, Activity, Sparkles, Lightbulb, Key } from "lucide-react";
+import { Menu, X, Upload, Home, Database, Eye, Clock, Users, Target, BarChart3, Settings, TrendingUp, TrendingDown, ChevronDown, TrendingUpDown, MessageSquare, Video, PlaySquare, Activity, Sparkles, Lightbulb, Key, FileEdit } from "lucide-react";
 
 // AI-Powered Components (v2.0.2)
 import APISettings from "./components/APISettings.jsx";
@@ -17,6 +17,7 @@ import VideoIdeaGenerator from "./components/VideoIdeaGenerator.jsx";
 import CommentAnalysis from "./components/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/EnhancedContentIntelligence.jsx";
 import AIExecutiveSummary from "./components/AIExecutiveSummary.jsx";
+import CreativeBrief from "./components/CreativeBrief.jsx";
 
 import { extractYouTubeVideoId, getYouTubeThumbnailUrl, getYouTubeVideoUrl } from "./lib/schema.js";
 import { youtubeAPI } from "./services/youtubeAPI.js";
@@ -76,10 +77,23 @@ const normalizeData = (rawData) => {
       }
     }
 
-    // Determine video type based on duration (Shorts are < 180 seconds / 3 minutes)
-    let type = r.type || "long";
-    if (duration > 0 && duration < 180) {
-      type = "short";
+    // Determine video type: prefer explicit type from CSV, then check URL pattern, finally fall back to duration
+    // Check multiple possible column names for type
+    let type = r.type || r.Type || r.TYPE || r['Content Type'] || r['content type'] || "";
+    if (!type) {
+      // Check URL pattern for /shorts/
+      const rawVideoId = r['Content'] || r.videoId || r['Video ID'] || r['YouTube URL'] || r['URL'] || "";
+      const urlStr = String(rawVideoId).toLowerCase();
+      if (urlStr.includes("/shorts/")) {
+        type = "short";
+      } else if (urlStr.includes("/watch?v=")) {
+        type = "long";
+      } else if (duration > 0 && duration <= 60) {
+        // Only use duration as fallback for very short videos (≤60 seconds)
+        type = "short";
+      } else {
+        type = "long";
+      }
     }
 
     // Extract channel from Content column if available, otherwise use default
@@ -142,6 +156,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload }) => (
           { id: "Competitors", icon: Users },
           { id: "Intelligence", icon: MessageSquare },
           { id: "Video Ideation", icon: Lightbulb },
+          { id: "Creative Brief", icon: FileEdit },
           { id: "Comments", icon: MessageSquare },
           { id: "Data", icon: Database },
           { id: "API Settings", icon: Key },
@@ -2139,6 +2154,10 @@ export default function App() {
 
             {tab === "Video Ideation" && (
               <VideoIdeaGenerator data={filtered} activeClient={activeClient} />
+            )}
+
+            {tab === "Creative Brief" && (
+              <CreativeBrief activeClient={activeClient} />
             )}
 
             {tab === "Comments" && (
