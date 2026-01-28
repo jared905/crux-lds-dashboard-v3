@@ -9,7 +9,13 @@ import PublishingTimeline from "./components/PublishingTimeline.jsx";
 import PDFExport from "./components/PDFExport.jsx";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
-import { Menu, X, Upload, Home, Database, Eye, Clock, Users, Target, BarChart3, Settings, TrendingUp, TrendingDown, ChevronDown, TrendingUpDown, MessageSquare, Video, PlaySquare, Activity, Sparkles, FileEdit } from "lucide-react";
+import { Menu, X, Upload, Home, Database, Eye, Clock, Users, Target, BarChart3, Settings, TrendingUp, TrendingDown, ChevronDown, TrendingUpDown, MessageSquare, Video, PlaySquare, Activity, Sparkles, FileEdit, LogOut, Shield } from "lucide-react";
+
+// Auth Components
+import { useAuth } from "./contexts/AuthContext.jsx";
+import LoginPage from "./components/Auth/LoginPage.jsx";
+import SignupPage from "./components/Auth/SignupPage.jsx";
+import UserManagement from "./components/Admin/UserManagement.jsx";
 
 // AI-Powered Components (v2.0.2)
 import CommentAnalysis from "./components/CommentAnalysis.jsx";
@@ -134,45 +140,107 @@ const normalizeData = (rawData) => {
   return processedRows;
 };
 
-const Sidebar = ({ open, onClose, tab, setTab, onUpload }) => (
-  <>
-    {open && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 998 }} onClick={onClose} />}
-    <div style={{ position: "fixed", left: open ? 0 : "-280px", top: 0, width: "280px", height: "100vh", background: "#1E1E1E", borderRight: "1px solid #333", transition: "left 0.3s", zIndex: 999, display: "flex", flexDirection: "column" }}>
-      <div style={{ padding: "24px", borderBottom: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-          <img src="/Full_View_Logo.png" alt="Full View Analytics" style={{ height: "75px", objectFit: "contain" }} />
-          <div style={{ fontSize: "9px", color: "#666", fontWeight: "600", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "4px" }}>
-            POWERED BY <img src="/crux-logo.png" alt="CRUX" style={{ height: "10px", objectFit: "contain", opacity: 0.6 }} />
+const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, onSignOut, userEmail }) => {
+  const allTabs = [
+    { id: "Dashboard", icon: Home },
+    { id: "Channel Summary", icon: Sparkles },
+    { id: "Strategy", icon: Target },
+    { id: "Competitors", icon: Users },
+    { id: "Intelligence", icon: MessageSquare },
+    { id: "Creative Brief", icon: FileEdit },
+    { id: "Comments", icon: MessageSquare },
+    { id: "Data", icon: Database },
+    { id: "Standardizer", icon: Settings }
+  ];
+
+  // Filter tabs based on permissions
+  const accessibleTabs = allTabs.filter(t => canAccessTab(t.id));
+
+  return (
+    <>
+      {open && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 998 }} onClick={onClose} />}
+      <div style={{ position: "fixed", left: open ? 0 : "-280px", top: 0, width: "280px", height: "100vh", background: "#1E1E1E", borderRight: "1px solid #333", transition: "left 0.3s", zIndex: 999, display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "24px", borderBottom: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <img src="/Full_View_Logo.png" alt="Full View Analytics" style={{ height: "75px", objectFit: "contain" }} />
+            <div style={{ fontSize: "9px", color: "#666", fontWeight: "600", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "4px" }}>
+              POWERED BY <img src="/crux-logo.png" alt="CRUX" style={{ height: "10px", objectFit: "contain", opacity: 0.6 }} />
+            </div>
           </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#9E9E9E", cursor: "pointer" }}><X size={20} /></button>
         </div>
-        <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#9E9E9E", cursor: "pointer" }}><X size={20} /></button>
-      </div>
-      <div style={{ flex: 1, padding: "16px" }}>
-        {[
-          { id: "Dashboard", icon: Home },
-          { id: "Channel Summary", icon: Sparkles },
-          { id: "Strategy", icon: Target },
-          { id: "Competitors", icon: Users },
-          { id: "Intelligence", icon: MessageSquare },
-          { id: "Creative Brief", icon: FileEdit },
-          { id: "Comments", icon: MessageSquare },
-          { id: "Data", icon: Database },
-          { id: "Standardizer", icon: Settings }
-        ].map(t => {
-          const Icon = t.icon;
-          return (
-            <button key={t.id} onClick={() => { setTab(t.id); onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", marginBottom: "4px", background: tab === t.id ? "rgba(41, 98, 255, 0.15)" : "transparent", border: "none", borderRadius: "8px", color: tab === t.id ? "#60a5fa" : "#9E9E9E", cursor: "pointer", fontWeight: "600", fontSize: "14px", textAlign: "left" }}>
-              <Icon size={18} />{t.id}
+        <div style={{ flex: 1, padding: "16px", overflowY: "auto" }}>
+          {accessibleTabs.map(t => {
+            const Icon = t.icon;
+            return (
+              <button key={t.id} onClick={() => { setTab(t.id); onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", marginBottom: "4px", background: tab === t.id ? "rgba(41, 98, 255, 0.15)" : "transparent", border: "none", borderRadius: "8px", color: tab === t.id ? "#60a5fa" : "#9E9E9E", cursor: "pointer", fontWeight: "600", fontSize: "14px", textAlign: "left" }}>
+                <Icon size={18} />{t.id}
+              </button>
+            );
+          })}
+
+          {/* Admin-only: User Management */}
+          {isAdmin && (
+            <>
+              <div style={{ borderTop: "1px solid #333", margin: "16px 0", paddingTop: "16px" }}>
+                <div style={{ fontSize: "10px", color: "#666", fontWeight: "600", letterSpacing: "0.5px", marginBottom: "8px", paddingLeft: "16px" }}>ADMIN</div>
+                <button onClick={() => { setTab("User Management"); onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", marginBottom: "4px", background: tab === "User Management" ? "rgba(41, 98, 255, 0.15)" : "transparent", border: "none", borderRadius: "8px", color: tab === "User Management" ? "#60a5fa" : "#9E9E9E", cursor: "pointer", fontWeight: "600", fontSize: "14px", textAlign: "left" }}>
+                  <Shield size={18} />User Management
+                </button>
+              </div>
+            </>
+          )}
+
+          {isAdmin && (
+            <button onClick={() => { onUpload(); onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "10px 16px", background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px", color: "#E0E0E0", cursor: "pointer", fontWeight: "600", marginTop: "24px" }}>
+              <Upload size={16} />Upload CSV
             </button>
-          );
-        })}
-        <button onClick={() => { onUpload(); onClose(); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "10px 16px", background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px", color: "#E0E0E0", cursor: "pointer", fontWeight: "600", marginTop: "24px" }}>
-          <Upload size={16} />Upload CSV
-        </button>
+          )}
+        </div>
+
+        {/* User info and sign out */}
+        <div style={{ padding: "16px", borderTop: "1px solid #333" }}>
+          <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {userEmail}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{
+              padding: "2px 8px",
+              borderRadius: "4px",
+              fontSize: "10px",
+              fontWeight: "600",
+              background: isAdmin ? "rgba(41, 98, 255, 0.15)" : "rgba(158, 158, 158, 0.15)",
+              color: isAdmin ? "#60a5fa" : "#9E9E9E"
+            }}>
+              {isAdmin ? "Admin" : "Viewer"}
+            </span>
+          </div>
+          <button
+            onClick={onSignOut}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              padding: "10px 16px",
+              background: "transparent",
+              border: "1px solid #444",
+              borderRadius: "8px",
+              color: "#9E9E9E",
+              cursor: "pointer",
+              fontWeight: "500",
+              fontSize: "13px",
+              marginTop: "12px"
+            }}
+          >
+            <LogOut size={16} />Sign Out
+          </button>
+        </div>
       </div>
-    </div>
-  </>
-);
+    </>
+  );
+};
 
 const Chart = ({ rows, metric = "views" }) => {
   const [hoveredPoint, setHoveredPoint] = useState(null);
@@ -350,6 +418,13 @@ const Chart = ({ rows, metric = "views" }) => {
 };
 
 export default function App() {
+  // Auth state
+  const { user, loading: authLoading, isAdmin, signOut, canAccessTab, canAccessClient } = useAuth();
+  const [authView, setAuthView] = useState("login"); // "login" or "signup"
+
+  // Debug auth state
+  console.log('[Auth] State:', { user: user?.email || null, authLoading, isAdmin });
+
   const [sidebar, setSidebar] = useState(false);
   const [tab, setTab] = useState("Dashboard");
   
@@ -819,9 +894,45 @@ export default function App() {
 
   const top = useMemo(() => [...filtered].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 10), [filtered]);
 
+  // Filter clients based on permissions
+  const accessibleClients = useMemo(() => {
+    if (isAdmin) return clients;
+    return clients.filter(c => canAccessClient(c.id));
+  }, [clients, isAdmin, canAccessClient]);
+
+  // Show loading state while checking auth
+  if (authLoading) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#121212", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <img src="/Full_View_Logo.png" alt="Full View Analytics" style={{ height: "80px", marginBottom: "24px" }} />
+          <div style={{ color: "#9E9E9E", fontSize: "14px" }}>Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login/signup if not authenticated
+  if (!user) {
+    if (authView === "signup") {
+      return <SignupPage onSwitchToLogin={() => setAuthView("login")} />;
+    }
+    return <LoginPage onSwitchToSignup={() => setAuthView("signup")} />;
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#121212", color: "#E0E0E0" }}>
-      <Sidebar open={sidebar} onClose={() => setSidebar(false)} tab={tab} setTab={setTab} onUpload={() => {}} />
+      <Sidebar
+        open={sidebar}
+        onClose={() => setSidebar(false)}
+        tab={tab}
+        setTab={setTab}
+        onUpload={() => {}}
+        canAccessTab={canAccessTab}
+        isAdmin={isAdmin}
+        onSignOut={signOut}
+        userEmail={user?.email || ""}
+      />
       
       <div style={{ background: "#1E1E1E", borderBottom: "1px solid #333", padding: "16px 24px", display: "flex", alignItems: "center", gap: "16px", position: "sticky", top: 0, zIndex: 100 }}>
         <button onClick={() => setSidebar(true)} style={{ background: "transparent", border: "none", color: "#E0E0E0", cursor: "pointer" }}><Menu size={24} /></button>
@@ -855,7 +966,7 @@ export default function App() {
                   appearance: "none"
                 }}
               >
-                {clients.map(c => (
+                {accessibleClients.map(c => (
                   <option key={c.id} value={c.id}>
                     {c.name} ({c.rows.length} videos)
                   </option>
@@ -2614,6 +2725,11 @@ export default function App() {
           </>
         )}
         {/* End activeClient wrapper */}
+
+        {/* User Management - Admin Only */}
+        {tab === "User Management" && isAdmin && (
+          <UserManagement clients={clients} />
+        )}
 
         {/* Footer */}
         <div style={{ marginTop: "60px", paddingTop: "32px", borderTop: "1px solid #333", position: "relative" }}>
