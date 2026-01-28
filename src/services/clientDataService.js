@@ -94,31 +94,40 @@ export async function saveClientToSupabase(clientName, normalizedRows, youtubeCh
     throw channelError;
   }
 
-  // 2. Prepare video records
-  const videosToUpsert = normalizedRows.map(row => {
+  // 2. Prepare video records and deduplicate by video ID
+  // (CSV may have duplicate rows which cause "cannot affect row a second time" error)
+  const videoMap = new Map();
+
+  for (const row of normalizedRows) {
     const videoId = generateVideoId(row.title, row.publishDate, row.channel);
 
-    return {
-      youtube_video_id: videoId,
-      channel_id: channel.id,
-      title: row.title,
-      published_at: row.publishDate,
-      duration_seconds: row.duration || 0,
-      video_type: (row.duration > 0 && row.duration <= 60) ? 'short' : 'long',
-      view_count: row.views || 0,
-      like_count: 0, // Not available in YouTube Studio CSV
-      comment_count: 0, // Not available in YouTube Studio CSV
-      // CSV-specific analytics fields
-      impressions: row.impressions || 0,
-      ctr: row.ctr || null,
-      avg_view_percentage: row.retention || row.avgViewPct || null,
-      subscribers_gained: row.subscribers || 0,
-      watch_hours: row.watchHours || null,
-      // Auto-computed fields
-      engagement_rate: 0, // Will be calculated when we have likes/comments
-      last_synced_at: new Date().toISOString(),
-    };
-  });
+    // Keep the first occurrence (or you could merge/prefer higher view counts)
+    if (!videoMap.has(videoId)) {
+      videoMap.set(videoId, {
+        youtube_video_id: videoId,
+        channel_id: channel.id,
+        title: row.title,
+        published_at: row.publishDate,
+        duration_seconds: row.duration || 0,
+        video_type: (row.duration > 0 && row.duration <= 60) ? 'short' : 'long',
+        view_count: row.views || 0,
+        like_count: 0, // Not available in YouTube Studio CSV
+        comment_count: 0, // Not available in YouTube Studio CSV
+        // CSV-specific analytics fields
+        impressions: row.impressions || 0,
+        ctr: row.ctr || null,
+        avg_view_percentage: row.retention || row.avgViewPct || null,
+        subscribers_gained: row.subscribers || 0,
+        watch_hours: row.watchHours || null,
+        // Auto-computed fields
+        engagement_rate: 0, // Will be calculated when we have likes/comments
+        last_synced_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  const videosToUpsert = Array.from(videoMap.values());
+  console.log(`[Supabase] Prepared ${videosToUpsert.length} unique videos (from ${normalizedRows.length} rows)`);
 
   // 3. Upsert videos in batches (Supabase has limits)
   const BATCH_SIZE = 500;
