@@ -37,6 +37,8 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
   const [expandedCompetitor, setExpandedCompetitor] = useState(null);
   const [expandedCategories, setExpandedCategories] = useState({});
+  const [refreshingId, setRefreshingId] = useState(null);
+  const [refreshError, setRefreshError] = useState({});
   const [newCompetitor, setNewCompetitor] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -573,7 +575,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     // Look up in activeCompetitors (Supabase-backed), not localStorage
     const competitor = activeCompetitors.find(c => c.id === competitorId);
     if (!competitor) {
-      setError("Competitor not found");
+      setRefreshError(prev => ({ ...prev, [competitorId]: "Competitor not found" }));
       return;
     }
 
@@ -583,40 +585,48 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       return;
     }
 
-    // Cannot refresh handle_ placeholder IDs — they need the nightly cron to resolve first
-    if (competitorId.startsWith('handle_')) {
-      setError(`${competitor.name} has an unresolved handle ID. It will be resolved by the nightly sync.`);
-      return;
-    }
-
-    setLoading(true);
-    setError("");
+    setRefreshingId(competitorId);
+    setRefreshError(prev => { const next = { ...prev }; delete next[competitorId]; return next; });
 
     try {
-      // Save current state to history before refreshing
-      const historySnapshot = {
-        timestamp: new Date().toISOString(),
-        subscriberCount: competitor.subscriberCount,
-        totalViews: competitor.viewCount,
-        videoCount: competitor.videoCount,
-        avgViews: competitor.avgViewsPerVideo,
-        uploadsLast30Days: competitor.uploadsLast30Days
-      };
+      let resolvedChannelId = competitorId;
 
-      // Re-fetch channel data
+      // Resolve handle_ placeholder IDs to real UC IDs via YouTube Search API
+      if (competitorId.startsWith('handle_')) {
+        const handle = competitor.tags?.find(t => t.startsWith('custom_url:'))?.split(':')[1]
+          || '@' + competitorId.replace('handle_', '');
+        const cleanHandle = handle.startsWith('@') ? handle : '@' + handle;
+
+        const searchResp = await fetch(
+          `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(cleanHandle)}&maxResults=1&key=${apiKey}`
+        );
+        const searchData = await searchResp.json();
+        if (searchData.error) throw new Error(searchData.error.message);
+        if (!searchData.items?.length) throw new Error(`No channel found for ${cleanHandle}`);
+
+        resolvedChannelId = searchData.items[0].snippet.channelId;
+
+        // Update Supabase with the resolved ID so future refreshes skip this step
+        try {
+          const { default: supabase } = await import('../../services/supabaseClient');
+          if (supabase) {
+            await supabase
+              .from('channels')
+              .update({ youtube_channel_id: resolvedChannelId })
+              .eq('id', competitor.supabaseId);
+          }
+        } catch (e) {
+          console.warn('[Refresh] Could not save resolved ID:', e);
+        }
+      }
+
+      // Fetch channel data
       const response = await fetch(
-        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&id=${competitorId}&key=${apiKey}`
+        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&id=${resolvedChannelId}&key=${apiKey}`
       );
-
       const data = await response.json();
-
-      if (data.error) {
-        throw new Error(data.error.message || "Failed to fetch channel data");
-      }
-
-      if (!data.items || data.items.length === 0) {
-        throw new Error("Channel not found");
-      }
+      if (data.error) throw new Error(data.error.message || "Failed to fetch channel data");
+      if (!data.items || data.items.length === 0) throw new Error("Channel not found");
 
       const ytChannel = data.items[0];
 
@@ -626,36 +636,33 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50&key=${apiKey}`
       );
       const videosData = await videosResponse.json();
+      if (videosData.error) throw new Error(videosData.error.message || "Failed to fetch videos");
 
-      if (videosData.error) {
-        throw new Error(videosData.error.message || "Failed to fetch videos");
+      const videoIds = (videosData.items || []).map(item => item.contentDetails.videoId).join(',');
+      let videos = [];
+
+      if (videoIds) {
+        const videoDetailsResponse = await fetch(
+          `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails,snippet&id=${videoIds}&key=${apiKey}`
+        );
+        const videoDetailsData = await videoDetailsResponse.json();
+        if (videoDetailsData.error) throw new Error(videoDetailsData.error.message || "Failed to fetch video details");
+
+        videos = videoDetailsData.items.map(video => {
+          const duration = parseDuration(video.contentDetails.duration);
+          return {
+            id: video.id,
+            title: video.snippet.title,
+            thumbnail: video.snippet.thumbnails.medium.url,
+            publishedAt: video.snippet.publishedAt,
+            views: parseInt(video.statistics.viewCount) || 0,
+            likes: parseInt(video.statistics.likeCount) || 0,
+            comments: parseInt(video.statistics.commentCount) || 0,
+            duration: duration,
+            type: duration <= 60 ? 'short' : 'long'
+          };
+        });
       }
-
-      const videoIds = videosData.items.map(item => item.contentDetails.videoId).join(',');
-      const videoDetailsResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails,snippet&id=${videoIds}&key=${apiKey}`
-      );
-      const videoDetailsData = await videoDetailsResponse.json();
-
-      if (videoDetailsData.error) {
-        throw new Error(videoDetailsData.error.message || "Failed to fetch video details");
-      }
-
-      // Process videos
-      const videos = videoDetailsData.items.map(video => {
-        const duration = parseDuration(video.contentDetails.duration);
-        return {
-          id: video.id,
-          title: video.snippet.title,
-          thumbnail: video.snippet.thumbnails.medium.url,
-          publishedAt: video.snippet.publishedAt,
-          views: parseInt(video.statistics.viewCount) || 0,
-          likes: parseInt(video.statistics.likeCount) || 0,
-          comments: parseInt(video.statistics.commentCount) || 0,
-          duration: duration,
-          type: duration <= 60 ? 'short' : 'long'
-        };
-      });
 
       // Calculate stats
       const now = new Date();
@@ -669,7 +676,6 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
       const shorts = videos.filter(v => v.type === 'short');
       const longs = videos.filter(v => v.type === 'long');
-
       const shorts30d = last30Days.filter(v => v.type === 'short').length;
       const longs30d = last30Days.filter(v => v.type === 'long').length;
 
@@ -686,6 +692,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       if (localMatch) {
         const updatedLocal = {
           ...localMatch,
+          id: resolvedChannelId,
           name: ytChannel.snippet.title,
           description: ytChannel.snippet.description,
           thumbnail: ytChannel.snippet.thumbnails.default.url,
@@ -708,19 +715,16 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           contentSeries: seriesPatterns,
           videos,
           lastRefreshed: new Date().toISOString(),
-          history: [...(localMatch.history || []), historySnapshot].slice(-100),
         };
         const updated = competitors.map(c => c.id === competitorId ? updatedLocal : c);
         setCompetitors(updated);
       }
 
-      setError("");
-
       // Save to Supabase
       try {
         const { upsertChannel, upsertVideos } = await import('../../services/competitorDatabase');
         const dbChannel = await upsertChannel({
-          youtube_channel_id: competitorId,
+          youtube_channel_id: resolvedChannelId,
           name: ytChannel.snippet.title,
           description: ytChannel.snippet.description,
           thumbnail_url: ytChannel.snippet.thumbnails.default.url,
@@ -751,9 +755,10 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         console.warn('[Competitors] Supabase refresh save failed:', dbErr);
       }
     } catch (err) {
-      setError(err.message || "Failed to refresh competitor data");
+      console.error('[Refresh]', competitor.name, err);
+      setRefreshError(prev => ({ ...prev, [competitorId]: err.message }));
     } finally {
-      setLoading(false);
+      setRefreshingId(null);
     }
   };
 
@@ -2314,6 +2319,8 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                       onToggle={() => setExpandedCompetitor(expandedCompetitor === competitor.id ? null : competitor.id)}
                       onRemove={() => removeCompetitor(competitor.id)}
                       onRefresh={refreshCompetitor}
+                      isRefreshing={refreshingId === competitor.id}
+                      refreshError={refreshError[competitor.id] || null}
                       userTimezone={userTimezone}
                     />
                   ))}
@@ -2424,7 +2431,7 @@ function BenchmarkCard({ label, yourValue, competitorAvg, gap }) {
 }
 
 // Competitor Card Component
-function CompetitorCard({ competitor, isExpanded, onToggle, onRemove, onRefresh, userTimezone }) {
+function CompetitorCard({ competitor, isExpanded, onToggle, onRemove, onRefresh, isRefreshing, refreshError, userTimezone }) {
   // State for collapsible analysis sections
   const [titleSectionExpanded, setTitleSectionExpanded] = useState(false);
   const [scheduleSectionExpanded, setScheduleSectionExpanded] = useState(false);
@@ -2555,24 +2562,26 @@ function CompetitorCard({ competitor, isExpanded, onToggle, onRemove, onRefresh,
             </div>
           </div>
           <button
-            onClick={() => onRefresh(competitor.id)}
+            onClick={() => !isRefreshing && onRefresh(competitor.id)}
+            disabled={isRefreshing}
             style={{
               background: "transparent",
-              border: "1px solid #3b82f6",
+              border: `1px solid ${isRefreshing ? '#555' : '#3b82f6'}`,
               borderRadius: "6px",
               padding: "8px 12px",
-              color: "#3b82f6",
-              cursor: "pointer",
+              color: isRefreshing ? '#888' : '#3b82f6',
+              cursor: isRefreshing ? 'wait' : 'pointer',
               display: "flex",
               alignItems: "center",
               gap: "4px",
               fontSize: "12px",
-              fontWeight: "600"
+              fontWeight: "600",
+              opacity: isRefreshing ? 0.7 : 1,
             }}
-            title={growth ? `Last refreshed ${growth.lastRefreshDate} (${growth.daysSinceLastRefresh} days ago)` : "Refresh data and save snapshot"}
+            title={isRefreshing ? 'Syncing...' : growth ? `Last refreshed ${growth.lastRefreshDate} (${growth.daysSinceLastRefresh} days ago)` : "Refresh data and save snapshot"}
           >
-            <RefreshCw size={14} />
-            Refresh
+            {isRefreshing ? <Loader size={14} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={14} />}
+            {isRefreshing ? 'Syncing...' : 'Refresh'}
           </button>
           <button
             onClick={onToggle}
@@ -2619,6 +2628,21 @@ function CompetitorCard({ competitor, isExpanded, onToggle, onRemove, onRefresh,
             Remove
           </button>
         </div>
+
+        {/* Refresh error inline */}
+        {refreshError && (
+          <div style={{
+            marginTop: "8px",
+            padding: "6px 10px",
+            background: "#ef444415",
+            border: "1px solid #ef444440",
+            borderRadius: "6px",
+            color: "#ef4444",
+            fontSize: "11px",
+          }}>
+            Refresh failed: {refreshError}
+          </div>
+        )}
 
         {/* Growth Indicators Banner */}
         {growth && (
