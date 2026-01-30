@@ -23,6 +23,29 @@ const supabase = createClient(
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 
 /**
+ * Resolve a handle_ placeholder ID to a real YouTube UC channel ID.
+ * Uses the custom_url field (@handle) and the YouTube Search API.
+ * Returns the resolved UC ID, or null if resolution fails.
+ */
+async function resolveHandleToChannelId(channel, apiKey) {
+  // Extract handle from custom_url (e.g., "@SaintsUnscripted") or from the placeholder ID
+  const handle = channel.custom_url
+    || '@' + channel.youtube_channel_id.replace('handle_', '');
+
+  const cleanHandle = handle.startsWith('@') ? handle : '@' + handle;
+
+  const response = await fetch(
+    `${YOUTUBE_API_BASE}/search?part=snippet&type=channel&q=${encodeURIComponent(cleanHandle)}&maxResults=1&key=${apiKey}`
+  );
+  const data = await response.json();
+
+  if (data.error) throw new Error(data.error.message);
+  if (!data.items?.length) throw new Error(`No channel found for handle ${cleanHandle}`);
+
+  return data.items[0].snippet.channelId;
+}
+
+/**
  * Parse ISO 8601 duration to seconds
  */
 function parseDuration(duration) {
@@ -212,6 +235,53 @@ async function syncChannel(channel, apiKey) {
         : 0,
     }, { onConflict: 'channel_id,snapshot_date' });
 
+  // Create video snapshots for view velocity tracking
+  if (videos.length > 0) {
+    // Get previous video snapshots for velocity calculation
+    const videoIds = videos.map(v => v.youtube_video_id);
+    const { data: existingVideos } = await supabase
+      .from('videos')
+      .select('id, youtube_video_id')
+      .in('youtube_video_id', videoIds);
+
+    const videoIdMap = {};
+    for (const v of existingVideos || []) {
+      videoIdMap[v.youtube_video_id] = v.id;
+    }
+
+    const { data: prevSnapshots } = await supabase
+      .from('video_snapshots')
+      .select('video_id, view_count')
+      .in('video_id', Object.values(videoIdMap))
+      .eq('snapshot_date', new Date(Date.now() - 86400000).toISOString().split('T')[0]);
+
+    const prevViewMap = {};
+    for (const s of prevSnapshots || []) {
+      prevViewMap[s.video_id] = s.view_count;
+    }
+
+    const videoSnapshots = videos
+      .filter(v => videoIdMap[v.youtube_video_id])
+      .map(v => {
+        const dbId = videoIdMap[v.youtube_video_id];
+        const prevViews = prevViewMap[dbId];
+        return {
+          video_id: dbId,
+          snapshot_date: today,
+          view_count: v.view_count,
+          like_count: v.like_count,
+          comment_count: v.comment_count,
+          view_velocity: prevViews != null ? v.view_count - prevViews : null,
+        };
+      });
+
+    if (videoSnapshots.length > 0) {
+      await supabase
+        .from('video_snapshots')
+        .upsert(videoSnapshots, { onConflict: 'video_id,snapshot_date' });
+    }
+  }
+
   return videos.length;
 }
 
@@ -244,6 +314,7 @@ export default async function handler(req, res) {
   const results = {
     channels_synced: 0,
     videos_synced: 0,
+    handles_resolved: 0,
     youtube_api_calls: 0,
     errors: [],
   };
@@ -258,16 +329,52 @@ export default async function handler(req, res) {
     if (channelsError) throw channelsError;
 
     for (const channel of channels || []) {
+      let syncTarget = channel;
+
+      // Phase 1: Resolve handle_ placeholder IDs to real YouTube UC IDs
+      if (channel.youtube_channel_id.startsWith('handle_')) {
+        try {
+          const resolvedId = await resolveHandleToChannelId(channel, apiKey);
+          results.youtube_api_calls += 1; // Search API call
+
+          // Update the channel record with the real YouTube ID
+          const { error: updateError } = await supabase
+            .from('channels')
+            .update({ youtube_channel_id: resolvedId })
+            .eq('id', channel.id);
+
+          if (updateError) throw updateError;
+
+          // Use the resolved ID for sync
+          syncTarget = { ...channel, youtube_channel_id: resolvedId };
+          results.handles_resolved++;
+          console.log(`[Resolve] ${channel.name}: ${channel.youtube_channel_id} → ${resolvedId}`);
+
+          // Rate limit between handle resolutions (Search API is expensive)
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (resolveErr) {
+          // Log the error but don't crash — skip this channel for now
+          results.errors.push({
+            channel: channel.name,
+            error: `Handle resolution failed: ${resolveErr.message}`,
+          });
+          // Don't attempt sync with a handle_ ID — it will fail
+          await new Promise(resolve => setTimeout(resolve, 200));
+          continue;
+        }
+      }
+
+      // Phase 2: Sync the channel (fetch stats, videos, create snapshots)
       try {
-        const videosCount = await syncChannel(channel, apiKey);
+        const videosCount = await syncChannel(syncTarget, apiKey);
         results.channels_synced++;
         results.videos_synced += videosCount;
-        results.youtube_api_calls += 3;
+        results.youtube_api_calls += 3; // channels.list + playlistItems + videos.list
       } catch (err) {
         results.errors.push({ channel: channel.name, error: err.message });
       }
 
-      // Rate limiting
+      // Rate limiting between channels
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
@@ -290,6 +397,7 @@ export default async function handler(req, res) {
 
   return res.status(200).json({
     success: true,
+    handles_resolved: results.handles_resolved,
     ...results,
   });
 }
