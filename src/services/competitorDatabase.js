@@ -137,26 +137,30 @@ export async function getChannelByYouTubeId(youtubeChannelId) {
 export async function upsertChannel(channelData) {
   if (!supabase) throw new Error('Supabase not configured');
 
+  const record = {
+    youtube_channel_id: channelData.youtube_channel_id,
+    name: channelData.name,
+    description: channelData.description,
+    thumbnail_url: channelData.thumbnail_url,
+    custom_url: channelData.custom_url,
+    category: channelData.category,
+    tags: channelData.tags,
+    is_competitor: channelData.is_competitor ?? true,
+    client_id: channelData.client_id,
+    subscriber_count: channelData.subscriber_count,
+    total_view_count: channelData.total_view_count,
+    video_count: channelData.video_count,
+    last_synced_at: new Date().toISOString(),
+  };
+
+  // Optional metadata fields (tier, subcategory, notes)
+  if (channelData.tier !== undefined) record.tier = channelData.tier;
+  if (channelData.subcategory !== undefined) record.subcategory = channelData.subcategory;
+  if (channelData.notes !== undefined) record.notes = channelData.notes;
+
   const { data, error } = await supabase
     .from('channels')
-    .upsert(
-      {
-        youtube_channel_id: channelData.youtube_channel_id,
-        name: channelData.name,
-        description: channelData.description,
-        thumbnail_url: channelData.thumbnail_url,
-        custom_url: channelData.custom_url,
-        category: channelData.category,
-        tags: channelData.tags,
-        is_competitor: channelData.is_competitor ?? true,
-        client_id: channelData.client_id,
-        subscriber_count: channelData.subscriber_count,
-        total_view_count: channelData.total_view_count,
-        video_count: channelData.video_count,
-        last_synced_at: new Date().toISOString(),
-      },
-      { onConflict: 'youtube_channel_id' }
-    )
+    .upsert(record, { onConflict: 'youtube_channel_id' })
     .select()
     .single();
 

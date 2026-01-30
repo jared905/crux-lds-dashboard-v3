@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, Upload, Download, RefreshCw, X, Check, Zap, Loader } from "lucide-react";
 import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../../lib/competitorAnalysis";
 import { getOutlierVideos, analyzeCompetitorVideo } from '../../services/competitorInsightsService';
+import { importCompetitorDatabase } from '../../services/competitorImport';
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -48,6 +49,10 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   const [supabaseCompetitors, setSupabaseCompetitors] = useState([]);
   const [supabaseLoading, setSupabaseLoading] = useState(false);
 
+  // Database import state
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(null);
+
   // Load competitors from Supabase when activeClient or masterView changes
   useEffect(() => {
     if (!activeClient?.id && !masterView) return;
@@ -84,6 +89,33 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       console.error('[Competitors] Failed to reload from Supabase:', err);
     }
   }, [activeClient?.id, masterView]);
+
+  // Import competitor database from curated channel list
+  const handleImportDatabase = useCallback(async () => {
+    if (!activeClient?.id) {
+      setError('No active client selected');
+      return;
+    }
+    setImporting(true);
+    setImportProgress({ current: 0, total: 44, name: 'Starting...' });
+    try {
+      const results = await importCompetitorDatabase(activeClient.id, {
+        onProgress: (current, total, name) => {
+          setImportProgress({ current, total, name });
+        },
+      });
+      setImportProgress(null);
+      await reloadSupabaseCompetitors();
+      if (results.errors.length > 0) {
+        setError(`Imported ${results.imported} channels with ${results.errors.length} errors. Check console for details.`);
+      }
+    } catch (err) {
+      console.error('[Import] Failed:', err);
+      setError(`Import failed: ${err.message}`);
+    } finally {
+      setImporting(false);
+    }
+  }, [activeClient?.id, reloadSupabaseCompetitors]);
 
   // One-time migration: localStorage competitors → Supabase with client_id
   useEffect(() => {
@@ -753,6 +785,10 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           videoCount: ch.video_count || 0,
           viewCount: ch.total_view_count || 0,
           category: ch.category,
+          tags: ch.tags || [],
+          tier: ch.tier || (ch.tags || []).find(t => t.startsWith('tier:'))?.split(':')[1] || null,
+          subcategory: ch.subcategory || (ch.tags || []).find(t => t.startsWith('subcategory:'))?.split(':')[1] || null,
+          notes: ch.notes || null,
           client_id: ch.client_id,
           supabaseId: ch.id,
         };
@@ -945,6 +981,46 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                 }}
               />
             </div>
+            {/* Import Database Button */}
+            {activeClient?.id && activeCompetitors.length === 0 && !importing && (
+              <button
+                onClick={handleImportDatabase}
+                style={{
+                  background: "rgba(139, 92, 246, 0.15)",
+                  border: "1px solid #8b5cf6",
+                  borderRadius: "8px",
+                  padding: "10px 16px",
+                  color: "#a78bfa",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Download size={16} />
+                Import Database
+              </button>
+            )}
+            {importing && importProgress && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "10px 16px",
+                background: "rgba(139, 92, 246, 0.1)",
+                border: "1px solid #8b5cf630",
+                borderRadius: "8px",
+                fontSize: "12px",
+                color: "#a78bfa",
+                whiteSpace: "nowrap",
+              }}>
+                <Loader size={14} style={{ animation: "spin 1s linear infinite" }} />
+                Importing {importProgress.current}/{importProgress.total}: {importProgress.name}
+              </div>
+            )}
             <button
               onClick={() => setShowApiKeyInput(!showApiKeyInput)}
               style={{
@@ -1463,8 +1539,33 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                         >
                           {competitor.name}
                         </a>
-                        <div style={{ fontSize: "11px", color: "#666" }}>
+                        <div style={{ fontSize: "11px", color: "#666", display: "flex", alignItems: "center", gap: "8px" }}>
                           {fmtInt(competitor.subscriberCount)} subscribers
+                          {competitor.category && (
+                            <span style={{
+                              fontSize: "9px",
+                              fontWeight: "600",
+                              textTransform: "uppercase",
+                              color: "#a78bfa",
+                              background: "rgba(139, 92, 246, 0.1)",
+                              padding: "1px 6px",
+                              borderRadius: "3px",
+                              letterSpacing: "0.5px",
+                            }}>
+                              {competitor.category}
+                            </span>
+                          )}
+                          {competitor.tier && (
+                            <span style={{
+                              fontSize: "9px",
+                              fontWeight: "600",
+                              textTransform: "uppercase",
+                              color: competitor.tier === 'primary' ? '#10b981' : competitor.tier === 'secondary' ? '#f59e0b' : '#6b7280',
+                              letterSpacing: "0.5px",
+                            }}>
+                              {competitor.tier}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
