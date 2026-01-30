@@ -181,7 +181,7 @@ async function fetchChannelVideos(uploadsPlaylistId, apiKey, maxResults = 200) {
 /**
  * Add a new competitor channel
  */
-export async function addCompetitor(input, { category, tags } = {}) {
+export async function addCompetitor(input, { category, tags, clientId } = {}) {
   const apiKey = getYouTubeApiKey();
   if (!apiKey) throw new Error('YouTube API key not configured');
 
@@ -203,6 +203,7 @@ export async function addCompetitor(input, { category, tags } = {}) {
     category,
     tags,
     is_competitor: true,
+    client_id: clientId || null,
   });
 
   // Fetch and save recent videos
@@ -291,7 +292,7 @@ export async function syncChannel(channelId) {
 /**
  * Sync all tracked channels in parallel batches
  */
-export async function syncAllChannels({ onProgress, batchSize = 5 } = {}) {
+export async function syncAllChannels({ onProgress, batchSize = 5, clientId } = {}) {
   const apiKey = getYouTubeApiKey();
   if (!apiKey) throw new Error('YouTube API key not configured');
 
@@ -306,8 +307,8 @@ export async function syncAllChannels({ onProgress, batchSize = 5 } = {}) {
   };
 
   try {
-    // Get all channels with sync enabled
-    const channels = await getChannels();
+    // Get channels, optionally filtered by client
+    const channels = await getChannels(clientId ? { clientId } : {});
     const syncableChannels = channels.filter(c => c.sync_enabled !== false);
 
     // Process in parallel batches

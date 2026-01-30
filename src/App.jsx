@@ -26,6 +26,7 @@ import CommentAnalysis from "./components/Research/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContentIntelligence.jsx";
 import AIExecutiveSummary from "./components/Performance/AIExecutiveSummary.jsx";
 import Atomizer from "./components/ContentLab/Atomizer.jsx";
+import VideoIdeaGenerator from "./components/ContentLab/VideoIdeaGenerator.jsx";
 import BriefsList from "./components/Strategy/BriefsList.jsx";
 import UserManagement from "./components/Admin/UserManagement.jsx";
 
@@ -677,6 +678,7 @@ export default function App() {
             {tab === "actions" && (
               <UnifiedStrategy
                 rows={filtered}
+                activeClient={activeClient}
                 channelSubscriberCount={
                   channelStats?.subscriberCount
                   || activeClient?.subscriberCount
@@ -686,7 +688,11 @@ export default function App() {
             )}
 
             {tab === "competitors" && (
-              <CompetitorAnalysis rows={filtered} />
+              <CompetitorAnalysis rows={filtered} activeClient={activeClient} />
+            )}
+
+            {tab === "ideation" && (
+              <VideoIdeaGenerator data={filtered} activeClient={activeClient} />
             )}
 
             {tab === "intelligence" && (

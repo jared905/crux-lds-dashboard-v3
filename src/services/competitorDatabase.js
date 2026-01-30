@@ -637,7 +637,7 @@ export async function getTitlePatternPerformance({ category, days = 90 } = {}) {
 /**
  * Migrate existing localStorage competitors to Supabase
  */
-export async function migrateFromLocalStorage() {
+export async function migrateFromLocalStorage(clientId) {
   if (!supabase) throw new Error('Supabase not configured');
 
   const existingCompetitors = JSON.parse(localStorage.getItem('competitors') || '[]');
@@ -660,6 +660,8 @@ export async function migrateFromLocalStorage() {
         total_view_count: competitor.viewCount,
         video_count: competitor.videoCount,
         category: competitor.category,
+        is_competitor: true,
+        client_id: clientId || null,
       });
 
       // Upsert videos

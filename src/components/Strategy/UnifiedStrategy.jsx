@@ -13,7 +13,7 @@ const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
  * Combines Diagnostics + Strategist + Dynamic Action Items
  * Creates a clear narrative: What to do next and in what order
  */
-export default function UnifiedStrategy({ rows, channelSubscriberCount = 0 }) {
+export default function UnifiedStrategy({ rows, activeClient, channelSubscriberCount = 0 }) {
   // Generate action items from GROW quadrant patterns
   const actionItems = useMemo(() => {
     if (!rows || rows.length === 0) return [];

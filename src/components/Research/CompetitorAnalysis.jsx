@@ -1,10 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, FolderOpen, Upload, Download, RefreshCw, Edit2, X, Check, Zap, Loader } from "lucide-react";
+import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, Upload, Download, RefreshCw, X, Check, Zap, Loader } from "lucide-react";
 import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../../lib/competitorAnalysis";
-import CompetitorDatabasePanel from "./CompetitorDatabasePanel";
-import CategoryManager from "./CategoryManager";
-import ChannelCategoryManager from "./ChannelCategoryManager";
-import AnalysisSelector from "./AnalysisSelector";
 import { getOutlierVideos, analyzeCompetitorVideo } from '../../services/competitorInsightsService';
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
@@ -16,29 +12,11 @@ const fmtDuration = (seconds) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-export default function CompetitorAnalysis({ rows }) {
+export default function CompetitorAnalysis({ rows, activeClient }) {
   const [apiKey, setApiKey] = useState(localStorage.getItem('yt_api_key') || "");
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
-  // Load profiles and categories from localStorage
-  const [profiles, setProfiles] = useState(() => {
-    const saved = localStorage.getItem('competitor_profiles');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [categories, setCategories] = useState(() => {
-    const saved = localStorage.getItem('competitor_categories');
-    return saved ? JSON.parse(saved) : [
-      { id: 'religious', name: 'Religious', color: '#3b82f6' },
-      { id: 'financial', name: 'Financial', color: '#10b981' },
-      { id: 'worship', name: 'Worship Music', color: '#ec4899' }
-    ];
-  });
-
-  const [activeProfile, setActiveProfile] = useState(() => {
-    return localStorage.getItem('active_profile') || null;
-  });
-
+  // localStorage competitors kept for migration/fallback only
   const [competitors, setCompetitors] = useState(() => {
     const saved = localStorage.getItem('competitors');
     return saved ? JSON.parse(saved) : [];
@@ -53,10 +31,6 @@ export default function CompetitorAnalysis({ rows }) {
     return saved || Intl.DateTimeFormat().resolvedOptions().timeZone;
   });
 
-  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
-  const [editingProfileId, setEditingProfileId] = useState(null);
-  const [newProfileName, setNewProfileName] = useState("");
-  const [selectedCategories, setSelectedCategories] = useState([]);
 
   // Outlier detection state
   const [outliers, setOutliers] = useState([]);
@@ -68,6 +42,101 @@ export default function CompetitorAnalysis({ rows }) {
   const [selectedOutlier, setSelectedOutlier] = useState(null);
   const [insightData, setInsightData] = useState(null);
   const [insightLoading, setInsightLoading] = useState(false);
+
+  // Client-scoped Supabase state
+  const [masterView, setMasterView] = useState(false);
+  const [supabaseCompetitors, setSupabaseCompetitors] = useState([]);
+  const [supabaseLoading, setSupabaseLoading] = useState(false);
+
+  // Load competitors from Supabase when activeClient or masterView changes
+  useEffect(() => {
+    if (!activeClient?.id && !masterView) return;
+
+    const loadFromSupabase = async () => {
+      setSupabaseLoading(true);
+      try {
+        const { getChannels } = await import('../../services/competitorDatabase');
+        const channels = await getChannels({
+          clientId: masterView ? undefined : activeClient?.id,
+          isCompetitor: true
+        });
+        setSupabaseCompetitors(channels || []);
+      } catch (err) {
+        console.error('[Competitors] Failed to load from Supabase:', err);
+      } finally {
+        setSupabaseLoading(false);
+      }
+    };
+
+    loadFromSupabase();
+  }, [activeClient?.id, masterView]);
+
+  // Helper to reload Supabase competitors after mutations
+  const reloadSupabaseCompetitors = useCallback(async () => {
+    try {
+      const { getChannels } = await import('../../services/competitorDatabase');
+      const channels = await getChannels({
+        clientId: masterView ? undefined : activeClient?.id,
+        isCompetitor: true
+      });
+      setSupabaseCompetitors(channels || []);
+    } catch (err) {
+      console.error('[Competitors] Failed to reload from Supabase:', err);
+    }
+  }, [activeClient?.id, masterView]);
+
+  // One-time migration: localStorage competitors → Supabase with client_id
+  useEffect(() => {
+    if (!activeClient?.id) return;
+    const migrationKey = `competitors_migrated_${activeClient.id}`;
+    if (localStorage.getItem(migrationKey)) return;
+
+    const localCompetitors = JSON.parse(localStorage.getItem('competitors') || '[]');
+    if (localCompetitors.length === 0) return;
+
+    const migrate = async () => {
+      try {
+        const { upsertChannel, upsertVideos } = await import('../../services/competitorDatabase');
+
+        for (const comp of localCompetitors) {
+          const channel = await upsertChannel({
+            youtube_channel_id: comp.id,
+            name: comp.name,
+            description: comp.description,
+            thumbnail_url: comp.thumbnail,
+            subscriber_count: comp.subscriberCount,
+            total_view_count: comp.viewCount,
+            video_count: comp.videoCount,
+            is_competitor: true,
+            client_id: activeClient.id,
+            category: comp.category,
+          });
+
+          if (comp.videos?.length && channel?.id) {
+            const videosToUpsert = comp.videos.map(v => ({
+              youtube_video_id: v.id,
+              title: v.title,
+              thumbnail_url: v.thumbnail,
+              published_at: v.publishedAt,
+              duration_seconds: v.duration,
+              view_count: v.views,
+              like_count: v.likes,
+              comment_count: v.comments,
+            }));
+            await upsertVideos(videosToUpsert, channel.id);
+          }
+        }
+
+        localStorage.setItem(migrationKey, 'true');
+        console.log(`[Migration] Migrated ${localCompetitors.length} competitors for client ${activeClient.name}`);
+        await reloadSupabaseCompetitors();
+      } catch (err) {
+        console.error('[Migration] Failed:', err);
+      }
+    };
+
+    migrate();
+  }, [activeClient?.id, activeClient?.name, reloadSupabaseCompetitors]);
 
   // Calculate your channel stats
   const yourStats = useMemo(() => {
@@ -332,10 +401,42 @@ export default function CompetitorAnalysis({ rows }) {
 
       const updated = [...competitors, competitorData];
       setCompetitors(updated);
-      localStorage.setItem('competitors', JSON.stringify(updated));
-      syncCompetitorsToProfile(updated);
       setNewCompetitor("");
       setError("");
+
+      // Also save to Supabase with client_id
+      try {
+        const { upsertChannel, upsertVideos } = await import('../../services/competitorDatabase');
+        const channel = await upsertChannel({
+          youtube_channel_id: competitorData.id,
+          name: competitorData.name,
+          description: competitorData.description,
+          thumbnail_url: competitorData.thumbnail,
+          subscriber_count: competitorData.subscriberCount,
+          total_view_count: competitorData.viewCount,
+          video_count: competitorData.videoCount,
+          is_competitor: true,
+          client_id: activeClient?.id || null,
+        });
+
+        if (competitorData.videos?.length && channel?.id) {
+          const videosToUpsert = competitorData.videos.map(v => ({
+            youtube_video_id: v.id,
+            title: v.title,
+            thumbnail_url: v.thumbnail,
+            published_at: v.publishedAt,
+            duration_seconds: v.duration,
+            view_count: v.views,
+            like_count: v.likes,
+            comment_count: v.comments,
+          }));
+          await upsertVideos(videosToUpsert, channel.id);
+        }
+
+        await reloadSupabaseCompetitors();
+      } catch (dbErr) {
+        console.warn('[Competitors] Supabase save failed (localStorage still valid):', dbErr);
+      }
     } catch (err) {
       setError(err.message || "Failed to add competitor. Please check the URL and API key.");
     } finally {
@@ -391,100 +492,24 @@ export default function CompetitorAnalysis({ rows }) {
   };
 
   // Remove competitor
-  const removeCompetitor = (id) => {
+  const removeCompetitor = async (id) => {
     const updated = competitors.filter(c => c.id !== id);
     setCompetitors(updated);
-    localStorage.setItem('competitors', JSON.stringify(updated));
-    syncCompetitorsToProfile(updated);
     if (expandedCompetitor === id) {
       setExpandedCompetitor(null);
     }
-  };
 
-  // Profile Management Functions
-  const createNewProfile = (name) => {
-    if (!name || !name.trim()) {
-      setError("Please enter a profile name");
-      return;
+    // Also remove from Supabase
+    try {
+      const { getChannelByYouTubeId, deleteChannel } = await import('../../services/competitorDatabase');
+      const channel = await getChannelByYouTubeId(id);
+      if (channel?.id) {
+        await deleteChannel(channel.id);
+      }
+      await reloadSupabaseCompetitors();
+    } catch (dbErr) {
+      console.warn('[Competitors] Supabase delete failed:', dbErr);
     }
-
-    const newProfile = {
-      id: Date.now().toString(),
-      name: name.trim(),
-      competitors: [],
-      createdAt: new Date().toISOString(),
-      competitorCount: 0
-    };
-
-    const updated = [...profiles, newProfile];
-    setProfiles(updated);
-    localStorage.setItem('competitor_profiles', JSON.stringify(updated));
-
-    // Switch to the new profile
-    setCompetitors([]);
-    localStorage.setItem('competitors', JSON.stringify([]));
-    setActiveProfile(newProfile.id);
-    localStorage.setItem('active_profile', newProfile.id);
-
-    setNewProfileName("");
-    setIsCreatingProfile(false);
-    setError("");
-  };
-
-  const loadProfile = (profileId) => {
-    const profile = profiles.find(p => p.id === profileId);
-    if (!profile) return;
-
-    setCompetitors(profile.competitors || []);
-    localStorage.setItem('competitors', JSON.stringify(profile.competitors || []));
-    setActiveProfile(profileId);
-    localStorage.setItem('active_profile', profileId);
-    setError("");
-  };
-
-  const renameProfile = (profileId, newName) => {
-    if (!newName || !newName.trim()) return;
-
-    const updated = profiles.map(p =>
-      p.id === profileId
-        ? { ...p, name: newName.trim(), updatedAt: new Date().toISOString() }
-        : p
-    );
-    setProfiles(updated);
-    localStorage.setItem('competitor_profiles', JSON.stringify(updated));
-    setEditingProfileId(null);
-    setNewProfileName("");
-  };
-
-  const deleteProfile = (profileId) => {
-    const updated = profiles.filter(p => p.id !== profileId);
-    setProfiles(updated);
-    localStorage.setItem('competitor_profiles', JSON.stringify(updated));
-
-    if (activeProfile === profileId) {
-      setActiveProfile(null);
-      localStorage.removeItem('active_profile');
-      setCompetitors([]);
-      localStorage.setItem('competitors', JSON.stringify([]));
-    }
-  };
-
-  // Auto-sync competitors to active profile
-  const syncCompetitorsToProfile = (updatedCompetitors) => {
-    if (!activeProfile) return;
-
-    const updated = profiles.map(p =>
-      p.id === activeProfile
-        ? {
-            ...p,
-            competitors: updatedCompetitors,
-            competitorCount: updatedCompetitors.length,
-            updatedAt: new Date().toISOString()
-          }
-        : p
-    );
-    setProfiles(updated);
-    localStorage.setItem('competitor_profiles', JSON.stringify(updated));
   };
 
   // Refresh competitor data with historical snapshot
@@ -614,8 +639,41 @@ export default function CompetitorAnalysis({ rows }) {
 
       const updated = competitors.map(c => c.id === competitorId ? updatedCompetitor : c);
       setCompetitors(updated);
-      localStorage.setItem('competitors', JSON.stringify(updated));
       setError("");
+
+      // Also update in Supabase
+      try {
+        const { upsertChannel, upsertVideos } = await import('../../services/competitorDatabase');
+        const channel = await upsertChannel({
+          youtube_channel_id: updatedCompetitor.id,
+          name: updatedCompetitor.name,
+          description: updatedCompetitor.description,
+          thumbnail_url: updatedCompetitor.thumbnail,
+          subscriber_count: updatedCompetitor.subscriberCount,
+          total_view_count: updatedCompetitor.viewCount,
+          video_count: updatedCompetitor.videoCount,
+          is_competitor: true,
+          client_id: activeClient?.id || null,
+        });
+
+        if (updatedCompetitor.videos?.length && channel?.id) {
+          const videosToUpsert = updatedCompetitor.videos.map(v => ({
+            youtube_video_id: v.id,
+            title: v.title,
+            thumbnail_url: v.thumbnail,
+            published_at: v.publishedAt,
+            duration_seconds: v.duration,
+            view_count: v.views,
+            like_count: v.likes,
+            comment_count: v.comments,
+          }));
+          await upsertVideos(videosToUpsert, channel.id);
+        }
+
+        await reloadSupabaseCompetitors();
+      } catch (dbErr) {
+        console.warn('[Competitors] Supabase refresh save failed:', dbErr);
+      }
     } catch (err) {
       setError(err.message || "Failed to refresh competitor data");
     } finally {
@@ -658,17 +716,62 @@ export default function CompetitorAnalysis({ rows }) {
     reader.readAsText(file);
   };
 
+  // Derive the active competitor list based on view mode
+  // In master view: use Supabase data (all clients). In client view: prefer Supabase, fallback to localStorage
+  const activeCompetitors = useMemo(() => {
+    if (supabaseCompetitors.length > 0) {
+      return supabaseCompetitors.map(ch => {
+        // Base defaults for fields not stored in Supabase
+        const defaults = {
+          uploadsLast30Days: 0,
+          uploadsLast60Days: 0,
+          uploadsLast90Days: 0,
+          shortsCount: 0,
+          longsCount: 0,
+          shorts30d: 0,
+          longs30d: 0,
+          avgViewsPerVideo: ch.video_count > 0 ? (ch.total_view_count || 0) / ch.video_count : 0,
+          avgShortsViews: 0,
+          avgLongsViews: 0,
+          engagementRate: 0,
+          uploadFrequency: 0,
+          topVideos: [],
+          contentSeries: [],
+          videos: [],
+        };
+        // Merge: defaults < localStorage enrichment < Supabase identity
+        const localMatch = competitors.find(lc => lc.id === ch.youtube_channel_id) || {};
+        return {
+          ...defaults,
+          ...localMatch,
+          // Supabase fields always win for identity/metadata
+          id: ch.youtube_channel_id,
+          name: ch.name,
+          description: ch.description,
+          thumbnail: ch.thumbnail_url,
+          subscriberCount: ch.subscriber_count || 0,
+          videoCount: ch.video_count || 0,
+          viewCount: ch.total_view_count || 0,
+          category: ch.category,
+          client_id: ch.client_id,
+          supabaseId: ch.id,
+        };
+      });
+    }
+    return competitors;
+  }, [supabaseCompetitors, competitors]);
+
   // Calculate benchmarks
   const benchmarks = useMemo(() => {
-    if (competitors.length === 0 || !yourStats) return null;
+    if (activeCompetitors.length === 0 || !yourStats) return null;
 
-    const avgCompetitorSubs = competitors.reduce((s, c) => s + c.subscriberCount, 0) / competitors.length;
-    const avgCompetitorVideos = competitors.reduce((s, c) => s + c.videoCount, 0) / competitors.length;
-    const avgCompetitorViews = competitors.reduce((s, c) => s + c.avgViewsPerVideo, 0) / competitors.length;
-    const avgCompetitorFrequency = competitors.reduce((s, c) => s + c.uploadsLast30Days, 0) / competitors.length;
-    const avgCompetitorShorts = competitors.reduce((s, c) => s + c.shorts30d, 0) / competitors.length;
-    const avgCompetitorLongs = competitors.reduce((s, c) => s + c.longs30d, 0) / competitors.length;
-    const avgCompetitorEngagement = competitors.reduce((s, c) => s + c.engagementRate, 0) / competitors.length;
+    const avgCompetitorSubs = activeCompetitors.reduce((s, c) => s + c.subscriberCount, 0) / activeCompetitors.length;
+    const avgCompetitorVideos = activeCompetitors.reduce((s, c) => s + c.videoCount, 0) / activeCompetitors.length;
+    const avgCompetitorViews = activeCompetitors.reduce((s, c) => s + c.avgViewsPerVideo, 0) / activeCompetitors.length;
+    const avgCompetitorFrequency = activeCompetitors.reduce((s, c) => s + c.uploadsLast30Days, 0) / activeCompetitors.length;
+    const avgCompetitorShorts = activeCompetitors.reduce((s, c) => s + c.shorts30d, 0) / activeCompetitors.length;
+    const avgCompetitorLongs = activeCompetitors.reduce((s, c) => s + c.longs30d, 0) / activeCompetitors.length;
+    const avgCompetitorEngagement = activeCompetitors.reduce((s, c) => s + c.engagementRate, 0) / activeCompetitors.length;
 
     return {
       subscriberGap: ((yourStats.totalSubscribers - avgCompetitorSubs) / Math.max(avgCompetitorSubs, 1)) * 100,
@@ -685,16 +788,16 @@ export default function CompetitorAnalysis({ rows }) {
       avgCompetitorLongs,
       avgCompetitorEngagement
     };
-  }, [competitors, yourStats]);
+  }, [activeCompetitors, yourStats]);
 
   // Strategic insights
   const insights = useMemo(() => {
-    if (competitors.length === 0) return [];
+    if (activeCompetitors.length === 0) return [];
 
     const allInsights = [];
 
     // Analyze upload frequency
-    const highFreqCompetitors = competitors.filter(c => c.uploadsLast30Days > 10);
+    const highFreqCompetitors = activeCompetitors.filter(c => c.uploadsLast30Days > 10);
     if (highFreqCompetitors.length > 0 && yourStats && yourStats.videosLast30Days < 10) {
       allInsights.push({
         type: "Upload Velocity",
@@ -705,18 +808,18 @@ export default function CompetitorAnalysis({ rows }) {
     }
 
     // Analyze shorts vs long-form strategy
-    const shortsHeavyCompetitors = competitors.filter(c => c.shorts30d > c.longs30d * 2);
-    if (shortsHeavyCompetitors.length >= competitors.length / 2) {
+    const shortsHeavyCompetitors = activeCompetitors.filter(c => c.shorts30d > c.longs30d * 2);
+    if (shortsHeavyCompetitors.length >= activeCompetitors.length / 2) {
       allInsights.push({
         type: "Format Strategy",
-        insight: `${shortsHeavyCompetitors.length} of ${competitors.length} competitors heavily favor Shorts (avg ${fmtInt(shortsHeavyCompetitors.reduce((s, c) => s + c.shorts30d, 0) / shortsHeavyCompetitors.length)} shorts vs ${fmtInt(shortsHeavyCompetitors.reduce((s, c) => s + c.longs30d, 0) / shortsHeavyCompetitors.length)} long-form/month).`,
+        insight: `${shortsHeavyCompetitors.length} of ${activeCompetitors.length} competitors heavily favor Shorts (avg ${fmtInt(shortsHeavyCompetitors.reduce((s, c) => s + c.shorts30d, 0) / shortsHeavyCompetitors.length)} shorts vs ${fmtInt(shortsHeavyCompetitors.reduce((s, c) => s + c.longs30d, 0) / shortsHeavyCompetitors.length)} long-form/month).`,
         severity: "info",
         icon: "📱"
       });
     }
 
     // Analyze content series
-    const seriesCompetitors = competitors.filter(c => c.contentSeries && c.contentSeries.length > 0);
+    const seriesCompetitors = activeCompetitors.filter(c => c.contentSeries && c.contentSeries.length > 0);
     if (seriesCompetitors.length > 0) {
       const topSeries = seriesCompetitors
         .flatMap(c => c.contentSeries)
@@ -732,7 +835,7 @@ export default function CompetitorAnalysis({ rows }) {
 
     // Analyze engagement
     if (benchmarks) {
-      const highEngagement = competitors.filter(c => c.engagementRate > benchmarks.avgCompetitorEngagement * 1.2);
+      const highEngagement = activeCompetitors.filter(c => c.engagementRate > benchmarks.avgCompetitorEngagement * 1.2);
       if (highEngagement.length > 0) {
         allInsights.push({
           type: "Engagement",
@@ -744,22 +847,10 @@ export default function CompetitorAnalysis({ rows }) {
     }
 
     return allInsights;
-  }, [competitors, yourStats, benchmarks]);
+  }, [activeCompetitors, yourStats, benchmarks]);
 
   return (
     <div style={{ padding: "0" }}>
-      {/* Database Status Panel */}
-      <CompetitorDatabasePanel />
-
-      {/* Category Manager */}
-      <CategoryManager />
-
-      {/* Channel Category Assignments */}
-      <ChannelCategoryManager />
-
-      {/* Analysis Selector with Presets */}
-      <AnalysisSelector onSelectionChange={(selection) => console.log('Selection:', selection)} />
-
       {/* Header */}
       <div style={{
         background: "#1E1E1E",
@@ -769,13 +860,44 @@ export default function CompetitorAnalysis({ rows }) {
         marginBottom: "24px"
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-          <div>
-            <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff", marginBottom: "6px" }}>
-              Competitor Analysis
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <div>
+              <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff", marginBottom: "6px" }}>
+                Competitor Analysis
+              </div>
+              <div style={{ fontSize: "12px", color: "#888" }}>
+                {masterView
+                  ? "Viewing all competitors across all clients"
+                  : `Competitors for ${activeClient?.name || 'current client'}`
+                }
+              </div>
             </div>
-            <div style={{ fontSize: "12px", color: "#888" }}>
-              Track and benchmark against competitor channels using YouTube Data API
-            </div>
+
+            {/* Master View Toggle */}
+            <button
+              onClick={() => setMasterView(!masterView)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 16px",
+                background: masterView ? "rgba(139, 92, 246, 0.15)" : "#252525",
+                border: `1px solid ${masterView ? "#8b5cf6" : "#444"}`,
+                borderRadius: "8px",
+                color: masterView ? "#a78bfa" : "#9E9E9E",
+                fontSize: "13px",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <Eye size={14} />
+              {masterView ? "Master View" : "Client View"}
+            </button>
+            {supabaseLoading && (
+              <Loader size={16} style={{ color: "#888", animation: "spin 1s linear infinite" }} />
+            )}
           </div>
           <div style={{ display: "flex", gap: "12px" }}>
             {/* Timezone Selector */}
@@ -896,333 +1018,8 @@ export default function CompetitorAnalysis({ rows }) {
           </div>
         )}
 
-        {/* Profile Tab Bar */}
-        <div style={{
-          background: "#252525",
-          border: "1px solid #333",
-          borderRadius: "8px",
-          padding: "12px 16px",
-          marginBottom: "16px"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-            {profiles.map(profile => (
-              <button
-                key={profile.id}
-                onClick={() => loadProfile(profile.id)}
-                style={{
-                  background: activeProfile === profile.id ? "#3b82f6" : "#1E1E1E",
-                  border: `1px solid ${activeProfile === profile.id ? "#3b82f6" : "#444"}`,
-                  borderRadius: "6px",
-                  padding: "8px 14px",
-                  color: activeProfile === profile.id ? "#fff" : "#aaa",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  transition: "all 0.15s ease"
-                }}
-              >
-                <FolderOpen size={14} />
-                {profile.name}
-                <span style={{
-                  background: activeProfile === profile.id ? "rgba(255,255,255,0.2)" : "#333",
-                  padding: "2px 6px",
-                  borderRadius: "4px",
-                  fontSize: "11px",
-                  color: activeProfile === profile.id ? "#fff" : "#888"
-                }}>
-                  {profile.competitorCount || 0}
-                </span>
-              </button>
-            ))}
-
-            {/* New Profile Button / Inline Input */}
-            {isCreatingProfile ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <input
-                  autoFocus
-                  type="text"
-                  value={newProfileName}
-                  onChange={(e) => setNewProfileName(e.target.value)}
-                  placeholder="Profile name..."
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && newProfileName.trim()) {
-                      createNewProfile(newProfileName);
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      setIsCreatingProfile(false);
-                      setNewProfileName("");
-                    }
-                  }}
-                  style={{
-                    background: "#1E1E1E",
-                    border: "1px solid #3b82f6",
-                    borderRadius: "6px",
-                    padding: "8px 12px",
-                    color: "#fff",
-                    fontSize: "13px",
-                    width: "160px"
-                  }}
-                />
-                <button
-                  onClick={() => newProfileName.trim() && createNewProfile(newProfileName)}
-                  style={{
-                    background: "#10b981",
-                    border: "none",
-                    borderRadius: "6px",
-                    padding: "8px",
-                    color: "#fff",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center"
-                  }}
-                >
-                  <Check size={16} />
-                </button>
-                <button
-                  onClick={() => {
-                    setIsCreatingProfile(false);
-                    setNewProfileName("");
-                  }}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid #555",
-                    borderRadius: "6px",
-                    padding: "8px",
-                    color: "#888",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center"
-                  }}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setIsCreatingProfile(true)}
-                style={{
-                  background: "transparent",
-                  border: "1px dashed #555",
-                  borderRadius: "6px",
-                  padding: "8px 14px",
-                  color: "#888",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  transition: "all 0.15s ease"
-                }}
-              >
-                <Plus size={14} />
-                New Profile
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Profile Header - shows when a profile is active */}
-        {activeProfile && profiles.find(p => p.id === activeProfile) && (
-          <div style={{
-            background: "#1E1E1E",
-            border: "1px solid #333",
-            borderRadius: "8px",
-            padding: "12px 16px",
-            marginBottom: "16px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center"
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              {editingProfileId === activeProfile ? (
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <input
-                    autoFocus
-                    type="text"
-                    value={newProfileName}
-                    onChange={(e) => setNewProfileName(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' && newProfileName.trim()) {
-                        renameProfile(activeProfile, newProfileName);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setEditingProfileId(null);
-                        setNewProfileName("");
-                      }
-                    }}
-                    style={{
-                      background: "#252525",
-                      border: "1px solid #3b82f6",
-                      borderRadius: "4px",
-                      padding: "6px 10px",
-                      color: "#fff",
-                      fontSize: "14px",
-                      fontWeight: "600"
-                    }}
-                  />
-                  <button
-                    onClick={() => newProfileName.trim() && renameProfile(activeProfile, newProfileName)}
-                    style={{
-                      background: "#10b981",
-                      border: "none",
-                      borderRadius: "4px",
-                      padding: "6px",
-                      color: "#fff",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center"
-                    }}
-                  >
-                    <Check size={14} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEditingProfileId(null);
-                      setNewProfileName("");
-                    }}
-                    style={{
-                      background: "transparent",
-                      border: "1px solid #555",
-                      borderRadius: "4px",
-                      padding: "6px",
-                      color: "#888",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center"
-                    }}
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <span style={{ fontSize: "15px", fontWeight: "600", color: "#fff" }}>
-                    {profiles.find(p => p.id === activeProfile)?.name}
-                  </span>
-                  <span style={{ fontSize: "12px", color: "#888" }}>
-                    {competitors.length} competitor{competitors.length !== 1 ? 's' : ''}
-                  </span>
-                </>
-              )}
-            </div>
-            {editingProfileId !== activeProfile && (
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button
-                  onClick={() => {
-                    setEditingProfileId(activeProfile);
-                    setNewProfileName(profiles.find(p => p.id === activeProfile)?.name || "");
-                  }}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid #555",
-                    borderRadius: "6px",
-                    padding: "6px 12px",
-                    color: "#888",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px"
-                  }}
-                >
-                  <Edit2 size={12} />
-                  Rename
-                </button>
-                <button
-                  onClick={() => {
-                    if (window.confirm(`Delete profile "${profiles.find(p => p.id === activeProfile)?.name}"? This cannot be undone.`)) {
-                      deleteProfile(activeProfile);
-                    }
-                  }}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid #ef4444",
-                    borderRadius: "6px",
-                    padding: "6px 12px",
-                    color: "#ef4444",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px"
-                  }}
-                >
-                  <Trash2 size={12} />
-                  Delete
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Empty State - No profile selected */}
-        {!activeProfile && profiles.length > 0 && (
-          <div style={{
-            background: "#1E1E1E",
-            border: "1px solid #333",
-            borderRadius: "8px",
-            padding: "32px",
-            marginBottom: "16px",
-            textAlign: "center"
-          }}>
-            <FolderOpen size={32} style={{ color: "#555", marginBottom: "12px" }} />
-            <div style={{ fontSize: "14px", color: "#888", marginBottom: "8px" }}>
-              Select a profile above to view and manage competitors
-            </div>
-          </div>
-        )}
-
-        {/* Empty State - No profiles exist */}
-        {profiles.length === 0 && (
-          <div style={{
-            background: "#1E1E1E",
-            border: "1px solid #333",
-            borderRadius: "8px",
-            padding: "32px",
-            marginBottom: "16px",
-            textAlign: "center"
-          }}>
-            <Users size={32} style={{ color: "#555", marginBottom: "12px" }} />
-            <div style={{ fontSize: "15px", fontWeight: "600", color: "#fff", marginBottom: "8px" }}>
-              Create your first competitor profile
-            </div>
-            <div style={{ fontSize: "13px", color: "#888", marginBottom: "16px" }}>
-              Profiles help you organize competitors by client or industry
-            </div>
-            <button
-              onClick={() => setIsCreatingProfile(true)}
-              style={{
-                background: "#3b82f6",
-                border: "none",
-                borderRadius: "8px",
-                padding: "12px 24px",
-                color: "#fff",
-                fontSize: "14px",
-                fontWeight: "600",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px"
-              }}
-            >
-              <Plus size={18} />
-              Create Profile
-            </button>
-          </div>
-        )}
-
-        {/* Add Competitor - Only show when a profile is active */}
-        {activeProfile && (
+        {/* Add Competitor */}
+        {!masterView && (
           <div style={{
             background: "#252525",
             border: "1px solid #333",
@@ -1295,8 +1092,8 @@ export default function CompetitorAnalysis({ rows }) {
         </div>
         )}
 
-        {/* Import/Export - Only show when a profile is active */}
-        {activeProfile && competitors.length > 0 && (
+        {/* Import/Export */}
+        {!masterView && activeCompetitors.length > 0 && (
           <div style={{
             display: "flex",
             gap: "8px",
@@ -1353,7 +1150,7 @@ export default function CompetitorAnalysis({ rows }) {
       </div>
 
       {/* Executive Summary Card - Competitive Position */}
-      {competitors.length > 0 && yourStats && (
+      {activeCompetitors.length > 0 && yourStats && (
         <div style={{
           background: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)",
           border: "1px solid #3b82f6",
@@ -1403,13 +1200,13 @@ export default function CompetitorAnalysis({ rows }) {
                   #{(() => {
                     const allChannels = [
                       { subs: yourStats.totalSubscribers, isYou: true },
-                      ...competitors.map(c => ({ subs: c.subscriberCount, isYou: false }))
+                      ...activeCompetitors.map(c => ({ subs: c.subscriberCount, isYou: false }))
                     ].sort((a, b) => b.subs - a.subs);
                     return allChannels.findIndex(c => c.isYou) + 1;
                   })()}
                 </div>
                 <div style={{ fontSize: "12px", color: "#bfdbfe" }}>
-                  of {competitors.length + 1} channels
+                  of {activeCompetitors.length + 1} channels
                 </div>
               </div>
 
@@ -1425,7 +1222,7 @@ export default function CompetitorAnalysis({ rows }) {
                   Gap to Leader
                 </div>
                 {(() => {
-                  const leaderSubs = Math.max(...competitors.map(c => c.subscriberCount));
+                  const leaderSubs = Math.max(...activeCompetitors.map(c => c.subscriberCount));
                   const gap = yourStats.totalSubscribers - leaderSubs;
                   const isLeader = gap >= 0;
                   return (
@@ -1454,7 +1251,7 @@ export default function CompetitorAnalysis({ rows }) {
                 </div>
                 {(() => {
                   const yourUploadFreq = yourStats.videosLast30Days;
-                  const avgCompetitorFreq = competitors.reduce((sum, c) => sum + (c.uploadsLast30Days || 0), 0) / competitors.length;
+                  const avgCompetitorFreq = activeCompetitors.reduce((sum, c) => sum + (c.uploadsLast30Days || 0), 0) / activeCompetitors.length;
                   const isAhead = yourUploadFreq > avgCompetitorFreq;
                   return (
                     <>
@@ -1482,7 +1279,7 @@ export default function CompetitorAnalysis({ rows }) {
                 </div>
                 {(() => {
                   const yourAvgViews = yourStats.avgViewsPerVideo;
-                  const avgCompetitorViews = competitors.reduce((sum, c) => sum + (c.avgViewsPerVideo || 0), 0) / competitors.length;
+                  const avgCompetitorViews = activeCompetitors.reduce((sum, c) => sum + (c.avgViewsPerVideo || 0), 0) / activeCompetitors.length;
                   const isAhead = yourAvgViews > avgCompetitorViews;
                   const diff = ((yourAvgViews / avgCompetitorViews - 1) * 100).toFixed(0);
                   return (
@@ -1503,7 +1300,7 @@ export default function CompetitorAnalysis({ rows }) {
       )}
 
       {/* Format Strategy Comparison */}
-      {competitors.length > 0 && yourStats && (
+      {activeCompetitors.length > 0 && yourStats && (
         <div style={{
           background: "#1E1E1E",
           border: "1px solid #333",
@@ -1614,7 +1411,7 @@ export default function CompetitorAnalysis({ rows }) {
             </div>
 
             {/* Competitors */}
-            {competitors.map((competitor) => {
+            {activeCompetitors.map((competitor) => {
               const shortsCount = competitor.shorts30d || 0;
               const longsCount = competitor.longs30d || 0;
               const total = shortsCount + longsCount;
@@ -1783,7 +1580,7 @@ export default function CompetitorAnalysis({ rows }) {
       )}
 
       {/* Content Gap Analysis */}
-      {competitors.length > 0 && rows && rows.length > 0 && (
+      {activeCompetitors.length > 0 && rows && rows.length > 0 && (
         <div style={{
           background: "#1E1E1E",
           border: "1px solid #333",
@@ -1803,7 +1600,7 @@ export default function CompetitorAnalysis({ rows }) {
           {(() => {
             // Analyze competitor titles for common patterns
             const competitorPatterns = {};
-            competitors.forEach(comp => {
+            activeCompetitors.forEach(comp => {
               if (!comp.videos) return;
 
               comp.videos.forEach(video => {
@@ -2302,7 +2099,7 @@ export default function CompetitorAnalysis({ rows }) {
       )}
 
       {/* Competitor List */}
-      {competitors.length === 0 ? (
+      {activeCompetitors.length === 0 ? (
         <div style={{
           background: "#1E1E1E",
           border: "1px solid #333",
@@ -2323,10 +2120,10 @@ export default function CompetitorAnalysis({ rows }) {
           padding: "24px"
         }}>
           <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>
-            Tracked Competitors ({competitors.length})
+            Tracked Competitors ({activeCompetitors.length})
           </div>
           <div style={{ display: "grid", gap: "12px" }}>
-            {competitors.map(competitor => (
+            {activeCompetitors.map(competitor => (
               <CompetitorCard
                 key={competitor.id}
                 competitor={competitor}
