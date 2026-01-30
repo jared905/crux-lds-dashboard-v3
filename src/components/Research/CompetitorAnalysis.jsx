@@ -570,8 +570,24 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
   // Refresh competitor data with historical snapshot
   const refreshCompetitor = async (competitorId) => {
-    const competitor = competitors.find(c => c.id === competitorId);
-    if (!competitor) return;
+    // Look up in activeCompetitors (Supabase-backed), not localStorage
+    const competitor = activeCompetitors.find(c => c.id === competitorId);
+    if (!competitor) {
+      setError("Competitor not found");
+      return;
+    }
+
+    if (!apiKey) {
+      setError("Please add your YouTube Data API key first");
+      setShowApiKeyInput(true);
+      return;
+    }
+
+    // Cannot refresh handle_ placeholder IDs — they need the nightly cron to resolve first
+    if (competitorId.startsWith('handle_')) {
+      setError(`${competitor.name} has an unresolved handle ID. It will be resolved by the nightly sync.`);
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -587,7 +603,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         uploadsLast30Days: competitor.uploadsLast30Days
       };
 
-      // Re-fetch channel data (same logic as addCompetitor)
+      // Re-fetch channel data
       const response = await fetch(
         `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&id=${competitorId}&key=${apiKey}`
       );
@@ -602,10 +618,10 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         throw new Error("Channel not found");
       }
 
-      const channel = data.items[0];
+      const ytChannel = data.items[0];
 
       // Fetch recent videos
-      const uploadsPlaylistId = channel.contentDetails.relatedPlaylists.uploads;
+      const uploadsPlaylistId = ytChannel.contentDetails.relatedPlaylists.uploads;
       const videosResponse = await fetch(
         `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50&key=${apiKey}`
       );
@@ -637,11 +653,11 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           likes: parseInt(video.statistics.likeCount) || 0,
           comments: parseInt(video.statistics.commentCount) || 0,
           duration: duration,
-          type: duration <= 60 ? 'short' : 'long' // YouTube Shorts are ≤60 seconds
+          type: duration <= 60 ? 'short' : 'long'
         };
       });
 
-      // Calculate stats (same as addCompetitor)
+      // Calculate stats
       const now = new Date();
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
@@ -665,55 +681,59 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       const totalComments = videos.reduce((sum, v) => sum + v.comments, 0);
       const engagementRate = totalViews > 0 ? ((totalLikes + totalComments) / totalViews) : 0;
 
-      // Update competitor with new data + history
-      const updatedCompetitor = {
-        ...competitor,
-        name: channel.snippet.title,
-        description: channel.snippet.description,
-        thumbnail: channel.snippet.thumbnails.default.url,
-        subscriberCount: parseInt(channel.statistics.subscriberCount) || 0,
-        videoCount: parseInt(channel.statistics.videoCount) || 0,
-        viewCount: parseInt(channel.statistics.viewCount) || 0,
-        uploadsLast30Days: last30Days.length,
-        uploadsLast60Days: last60Days.length,
-        uploadsLast90Days: last90Days.length,
-        shortsCount: shorts.length,
-        longsCount: longs.length,
-        shorts30d,
-        longs30d,
-        avgViewsPerVideo: videos.length > 0 ? totalViews / videos.length : 0,
-        avgShortsViews: shorts.length > 0 ? shorts.reduce((s, v) => s + v.views, 0) / shorts.length : 0,
-        avgLongsViews: longs.length > 0 ? longs.reduce((s, v) => s + v.views, 0) / longs.length : 0,
-        engagementRate,
-        uploadFrequency: last30Days.length > 0 ? 30 / last30Days.length : 0,
-        topVideos,
-        contentSeries: seriesPatterns,
-        videos,
-        lastRefreshed: new Date().toISOString(),
-        history: [...(competitor.history || []), historySnapshot].slice(-100) // Keep last 100 snapshots
-      };
+      // Update localStorage copy if it exists there
+      const localMatch = competitors.find(c => c.id === competitorId);
+      if (localMatch) {
+        const updatedLocal = {
+          ...localMatch,
+          name: ytChannel.snippet.title,
+          description: ytChannel.snippet.description,
+          thumbnail: ytChannel.snippet.thumbnails.default.url,
+          subscriberCount: parseInt(ytChannel.statistics.subscriberCount) || 0,
+          videoCount: parseInt(ytChannel.statistics.videoCount) || 0,
+          viewCount: parseInt(ytChannel.statistics.viewCount) || 0,
+          uploadsLast30Days: last30Days.length,
+          uploadsLast60Days: last60Days.length,
+          uploadsLast90Days: last90Days.length,
+          shortsCount: shorts.length,
+          longsCount: longs.length,
+          shorts30d,
+          longs30d,
+          avgViewsPerVideo: videos.length > 0 ? totalViews / videos.length : 0,
+          avgShortsViews: shorts.length > 0 ? shorts.reduce((s, v) => s + v.views, 0) / shorts.length : 0,
+          avgLongsViews: longs.length > 0 ? longs.reduce((s, v) => s + v.views, 0) / longs.length : 0,
+          engagementRate,
+          uploadFrequency: last30Days.length > 0 ? 30 / last30Days.length : 0,
+          topVideos,
+          contentSeries: seriesPatterns,
+          videos,
+          lastRefreshed: new Date().toISOString(),
+          history: [...(localMatch.history || []), historySnapshot].slice(-100),
+        };
+        const updated = competitors.map(c => c.id === competitorId ? updatedLocal : c);
+        setCompetitors(updated);
+      }
 
-      const updated = competitors.map(c => c.id === competitorId ? updatedCompetitor : c);
-      setCompetitors(updated);
       setError("");
 
-      // Also update in Supabase
+      // Save to Supabase
       try {
         const { upsertChannel, upsertVideos } = await import('../../services/competitorDatabase');
-        const channel = await upsertChannel({
-          youtube_channel_id: updatedCompetitor.id,
-          name: updatedCompetitor.name,
-          description: updatedCompetitor.description,
-          thumbnail_url: updatedCompetitor.thumbnail,
-          subscriber_count: updatedCompetitor.subscriberCount,
-          total_view_count: updatedCompetitor.viewCount,
-          video_count: updatedCompetitor.videoCount,
+        const dbChannel = await upsertChannel({
+          youtube_channel_id: competitorId,
+          name: ytChannel.snippet.title,
+          description: ytChannel.snippet.description,
+          thumbnail_url: ytChannel.snippet.thumbnails.default.url,
+          subscriber_count: parseInt(ytChannel.statistics.subscriberCount) || 0,
+          total_view_count: parseInt(ytChannel.statistics.viewCount) || 0,
+          video_count: parseInt(ytChannel.statistics.videoCount) || 0,
           is_competitor: true,
           client_id: activeClient?.id || null,
+          category: competitor.category,
         });
 
-        if (updatedCompetitor.videos?.length && channel?.id) {
-          const videosToUpsert = updatedCompetitor.videos.map(v => ({
+        if (videos.length > 0 && dbChannel?.id) {
+          const videosToUpsert = videos.map(v => ({
             youtube_video_id: v.id,
             title: v.title,
             thumbnail_url: v.thumbnail,
@@ -723,7 +743,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             like_count: v.likes,
             comment_count: v.comments,
           }));
-          await upsertVideos(videosToUpsert, channel.id);
+          await upsertVideos(videosToUpsert, dbChannel.id);
         }
 
         await reloadSupabaseCompetitors();
