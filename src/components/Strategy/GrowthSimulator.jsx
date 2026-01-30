@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { TrendingUp, MonitorPlay, Smartphone, Zap, MousePointerClick, UserPlus, ArrowRight, RotateCcw, Minus } from "lucide-react";
-import { fmtInt, fmtPct } from "../lib/utils";
+import { fmtInt, fmtPct } from "../../lib/utils";
 
 export default function GrowthSimulator({ rows, currentSubscribers = 0 }) {
   // Allow manual override of subscriber count if the auto-detected value is 0 or seems wrong

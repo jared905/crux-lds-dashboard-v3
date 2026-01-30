@@ -63,23 +63,56 @@ function parseDuration(duration) {
 // ============================================
 
 /**
- * Get all tracked channels
+ * Get tracked channels with optional pagination
  */
-export async function getChannels({ category, isCompetitor, clientId } = {}) {
+export async function getChannels({ category, isCompetitor, clientId, page, pageSize = 50 } = {}) {
   if (!supabase) throw new Error('Supabase not configured');
 
   let query = supabase
     .from('channels')
-    .select('*')
+    .select('*', { count: 'exact' })
     .order('name');
 
   if (category) query = query.eq('category', category);
   if (typeof isCompetitor === 'boolean') query = query.eq('is_competitor', isCompetitor);
   if (clientId) query = query.eq('client_id', clientId);
 
-  const { data, error } = await query;
+  // Apply pagination if page is specified
+  if (typeof page === 'number') {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+    query = query.range(from, to);
+  }
+
+  const { data, error, count } = await query;
   if (error) throw error;
+
+  // When paginated, return structured result
+  if (typeof page === 'number') {
+    return { data, count, hasMore: (page + 1) * pageSize < count };
+  }
+
+  // Backward-compatible: return flat array when no pagination
   return data;
+}
+
+/**
+ * Get all channels by paging through results
+ */
+export async function getAllChannels(filters = {}) {
+  const pageSize = 100;
+  let page = 0;
+  let allData = [];
+  let hasMore = true;
+
+  while (hasMore) {
+    const result = await getChannels({ ...filters, page, pageSize });
+    allData = allData.concat(result.data);
+    hasMore = result.hasMore;
+    page++;
+  }
+
+  return allData;
 }
 
 /**
@@ -459,6 +492,7 @@ export async function getInsights({ channelId, category, insightType } = {}) {
 
 /**
  * Get competitive landscape summary
+ * Uses two targeted queries instead of loading all videos into memory
  */
 export async function getCompetitiveLandscape({ category, days = 30 } = {}) {
   if (!supabase) throw new Error('Supabase not configured');
@@ -466,83 +500,83 @@ export async function getCompetitiveLandscape({ category, days = 30 } = {}) {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - days);
 
-  // Get all competitor channels with recent video stats
-  let query = supabase
+  // Query 1: Get competitor channels (without videos)
+  let channelQuery = supabase
     .from('channels')
-    .select(`
-      *,
-      videos:videos(
-        id,
-        title,
-        video_type,
-        view_count,
-        like_count,
-        comment_count,
-        engagement_rate,
-        published_at,
-        detected_format,
-        title_patterns
-      )
-    `)
-    .eq('is_competitor', true)
-    .gte('videos.published_at', cutoffDate.toISOString());
+    .select('*')
+    .eq('is_competitor', true);
 
-  if (category) query = query.eq('category', category);
+  if (category) channelQuery = channelQuery.eq('category', category);
 
-  const { data, error } = await query;
-  if (error) throw error;
+  const { data: channels, error: channelError } = await channelQuery;
+  if (channelError) throw channelError;
 
-  // Calculate aggregate metrics
-  const landscape = {
-    channels: data,
-    totalChannels: data.length,
-    metrics: {
-      totalVideos: 0,
-      totalShorts: 0,
-      totalLongs: 0,
-      avgViewsPerVideo: 0,
-      avgEngagement: 0,
-      topFormats: {},
-      topPatterns: {},
-    },
-    topVideos: [],
+  if (!channels.length) {
+    return { channels: [], totalChannels: 0, metrics: { totalVideos: 0, totalShorts: 0, totalLongs: 0, avgViewsPerVideo: 0, avgEngagement: 0, topFormats: {}, topPatterns: {} }, topVideos: [] };
+  }
+
+  const channelIds = channels.map(c => c.id);
+
+  // Query 2: Get top 100 recent videos sorted by views (uses composite index)
+  let videoQuery = supabase
+    .from('videos')
+    .select('id, title, video_type, view_count, like_count, comment_count, engagement_rate, published_at, detected_format, title_patterns, channel_id')
+    .in('channel_id', channelIds)
+    .gte('published_at', cutoffDate.toISOString())
+    .order('view_count', { ascending: false })
+    .limit(100);
+
+  const { data: topVideos, error: videoError } = await videoQuery;
+  if (videoError) throw videoError;
+
+  // Query 3: Get aggregate counts for all videos in period (lightweight)
+  const { data: allRecentVideos, error: allError } = await supabase
+    .from('videos')
+    .select('video_type, view_count, engagement_rate, detected_format, title_patterns')
+    .in('channel_id', channelIds)
+    .gte('published_at', cutoffDate.toISOString());
+
+  if (allError) throw allError;
+
+  // Calculate aggregate metrics from the lightweight query
+  const metrics = {
+    totalVideos: allRecentVideos.length,
+    totalShorts: 0,
+    totalLongs: 0,
+    avgViewsPerVideo: 0,
+    avgEngagement: 0,
+    topFormats: {},
+    topPatterns: {},
   };
 
-  let allVideos = [];
+  let totalViews = 0;
+  let totalEngagement = 0;
 
-  data.forEach(channel => {
-    const videos = channel.videos || [];
-    allVideos = allVideos.concat(videos);
+  allRecentVideos.forEach(video => {
+    if (video.video_type === 'short') metrics.totalShorts++;
+    if (video.video_type === 'long') metrics.totalLongs++;
+    totalViews += video.view_count || 0;
+    totalEngagement += video.engagement_rate || 0;
 
-    videos.forEach(video => {
-      landscape.metrics.totalVideos++;
-      if (video.video_type === 'short') landscape.metrics.totalShorts++;
-      if (video.video_type === 'long') landscape.metrics.totalLongs++;
-
-      if (video.detected_format) {
-        landscape.metrics.topFormats[video.detected_format] =
-          (landscape.metrics.topFormats[video.detected_format] || 0) + 1;
-      }
-
-      (video.title_patterns || []).forEach(pattern => {
-        landscape.metrics.topPatterns[pattern] =
-          (landscape.metrics.topPatterns[pattern] || 0) + 1;
-      });
+    if (video.detected_format) {
+      metrics.topFormats[video.detected_format] = (metrics.topFormats[video.detected_format] || 0) + 1;
+    }
+    (video.title_patterns || []).forEach(pattern => {
+      metrics.topPatterns[pattern] = (metrics.topPatterns[pattern] || 0) + 1;
     });
   });
 
-  if (allVideos.length > 0) {
-    landscape.metrics.avgViewsPerVideo =
-      allVideos.reduce((sum, v) => sum + (v.view_count || 0), 0) / allVideos.length;
-    landscape.metrics.avgEngagement =
-      allVideos.reduce((sum, v) => sum + (v.engagement_rate || 0), 0) / allVideos.length;
-
-    landscape.topVideos = allVideos
-      .sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
-      .slice(0, 20);
+  if (allRecentVideos.length > 0) {
+    metrics.avgViewsPerVideo = totalViews / allRecentVideos.length;
+    metrics.avgEngagement = totalEngagement / allRecentVideos.length;
   }
 
-  return landscape;
+  return {
+    channels,
+    totalChannels: channels.length,
+    metrics,
+    topVideos: topVideos || [],
+  };
 }
 
 /**
@@ -656,6 +690,7 @@ export async function migrateFromLocalStorage() {
 export default {
   // Channels
   getChannels,
+  getAllChannels,
   getChannelByYouTubeId,
   upsertChannel,
   deleteChannel,

@@ -3,7 +3,7 @@ import {
   UploadCloud, Eye, Clock, 
   BarChart3, MousePointerClick, Users 
 } from "lucide-react";
-import { fmtInt, fmtPct } from "../lib/utils";
+import { fmtInt, fmtPct } from "../../lib/utils";
 
 export default function KpiGrid({ kpis, channelStats }) {
   const safeKpis = kpis || {};

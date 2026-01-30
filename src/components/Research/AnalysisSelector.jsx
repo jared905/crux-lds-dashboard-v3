@@ -26,7 +26,7 @@ import {
   Settings,
   Play
 } from 'lucide-react';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../../services/supabaseClient';
 import {
   getCategoryTree,
   getChannelsInCategory,
@@ -35,7 +35,7 @@ import {
   deletePreset,
   recordPresetUsage,
   getChannelsForPreset
-} from '../services/categoryService';
+} from '../../services/categoryService';
 
 const s = {
   container: {

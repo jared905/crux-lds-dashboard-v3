@@ -4,18 +4,41 @@ import { supabase } from '../services/supabaseClient';
 const AuthContext = createContext({});
 
 // Default tab permissions by role
-const DEFAULT_VIEWER_TABS = ['Dashboard', 'Strategy'];
+const DEFAULT_VIEWER_TABS = ['dashboard', 'actions'];
 const ALL_TABS = [
-  'Dashboard',
-  'Channel Summary',
-  'Strategy',
-  'Competitors',
-  'Intelligence',
-  'Creative Brief',
-  'Comments',
-  'Data',
-  'Standardizer'
+  'dashboard',
+  'series-analysis',
+  'channel-summary',
+  'competitors',
+  'comments',
+  'ideation',
+  'intelligence',
+  'atomizer',
+  'briefs',
+  'actions',
+  'calendar',
+  'clients',
+  'api-keys',
+  'user-management',
 ];
+
+// Human-readable labels for tab IDs
+export const TAB_LABELS = {
+  'dashboard': 'Dashboard',
+  'series-analysis': 'Series Analysis',
+  'channel-summary': 'Channel Summary',
+  'competitors': 'Competitors',
+  'comments': 'Comments',
+  'ideation': 'Ideation',
+  'intelligence': 'Intelligence',
+  'atomizer': 'Atomizer',
+  'briefs': 'Briefs',
+  'actions': 'Actions',
+  'calendar': 'Calendar',
+  'clients': 'Clients',
+  'api-keys': 'API Keys',
+  'user-management': 'User Management',
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -56,44 +79,45 @@ export const AuthProvider = ({ children }) => {
     return clientPermissions.includes(clientId);
   };
 
-  // Fetch user profile and permissions
+  // Fetch user profile and permissions (with timeout to prevent hanging)
   const fetchUserProfile = async (userId) => {
+    const timeout = (ms) => new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Profile fetch timed out after ${ms}ms`)), ms)
+    );
+
     try {
       // Fetch user profile
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+      console.log('[AuthContext] Fetching profile for user:', userId);
+      const { data: profile, error: profileError } = await Promise.race([
+        supabase.from('user_profiles').select('*').eq('user_id', userId).single(),
+        timeout(8000)
+      ]);
 
       if (profileError && profileError.code !== 'PGRST116') {
         console.error('Error fetching profile:', profileError);
       }
 
       if (profile) {
+        console.log('[AuthContext] Profile loaded, role:', profile.role);
         setUserProfile(profile);
 
-        // Fetch tab permissions
-        const { data: tabs } = await supabase
-          .from('user_tab_permissions')
-          .select('tab_id')
-          .eq('user_id', userId)
-          .eq('has_access', true);
+        // Fetch tab and client permissions in parallel
+        const [tabsResult, clientsResult] = await Promise.race([
+          Promise.all([
+            supabase.from('user_tab_permissions').select('tab_id').eq('user_id', userId).eq('has_access', true),
+            supabase.from('user_client_access').select('client_id').eq('user_id', userId).eq('has_access', true)
+          ]),
+          timeout(8000)
+        ]);
 
-        if (tabs) {
-          setTabPermissions(tabs.map(t => t.tab_id));
+        if (tabsResult?.data) {
+          setTabPermissions(tabsResult.data.map(t => t.tab_id));
         }
-
-        // Fetch client permissions
-        const { data: clients } = await supabase
-          .from('user_client_access')
-          .select('client_id')
-          .eq('user_id', userId)
-          .eq('has_access', true);
-
-        if (clients) {
-          setClientPermissions(clients.map(c => c.client_id));
+        if (clientsResult?.data) {
+          setClientPermissions(clientsResult.data.map(c => c.client_id));
         }
+      } else {
+        console.warn('[AuthContext] No profile found for user:', userId);
       }
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
@@ -175,31 +199,57 @@ export const AuthProvider = ({ children }) => {
 
   // Initialize auth state
   useEffect(() => {
+    console.log('[AuthContext] Initializing auth...');
+
     // If supabase is not configured, stop loading but keep user as null
     if (!supabase) {
-      console.warn('Supabase not configured - auth disabled');
+      console.warn('[AuthContext] Supabase not configured - auth disabled');
       setLoading(false);
       return;
     }
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    let resolved = false;
+    const resolveLoading = () => {
+      if (!resolved) {
+        resolved = true;
+        console.log('[AuthContext] Setting loading to false');
+        setLoading(false);
+      }
+    };
+
+    // Get initial session with timeout
+    console.log('[AuthContext] Getting session...');
+
+    // Fallback timeout - if nothing resolves auth in 10s, continue without it
+    const sessionTimeout = setTimeout(() => {
+      console.warn('[AuthContext] Auth timed out after 10s, continuing without auth');
+      resolveLoading();
+    }, 10000);
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      clearTimeout(sessionTimeout);
+      console.log('[AuthContext] Session result:', session ? 'User logged in' : 'No session');
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchUserProfile(session.user.id);
+        console.log('[AuthContext] Fetching user profile...');
+        await fetchUserProfile(session.user.id);
       }
-      setLoading(false);
+      resolveLoading();
     }).catch((err) => {
-      console.error('Error getting session:', err);
-      setLoading(false);
+      clearTimeout(sessionTimeout);
+      console.error('[AuthContext] Error getting session:', err);
+      resolveLoading();
     });
 
-    // Listen for auth changes
+    // Listen for auth changes - this often fires before getSession resolves
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('[AuthContext] Auth state change:', event);
         setUser(session?.user ?? null);
 
         if (session?.user) {
+          // Clear the timeout since we have a user - give profile fetch time to complete
+          clearTimeout(sessionTimeout);
           await fetchUserProfile(session.user.id);
         } else {
           setUserProfile(null);
@@ -207,7 +257,7 @@ export const AuthProvider = ({ children }) => {
           setClientPermissions([]);
         }
 
-        setLoading(false);
+        resolveLoading();
       }
     );
 

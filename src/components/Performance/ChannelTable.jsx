@@ -3,7 +3,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, 
   Smartphone, MonitorPlay 
 } from "lucide-react";
-import { fmtInt, fmtPct } from "../lib/utils";
+import { fmtInt, fmtPct } from "../../lib/utils";
 
 export default function ChannelTable({ rows, onSelect }) {
   const [sortCol, setSortCol] = useState("views");

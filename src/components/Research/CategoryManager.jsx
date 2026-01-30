@@ -25,8 +25,8 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
-} from '../services/categoryService';
-import { supabase } from '../services/supabaseClient';
+} from '../../services/categoryService';
+import { supabase } from '../../services/supabaseClient';
 
 // Predefined colors for categories
 const COLORS = [

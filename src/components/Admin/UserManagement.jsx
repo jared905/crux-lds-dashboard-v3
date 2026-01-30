@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth, TAB_LABELS } from '../../contexts/AuthContext';
 import {
   Users,
   UserPlus,
@@ -541,7 +541,7 @@ const UserManagement = ({ clients = [] }) => {
                               }}
                             >
                               {hasAccess && <Check size={12} />}
-                              {tab}
+                              {TAB_LABELS[tab] || tab}
                             </button>
                           );
                         })}

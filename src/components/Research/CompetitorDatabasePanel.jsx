@@ -18,9 +18,9 @@ import {
   Settings,
   Upload
 } from 'lucide-react';
-import { supabase, checkConnection } from '../services/supabaseClient';
-import { getChannels, getSyncLogs, migrateFromLocalStorage } from '../services/competitorDatabase';
-import { syncAllChannels } from '../services/competitorSync';
+import { supabase, checkConnection } from '../../services/supabaseClient';
+import { getChannels, getSyncLogs, migrateFromLocalStorage } from '../../services/competitorDatabase';
+import { syncAllChannels } from '../../services/competitorSync';
 
 const s = {
   panel: {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Lightbulb, Sparkles, TrendingUp, Clock, AlertCircle, Loader2 } from 'lucide-react';
-import claudeAPI from '../services/claudeAPI';
+import claudeAPI from '../../services/claudeAPI';
 
 /**
  * AI Video Idea Generator

@@ -3,8 +3,8 @@ import {
   Smartphone, MonitorPlay, Eye,
   Percent, MousePointerClick, UserPlus, Clock, ExternalLink
 } from "lucide-react";
-import { fmtInt, fmtPct } from "../lib/utils";
-import { getYouTubeThumbnailUrl } from "../lib/schema";
+import { fmtInt, fmtPct } from "../../lib/utils";
+import { getYouTubeThumbnailUrl } from "../../lib/schema";
 
 /**
  * Robust helper to parse duration from various inputs (Seconds, Strings, ISO 8601)

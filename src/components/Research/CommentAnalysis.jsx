@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MessageSquare, Search, TrendingUp, Loader2, AlertCircle, Download, Tag, BarChart3 } from 'lucide-react';
-import claudeAPI from '../services/claudeAPI';
-import youtubeAPI from '../services/youtubeAPI';
+import claudeAPI from '../../services/claudeAPI';
+import youtubeAPI from '../../services/youtubeAPI';
 
 export default function CommentAnalysis({ data }) {
   const [videoUrl, setVideoUrl] = useState('');

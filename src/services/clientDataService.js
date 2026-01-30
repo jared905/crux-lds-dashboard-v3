@@ -119,6 +119,8 @@ export async function saveClientToSupabase(clientName, normalizedRows, youtubeCh
         avg_view_percentage: row.retention || row.avgViewPct || null,
         subscribers_gained: row.subscribers || 0,
         watch_hours: row.watchHours || null,
+        // Content source - preserves original channel name for multi-channel clients
+        content_source: row.channel || null,
         // Auto-computed fields
         engagement_rate: 0, // Will be calculated when we have likes/comments
         last_synced_at: new Date().toISOString(),
@@ -203,30 +205,37 @@ export async function getClientsFromSupabase() {
       }
 
       // Convert Supabase videos back to ClientManager row format
-      const rows = (videos || []).map(video => ({
-        'Video title': video.title,
-        'Video publish time': video.published_at,
-        'Views': video.view_count,
-        'Duration': video.duration_seconds,
-        'Impressions': video.impressions,
-        'Impressions click-through rate (%)': video.ctr ? video.ctr * 100 : null,
-        'Average percentage viewed (%)': video.avg_view_percentage ? video.avg_view_percentage * 100 : null,
-        'Subscribers gained': video.subscribers_gained,
-        'Content': channel.name,
-        // Normalized fields for direct use
-        title: video.title,
-        publishDate: video.published_at,
-        views: video.view_count,
-        duration: video.duration_seconds,
-        type: video.video_type,
-        impressions: video.impressions,
-        ctr: video.ctr,
-        retention: video.avg_view_percentage,
-        avgViewPct: video.avg_view_percentage,
-        subscribers: video.subscribers_gained,
-        watchHours: video.watch_hours,
-        channel: channel.name,
-      }));
+      // Use content_source if available (for multi-channel clients), otherwise fall back to channel name
+      const rows = (videos || []).map(video => {
+        const contentSource = video.content_source || channel.name;
+        return {
+          'Video title': video.title,
+          'Video publish time': video.published_at,
+          'Views': video.view_count,
+          'Duration': video.duration_seconds,
+          'Impressions': video.impressions,
+          'Impressions click-through rate (%)': video.ctr ? video.ctr * 100 : null,
+          'Average percentage viewed (%)': video.avg_view_percentage ? video.avg_view_percentage * 100 : null,
+          'Subscribers gained': video.subscribers_gained,
+          'Content': contentSource,
+          // Normalized fields for direct use
+          title: video.title,
+          publishDate: video.published_at,
+          views: video.view_count,
+          duration: video.duration_seconds,
+          type: video.video_type,
+          impressions: video.impressions,
+          ctr: video.ctr,
+          retention: video.avg_view_percentage,
+          avgViewPct: video.avg_view_percentage,
+          subscribers: video.subscribers_gained,
+          watchHours: video.watch_hours,
+          channel: contentSource,
+        };
+      });
+
+      // Extract unique channel names from content_source for multi-channel support
+      const uniqueChannels = [...new Set(rows.map(r => r.channel).filter(Boolean))];
 
       return {
         id: channel.id,
@@ -235,7 +244,7 @@ export async function getClientsFromSupabase() {
         uploadDate: channel.last_synced_at || channel.created_at,
         rows: rows,
         subscriberCount: channel.subscriber_count || 0,
-        channels: [channel.name],
+        channels: uniqueChannels.length > 0 ? uniqueChannels : [channel.name],
         youtubeChannelUrl: channel.custom_url || '',
         syncedToSupabase: true,
       };

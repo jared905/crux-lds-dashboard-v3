@@ -19,12 +19,12 @@ import {
   ChevronRight,
   AlertCircle
 } from 'lucide-react';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../../services/supabaseClient';
 import {
   getAllCategories,
   getChannelCategories,
   setChannelCategories
-} from '../services/categoryService';
+} from '../../services/categoryService';
 
 const s = {
   panel: {

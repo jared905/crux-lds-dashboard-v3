@@ -24,8 +24,8 @@ import {
   Copy,
   RefreshCw
 } from 'lucide-react';
-import { createBrief, createTranscript, validateBriefForGeneration, PERFORMANCE_LEVELS } from '../lib/briefSchema';
-import claudeAPI from '../services/claudeAPI';
+import { createBrief, createTranscript, validateBriefForGeneration, PERFORMANCE_LEVELS } from '../../lib/briefSchema';
+import claudeAPI from '../../services/claudeAPI';
 
 // Styles matching existing dashboard theme
 const s = {

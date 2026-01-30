@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, FileText, Loader2, AlertCircle, Copy, Check, TrendingUp } from 'lucide-react';
-import claudeAPI from '../services/claudeAPI';
+import claudeAPI from '../../services/claudeAPI';
 
 /**
  * AI-Powered Executive Summary Generator

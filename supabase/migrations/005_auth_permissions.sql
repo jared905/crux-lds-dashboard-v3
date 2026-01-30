@@ -257,8 +257,14 @@ BEGIN
     -- Count existing users to determine if this is the first user
     SELECT COUNT(*) INTO user_count FROM user_profiles;
 
-    -- Determine role: first user is admin, invited users get their assigned role, others are viewers
+    -- Determine role priority:
+    -- 1. First user is admin
+    -- 2. @crux.media emails are always admin
+    -- 3. Invited users get their assigned role
+    -- 4. Everyone else is viewer
     IF user_count = 0 THEN
+        user_role := 'admin';
+    ELSIF NEW.email ILIKE '%@crux.media' THEN
         user_role := 'admin';
     ELSIF invite_record IS NOT NULL THEN
         user_role := invite_record.role;

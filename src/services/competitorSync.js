@@ -119,39 +119,63 @@ async function fetchChannelDetails(channelId, apiKey) {
 }
 
 /**
- * Fetch recent videos from a channel
+ * Fetch recent videos from a channel with pagination support
+ * Fetches up to maxResults videos across multiple API pages (50 per page)
  */
-async function fetchChannelVideos(uploadsPlaylistId, apiKey, maxResults = 50) {
-  // Get playlist items (video IDs)
-  const playlistResponse = await fetch(
-    `${YOUTUBE_API_BASE}/playlistItems?part=snippet,contentDetails&playlistId=${uploadsPlaylistId}&maxResults=${maxResults}&key=${apiKey}`
-  );
-  const playlistData = await playlistResponse.json();
+async function fetchChannelVideos(uploadsPlaylistId, apiKey, maxResults = 200) {
+  const perPage = 50;
+  let allItems = [];
+  let pageToken = null;
 
-  if (playlistData.error) throw new Error(playlistData.error.message);
-  if (!playlistData.items?.length) return [];
+  // Page through playlist items until we have enough or run out
+  while (allItems.length < maxResults) {
+    const url = `${YOUTUBE_API_BASE}/playlistItems?part=snippet,contentDetails&playlistId=${uploadsPlaylistId}&maxResults=${perPage}&key=${apiKey}` +
+      (pageToken ? `&pageToken=${pageToken}` : '');
 
-  // Get video details (stats, duration)
-  const videoIds = playlistData.items.map(item => item.contentDetails.videoId).join(',');
+    const playlistResponse = await fetch(url);
+    const playlistData = await playlistResponse.json();
 
-  const videosResponse = await fetch(
-    `${YOUTUBE_API_BASE}/videos?part=statistics,contentDetails,snippet&id=${videoIds}&key=${apiKey}`
-  );
-  const videosData = await videosResponse.json();
+    if (playlistData.error) throw new Error(playlistData.error.message);
+    if (!playlistData.items?.length) break;
 
-  if (videosData.error) throw new Error(videosData.error.message);
+    allItems = allItems.concat(playlistData.items);
+    pageToken = playlistData.nextPageToken;
+    if (!pageToken) break;
+  }
 
-  return videosData.items.map(video => ({
-    youtube_video_id: video.id,
-    title: video.snippet.title,
-    description: video.snippet.description,
-    thumbnail_url: video.snippet.thumbnails?.medium?.url || video.snippet.thumbnails?.default?.url,
-    published_at: video.snippet.publishedAt,
-    duration_seconds: parseDuration(video.contentDetails.duration),
-    view_count: parseInt(video.statistics.viewCount) || 0,
-    like_count: parseInt(video.statistics.likeCount) || 0,
-    comment_count: parseInt(video.statistics.commentCount) || 0,
-  }));
+  // Trim to maxResults
+  allItems = allItems.slice(0, maxResults);
+  if (!allItems.length) return [];
+
+  // Fetch video details in batches of 50 (API limit per call)
+  const allVideos = [];
+  for (let i = 0; i < allItems.length; i += 50) {
+    const batch = allItems.slice(i, i + 50);
+    const videoIds = batch.map(item => item.contentDetails.videoId).join(',');
+
+    const videosResponse = await fetch(
+      `${YOUTUBE_API_BASE}/videos?part=statistics,contentDetails,snippet&id=${videoIds}&key=${apiKey}`
+    );
+    const videosData = await videosResponse.json();
+
+    if (videosData.error) throw new Error(videosData.error.message);
+
+    const mapped = videosData.items.map(video => ({
+      youtube_video_id: video.id,
+      title: video.snippet.title,
+      description: video.snippet.description,
+      thumbnail_url: video.snippet.thumbnails?.medium?.url || video.snippet.thumbnails?.default?.url,
+      published_at: video.snippet.publishedAt,
+      duration_seconds: parseDuration(video.contentDetails.duration),
+      view_count: parseInt(video.statistics.viewCount) || 0,
+      like_count: parseInt(video.statistics.likeCount) || 0,
+      comment_count: parseInt(video.statistics.commentCount) || 0,
+    }));
+
+    allVideos.push(...mapped);
+  }
+
+  return allVideos;
 }
 
 /**
@@ -265,9 +289,9 @@ export async function syncChannel(channelId) {
 }
 
 /**
- * Sync all tracked channels
+ * Sync all tracked channels in parallel batches
  */
-export async function syncAllChannels({ onProgress } = {}) {
+export async function syncAllChannels({ onProgress, batchSize = 5 } = {}) {
   const apiKey = getYouTubeApiKey();
   if (!apiKey) throw new Error('YouTube API key not configured');
 
@@ -286,30 +310,38 @@ export async function syncAllChannels({ onProgress } = {}) {
     const channels = await getChannels();
     const syncableChannels = channels.filter(c => c.sync_enabled !== false);
 
-    for (let i = 0; i < syncableChannels.length; i++) {
-      const channel = syncableChannels[i];
+    // Process in parallel batches
+    for (let i = 0; i < syncableChannels.length; i += batchSize) {
+      const batch = syncableChannels.slice(i, i + batchSize);
 
-      try {
-        if (onProgress) {
-          onProgress({
-            current: i + 1,
-            total: syncableChannels.length,
-            channel: channel.name,
-          });
-        }
-
-        const { videosCount } = await syncChannel(channel.id);
-
-        results.channels_synced++;
-        results.videos_synced += videosCount;
-        results.youtube_api_calls += 3; // channels, playlist, videos
-
-      } catch (err) {
-        results.errors.push({ channel: channel.name, error: err.message });
+      if (onProgress) {
+        onProgress({
+          current: i + 1,
+          total: syncableChannels.length,
+          channel: batch.map(c => c.name).join(', '),
+          batch: Math.floor(i / batchSize) + 1,
+          totalBatches: Math.ceil(syncableChannels.length / batchSize),
+        });
       }
 
-      // Rate limiting: wait 100ms between channels
-      await new Promise(resolve => setTimeout(resolve, 100));
+      const batchResults = await Promise.allSettled(
+        batch.map(channel => syncChannel(channel.id))
+      );
+
+      batchResults.forEach((result, idx) => {
+        if (result.status === 'fulfilled') {
+          results.channels_synced++;
+          results.videos_synced += result.value.videosCount;
+          results.youtube_api_calls += 3;
+        } else {
+          results.errors.push({ channel: batch[idx].name, error: result.reason?.message || 'Unknown error' });
+        }
+      });
+
+      // Rate limiting: 500ms delay between batches
+      if (i + batchSize < syncableChannels.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
 
   } finally {
@@ -321,7 +353,7 @@ export async function syncAllChannels({ onProgress } = {}) {
 }
 
 /**
- * Scheduled sync (for cron job)
+ * Scheduled sync (for cron job) — parallel batches of 5
  */
 export async function scheduledSync() {
   const apiKey = getYouTubeApiKey();
@@ -339,22 +371,33 @@ export async function scheduledSync() {
     errors: [],
   };
 
+  const batchSize = 5;
+
   try {
     const channels = await getChannels();
     const syncableChannels = channels.filter(c => c.sync_enabled !== false);
 
-    for (const channel of syncableChannels) {
-      try {
-        const { videosCount } = await syncChannel(channel.id);
-        results.channels_synced++;
-        results.videos_synced += videosCount;
-        results.youtube_api_calls += 3;
-      } catch (err) {
-        results.errors.push({ channel: channel.name, error: err.message });
-      }
+    for (let i = 0; i < syncableChannels.length; i += batchSize) {
+      const batch = syncableChannels.slice(i, i + batchSize);
 
-      // Rate limiting
-      await new Promise(resolve => setTimeout(resolve, 200));
+      const batchResults = await Promise.allSettled(
+        batch.map(channel => syncChannel(channel.id))
+      );
+
+      batchResults.forEach((result, idx) => {
+        if (result.status === 'fulfilled') {
+          results.channels_synced++;
+          results.videos_synced += result.value.videosCount;
+          results.youtube_api_calls += 3;
+        } else {
+          results.errors.push({ channel: batch[idx].name, error: result.reason?.message || 'Unknown error' });
+        }
+      });
+
+      // Rate limiting between batches
+      if (i + batchSize < syncableChannels.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
 
   } finally {

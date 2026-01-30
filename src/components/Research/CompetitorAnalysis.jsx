@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from "react";
-import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, FolderOpen, Upload, Download, RefreshCw, Edit2, X, Check } from "lucide-react";
-import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../lib/competitorAnalysis";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, FolderOpen, Upload, Download, RefreshCw, Edit2, X, Check, Zap, Loader } from "lucide-react";
+import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../../lib/competitorAnalysis";
 import CompetitorDatabasePanel from "./CompetitorDatabasePanel";
 import CategoryManager from "./CategoryManager";
 import ChannelCategoryManager from "./ChannelCategoryManager";
 import AnalysisSelector from "./AnalysisSelector";
+import { getOutlierVideos, analyzeCompetitorVideo } from '../../services/competitorInsightsService';
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -57,6 +58,17 @@ export default function CompetitorAnalysis({ rows }) {
   const [newProfileName, setNewProfileName] = useState("");
   const [selectedCategories, setSelectedCategories] = useState([]);
 
+  // Outlier detection state
+  const [outliers, setOutliers] = useState([]);
+  const [outliersLoading, setOutliersLoading] = useState(false);
+  const [outlierDays, setOutlierDays] = useState(90);
+  const [outlierMinMultiplier, setOutlierMinMultiplier] = useState(2.5);
+
+  // Insights panel state
+  const [selectedOutlier, setSelectedOutlier] = useState(null);
+  const [insightData, setInsightData] = useState(null);
+  const [insightLoading, setInsightLoading] = useState(false);
+
   // Calculate your channel stats
   const yourStats = useMemo(() => {
     if (!rows || rows.length === 0) return null;
@@ -92,6 +104,39 @@ export default function CompetitorAnalysis({ rows }) {
       uploadFrequency: recentVideos.length > 0 ? 30 / recentVideos.length : 0
     };
   }, [rows]);
+
+  // Fetch outlier videos
+  const fetchOutliers = useCallback(async () => {
+    setOutliersLoading(true);
+    try {
+      const data = await getOutlierVideos({ days: outlierDays, minMultiplier: outlierMinMultiplier });
+      setOutliers(data);
+    } catch (err) {
+      console.error('Failed to fetch outliers:', err);
+    } finally {
+      setOutliersLoading(false);
+    }
+  }, [outlierDays, outlierMinMultiplier]);
+
+  // Load outliers on mount
+  useEffect(() => {
+    fetchOutliers();
+  }, [fetchOutliers]);
+
+  // Load insight for selected outlier
+  const handleViewInsight = useCallback(async (video) => {
+    setSelectedOutlier(video);
+    setInsightData(null);
+    setInsightLoading(true);
+    try {
+      const data = await analyzeCompetitorVideo(video);
+      setInsightData(data);
+    } catch (err) {
+      setInsightData({ error: err.message });
+    } finally {
+      setInsightLoading(false);
+    }
+  }, []);
 
   // Save API key
   const saveApiKey = () => {
@@ -1959,6 +2004,253 @@ export default function CompetitorAnalysis({ rows }) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Outlier Videos */}
+      <div style={{
+        background: "#1E1E1E",
+        border: "1px solid #333",
+        borderRadius: "12px",
+        padding: "24px",
+        marginBottom: "24px"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+          <div>
+            <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", display: "flex", alignItems: "center", gap: "8px" }}>
+              <Zap size={18} color="#f59e0b" />
+              Outlier Videos
+            </div>
+            <div style={{ fontSize: "12px", color: "#888", marginTop: "4px" }}>
+              Videos significantly outperforming their channel average
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <select
+              value={outlierDays}
+              onChange={(e) => setOutlierDays(Number(e.target.value))}
+              style={{
+                background: "#252525", border: "1px solid #555", borderRadius: "6px",
+                padding: "6px 10px", color: "#fff", fontSize: "12px"
+              }}
+            >
+              <option value={30}>30 days</option>
+              <option value={60}>60 days</option>
+              <option value={90}>90 days</option>
+              <option value={180}>180 days</option>
+            </select>
+            <select
+              value={outlierMinMultiplier}
+              onChange={(e) => setOutlierMinMultiplier(Number(e.target.value))}
+              style={{
+                background: "#252525", border: "1px solid #555", borderRadius: "6px",
+                padding: "6px 10px", color: "#fff", fontSize: "12px"
+              }}
+            >
+              <option value={2}>2x+ avg</option>
+              <option value={2.5}>2.5x+ avg</option>
+              <option value={3}>3x+ avg</option>
+              <option value={5}>5x+ avg</option>
+            </select>
+            <button
+              onClick={fetchOutliers}
+              disabled={outliersLoading}
+              style={{
+                background: "#3b82f6", border: "none", borderRadius: "6px",
+                padding: "6px 12px", color: "#fff", fontSize: "12px", fontWeight: "600",
+                cursor: outliersLoading ? "not-allowed" : "pointer", opacity: outliersLoading ? 0.6 : 1
+              }}
+            >
+              {outliersLoading ? "Loading..." : "Refresh"}
+            </button>
+          </div>
+        </div>
+
+        {outliersLoading && outliers.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "32px", color: "#888" }}>
+            <Loader size={24} style={{ animation: "spin 1s linear infinite", margin: "0 auto 8px" }} />
+            <div style={{ fontSize: "13px" }}>Detecting outlier videos...</div>
+          </div>
+        ) : outliers.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "24px", color: "#666", fontSize: "13px" }}>
+            No outlier videos found for the selected criteria. Try adjusting the time period or multiplier threshold.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: "10px" }}>
+            {outliers.map(video => (
+              <div key={video.id} style={{
+                background: "#252525",
+                border: "1px solid #333",
+                borderRadius: "8px",
+                padding: "12px",
+                display: "flex",
+                gap: "12px",
+                alignItems: "center"
+              }}>
+                {video.thumbnail_url && (
+                  <img
+                    src={video.thumbnail_url}
+                    alt=""
+                    style={{ width: "120px", height: "68px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }}
+                  />
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: "13px", fontWeight: "600", color: "#fff",
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+                  }}>
+                    {video.title}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>
+                    {video.channel?.name || "Unknown channel"}
+                  </div>
+                  <div style={{ display: "flex", gap: "12px", marginTop: "6px", fontSize: "11px", color: "#b0b0b0" }}>
+                    <span>{fmtInt(video.view_count)} views</span>
+                    <span>Ch avg: {fmtInt(video.channelAvgViews)}</span>
+                    <span>{video.video_type === 'short' ? 'Short' : 'Long-form'}</span>
+                  </div>
+                </div>
+                <div style={{
+                  background: video.outlierScore >= 5 ? "#166534" : video.outlierScore >= 3 ? "#854d0e" : "#1e3a5f",
+                  border: `1px solid ${video.outlierScore >= 5 ? "#22c55e" : video.outlierScore >= 3 ? "#f59e0b" : "#3b82f6"}`,
+                  borderRadius: "6px",
+                  padding: "6px 10px",
+                  textAlign: "center",
+                  flexShrink: 0
+                }}>
+                  <div style={{
+                    fontSize: "16px", fontWeight: "700",
+                    color: video.outlierScore >= 5 ? "#22c55e" : video.outlierScore >= 3 ? "#f59e0b" : "#3b82f6"
+                  }}>
+                    {video.outlierScore}x
+                  </div>
+                  <div style={{ fontSize: "9px", color: "#888", marginTop: "2px" }}>avg</div>
+                </div>
+                <button
+                  onClick={() => handleViewInsight(video)}
+                  style={{
+                    background: "#374151", border: "1px solid #555", borderRadius: "6px",
+                    padding: "8px 12px", color: "#fff", fontSize: "11px", fontWeight: "600",
+                    cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap"
+                  }}
+                >
+                  View Insights
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Insights Slide-out Panel */}
+      {selectedOutlier && (
+        <div style={{
+          position: "fixed", top: 0, right: 0, bottom: 0, width: "420px",
+          background: "#1a1a1a", borderLeft: "1px solid #333",
+          zIndex: 1000, overflowY: "auto", padding: "24px",
+          boxShadow: "-4px 0 20px rgba(0,0,0,0.5)"
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>AI Video Insights</div>
+            <button
+              onClick={() => { setSelectedOutlier(null); setInsightData(null); }}
+              style={{
+                background: "transparent", border: "1px solid #555", borderRadius: "6px",
+                padding: "6px 10px", color: "#fff", fontSize: "12px", cursor: "pointer"
+              }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          <div style={{
+            background: "#252525", borderRadius: "8px", padding: "14px", marginBottom: "20px"
+          }}>
+            <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff", marginBottom: "6px" }}>
+              {selectedOutlier.title}
+            </div>
+            <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>
+              {selectedOutlier.channel?.name}
+            </div>
+            <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "#b0b0b0" }}>
+              <span>{fmtInt(selectedOutlier.view_count)} views</span>
+              <span style={{ color: "#f59e0b", fontWeight: "600" }}>{selectedOutlier.outlierScore}x avg</span>
+            </div>
+          </div>
+
+          {insightLoading ? (
+            <div style={{ textAlign: "center", padding: "40px 0", color: "#888" }}>
+              <Loader size={24} style={{ animation: "spin 1s linear infinite", margin: "0 auto 12px" }} />
+              <div style={{ fontSize: "13px" }}>Analyzing with Claude...</div>
+              <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>~$0.01 per analysis</div>
+            </div>
+          ) : insightData?.error ? (
+            <div style={{
+              background: "#2d1b1b", border: "1px solid #7f1d1d", borderRadius: "8px",
+              padding: "14px", color: "#fca5a5", fontSize: "13px"
+            }}>
+              {insightData.error}
+            </div>
+          ) : insightData ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: "600", color: "#3b82f6", textTransform: "uppercase", marginBottom: "8px" }}>
+                  Hook Analysis
+                </div>
+                <div style={{ fontSize: "13px", color: "#e0e0e0", lineHeight: "1.6" }}>
+                  {insightData.hookAnalysis}
+                </div>
+              </div>
+
+              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: "600", color: "#10b981", textTransform: "uppercase", marginBottom: "8px" }}>
+                  Why It Worked
+                </div>
+                <div style={{ fontSize: "13px", color: "#e0e0e0", lineHeight: "1.6" }}>
+                  {insightData.whyItWorked}
+                </div>
+              </div>
+
+              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: "600", color: "#f59e0b", textTransform: "uppercase", marginBottom: "8px" }}>
+                  Applicable Tactics
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {(insightData.applicableTactics || []).map((tactic, i) => (
+                    <div key={i} style={{
+                      fontSize: "12px", color: "#e0e0e0",
+                      padding: "6px 10px", background: "#1a1a1a", borderRadius: "6px",
+                      borderLeft: "3px solid #f59e0b"
+                    }}>
+                      {tactic}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "12px" }}>
+                <div style={{
+                  flex: 1, background: "#252525", borderRadius: "8px", padding: "14px"
+                }}>
+                  <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Content Angle</div>
+                  <div style={{ fontSize: "13px", color: "#fff", fontWeight: "600", textTransform: "capitalize" }}>
+                    {insightData.contentAngle}
+                  </div>
+                </div>
+                <div style={{
+                  flex: 1, background: "#252525", borderRadius: "8px", padding: "14px"
+                }}>
+                  <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Replicability</div>
+                  <div style={{
+                    fontSize: "13px", fontWeight: "600", textTransform: "capitalize",
+                    color: insightData.replicability === 'high' ? '#22c55e' : insightData.replicability === 'medium' ? '#f59e0b' : '#ef4444'
+                  }}>
+                    {insightData.replicability}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
 

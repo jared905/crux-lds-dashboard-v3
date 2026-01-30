@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Settings, Key, DollarSign, Activity, AlertCircle, CheckCircle2, ExternalLink } from 'lucide-react';
-import claudeAPI from '../services/claudeAPI';
-import youtubeAPI from '../services/youtubeAPI';
+import claudeAPI from '../../services/claudeAPI';
+import youtubeAPI from '../../services/youtubeAPI';
 
 export default function APISettings() {
   const [claudeKey, setClaudeKey] = useState('');

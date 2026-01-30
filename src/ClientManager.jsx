@@ -2,102 +2,7 @@ import React, { useState } from "react";
 import { Upload, Download, Trash2, Edit2, Plus, X, Calendar, Database, Youtube, Link, Cloud, Loader2 } from "lucide-react";
 import Papa from "papaparse";
 import { saveClientToSupabase, deleteClientFromSupabase } from "./services/clientDataService";
-
-// Import the normalizeData function from App.jsx
-// You'll need to export it from App.jsx first, OR copy it here
-const normalizeData = (rawData) => {
-  if (!Array.isArray(rawData)) return { rows: [], channelTotalSubscribers: 0 };
-
-  // Find the "Total" row first to extract channel-level data (case-insensitive)
-  const totalRow = rawData.find(r => {
-    const title = r['Video title'] || r.title || "";
-    return title.toLowerCase().trim() === 'total';
-  });
-
-  // Extract total subscribers from the Total row
-  const channelTotalSubscribers = totalRow ?
-    (Number(String(totalRow['Subscribers'] || totalRow['Subscribers gained'] || totalRow.subscribers || 0).replace(/[^0-9.-]/g, "")) || 0) :
-    0;
-
-  // Filter out invalid rows BEFORE processing
-  const filteredData = rawData.filter(r => {
-    const title = r['Video title'] || r.title || "";
-    const titleLower = title.toLowerCase().trim();
-
-    // Remove rows with "Total" as title (case-insensitive)
-    if (titleLower === "total") return false;
-
-    // Remove rows with no title or empty title
-    if (!title || title.trim() === "") return false;
-
-    return true;
-  });
-
-  const processedRows = filteredData.map(r => {
-    const num = (val) => {
-      if (typeof val === 'number') return val;
-      if (!val) return 0;
-      return Number(String(val).replace(/[^0-9.-]/g, "")) || 0;
-    };
-
-    const title = r['Video title'] || r.title || "Untitled";
-    const publishDate = r['Video publish time'] || r.publishDate;
-    const views = num(r['Views'] || r.views);
-    const impressions = num(r['Impressions'] || r.impressions);
-    const subscribers = num(r['Subscribers gained'] || r['Subscribers'] || r.subscribers);
-    const duration = num(r['Duration'] || r.duration);
-
-    let retention = num(r['Average percentage viewed (%)'] || r.retention);
-    if (retention > 1.0) retention = retention / 100;
-
-    let ctr = num(r['Impressions click-through rate (%)'] || r.ctr);
-    if (ctr > 1.0) ctr = ctr / 100;
-
-    let watchHours = num(r.watchHours);
-    if (!watchHours && r['Average view duration']) {
-      const duration = r['Average view duration'];
-      const parts = String(duration).split(':');
-      if (parts.length === 3) {
-        const hours = parseInt(parts[0]) || 0;
-        const minutes = parseInt(parts[1]) || 0;
-        const seconds = parseInt(parts[2]) || 0;
-        const totalHours = hours + (minutes / 60) + (seconds / 3600);
-        watchHours = totalHours * views;
-      }
-    }
-
-    // Determine video type: prefer explicit type from CSV, fall back to duration for very short videos only
-    // Check multiple possible column names for type
-    let type = r.type || r.Type || r.TYPE || r['Content Type'] || r['content type'] || "";
-    if (!type) {
-      // Only use duration as fallback for very short videos (≤60 seconds)
-      type = (duration > 0 && duration <= 60) ? "short" : "long";
-    }
-
-    const channel = r['Content'] || r.channel || "Main Channel";
-
-    return {
-      channel: String(channel).trim(),
-      title: title,
-      duration: duration,
-      views: views,
-      watchHours: watchHours,
-      subscribers: subscribers,
-      impressions: impressions,
-      ctr,
-      retention,
-      avgViewPct: retention,
-      type: type.toLowerCase(),
-      publishDate: publishDate ? new Date(publishDate).toISOString() : null,
-      video_id: r['Content'] || r.videoId || `vid-${Date.now()}-${Math.random()}`
-    };
-  });
-
-  // Filter out videos with 0 views for display purposes
-  const withViews = processedRows.filter(r => r.views > 0);
-
-  return { rows: withViews, channelTotalSubscribers };
-};
+import { normalizeData } from "./lib/normalizeData.js";
 
 export default function ClientManager({ clients, activeClient, onClientChange, onClientsUpdate }) {
   const [showModal, setShowModal] = useState(false);
@@ -126,19 +31,26 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
       complete: async (result) => {
         try {
           // Extract subscriber count and normalize data
-          const { rows: normalizedRows, channelTotalSubscribers } = normalizeData(result.data);
+          const { rows: allRows, channelTotalSubscribers } = normalizeData(result.data);
+          const normalizedRows = allRows.filter(r => !r.isTotal && r.views > 0);
           const channelUrl = youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : "");
 
           console.log('[Supabase] Saving client:', name, 'with', normalizedRows.length, 'videos');
 
-          // Save to Supabase
-          const savedClient = await saveClientToSupabase(
-            name,
-            normalizedRows,
-            channelUrl,
-            channelTotalSubscribers,
-            result.data // Raw rows for backward compatibility
+          // Save to Supabase with timeout to prevent indefinite hang
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Supabase save timed out after 15s')), 15000)
           );
+          const savedClient = await Promise.race([
+            saveClientToSupabase(
+              name,
+              normalizedRows,
+              channelUrl,
+              channelTotalSubscribers,
+              result.data // Raw rows for backward compatibility
+            ),
+            timeoutPromise
+          ]);
 
           console.log('[Supabase] Client saved successfully:', savedClient.id);
 
@@ -173,7 +85,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
             uploadDate: new Date().toISOString(),
             rows: result.data,
             subscriberCount: channelTotalSubscribers,
-            channels: [...new Set(result.data.map(r => r['Content'] || r.channel).filter(Boolean))],
+            channels: [...new Set(result.data.map(r => r['Channel'] || r['Channel name'] || r.channel).filter(Boolean))],
             youtubeChannelUrl: youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : ""),
             syncedToSupabase: false,
           };
@@ -216,18 +128,24 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
   };
 
   const handleDeleteClient = async (clientId) => {
+    console.log('[Delete] Starting delete for clientId:', clientId);
     const clientToDelete = clients.find(c => c.id === clientId);
+    console.log('[Delete] Found client:', clientToDelete?.name, 'supabaseId:', clientToDelete?.supabaseId);
 
-    // Delete from Supabase if it was synced
+    // Delete from Supabase in the background - don't block local cleanup
     if (clientToDelete?.supabaseId || clientToDelete?.syncedToSupabase) {
-      try {
-        await deleteClientFromSupabase(clientToDelete.supabaseId || clientToDelete.id);
-      } catch (error) {
-        console.error('Error deleting from Supabase:', error);
-        // Continue with local delete even if Supabase fails
-      }
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Supabase delete timed out')), 5000)
+      );
+      Promise.race([
+        deleteClientFromSupabase(clientToDelete.supabaseId || clientToDelete.id),
+        timeoutPromise
+      ])
+        .then(() => console.log('[Delete] Supabase delete succeeded'))
+        .catch((error) => console.error('[Delete] Supabase delete failed:', error));
     }
 
+    // Immediately update local state regardless of Supabase result
     const updatedClients = clients.filter(c => c.id !== clientId);
     onClientsUpdate(updatedClients);
 
@@ -341,7 +259,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
               background: "rgba(0,0,0,0.7)",
               zIndex: 1000
             }}
-            onClick={() => setShowModal(false)}
+            onClick={() => { if (!showDeleteConfirm) setShowModal(false); }}
           />
           <div
             style={{
@@ -761,6 +679,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
             onClick={() => setShowDeleteConfirm(null)}
           />
           <div
+            onClick={(e) => e.stopPropagation()}
             style={{
               position: "fixed",
               top: "50%",
@@ -782,7 +701,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
             </div>
             <div style={{ display: "flex", gap: "12px" }}>
               <button
-                onClick={() => handleDeleteClient(showDeleteConfirm)}
+                onClick={(e) => { e.stopPropagation(); handleDeleteClient(showDeleteConfirm); }}
                 style={{
                   flex: 1,
                   background: "#ef4444",

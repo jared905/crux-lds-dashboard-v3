@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { AlertTriangle, TrendingUp, Zap, Target } from "lucide-react";
 import GrowKillMatrix from "./GrowKillMatrix.jsx";
-import ExecutiveSummary from "./ExecutiveSummary.jsx";
+import ExecutiveSummary from "../Performance/ExecutiveSummary.jsx";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;

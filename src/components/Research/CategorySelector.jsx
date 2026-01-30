@@ -7,8 +7,8 @@
 
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Check, Folder, FolderOpen } from 'lucide-react';
-import { getCategoryTree } from '../services/categoryService';
-import { supabase } from '../services/supabaseClient';
+import { getCategoryTree } from '../../services/categoryService';
+import { supabase } from '../../services/supabaseClient';
 
 const s = {
   container: {
