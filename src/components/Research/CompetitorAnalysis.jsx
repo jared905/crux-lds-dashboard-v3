@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, Upload, Download, RefreshCw, X, Check, Zap, Loader } from "lucide-react";
+import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, Upload, Download, RefreshCw, X, Check, Zap, Loader, MoreVertical, Table2, LayoutGrid, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../../lib/competitorAnalysis";
 import { getOutlierVideos, analyzeCompetitorVideo } from '../../services/competitorInsightsService';
 import { importCompetitorDatabase } from '../../services/competitorImport';
@@ -35,7 +35,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [expandedCompetitor, setExpandedCompetitor] = useState(null);
+
   const [expandedCategories, setExpandedCategories] = useState({});
   const [refreshingId, setRefreshingId] = useState(null);
   const [refreshError, setRefreshError] = useState({});
@@ -67,6 +67,18 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   // Database import state
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
+
+  // Restructured UI state
+  const [selectedChannelId, setSelectedChannelId] = useState(null);
+  const [drawerTab, setDrawerTab] = useState('overview');
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [viewMode, setViewMode] = useState('table');
+  const [sortCol, setSortCol] = useState('subscriberCount');
+  const [sortDir, setSortDir] = useState(true); // true = descending
+  const [intelligenceTab, setIntelligenceTab] = useState('benchmarks');
+  const [intelligenceCollapsed, setIntelligenceCollapsed] = useState(false);
+  const [showAddPopover, setShowAddPopover] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
   // Load competitors from Supabase when activeClient or masterView changes
   useEffect(() => {
@@ -553,8 +565,8 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   const removeCompetitor = async (id) => {
     const updated = competitors.filter(c => c.id !== id);
     setCompetitors(updated);
-    if (expandedCompetitor === id) {
-      setExpandedCompetitor(null);
+    if (selectedChannelId === id) {
+      setSelectedChannelId(null);
     }
 
     // Also remove from Supabase
@@ -990,1296 +1002,563 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     return allInsights;
   }, [activeCompetitors, yourStats, benchmarks]);
 
+  // Filtered + sorted competitors for table view
+  const filteredSortedCompetitors = useMemo(() => {
+    let list = activeCompetitors;
+    if (selectedCategory) {
+      list = list.filter(c => c.category === selectedCategory);
+    }
+    return [...list].sort((a, b) => {
+      const aVal = a[sortCol] || 0;
+      const bVal = b[sortCol] || 0;
+      if (typeof aVal === 'string') {
+        return sortDir ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+      }
+      return sortDir ? bVal - aVal : aVal - bVal;
+    });
+  }, [activeCompetitors, selectedCategory, sortCol, sortDir]);
+
+  // Selected channel for the detail drawer
+  const selectedChannel = useMemo(() => {
+    if (!selectedChannelId) return null;
+    return activeCompetitors.find(c => c.id === selectedChannelId) || null;
+  }, [selectedChannelId, activeCompetitors]);
+
+  // Handle sort column click
+  const handleSort = useCallback((col) => {
+    if (sortCol === col) {
+      setSortDir(prev => !prev);
+    } else {
+      setSortCol(col);
+      setSortDir(true);
+    }
+  }, [sortCol]);
+
   return (
     <div style={{ padding: "0" }}>
-      {/* Header */}
+      {/* ── SECTION 1: HEADER TOOLBAR ── */}
       <div style={{
         background: "#1E1E1E",
         border: "1px solid #333",
         borderRadius: "12px",
-        padding: "24px",
-        marginBottom: "24px"
+        padding: "16px 24px",
+        marginBottom: "16px",
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        {/* Top row */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <div>
-              <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff", marginBottom: "6px" }}>
+              <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
                 Competitor Analysis
               </div>
-              <div style={{ fontSize: "12px", color: "#888" }}>
-                {masterView
-                  ? "Viewing all competitors across all clients"
-                  : `Competitors for ${activeClient?.name || 'current client'}`
-                }
+              <div style={{ fontSize: "12px", color: "#888", marginTop: "2px" }}>
+                {activeCompetitors.length} channels, {groupedCompetitors.length} categories
+                {masterView && " (all clients)"}
               </div>
             </div>
-
-            {/* Master View Toggle */}
-            <button
-              onClick={() => setMasterView(!masterView)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "8px 16px",
-                background: masterView ? "rgba(139, 92, 246, 0.15)" : "#252525",
-                border: `1px solid ${masterView ? "#8b5cf6" : "#444"}`,
-                borderRadius: "8px",
-                color: masterView ? "#a78bfa" : "#9E9E9E",
-                fontSize: "13px",
-                fontWeight: "600",
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <Eye size={14} />
-              {masterView ? "Master View" : "Client View"}
-            </button>
             {supabaseLoading && (
               <Loader size={16} style={{ color: "#888", animation: "spin 1s linear infinite" }} />
             )}
           </div>
-          <div style={{ display: "flex", gap: "12px" }}>
-            {/* Timezone Selector */}
-            <div style={{ position: "relative" }}>
-              <select
-                value={userTimezone}
-                onChange={(e) => {
-                  setUserTimezone(e.target.value);
-                  localStorage.setItem('user_timezone', e.target.value);
-                }}
-                style={{
-                  background: "#252525",
-                  border: "1px solid #555",
-                  borderRadius: "8px",
-                  padding: "10px 32px 10px 12px",
-                  color: "#fff",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  appearance: "none",
-                  WebkitAppearance: "none",
-                  MozAppearance: "none"
-                }}
-                title="Select your timezone for upload schedule analysis"
-              >
-                <option value="UTC">UTC</option>
-                <option value="America/New_York">EST (New York)</option>
-                <option value="America/Chicago">CST (Chicago)</option>
-                <option value="America/Denver">MST (Denver)</option>
-                <option value="America/Los_Angeles">PST (Los Angeles)</option>
-                <option value="Europe/London">GMT (London)</option>
-                <option value="Europe/Paris">CET (Paris)</option>
-                <option value="Asia/Tokyo">JST (Tokyo)</option>
-                <option value="Australia/Sydney">AEST (Sydney)</option>
-              </select>
-              <ChevronDown
-                size={14}
-                style={{
-                  position: "absolute",
-                  right: "10px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  pointerEvents: "none",
-                  color: "#888"
-                }}
-              />
-            </div>
-            {/* Import Database Button */}
+
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {/* Master/Client toggle */}
+            <button
+              onClick={() => setMasterView(!masterView)}
+              style={{
+                display: "flex", alignItems: "center", gap: "6px",
+                padding: "6px 12px",
+                background: masterView ? "rgba(139, 92, 246, 0.15)" : "#252525",
+                border: `1px solid ${masterView ? "#8b5cf6" : "#444"}`,
+                borderRadius: "6px",
+                color: masterView ? "#a78bfa" : "#9E9E9E",
+                fontSize: "12px", fontWeight: "600", cursor: "pointer",
+              }}
+            >
+              <Eye size={14} />
+              {masterView ? "Master" : "Client"}
+            </button>
+
+            {/* Import Database (only when empty) */}
             {activeClient?.id && activeCompetitors.length === 0 && !importing && (
               <button
                 onClick={handleImportDatabase}
                 style={{
-                  background: "rgba(139, 92, 246, 0.15)",
-                  border: "1px solid #8b5cf6",
-                  borderRadius: "8px",
-                  padding: "10px 16px",
-                  color: "#a78bfa",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  whiteSpace: "nowrap",
+                  background: "rgba(139, 92, 246, 0.15)", border: "1px solid #8b5cf6",
+                  borderRadius: "6px", padding: "6px 12px", color: "#a78bfa",
+                  fontSize: "12px", fontWeight: "600", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: "6px",
                 }}
               >
-                <Download size={16} />
+                <Download size={14} />
                 Import Database
               </button>
             )}
             {importing && importProgress && (
               <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "10px 16px",
-                background: "rgba(139, 92, 246, 0.1)",
-                border: "1px solid #8b5cf630",
-                borderRadius: "8px",
-                fontSize: "12px",
-                color: "#a78bfa",
-                whiteSpace: "nowrap",
+                display: "flex", alignItems: "center", gap: "6px",
+                padding: "6px 12px", background: "rgba(139, 92, 246, 0.1)",
+                border: "1px solid #8b5cf630", borderRadius: "6px",
+                fontSize: "11px", color: "#a78bfa",
               }}>
-                <Loader size={14} style={{ animation: "spin 1s linear infinite" }} />
-                Importing {importProgress.current}/{importProgress.total}: {importProgress.name}
+                <Loader size={12} style={{ animation: "spin 1s linear infinite" }} />
+                {importProgress.current}/{importProgress.total}
               </div>
             )}
-            <button
-              onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-              style={{
-                background: apiKey ? "#10b981" : "#3b82f6",
-                border: "none",
-                borderRadius: "8px",
-                padding: "10px 16px",
-                color: "#fff",
-                fontSize: "13px",
-                fontWeight: "600",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px"
-              }}
-            >
-              <Settings size={16} />
-              {apiKey ? "API Key Set" : "Add API Key"}
-            </button>
+
+            {/* + Add button */}
+            {!masterView && (
+              <button
+                onClick={() => setShowAddPopover(!showAddPopover)}
+                style={{
+                  background: showAddPopover ? "#2563eb" : "#3b82f6",
+                  border: "none", borderRadius: "6px", padding: "6px 12px",
+                  color: "#fff", fontSize: "12px", fontWeight: "600",
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: "4px",
+                }}
+              >
+                <Plus size={14} />
+                Add
+              </button>
+            )}
+
+            {/* Sync All */}
+            {activeCompetitors.length > 0 && (
+              <button
+                onClick={() => {
+                  activeCompetitors.forEach(c => refreshCompetitor(c.id));
+                }}
+                style={{
+                  background: "transparent", border: "1px solid #555",
+                  borderRadius: "6px", padding: "6px 12px",
+                  color: "#aaa", fontSize: "12px", fontWeight: "600",
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: "4px",
+                }}
+              >
+                <RefreshCw size={14} />
+                Sync All
+              </button>
+            )}
+
+            {/* Settings overflow menu */}
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+                style={{
+                  background: "transparent", border: "1px solid #444",
+                  borderRadius: "6px", padding: "6px 8px",
+                  color: "#888", cursor: "pointer", display: "flex", alignItems: "center",
+                }}
+              >
+                <MoreVertical size={16} />
+              </button>
+              {showSettingsMenu && (
+                <div style={{
+                  position: "absolute", top: "100%", right: 0, marginTop: "4px",
+                  background: "#252525", border: "1px solid #444", borderRadius: "8px",
+                  padding: "4px", minWidth: "200px", zIndex: 100,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                }}>
+                  <button
+                    onClick={() => { setShowApiKeyInput(!showApiKeyInput); setShowSettingsMenu(false); }}
+                    style={{
+                      width: "100%", background: "transparent", border: "none",
+                      padding: "8px 12px", color: apiKey ? "#10b981" : "#fff",
+                      fontSize: "12px", cursor: "pointer", textAlign: "left",
+                      borderRadius: "4px", display: "flex", alignItems: "center", gap: "8px",
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = "#333"}
+                    onMouseOut={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    <Settings size={14} />
+                    {apiKey ? "API Key Set" : "Set API Key"}
+                  </button>
+                  <div style={{ padding: "4px 12px" }}>
+                    <div style={{ fontSize: "10px", color: "#666", marginBottom: "4px" }}>Timezone</div>
+                    <select
+                      value={userTimezone}
+                      onChange={(e) => { setUserTimezone(e.target.value); localStorage.setItem('user_timezone', e.target.value); }}
+                      style={{
+                        width: "100%", background: "#1E1E1E", border: "1px solid #444",
+                        borderRadius: "4px", padding: "4px 8px", color: "#fff", fontSize: "11px",
+                      }}
+                    >
+                      <option value="UTC">UTC</option>
+                      <option value="America/New_York">EST (New York)</option>
+                      <option value="America/Chicago">CST (Chicago)</option>
+                      <option value="America/Denver">MST (Denver)</option>
+                      <option value="America/Los_Angeles">PST (Los Angeles)</option>
+                      <option value="Europe/London">GMT (London)</option>
+                      <option value="Europe/Paris">CET (Paris)</option>
+                      <option value="Asia/Tokyo">JST (Tokyo)</option>
+                      <option value="Australia/Sydney">AEST (Sydney)</option>
+                    </select>
+                  </div>
+                  {!masterView && activeCompetitors.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => { exportCompetitors(); setShowSettingsMenu(false); }}
+                        style={{
+                          width: "100%", background: "transparent", border: "none",
+                          padding: "8px 12px", color: "#aaa", fontSize: "12px",
+                          cursor: "pointer", textAlign: "left", borderRadius: "4px",
+                          display: "flex", alignItems: "center", gap: "8px",
+                        }}
+                        onMouseOver={e => e.currentTarget.style.background = "#333"}
+                        onMouseOut={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <Download size={14} />
+                        Export JSON
+                      </button>
+                      <label style={{ display: "block" }}>
+                        <input type="file" accept=".json" onChange={(e) => { importCompetitors(e); setShowSettingsMenu(false); }} style={{ display: "none" }} />
+                        <div
+                          style={{
+                            width: "100%", background: "transparent", border: "none",
+                            padding: "8px 12px", color: "#aaa", fontSize: "12px",
+                            cursor: "pointer", textAlign: "left", borderRadius: "4px",
+                            display: "flex", alignItems: "center", gap: "8px", boxSizing: "border-box",
+                          }}
+                          onMouseOver={e => e.currentTarget.style.background = "#333"}
+                          onMouseOut={e => e.currentTarget.style.background = "transparent"}
+                        >
+                          <Upload size={14} />
+                          Import JSON
+                        </div>
+                      </label>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* API Key Input */}
+        {/* API Key Input (collapsible) */}
         {showApiKeyInput && (
-          <div style={{
-            background: "#252525",
-            border: "1px solid #333",
-            borderRadius: "8px",
-            padding: "16px",
-            marginBottom: "16px"
-          }}>
-            <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff", marginBottom: "8px" }}>
-              YouTube Data API v3 Key
-            </div>
-            <div style={{ fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.5" }}>
-              Get your API key from <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" style={{ color: "#60a5fa" }}>Google Cloud Console</a>.
-              Enable "YouTube Data API v3" in your project.
+          <div style={{ marginTop: "12px", background: "#252525", border: "1px solid #333", borderRadius: "8px", padding: "12px" }}>
+            <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>
+              YouTube Data API v3 Key &mdash; <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" style={{ color: "#60a5fa" }}>Get from Google Cloud Console</a>
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
               <input
-                type="text"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                type="text" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
                 placeholder="Enter your YouTube Data API key"
-                style={{
-                  flex: 1,
-                  background: "#1E1E1E",
-                  border: "1px solid #333",
-                  borderRadius: "6px",
-                  padding: "10px 12px",
-                  color: "#fff",
-                  fontSize: "13px"
-                }}
+                style={{ flex: 1, background: "#1E1E1E", border: "1px solid #333", borderRadius: "6px", padding: "8px 10px", color: "#fff", fontSize: "12px" }}
               />
-              <button
-                onClick={saveApiKey}
-                style={{
-                  background: "#10b981",
-                  border: "none",
-                  borderRadius: "6px",
-                  padding: "10px 20px",
-                  color: "#fff",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  cursor: "pointer"
-                }}
-              >
+              <button onClick={saveApiKey} style={{ background: "#10b981", border: "none", borderRadius: "6px", padding: "8px 16px", color: "#fff", fontSize: "12px", fontWeight: "600", cursor: "pointer" }}>
                 Save
               </button>
             </div>
           </div>
         )}
 
-        {/* Add Competitor */}
-        {!masterView && (
-          <div style={{
-            background: "#252525",
-            border: "1px solid #333",
-            borderRadius: "8px",
-            padding: "16px"
-          }}>
-            <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff", marginBottom: "8px" }}>
-              Add Competitor Channel
+        {/* Add Competitor Popover (collapsible) */}
+        {showAddPopover && !masterView && (
+          <div style={{ marginTop: "12px", background: "#252525", border: "1px solid #333", borderRadius: "8px", padding: "12px" }}>
+            <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>
+              Add a YouTube channel URL, @handle, or channel ID
             </div>
-            <div style={{ fontSize: "11px", color: "#888", marginBottom: "12px" }}>
-              Enter a YouTube channel URL or channel ID
-            </div>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <input
-              type="text"
-              value={newCompetitor}
-              onChange={(e) => setNewCompetitor(e.target.value)}
-              placeholder="https://youtube.com/@channelname or channel ID"
-              style={{
-                flex: 1,
-                background: "#1E1E1E",
-                border: "1px solid #333",
-                borderRadius: "6px",
-                padding: "10px 12px",
-                color: "#fff",
-                fontSize: "13px"
-              }}
-              onKeyPress={(e) => e.key === 'Enter' && addCompetitor()}
-            />
-            <button
-              onClick={addCompetitor}
-              disabled={loading}
-              style={{
-                background: loading ? "#555" : "#3b82f6",
-                border: "none",
-                borderRadius: "6px",
-                padding: "10px 20px",
-                color: "#fff",
-                fontSize: "13px",
-                fontWeight: "600",
-                cursor: loading ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px"
-              }}
-            >
-              {loading ? (
-                "Adding..."
-              ) : (
-                <>
-                  <Plus size={16} />
-                  Add
-                </>
-              )}
-            </button>
-          </div>
-          {error && (
-            <div style={{
-              marginTop: "8px",
-              padding: "8px 12px",
-              background: "#ef444420",
-              border: "1px solid #ef4444",
-              borderRadius: "6px",
-              color: "#ef4444",
-              fontSize: "11px"
-            }}>
-              {error}
-            </div>
-          )}
-        </div>
-        )}
-
-        {/* Import/Export */}
-        {!masterView && activeCompetitors.length > 0 && (
-          <div style={{
-            display: "flex",
-            gap: "8px",
-            marginTop: "16px"
-          }}>
-            <button
-              onClick={exportCompetitors}
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "1px solid #555",
-                borderRadius: "6px",
-                padding: "8px 12px",
-                color: "#888",
-                fontSize: "12px",
-                fontWeight: "600",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px"
-              }}
-            >
-              <Download size={14} />
-              Export JSON
-            </button>
-            <label style={{ flex: 1 }}>
+            <div style={{ display: "flex", gap: "8px" }}>
               <input
-                type="file"
-                accept=".json"
-                onChange={importCompetitors}
-                style={{ display: "none" }}
+                type="text" value={newCompetitor} onChange={(e) => setNewCompetitor(e.target.value)}
+                placeholder="https://youtube.com/@channelname"
+                style={{ flex: 1, background: "#1E1E1E", border: "1px solid #333", borderRadius: "6px", padding: "8px 10px", color: "#fff", fontSize: "12px" }}
+                onKeyPress={(e) => e.key === 'Enter' && addCompetitor()}
               />
-              <div style={{
-                background: "transparent",
-                border: "1px solid #555",
-                borderRadius: "6px",
-                padding: "8px 12px",
-                color: "#888",
-                fontSize: "12px",
-                fontWeight: "600",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px"
-              }}>
-                <Upload size={14} />
-                Import JSON
+              <button
+                onClick={addCompetitor} disabled={loading}
+                style={{
+                  background: loading ? "#555" : "#3b82f6", border: "none", borderRadius: "6px",
+                  padding: "8px 16px", color: "#fff", fontSize: "12px", fontWeight: "600",
+                  cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: "4px",
+                }}
+              >
+                {loading ? "Adding..." : <><Plus size={14} /> Add</>}
+              </button>
+            </div>
+            {error && (
+              <div style={{ marginTop: "6px", padding: "6px 10px", background: "#ef444420", border: "1px solid #ef4444", borderRadius: "6px", color: "#ef4444", fontSize: "11px" }}>
+                {error}
               </div>
-            </label>
+            )}
           </div>
         )}
       </div>
 
-      {/* Executive Summary Card - Competitive Position */}
+      {/* ── SECTION 2: KPI STRIP ── */}
       {activeCompetitors.length > 0 && yourStats && (
-        <div style={{
-          background: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)",
-          border: "1px solid #3b82f6",
-          borderRadius: "12px",
-          padding: "24px",
-          marginBottom: "24px",
-          position: "relative",
-          overflow: "hidden"
-        }}>
-          {/* Decorative gradient overlay */}
-          <div style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            width: "300px",
-            height: "300px",
-            background: "radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%)",
-            pointerEvents: "none"
-          }} />
-
-          <div style={{ position: "relative", zIndex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
-              <div style={{ fontSize: "28px" }}>🏆</div>
-              <div>
-                <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
-                  Competitive Position
-                </div>
-                <div style={{ fontSize: "12px", color: "#93c5fd" }}>
-                  Your ranking among tracked competitors
-                </div>
-              </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "16px" }}>
+          {/* Rank */}
+          <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "10px", padding: "16px", borderTop: "3px solid #3b82f6" }}>
+            <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600", marginBottom: "8px" }}>
+              Rank
             </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
-              {/* Rank */}
-              <div style={{
-                background: "rgba(255, 255, 255, 0.1)",
-                backdropFilter: "blur(10px)",
-                borderRadius: "10px",
-                padding: "20px",
-                border: "1px solid rgba(255, 255, 255, 0.2)"
-              }}>
-                <div style={{ fontSize: "11px", color: "#93c5fd", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600" }}>
-                  Current Rank
-                </div>
-                <div style={{ fontSize: "36px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
-                  #{(() => {
-                    const allChannels = [
-                      { subs: yourStats.totalSubscribers, isYou: true },
-                      ...activeCompetitors.map(c => ({ subs: c.subscriberCount, isYou: false }))
-                    ].sort((a, b) => b.subs - a.subs);
-                    return allChannels.findIndex(c => c.isYou) + 1;
-                  })()}
-                </div>
-                <div style={{ fontSize: "12px", color: "#bfdbfe" }}>
-                  of {activeCompetitors.length + 1} channels
-                </div>
-              </div>
-
-              {/* Gap to Leader */}
-              <div style={{
-                background: "rgba(255, 255, 255, 0.1)",
-                backdropFilter: "blur(10px)",
-                borderRadius: "10px",
-                padding: "20px",
-                border: "1px solid rgba(255, 255, 255, 0.2)"
-              }}>
-                <div style={{ fontSize: "11px", color: "#93c5fd", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600" }}>
-                  Gap to Leader
-                </div>
-                {(() => {
-                  const leaderSubs = Math.max(...activeCompetitors.map(c => c.subscriberCount));
-                  const gap = yourStats.totalSubscribers - leaderSubs;
-                  const isLeader = gap >= 0;
-                  return (
-                    <>
-                      <div style={{ fontSize: "28px", fontWeight: "700", color: isLeader ? "#10b981" : "#fbbf24", marginBottom: "4px" }}>
-                        {isLeader ? "🎯 Leader" : `${gap > -1000 ? gap : fmtInt(gap)}`}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#bfdbfe" }}>
-                        {isLeader ? "You're #1!" : "subscribers behind"}
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* Growth Rate */}
-              <div style={{
-                background: "rgba(255, 255, 255, 0.1)",
-                backdropFilter: "blur(10px)",
-                borderRadius: "10px",
-                padding: "20px",
-                border: "1px solid rgba(255, 255, 255, 0.2)"
-              }}>
-                <div style={{ fontSize: "11px", color: "#93c5fd", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600" }}>
-                  Momentum
-                </div>
-                {(() => {
-                  const yourUploadFreq = yourStats.videosLast30Days;
-                  const avgCompetitorFreq = activeCompetitors.reduce((sum, c) => sum + (c.uploadsLast30Days || 0), 0) / activeCompetitors.length;
-                  const isAhead = yourUploadFreq > avgCompetitorFreq;
-                  return (
-                    <>
-                      <div style={{ fontSize: "28px", fontWeight: "700", color: isAhead ? "#10b981" : "#fbbf24", marginBottom: "4px" }}>
-                        {isAhead ? "↗" : "↘"} {yourUploadFreq}/mo
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#bfdbfe" }}>
-                        {isAhead ? "Above" : "Below"} avg ({avgCompetitorFreq.toFixed(1)}/mo)
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* Avg Views Comparison */}
-              <div style={{
-                background: "rgba(255, 255, 255, 0.1)",
-                backdropFilter: "blur(10px)",
-                borderRadius: "10px",
-                padding: "20px",
-                border: "1px solid rgba(255, 255, 255, 0.2)"
-              }}>
-                <div style={{ fontSize: "11px", color: "#93c5fd", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600" }}>
-                  Views Performance
-                </div>
-                {(() => {
-                  const yourAvgViews = yourStats.avgViewsPerVideo;
-                  const avgCompetitorViews = activeCompetitors.reduce((sum, c) => sum + (c.avgViewsPerVideo || 0), 0) / activeCompetitors.length;
-                  const isAhead = yourAvgViews > avgCompetitorViews;
-                  const diff = ((yourAvgViews / avgCompetitorViews - 1) * 100).toFixed(0);
-                  return (
-                    <>
-                      <div style={{ fontSize: "28px", fontWeight: "700", color: isAhead ? "#10b981" : "#fbbf24", marginBottom: "4px" }}>
-                        {isAhead ? "+" : ""}{diff}%
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#bfdbfe" }}>
-                        vs competitor avg
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
+            <div style={{ fontSize: "28px", fontWeight: "700", color: "#fff" }}>
+              #{(() => {
+                const allChannels = [
+                  { subs: yourStats.totalSubscribers, isYou: true },
+                  ...activeCompetitors.map(c => ({ subs: c.subscriberCount, isYou: false }))
+                ].sort((a, b) => b.subs - a.subs);
+                return allChannels.findIndex(c => c.isYou) + 1;
+              })()}
             </div>
+            <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
+              of {activeCompetitors.length + 1} channels
+            </div>
+          </div>
+
+          {/* Gap to Leader */}
+          <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "10px", padding: "16px", borderTop: "3px solid #f59e0b" }}>
+            <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600", marginBottom: "8px" }}>
+              Gap to #1
+            </div>
+            {(() => {
+              const leaderSubs = Math.max(...activeCompetitors.map(c => c.subscriberCount));
+              const gap = yourStats.totalSubscribers - leaderSubs;
+              const isLeader = gap >= 0;
+              return (
+                <>
+                  <div style={{ fontSize: "28px", fontWeight: "700", color: isLeader ? "#10b981" : "#f59e0b" }}>
+                    {isLeader ? "Leader" : fmtInt(gap)}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
+                    {isLeader ? "You're #1 by subs" : "subscribers behind"}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+
+          {/* Momentum */}
+          <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "10px", padding: "16px", borderTop: "3px solid #8b5cf6" }}>
+            <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600", marginBottom: "8px" }}>
+              Momentum
+            </div>
+            {(() => {
+              const yourUploadFreq = yourStats.videosLast30Days;
+              const avgCompetitorFreq = activeCompetitors.reduce((sum, c) => sum + (c.uploadsLast30Days || 0), 0) / activeCompetitors.length;
+              const isAhead = yourUploadFreq > avgCompetitorFreq;
+              return (
+                <>
+                  <div style={{ fontSize: "28px", fontWeight: "700", color: isAhead ? "#10b981" : "#f59e0b" }}>
+                    {yourUploadFreq}/mo
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
+                    {isAhead ? "Above" : "Below"} avg ({avgCompetitorFreq.toFixed(1)}/mo)
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+
+          {/* Views Performance */}
+          <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "10px", padding: "16px", borderTop: "3px solid #10b981" }}>
+            <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600", marginBottom: "8px" }}>
+              Views vs Avg
+            </div>
+            {(() => {
+              const yourAvgViews = yourStats.avgViewsPerVideo;
+              const avgCompetitorViews = activeCompetitors.reduce((sum, c) => sum + (c.avgViewsPerVideo || 0), 0) / activeCompetitors.length;
+              const isAhead = yourAvgViews > avgCompetitorViews;
+              const diff = avgCompetitorViews > 0 ? ((yourAvgViews / avgCompetitorViews - 1) * 100).toFixed(0) : 0;
+              return (
+                <>
+                  <div style={{ fontSize: "28px", fontWeight: "700", color: isAhead ? "#10b981" : "#f59e0b" }}>
+                    {isAhead ? "+" : ""}{diff}%
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
+                    vs competitor avg
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
 
-      {/* Format Strategy Comparison */}
-      {activeCompetitors.length > 0 && yourStats && (
+      {/* ── SECTION 3: COMPETITOR ROSTER ── */}
+
+      {/* 3A: Category Filter Bar + View Toggle */}
+      {activeCompetitors.length > 0 && (
         <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "12px",
-          padding: "24px",
-          marginBottom: "24px"
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: "12px", gap: "12px",
         }}>
-          <div style={{ marginBottom: "20px" }}>
-            <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginBottom: "6px" }}>
-              📊 Format Strategy Comparison
-            </div>
-            <div style={{ fontSize: "13px", color: "#9E9E9E" }}>
-              Shorts vs Long-form production mix across all channels
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            {/* Your Channel First */}
-            <div style={{
-              background: "#252525",
-              border: "2px solid #3b82f6",
-              borderRadius: "10px",
-              padding: "20px"
-            }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div style={{
-                    width: "40px",
-                    height: "40px",
-                    borderRadius: "50%",
-                    background: "#3b82f6",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "20px"
-                  }}>
-                    👤
-                  </div>
-                  <div>
-                    <div style={{ fontSize: "15px", fontWeight: "700", color: "#fff" }}>
-                      Your Channel
-                    </div>
-                    <div style={{ fontSize: "11px", color: "#666" }}>
-                      Last 30 days
-                    </div>
-                  </div>
-                </div>
-                <div style={{
-                  fontSize: "24px",
-                  fontWeight: "700",
-                  color: "#3b82f6"
-                }}>
-                  {yourStats.videosLast30Days} videos
-                </div>
-              </div>
-
-              {/* Format Bar */}
-              <div style={{ marginBottom: "12px" }}>
-                <div style={{
-                  height: "40px",
-                  borderRadius: "8px",
-                  overflow: "hidden",
-                  display: "flex",
-                  background: "#1a1a1a"
-                }}>
-                  <div style={{
-                    width: `${(yourStats.shortsCount / (yourStats.shortsCount + yourStats.longsCount)) * 100}%`,
-                    background: "linear-gradient(90deg, #f97316, #fb923c)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#fff",
-                    fontSize: "13px",
-                    fontWeight: "700",
-                    minWidth: "60px"
-                  }}>
-                    {((yourStats.shortsCount / (yourStats.shortsCount + yourStats.longsCount)) * 100).toFixed(0)}%
-                  </div>
-                  <div style={{
-                    flex: 1,
-                    background: "linear-gradient(90deg, #0ea5e9, #38bdf8)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#fff",
-                    fontSize: "13px",
-                    fontWeight: "700",
-                    minWidth: "60px"
-                  }}>
-                    {((yourStats.longsCount / (yourStats.shortsCount + yourStats.longsCount)) * 100).toFixed(0)}%
-                  </div>
-                </div>
-              </div>
-
-              {/* Legend */}
-              <div style={{ display: "flex", gap: "20px", fontSize: "12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <div style={{ width: "12px", height: "12px", borderRadius: "2px", background: "#f97316" }} />
-                  <span style={{ color: "#888" }}>Shorts:</span>
-                  <span style={{ color: "#fff", fontWeight: "600" }}>{yourStats.shortsCount}</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <div style={{ width: "12px", height: "12px", borderRadius: "2px", background: "#0ea5e9" }} />
-                  <span style={{ color: "#888" }}>Long-form:</span>
-                  <span style={{ color: "#fff", fontWeight: "600" }}>{yourStats.longsCount}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Competitors — Grouped by Category */}
-            {groupedCompetitors.map(group => {
-              const shortsCount = group.totalShorts30d;
-              const longsCount = group.totalLongs30d;
-              const total = shortsCount + longsCount;
-              const shortsPercent = total > 0 ? (shortsCount / total) * 100 : 0;
-              const longsPercent = total > 0 ? (longsCount / total) * 100 : 0;
-              const isShortsFocused = shortsPercent > 70;
-              const isLongsFocused = longsPercent > 70;
-
+          <div style={{
+            display: "flex", gap: "6px", overflowX: "auto", flex: 1,
+            paddingBottom: "4px",
+          }}>
+            <button
+              onClick={() => setSelectedCategory(null)}
+              style={{
+                padding: "5px 12px", borderRadius: "16px", fontSize: "11px", fontWeight: "600",
+                border: `1px solid ${!selectedCategory ? '#3b82f6' : '#444'}`,
+                background: !selectedCategory ? 'rgba(59,130,246,0.15)' : 'transparent',
+                color: !selectedCategory ? '#3b82f6' : '#888',
+                cursor: "pointer", whiteSpace: "nowrap",
+              }}
+            >
+              All ({activeCompetitors.length})
+            </button>
+            {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => {
+              const count = activeCompetitors.filter(c => c.category === key).length;
+              if (count === 0) return null;
               return (
-                <div key={group.key} style={{
-                  background: "#252525",
-                  border: "1px solid #333",
-                  borderLeft: `3px solid ${group.config.color}`,
-                  borderRadius: "10px",
-                  padding: "20px"
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <div style={{
-                        width: "40px",
-                        height: "40px",
-                        borderRadius: "50%",
-                        background: `${group.config.color}22`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "20px"
-                      }}>
-                        {group.config.icon}
-                      </div>
-                      <div>
-                        <div style={{ fontSize: "15px", fontWeight: "700", color: "#fff" }}>
-                          {group.config.label}
-                          <span style={{
-                            fontSize: "11px",
-                            fontWeight: "500",
-                            color: "#888",
-                            marginLeft: "8px"
-                          }}>
-                            {group.channelCount} channel{group.channelCount !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: "11px", color: "#666" }}>
-                          {group.hasData
-                            ? `${fmtInt(group.totalSubs)} total subs · ${fmtInt(group.totalUploads30d)} uploads/30d`
-                            : 'Awaiting first sync'}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <FocusBadge
-                        isShortsFocused={isShortsFocused}
-                        isLongsFocused={isLongsFocused}
-                        total={total}
-                      />
-                      {total > 0 && (
-                        <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>
-                          {total} videos
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Format Bar */}
-                  {total > 0 ? (
-                    <div style={{ marginBottom: "12px" }}>
-                      <div style={{
-                        height: "40px",
-                        borderRadius: "8px",
-                        overflow: "hidden",
-                        display: "flex",
-                        background: "#1a1a1a"
-                      }}>
-                        {shortsCount > 0 && (
-                          <div style={{
-                            width: `${shortsPercent}%`,
-                            background: "linear-gradient(90deg, #f97316, #fb923c)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "#fff",
-                            fontSize: "13px",
-                            fontWeight: "700",
-                            minWidth: shortsPercent > 15 ? "60px" : "0"
-                          }}>
-                            {shortsPercent > 15 && `${shortsPercent.toFixed(0)}%`}
-                          </div>
-                        )}
-                        {longsCount > 0 && (
-                          <div style={{
-                            width: `${longsPercent}%`,
-                            background: "linear-gradient(90deg, #0ea5e9, #38bdf8)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "#fff",
-                            fontSize: "13px",
-                            fontWeight: "700",
-                            minWidth: longsPercent > 15 ? "60px" : "0"
-                          }}>
-                            {longsPercent > 15 && `${longsPercent.toFixed(0)}%`}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{
-                      height: "40px",
-                      borderRadius: "8px",
-                      background: "#1a1a1a",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#555",
-                      fontSize: "12px",
-                      marginBottom: "12px"
-                    }}>
-                      No format data yet — awaiting sync
-                    </div>
-                  )}
-
-                  {/* Legend */}
-                  <div style={{ display: "flex", gap: "20px", fontSize: "12px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <div style={{ width: "12px", height: "12px", borderRadius: "2px", background: "#f97316" }} />
-                      <span style={{ color: "#888" }}>Shorts:</span>
-                      <span style={{ color: "#fff", fontWeight: "600" }}>{shortsCount}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <div style={{ width: "12px", height: "12px", borderRadius: "2px", background: "#0ea5e9" }} />
-                      <span style={{ color: "#888" }}>Long-form:</span>
-                      <span style={{ color: "#fff", fontWeight: "600" }}>{longsCount}</span>
-                    </div>
-                  </div>
-                </div>
+                <button
+                  key={key}
+                  onClick={() => setSelectedCategory(selectedCategory === key ? null : key)}
+                  style={{
+                    padding: "5px 12px", borderRadius: "16px", fontSize: "11px", fontWeight: "600",
+                    border: `1px solid ${selectedCategory === key ? cfg.color : '#444'}`,
+                    background: selectedCategory === key ? `${cfg.color}20` : 'transparent',
+                    color: selectedCategory === key ? cfg.color : '#888',
+                    cursor: "pointer", whiteSpace: "nowrap",
+                    display: "flex", alignItems: "center", gap: "4px",
+                  }}
+                >
+                  <span style={{ fontSize: "13px" }}>{cfg.icon}</span>
+                  {cfg.label.split(' ')[0]} ({count})
+                </button>
               );
             })}
           </div>
+          <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
+            <button
+              onClick={() => setViewMode('table')}
+              style={{
+                padding: "6px 8px", borderRadius: "6px 0 0 6px",
+                background: viewMode === 'table' ? '#333' : 'transparent',
+                border: "1px solid #444", color: viewMode === 'table' ? '#fff' : '#666',
+                cursor: "pointer",
+              }}
+              title="Table view"
+            ><Table2 size={14} /></button>
+            <button
+              onClick={() => setViewMode('cards')}
+              style={{
+                padding: "6px 8px", borderRadius: "0 6px 6px 0",
+                background: viewMode === 'cards' ? '#333' : 'transparent',
+                border: "1px solid #444", borderLeft: "none",
+                color: viewMode === 'cards' ? '#fff' : '#666', cursor: "pointer",
+              }}
+              title="Card view"
+            ><LayoutGrid size={14} /></button>
+          </div>
         </div>
       )}
 
-      {/* Content Gap Analysis */}
-      {activeCompetitors.length > 0 && rows && rows.length > 0 && (
+      {/* 3B: Sortable Table View */}
+      {activeCompetitors.length > 0 && viewMode === 'table' && (
         <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "12px",
-          padding: "24px",
-          marginBottom: "24px"
+          background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
+          overflow: "hidden", marginBottom: "16px",
         }}>
-          <div style={{ marginBottom: "20px" }}>
-            <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginBottom: "6px" }}>
-              🔍 Content Gap Analysis
+          {/* Table header */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "52px 1fr 120px 100px 100px 110px",
+            gap: "8px", padding: "10px 16px",
+            background: "#1a1a1a", borderBottom: "1px solid #333",
+            fontSize: "10px", fontWeight: "600", color: "#888",
+            textTransform: "uppercase", letterSpacing: "0.5px",
+          }}>
+            <div />
+            <div>Channel</div>
+            <div style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => handleSort('subscriberCount')}>
+              Subscribers {sortCol === 'subscriberCount' && (sortDir ? <ArrowDown size={10} /> : <ArrowUp size={10} />)}
             </div>
-            <div style={{ fontSize: "13px", color: "#9E9E9E" }}>
-              Topics and formats competitors are using that you aren't
+            <div style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => handleSort('avgViewsPerVideo')}>
+              Avg Views {sortCol === 'avgViewsPerVideo' && (sortDir ? <ArrowDown size={10} /> : <ArrowUp size={10} />)}
             </div>
+            <div style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => handleSort('uploadsLast30Days')}>
+              30d Uploads {sortCol === 'uploadsLast30Days' && (sortDir ? <ArrowDown size={10} /> : <ArrowUp size={10} />)}
+            </div>
+            <div>Category</div>
           </div>
 
-          {(() => {
-            // Analyze competitor titles for common patterns
-            const competitorPatterns = {};
-            activeCompetitors.forEach(comp => {
-              if (!comp.videos) return;
-
-              comp.videos.forEach(video => {
-                const title = video.title?.toLowerCase() || '';
-
-                // Look for specific patterns
-                const patterns = [];
-
-                // Question-based
-                if (title.includes('?')) patterns.push('Question-based hooks');
-
-                // How-to
-                if (title.match(/how to|how do/i)) patterns.push('How-to tutorials');
-
-                // Lists
-                if (title.match(/\d+\s+(ways|things|tips|reasons|steps)/i)) patterns.push('Numbered lists');
-
-                // Beginner-focused
-                if (title.match(/beginner|basics|101|introduction|getting started/i)) patterns.push('Beginner content');
-
-                // Advanced
-                if (title.match(/advanced|pro|expert|master/i)) patterns.push('Advanced content');
-
-                // Reviews
-                if (title.match(/review|vs|comparison|better than/i)) patterns.push('Reviews & Comparisons');
-
-                // Q&A
-                if (title.match(/q&a|questions|ask me|ama/i)) patterns.push('Q&A sessions');
-
-                // Behind the scenes
-                if (title.match(/behind|bts|making of|setup|routine/i)) patterns.push('Behind-the-scenes');
-
-                patterns.forEach(pattern => {
-                  if (!competitorPatterns[pattern]) {
-                    competitorPatterns[pattern] = {
-                      count: 0,
-                      competitors: new Set(),
-                      examples: []
-                    };
-                  }
-                  competitorPatterns[pattern].count++;
-                  competitorPatterns[pattern].competitors.add(comp.name);
-                  if (competitorPatterns[pattern].examples.length < 2) {
-                    competitorPatterns[pattern].examples.push({
-                      title: video.title,
-                      channel: comp.name,
-                      views: video.views
-                    });
-                  }
-                });
-              });
-            });
-
-            // Find gaps - patterns used by 2+ competitors that you don't use
-            const gaps = Object.entries(competitorPatterns)
-              .filter(([pattern, data]) => {
-                // Check if YOU use this pattern
-                const yourContent = rows.map(r => r.title?.toLowerCase() || '').join(' ');
-                let youUseIt = false;
-
-                if (pattern === 'Question-based hooks') youUseIt = yourContent.includes('?');
-                if (pattern === 'How-to tutorials') youUseIt = yourContent.match(/how to|how do/i);
-                if (pattern === 'Numbered lists') youUseIt = yourContent.match(/\d+\s+(ways|things|tips|reasons|steps)/i);
-                if (pattern === 'Beginner content') youUseIt = yourContent.match(/beginner|basics|101|introduction|getting started/i);
-                if (pattern === 'Advanced content') youUseIt = yourContent.match(/advanced|pro|expert|master/i);
-                if (pattern === 'Reviews & Comparisons') youUseIt = yourContent.match(/review|vs|comparison|better than/i);
-                if (pattern === 'Q&A sessions') youUseIt = yourContent.match(/q&a|questions|ask me|ama/i);
-                if (pattern === 'Behind-the-scenes') youUseIt = yourContent.match(/behind|bts|making of|setup|routine/i);
-
-                return !youUseIt && data.competitors.size >= 2;
-              })
-              .sort((a, b) => b[1].competitors.size - a[1].competitors.size)
-              .slice(0, 5);
-
-            if (gaps.length === 0) {
-              return (
-                <div style={{
-                  textAlign: "center",
-                  padding: "40px",
-                  color: "#666"
-                }}>
-                  <div style={{ fontSize: "32px", marginBottom: "12px" }}>✨</div>
-                  <div style={{ fontSize: "14px", marginBottom: "6px", color: "#888" }}>
-                    No major content gaps detected
-                  </div>
-                  <div style={{ fontSize: "12px", color: "#666" }}>
-                    You're covering similar topics to your competitors
-                  </div>
-                </div>
-              );
-            }
+          {/* Table rows */}
+          {filteredSortedCompetitors.map(comp => {
+            const catCfg = CATEGORY_CONFIG[comp.category] || CATEGORY_CONFIG['lds-faithful'];
+            const growth = comp.history && comp.history.length > 0 ? {
+              subChange: comp.subscriberCount - comp.history[comp.history.length - 1].subscriberCount,
+              subPct: ((comp.subscriberCount - comp.history[comp.history.length - 1].subscriberCount) / Math.max(comp.history[comp.history.length - 1].subscriberCount, 1)) * 100,
+            } : null;
 
             return (
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                {gaps.map(([pattern, data], idx) => (
-                  <div key={idx} style={{
-                    background: "#252525",
-                    border: "1px solid #ef444440",
-                    borderLeft: "4px solid #ef4444",
-                    borderRadius: "8px",
-                    padding: "16px"
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: "14px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
-                          {pattern}
-                        </div>
-                        <div style={{ fontSize: "12px", color: "#b0b0b0" }}>
-                          Used by {data.competitors.size} competitor{data.competitors.size > 1 ? 's' : ''}: {Array.from(data.competitors).join(', ')}
-                        </div>
-                      </div>
-                      <div style={{
-                        fontSize: "10px",
-                        fontWeight: "700",
-                        textTransform: "uppercase",
-                        color: "#ef4444",
-                        background: "rgba(239, 68, 68, 0.1)",
-                        border: "1px solid #ef4444",
-                        padding: "4px 10px",
-                        borderRadius: "4px",
-                        whiteSpace: "nowrap",
-                        marginLeft: "12px"
-                      }}>
-                        Gap Detected
-                      </div>
-                    </div>
-
-                    {/* Example videos */}
-                    {data.examples.length > 0 && (
-                      <div style={{
-                        marginTop: "12px",
-                        paddingTop: "12px",
-                        borderTop: "1px solid #333"
-                      }}>
-                        <div style={{ fontSize: "11px", color: "#666", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                          Examples:
-                        </div>
-                        {data.examples.map((ex, exIdx) => (
-                          <div key={exIdx} style={{
-                            fontSize: "12px",
-                            color: "#999",
-                            marginBottom: "6px",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px"
-                          }}>
-                            <div style={{ fontSize: "10px" }}>📺</div>
-                            <div style={{ flex: 1 }}>
-                              "{ex.title}"
-                              <span style={{ color: "#666", marginLeft: "8px" }}>
-                                - {ex.channel} ({fmtInt(ex.views)} views)
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+              <div
+                key={comp.id}
+                onClick={() => { setSelectedChannelId(comp.id); setDrawerTab('overview'); }}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "52px 1fr 120px 100px 100px 110px",
+                  gap: "8px", padding: "10px 16px",
+                  borderBottom: "1px solid #2a2a2a",
+                  cursor: "pointer", alignItems: "center",
+                  background: selectedChannelId === comp.id ? "#252525" : "transparent",
+                  transition: "background 0.1s",
+                }}
+                onMouseOver={e => { if (selectedChannelId !== comp.id) e.currentTarget.style.background = "#1a1a1a"; }}
+                onMouseOut={e => { if (selectedChannelId !== comp.id) e.currentTarget.style.background = "transparent"; }}
+              >
+                <div>
+                  <img
+                    src={comp.thumbnail}
+                    alt=""
+                    style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover" }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>
+                    {comp.name}
                   </div>
-                ))}
+                  <div style={{ fontSize: "10px", color: "#666", marginTop: "1px" }}>
+                    {comp.subcategory || comp.tier || ''}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>
+                    {fmtInt(comp.subscriberCount)}
+                  </div>
+                  {growth && growth.subChange !== 0 && (
+                    <div style={{ fontSize: "10px", fontWeight: "600", color: growth.subChange > 0 ? "#10b981" : "#ef4444" }}>
+                      {growth.subChange > 0 ? "+" : ""}{growth.subPct.toFixed(1)}%
+                    </div>
+                  )}
+                </div>
+                <div style={{ fontSize: "13px", color: "#ccc" }}>
+                  {fmtInt(comp.avgViewsPerVideo)}
+                </div>
+                <div style={{ fontSize: "13px", color: "#ccc" }}>
+                  {comp.uploadsLast30Days}
+                  <span style={{ fontSize: "10px", color: "#666", marginLeft: "4px" }}>
+                    ({comp.shorts30d || 0}S/{comp.longs30d || 0}L)
+                  </span>
+                </div>
+                <div>
+                  <span style={{
+                    fontSize: "10px", fontWeight: "600",
+                    color: catCfg.color,
+                    background: `${catCfg.color}15`,
+                    padding: "2px 8px", borderRadius: "10px",
+                  }}>
+                    {catCfg.label.split(' ')[0]}
+                  </span>
+                </div>
               </div>
             );
-          })()}
+          })}
         </div>
       )}
 
-      {/* Strategic Insights */}
-      {insights.length > 0 && (
-        <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "12px",
-          padding: "24px",
-          marginBottom: "24px"
-        }}>
-          <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>
-            Strategic Insights
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {insights.map((insight, idx) => (
-              <div key={idx} style={{
-                background: "#252525",
-                border: "1px solid #333",
-                borderRadius: "8px",
-                padding: "14px",
-                display: "flex",
-                gap: "12px",
-                alignItems: "flex-start"
-              }}>
-                <div style={{ fontSize: "24px" }}>{insight.icon}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "4px" }}>
-                    {insight.type}
-                  </div>
-                  <div style={{ fontSize: "12px", color: "#b0b0b0", lineHeight: "1.5" }}>
-                    {insight.insight}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Outlier Videos */}
-      <div style={{
-        background: "#1E1E1E",
-        border: "1px solid #333",
-        borderRadius: "12px",
-        padding: "24px",
-        marginBottom: "24px"
-      }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-          <div>
-            <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", display: "flex", alignItems: "center", gap: "8px" }}>
-              <Zap size={18} color="#f59e0b" />
-              Outlier Videos
-            </div>
-            <div style={{ fontSize: "12px", color: "#888", marginTop: "4px" }}>
-              Videos significantly outperforming their channel average
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <select
-              value={outlierDays}
-              onChange={(e) => setOutlierDays(Number(e.target.value))}
-              style={{
-                background: "#252525", border: "1px solid #555", borderRadius: "6px",
-                padding: "6px 10px", color: "#fff", fontSize: "12px"
-              }}
-            >
-              <option value={30}>30 days</option>
-              <option value={60}>60 days</option>
-              <option value={90}>90 days</option>
-              <option value={180}>180 days</option>
-            </select>
-            <select
-              value={outlierMinMultiplier}
-              onChange={(e) => setOutlierMinMultiplier(Number(e.target.value))}
-              style={{
-                background: "#252525", border: "1px solid #555", borderRadius: "6px",
-                padding: "6px 10px", color: "#fff", fontSize: "12px"
-              }}
-            >
-              <option value={2}>2x+ avg</option>
-              <option value={2.5}>2.5x+ avg</option>
-              <option value={3}>3x+ avg</option>
-              <option value={5}>5x+ avg</option>
-            </select>
-            <button
-              onClick={fetchOutliers}
-              disabled={outliersLoading}
-              style={{
-                background: "#3b82f6", border: "none", borderRadius: "6px",
-                padding: "6px 12px", color: "#fff", fontSize: "12px", fontWeight: "600",
-                cursor: outliersLoading ? "not-allowed" : "pointer", opacity: outliersLoading ? 0.6 : 1
-              }}
-            >
-              {outliersLoading ? "Loading..." : "Refresh"}
-            </button>
-          </div>
-        </div>
-
-        {outliersLoading && outliers.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "32px", color: "#888" }}>
-            <Loader size={24} style={{ animation: "spin 1s linear infinite", margin: "0 auto 8px" }} />
-            <div style={{ fontSize: "13px" }}>Detecting outlier videos...</div>
-          </div>
-        ) : outliers.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "24px", color: "#666", fontSize: "13px" }}>
-            No outlier videos found for the selected criteria. Try adjusting the time period or multiplier threshold.
-          </div>
-        ) : (
-          <div style={{ display: "grid", gap: "10px" }}>
-            {outliers.map(video => (
-              <div key={video.id} style={{
-                background: "#252525",
-                border: "1px solid #333",
-                borderRadius: "8px",
-                padding: "12px",
-                display: "flex",
-                gap: "12px",
-                alignItems: "center"
-              }}>
-                {video.thumbnail_url && (
-                  <img
-                    src={video.thumbnail_url}
-                    alt=""
-                    style={{ width: "120px", height: "68px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }}
-                  />
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontSize: "13px", fontWeight: "600", color: "#fff",
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
-                  }}>
-                    {video.title}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>
-                    {video.channel?.name || "Unknown channel"}
-                  </div>
-                  <div style={{ display: "flex", gap: "12px", marginTop: "6px", fontSize: "11px", color: "#b0b0b0" }}>
-                    <span>{fmtInt(video.view_count)} views</span>
-                    <span>Ch avg: {fmtInt(video.channelAvgViews)}</span>
-                    <span>{video.video_type === 'short' ? 'Short' : 'Long-form'}</span>
-                  </div>
-                </div>
-                <div style={{
-                  background: video.outlierScore >= 5 ? "#166534" : video.outlierScore >= 3 ? "#854d0e" : "#1e3a5f",
-                  border: `1px solid ${video.outlierScore >= 5 ? "#22c55e" : video.outlierScore >= 3 ? "#f59e0b" : "#3b82f6"}`,
-                  borderRadius: "6px",
-                  padding: "6px 10px",
-                  textAlign: "center",
-                  flexShrink: 0
-                }}>
-                  <div style={{
-                    fontSize: "16px", fontWeight: "700",
-                    color: video.outlierScore >= 5 ? "#22c55e" : video.outlierScore >= 3 ? "#f59e0b" : "#3b82f6"
-                  }}>
-                    {video.outlierScore}x
-                  </div>
-                  <div style={{ fontSize: "9px", color: "#888", marginTop: "2px" }}>avg</div>
-                </div>
-                <button
-                  onClick={() => handleViewInsight(video)}
-                  style={{
-                    background: "#374151", border: "1px solid #555", borderRadius: "6px",
-                    padding: "8px 12px", color: "#fff", fontSize: "11px", fontWeight: "600",
-                    cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap"
-                  }}
-                >
-                  View Insights
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Insights Slide-out Panel */}
-      {selectedOutlier && (
-        <div style={{
-          position: "fixed", top: 0, right: 0, bottom: 0, width: "420px",
-          background: "#1a1a1a", borderLeft: "1px solid #333",
-          zIndex: 1000, overflowY: "auto", padding: "24px",
-          boxShadow: "-4px 0 20px rgba(0,0,0,0.5)"
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-            <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>AI Video Insights</div>
-            <button
-              onClick={() => { setSelectedOutlier(null); setInsightData(null); }}
-              style={{
-                background: "transparent", border: "1px solid #555", borderRadius: "6px",
-                padding: "6px 10px", color: "#fff", fontSize: "12px", cursor: "pointer"
-              }}
-            >
-              <X size={14} />
-            </button>
-          </div>
-
-          <div style={{
-            background: "#252525", borderRadius: "8px", padding: "14px", marginBottom: "20px"
-          }}>
-            <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff", marginBottom: "6px" }}>
-              {selectedOutlier.title}
-            </div>
-            <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>
-              {selectedOutlier.channel?.name}
-            </div>
-            <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "#b0b0b0" }}>
-              <span>{fmtInt(selectedOutlier.view_count)} views</span>
-              <span style={{ color: "#f59e0b", fontWeight: "600" }}>{selectedOutlier.outlierScore}x avg</span>
-            </div>
-          </div>
-
-          {insightLoading ? (
-            <div style={{ textAlign: "center", padding: "40px 0", color: "#888" }}>
-              <Loader size={24} style={{ animation: "spin 1s linear infinite", margin: "0 auto 12px" }} />
-              <div style={{ fontSize: "13px" }}>Analyzing with Claude...</div>
-              <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>~$0.01 per analysis</div>
-            </div>
-          ) : insightData?.error ? (
-            <div style={{
-              background: "#2d1b1b", border: "1px solid #7f1d1d", borderRadius: "8px",
-              padding: "14px", color: "#fca5a5", fontSize: "13px"
-            }}>
-              {insightData.error}
-            </div>
-          ) : insightData ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
-                <div style={{ fontSize: "11px", fontWeight: "600", color: "#3b82f6", textTransform: "uppercase", marginBottom: "8px" }}>
-                  Hook Analysis
-                </div>
-                <div style={{ fontSize: "13px", color: "#e0e0e0", lineHeight: "1.6" }}>
-                  {insightData.hookAnalysis}
-                </div>
-              </div>
-
-              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
-                <div style={{ fontSize: "11px", fontWeight: "600", color: "#10b981", textTransform: "uppercase", marginBottom: "8px" }}>
-                  Why It Worked
-                </div>
-                <div style={{ fontSize: "13px", color: "#e0e0e0", lineHeight: "1.6" }}>
-                  {insightData.whyItWorked}
-                </div>
-              </div>
-
-              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
-                <div style={{ fontSize: "11px", fontWeight: "600", color: "#f59e0b", textTransform: "uppercase", marginBottom: "8px" }}>
-                  Applicable Tactics
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  {(insightData.applicableTactics || []).map((tactic, i) => (
-                    <div key={i} style={{
-                      fontSize: "12px", color: "#e0e0e0",
-                      padding: "6px 10px", background: "#1a1a1a", borderRadius: "6px",
-                      borderLeft: "3px solid #f59e0b"
-                    }}>
-                      {tactic}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: "12px" }}>
-                <div style={{
-                  flex: 1, background: "#252525", borderRadius: "8px", padding: "14px"
-                }}>
-                  <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Content Angle</div>
-                  <div style={{ fontSize: "13px", color: "#fff", fontWeight: "600", textTransform: "capitalize" }}>
-                    {insightData.contentAngle}
-                  </div>
-                </div>
-                <div style={{
-                  flex: 1, background: "#252525", borderRadius: "8px", padding: "14px"
-                }}>
-                  <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Replicability</div>
-                  <div style={{
-                    fontSize: "13px", fontWeight: "600", textTransform: "capitalize",
-                    color: insightData.replicability === 'high' ? '#22c55e' : insightData.replicability === 'medium' ? '#f59e0b' : '#ef4444'
-                  }}>
-                    {insightData.replicability}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      {/* Your Stats vs Benchmarks */}
-      {yourStats && benchmarks && (
-        <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "12px",
-          padding: "24px",
-          marginBottom: "24px"
-        }}>
-          <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>
-            Your Channel vs Competitor Average
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
-            <BenchmarkCard
-              label="Subscribers"
-              yourValue={yourStats.totalSubscribers}
-              competitorAvg={benchmarks.avgCompetitorSubs}
-              gap={benchmarks.subscriberGap}
-            />
-            <BenchmarkCard
-              label="Avg Views/Video"
-              yourValue={yourStats.avgViewsPerVideo}
-              competitorAvg={benchmarks.avgCompetitorViews}
-              gap={benchmarks.viewsGap}
-            />
-            <BenchmarkCard
-              label="Uploads (30d)"
-              yourValue={yourStats.videosLast30Days}
-              competitorAvg={benchmarks.avgCompetitorFrequency}
-              gap={benchmarks.frequencyGap}
-            />
-            <BenchmarkCard
-              label="Shorts (30d)"
-              yourValue={yourStats.shortsCount}
-              competitorAvg={benchmarks.avgCompetitorShorts}
-              gap={benchmarks.shortsGap}
-            />
-            <BenchmarkCard
-              label="Long-form (30d)"
-              yourValue={yourStats.longsCount}
-              competitorAvg={benchmarks.avgCompetitorLongs}
-              gap={benchmarks.longsGap}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Competitor List — Grouped by Category */}
-      {activeCompetitors.length === 0 ? (
-        <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "12px",
-          padding: "48px 24px",
-          textAlign: "center",
-          color: "#666"
-        }}>
-          <Search size={48} style={{ margin: "0 auto 16px", opacity: 0.3 }} />
-          <div style={{ fontSize: "16px", marginBottom: "8px" }}>No competitors added yet</div>
-          <div style={{ fontSize: "12px" }}>Add competitor channels to start benchmarking your performance</div>
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {/* Section header */}
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "4px"
-          }}>
-            <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff" }}>
+      {/* 3C: Card View */}
+      {activeCompetitors.length > 0 && viewMode === 'cards' && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+            <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>
               Tracked Competitors
-              <span style={{ fontSize: "13px", fontWeight: "400", color: "#888", marginLeft: "8px" }}>
-                {activeCompetitors.length} channels, {groupedCompetitors.length} categories
+              <span style={{ fontSize: "12px", fontWeight: "400", color: "#888", marginLeft: "8px" }}>
+                {(selectedCategory ? filteredSortedCompetitors.length : activeCompetitors.length)} channels
               </span>
             </div>
             <button
@@ -2288,21 +1567,16 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                 toggleAllCategories(!anyExpanded);
               }}
               style={{
-                background: "transparent",
-                border: "1px solid #555",
-                borderRadius: "6px",
-                padding: "4px 12px",
-                fontSize: "11px",
-                color: "#aaa",
-                cursor: "pointer",
+                background: "transparent", border: "1px solid #555", borderRadius: "6px",
+                padding: "4px 12px", fontSize: "11px", color: "#aaa", cursor: "pointer",
               }}
             >
               {Object.values(expandedCategories).some(Boolean) ? "Collapse All" : "Expand All"}
             </button>
           </div>
-
-          {/* Category groups */}
-          {groupedCompetitors.map(group => (
+          {groupedCompetitors
+            .filter(g => !selectedCategory || g.key === selectedCategory)
+            .map(group => (
             <CategoryHeader
               key={group.key}
               group={group}
@@ -2311,28 +1585,633 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             >
               {expandedCategories[group.key] && (
                 <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
-                  {group.channels.map(competitor => (
-                    <CompetitorCard
-                      key={competitor.id}
-                      competitor={competitor}
-                      isExpanded={expandedCompetitor === competitor.id}
-                      onToggle={() => setExpandedCompetitor(expandedCompetitor === competitor.id ? null : competitor.id)}
-                      onRemove={() => removeCompetitor(competitor.id)}
-                      onRefresh={refreshCompetitor}
-                      isRefreshing={refreshingId === competitor.id}
-                      refreshError={refreshError[competitor.id] || null}
-                      userTimezone={userTimezone}
-                    />
-                  ))}
+                  {group.channels.map(comp => {
+                    const catCfg = CATEGORY_CONFIG[comp.category] || CATEGORY_CONFIG['lds-faithful'];
+                    return (
+                      <div
+                        key={comp.id}
+                        onClick={() => { setSelectedChannelId(comp.id); setDrawerTab('overview'); }}
+                        style={{
+                          background: "#252525", border: "1px solid #333", borderRadius: "8px",
+                          padding: "12px", cursor: "pointer", display: "flex", alignItems: "center", gap: "12px",
+                          transition: "background 0.1s",
+                        }}
+                        onMouseOver={e => e.currentTarget.style.background = "#2a2a2a"}
+                        onMouseOut={e => e.currentTarget.style.background = "#252525"}
+                      >
+                        <img src={comp.thumbnail} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff" }}>{comp.name}</div>
+                          <div style={{ display: "flex", gap: "12px", fontSize: "11px", color: "#888", marginTop: "4px" }}>
+                            <span>{fmtInt(comp.subscriberCount)} subs</span>
+                            <span>{fmtInt(comp.avgViewsPerVideo)} avg views</span>
+                            <span>{comp.uploadsLast30Days} uploads/30d</span>
+                          </div>
+                        </div>
+                        <ChevronDown size={14} color="#666" />
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CategoryHeader>
           ))}
         </div>
       )}
+
+      {/* Empty state */}
+      {activeCompetitors.length === 0 && (
+        <div style={{
+          background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
+          padding: "48px 24px", textAlign: "center", color: "#666", marginBottom: "16px",
+        }}>
+          <Search size={48} style={{ margin: "0 auto 16px", opacity: 0.3 }} />
+          <div style={{ fontSize: "16px", marginBottom: "8px" }}>No competitors added yet</div>
+          <div style={{ fontSize: "12px" }}>Add competitor channels to start benchmarking your performance</div>
+        </div>
+      )}
+
+      {/* ── SECTION 4: CHANNEL DETAIL DRAWER ── */}
+      {selectedChannel && (
+        <ChannelDetailDrawer
+          channel={selectedChannel}
+          drawerTab={drawerTab}
+          setDrawerTab={setDrawerTab}
+          onClose={() => setSelectedChannelId(null)}
+          onRefresh={refreshCompetitor}
+          onRemove={(id) => { removeCompetitor(id); setSelectedChannelId(null); }}
+          isRefreshing={refreshingId === selectedChannel.id}
+          refreshError={refreshError[selectedChannel.id] || null}
+          userTimezone={userTimezone}
+        />
+      )}
+
+      {/* ── SECTION 5: COMPETITIVE INTELLIGENCE PANEL ── */}
+      {activeCompetitors.length > 0 && (
+        <div style={{
+          background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
+          overflow: "hidden", marginBottom: "16px",
+        }}>
+          {/* Panel header */}
+          <button
+            onClick={() => setIntelligenceCollapsed(!intelligenceCollapsed)}
+            style={{
+              width: "100%", background: "transparent", border: "none",
+              padding: "16px 20px", cursor: "pointer", textAlign: "left",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}
+          >
+            <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", display: "flex", alignItems: "center", gap: "8px" }}>
+              <BarChart3 size={16} color="#3b82f6" />
+              Competitive Intelligence
+            </div>
+            {intelligenceCollapsed ? <ChevronDown size={16} color="#888" /> : <ChevronUp size={16} color="#888" />}
+          </button>
+
+          {!intelligenceCollapsed && (
+            <div style={{ padding: "0 20px 20px" }}>
+              {/* Tab bar */}
+              <div style={{ display: "flex", gap: "0", borderBottom: "1px solid #333", marginBottom: "16px" }}>
+                {[
+                  { key: 'benchmarks', label: 'Benchmarks' },
+                  { key: 'gaps', label: 'Content Gaps' },
+                  { key: 'outliers', label: 'Outliers' },
+                  { key: 'insights', label: 'Insights' },
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setIntelligenceTab(tab.key)}
+                    style={{
+                      padding: "8px 16px", background: "transparent", border: "none",
+                      borderBottom: intelligenceTab === tab.key ? "2px solid #3b82f6" : "2px solid transparent",
+                      color: intelligenceTab === tab.key ? "#fff" : "#888",
+                      fontSize: "12px", fontWeight: "600", cursor: "pointer",
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab: Benchmarks */}
+              {intelligenceTab === 'benchmarks' && yourStats && benchmarks && (
+                <div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                    <BenchmarkCard label="Subscribers" yourValue={yourStats.totalSubscribers} competitorAvg={benchmarks.avgCompetitorSubs} gap={benchmarks.subscriberGap} />
+                    <BenchmarkCard label="Avg Views/Video" yourValue={yourStats.avgViewsPerVideo} competitorAvg={benchmarks.avgCompetitorViews} gap={benchmarks.viewsGap} />
+                    <BenchmarkCard label="Uploads (30d)" yourValue={yourStats.videosLast30Days} competitorAvg={benchmarks.avgCompetitorFrequency} gap={benchmarks.frequencyGap} />
+                    <BenchmarkCard label="Shorts (30d)" yourValue={yourStats.shortsCount} competitorAvg={benchmarks.avgCompetitorShorts} gap={benchmarks.shortsGap} />
+                    <BenchmarkCard label="Long-form (30d)" yourValue={yourStats.longsCount} competitorAvg={benchmarks.avgCompetitorLongs} gap={benchmarks.longsGap} />
+                  </div>
+                </div>
+              )}
+
+              {/* Tab: Content Gaps */}
+              {intelligenceTab === 'gaps' && rows && rows.length > 0 && (
+                <ContentGapsPanel activeCompetitors={activeCompetitors} rows={rows} />
+              )}
+
+              {/* Tab: Outliers */}
+              {intelligenceTab === 'outliers' && (
+                <div>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "12px" }}>
+                    <select value={outlierDays} onChange={(e) => setOutlierDays(Number(e.target.value))}
+                      style={{ background: "#252525", border: "1px solid #555", borderRadius: "6px", padding: "6px 10px", color: "#fff", fontSize: "12px" }}>
+                      <option value={30}>30 days</option><option value={60}>60 days</option><option value={90}>90 days</option><option value={180}>180 days</option>
+                    </select>
+                    <select value={outlierMinMultiplier} onChange={(e) => setOutlierMinMultiplier(Number(e.target.value))}
+                      style={{ background: "#252525", border: "1px solid #555", borderRadius: "6px", padding: "6px 10px", color: "#fff", fontSize: "12px" }}>
+                      <option value={2}>2x+ avg</option><option value={2.5}>2.5x+ avg</option><option value={3}>3x+ avg</option><option value={5}>5x+ avg</option>
+                    </select>
+                    <button onClick={fetchOutliers} disabled={outliersLoading}
+                      style={{ background: "#3b82f6", border: "none", borderRadius: "6px", padding: "6px 12px", color: "#fff", fontSize: "12px", fontWeight: "600", cursor: outliersLoading ? "not-allowed" : "pointer", opacity: outliersLoading ? 0.6 : 1 }}>
+                      {outliersLoading ? "Loading..." : "Refresh"}
+                    </button>
+                  </div>
+                  {outliersLoading && outliers.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "32px", color: "#888" }}>
+                      <Loader size={24} style={{ animation: "spin 1s linear infinite", margin: "0 auto 8px" }} />
+                      <div style={{ fontSize: "13px" }}>Detecting outlier videos...</div>
+                    </div>
+                  ) : outliers.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "24px", color: "#666", fontSize: "13px" }}>No outlier videos found. Try adjusting filters.</div>
+                  ) : (
+                    <div style={{ display: "grid", gap: "8px" }}>
+                      {outliers.map(video => (
+                        <div key={video.id} style={{ background: "#252525", border: "1px solid #333", borderRadius: "8px", padding: "10px", display: "flex", gap: "12px", alignItems: "center" }}>
+                          {video.thumbnail_url && <img src={video.thumbnail_url} alt="" style={{ width: "100px", height: "56px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }} />}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{video.title}</div>
+                            <div style={{ fontSize: "11px", color: "#888", marginTop: "2px" }}>{video.channel?.name || "Unknown"}</div>
+                            <div style={{ display: "flex", gap: "10px", marginTop: "4px", fontSize: "10px", color: "#b0b0b0" }}>
+                              <span>{fmtInt(video.view_count)} views</span>
+                              <span>Ch avg: {fmtInt(video.channelAvgViews)}</span>
+                            </div>
+                          </div>
+                          <div style={{
+                            background: video.outlierScore >= 5 ? "#166534" : video.outlierScore >= 3 ? "#854d0e" : "#1e3a5f",
+                            border: `1px solid ${video.outlierScore >= 5 ? "#22c55e" : video.outlierScore >= 3 ? "#f59e0b" : "#3b82f6"}`,
+                            borderRadius: "6px", padding: "4px 8px", textAlign: "center", flexShrink: 0,
+                          }}>
+                            <div style={{ fontSize: "14px", fontWeight: "700", color: video.outlierScore >= 5 ? "#22c55e" : video.outlierScore >= 3 ? "#f59e0b" : "#3b82f6" }}>{video.outlierScore}x</div>
+                          </div>
+                          <button onClick={() => handleViewInsight(video)}
+                            style={{ background: "#374151", border: "1px solid #555", borderRadius: "6px", padding: "6px 10px", color: "#fff", fontSize: "11px", fontWeight: "600", cursor: "pointer", flexShrink: 0 }}>
+                            Insights
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab: Insights */}
+              {intelligenceTab === 'insights' && insights.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "12px" }}>
+                  {insights.map((insight, idx) => (
+                    <div key={idx} style={{ background: "#252525", border: "1px solid #333", borderRadius: "8px", padding: "14px", display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                      <div style={{ fontSize: "24px" }}>{insight.icon}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "4px" }}>{insight.type}</div>
+                        <div style={{ fontSize: "12px", color: "#b0b0b0", lineHeight: "1.5" }}>{insight.insight}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Outlier Insights Slide-out Panel */}
+      {selectedOutlier && (
+        <div style={{
+          position: "fixed", top: 0, right: 0, bottom: 0, width: "420px",
+          background: "#1a1a1a", borderLeft: "1px solid #333",
+          zIndex: 1001, overflowY: "auto", padding: "24px",
+          boxShadow: "-4px 0 20px rgba(0,0,0,0.5)"
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>AI Video Insights</div>
+            <button onClick={() => { setSelectedOutlier(null); setInsightData(null); }}
+              style={{ background: "transparent", border: "1px solid #555", borderRadius: "6px", padding: "6px 10px", color: "#fff", fontSize: "12px", cursor: "pointer" }}>
+              <X size={14} />
+            </button>
+          </div>
+          <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", marginBottom: "20px" }}>
+            <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff", marginBottom: "6px" }}>{selectedOutlier.title}</div>
+            <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>{selectedOutlier.channel?.name}</div>
+            <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "#b0b0b0" }}>
+              <span>{fmtInt(selectedOutlier.view_count)} views</span>
+              <span style={{ color: "#f59e0b", fontWeight: "600" }}>{selectedOutlier.outlierScore}x avg</span>
+            </div>
+          </div>
+          {insightLoading ? (
+            <div style={{ textAlign: "center", padding: "40px 0", color: "#888" }}>
+              <Loader size={24} style={{ animation: "spin 1s linear infinite", margin: "0 auto 12px" }} />
+              <div style={{ fontSize: "13px" }}>Analyzing with Claude...</div>
+            </div>
+          ) : insightData?.error ? (
+            <div style={{ background: "#2d1b1b", border: "1px solid #7f1d1d", borderRadius: "8px", padding: "14px", color: "#fca5a5", fontSize: "13px" }}>{insightData.error}</div>
+          ) : insightData ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: "600", color: "#3b82f6", textTransform: "uppercase", marginBottom: "8px" }}>Hook Analysis</div>
+                <div style={{ fontSize: "13px", color: "#e0e0e0", lineHeight: "1.6" }}>{insightData.hookAnalysis}</div>
+              </div>
+              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: "600", color: "#10b981", textTransform: "uppercase", marginBottom: "8px" }}>Why It Worked</div>
+                <div style={{ fontSize: "13px", color: "#e0e0e0", lineHeight: "1.6" }}>{insightData.whyItWorked}</div>
+              </div>
+              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: "600", color: "#f59e0b", textTransform: "uppercase", marginBottom: "8px" }}>Applicable Tactics</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {(insightData.applicableTactics || []).map((tactic, i) => (
+                    <div key={i} style={{ fontSize: "12px", color: "#e0e0e0", padding: "6px 10px", background: "#1a1a1a", borderRadius: "6px", borderLeft: "3px solid #f59e0b" }}>{tactic}</div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "12px" }}>
+                <div style={{ flex: 1, background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                  <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Content Angle</div>
+                  <div style={{ fontSize: "13px", color: "#fff", fontWeight: "600", textTransform: "capitalize" }}>{insightData.contentAngle}</div>
+                </div>
+                <div style={{ flex: 1, background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                  <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Replicability</div>
+                  <div style={{ fontSize: "13px", fontWeight: "600", textTransform: "capitalize", color: insightData.replicability === 'high' ? '#22c55e' : insightData.replicability === 'medium' ? '#f59e0b' : '#ef4444' }}>{insightData.replicability}</div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }
+
+
+{/* ═══════════════════════════════════════════════════
+    EXTRACTED INLINE COMPONENTS
+    ═══════════════════════════════════════════════════ */}
+
+// Channel Detail Drawer — right-side slide-out panel
+function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefresh, onRemove, isRefreshing, refreshError, userTimezone }) {
+  const titleAnalysis = useMemo(() => drawerTab === 'content' ? analyzeTitlePatterns(channel.videos) : null, [channel.videos, drawerTab]);
+  const scheduleAnalysis = useMemo(() => drawerTab === 'schedule' ? analyzeUploadSchedule(channel.videos, userTimezone) : null, [channel.videos, userTimezone, drawerTab]);
+  const formatAnalysis = useMemo(() => drawerTab === 'content' ? categorizeContentFormats(channel.videos) : null, [channel.videos, drawerTab]);
+
+  const catCfg = CATEGORY_CONFIG[channel.category] || CATEGORY_CONFIG['lds-faithful'];
+
+  const growth = useMemo(() => {
+    if (!channel.history || channel.history.length === 0) return null;
+    const prev = channel.history[channel.history.length - 1];
+    return {
+      subscriberChange: channel.subscriberCount - prev.subscriberCount,
+      subscriberPctChange: ((channel.subscriberCount - prev.subscriberCount) / Math.max(prev.subscriberCount, 1)) * 100,
+      viewsChange: (channel.avgViewsPerVideo || 0) - (prev.avgViews || 0),
+      viewsPctChange: prev.avgViews > 0 ? (((channel.avgViewsPerVideo || 0) - prev.avgViews) / prev.avgViews) * 100 : 0,
+      daysSinceLastRefresh: Math.floor((new Date() - new Date(prev.timestamp)) / (1000 * 60 * 60 * 24)),
+      lastRefreshDate: new Date(prev.timestamp).toLocaleDateString(),
+    };
+  }, [channel]);
+
+  return (
+    <div style={{
+      position: "fixed", top: 0, right: 0, bottom: 0, width: "520px",
+      background: "#1a1a1a", borderLeft: "1px solid #333",
+      zIndex: 1000, overflowY: "auto",
+      boxShadow: "-4px 0 20px rgba(0,0,0,0.5)",
+    }}>
+      {/* Drawer header */}
+      <div style={{ padding: "20px", borderBottom: "1px solid #333" }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", marginBottom: "12px" }}>
+          <img src={channel.thumbnail} alt="" style={{ width: "48px", height: "48px", borderRadius: "50%", objectFit: "cover" }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>{channel.name}</div>
+            <div style={{ display: "flex", gap: "8px", marginTop: "4px", alignItems: "center" }}>
+              <span style={{ fontSize: "10px", fontWeight: "600", color: catCfg.color, background: `${catCfg.color}15`, padding: "2px 8px", borderRadius: "10px" }}>
+                {catCfg.label}
+              </span>
+              {channel.tier && (
+                <span style={{ fontSize: "10px", color: "#888" }}>{channel.tier}</span>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "1px solid #555", borderRadius: "6px", padding: "6px 8px", color: "#888", cursor: "pointer" }}>
+            <X size={14} />
+          </button>
+        </div>
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button onClick={() => !isRefreshing && onRefresh(channel.id)} disabled={isRefreshing}
+            style={{ flex: 1, background: "transparent", border: `1px solid ${isRefreshing ? '#555' : '#3b82f6'}`, borderRadius: "6px", padding: "6px", color: isRefreshing ? '#888' : '#3b82f6', cursor: isRefreshing ? 'wait' : 'pointer', fontSize: "11px", fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+            {isRefreshing ? <Loader size={12} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={12} />}
+            {isRefreshing ? 'Syncing...' : 'Refresh'}
+          </button>
+          <a href={`https://www.youtube.com/channel/${channel.id}`} target="_blank" rel="noopener noreferrer"
+            style={{ flex: 1, background: "transparent", border: "1px solid #555", borderRadius: "6px", padding: "6px", color: "#888", fontSize: "11px", fontWeight: "600", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+            <ExternalLink size={12} /> YouTube
+          </a>
+          <button onClick={() => onRemove(channel.id)}
+            style={{ background: "transparent", border: "1px solid #ef4444", borderRadius: "6px", padding: "6px 10px", color: "#ef4444", cursor: "pointer", fontSize: "11px", fontWeight: "600", display: "flex", alignItems: "center", gap: "4px" }}>
+            <Trash2 size={12} /> Remove
+          </button>
+        </div>
+        {refreshError && (
+          <div style={{ marginTop: "8px", padding: "6px 10px", background: "#ef444415", border: "1px solid #ef444440", borderRadius: "6px", color: "#ef4444", fontSize: "11px" }}>
+            Refresh failed: {refreshError}
+          </div>
+        )}
+      </div>
+
+      {/* KPI row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", padding: "16px 20px" }}>
+        <div style={{ background: "#252525", borderRadius: "6px", padding: "10px" }}>
+          <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Subscribers</div>
+          <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginTop: "2px" }}>{fmtInt(channel.subscriberCount)}</div>
+        </div>
+        <div style={{ background: "#252525", borderRadius: "6px", padding: "10px" }}>
+          <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Avg Views</div>
+          <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginTop: "2px" }}>{fmtInt(channel.avgViewsPerVideo)}</div>
+        </div>
+        <div style={{ background: "#252525", borderRadius: "6px", padding: "10px" }}>
+          <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>30d Uploads</div>
+          <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginTop: "2px" }}>{channel.uploadsLast30Days}</div>
+        </div>
+      </div>
+
+      {/* Growth banner */}
+      {growth && (growth.subscriberChange !== 0 || growth.viewsChange !== 0) && (
+        <div style={{ margin: "0 20px 12px", padding: "8px 12px", background: "#252525", border: "1px solid #333", borderRadius: "6px", display: "flex", gap: "16px", fontSize: "11px" }}>
+          <span style={{ color: "#888" }}>Since {growth.lastRefreshDate}:</span>
+          {growth.subscriberChange !== 0 && (
+            <span style={{ fontWeight: "700", color: growth.subscriberChange > 0 ? "#10b981" : "#ef4444" }}>
+              Subs {growth.subscriberChange > 0 ? "+" : ""}{fmtInt(growth.subscriberChange)} ({growth.subscriberPctChange > 0 ? "+" : ""}{growth.subscriberPctChange.toFixed(1)}%)
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Tab bar */}
+      <div style={{ display: "flex", borderBottom: "1px solid #333", padding: "0 20px" }}>
+        {['overview', 'content', 'schedule'].map(tab => (
+          <button key={tab} onClick={() => setDrawerTab(tab)}
+            style={{
+              padding: "10px 16px", background: "transparent", border: "none",
+              borderBottom: drawerTab === tab ? "2px solid #3b82f6" : "2px solid transparent",
+              color: drawerTab === tab ? "#fff" : "#888",
+              fontSize: "12px", fontWeight: "600", cursor: "pointer", textTransform: "capitalize",
+            }}>
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div style={{ padding: "20px" }}>
+        {/* Overview tab */}
+        {drawerTab === 'overview' && (
+          <>
+            {/* Upload Breakdown */}
+            <div style={{ marginBottom: "20px" }}>
+              <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px" }}>Upload Breakdown (30d)</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+                <div style={{ background: "#252525", border: "1px solid #333", borderRadius: "6px", padding: "10px" }}>
+                  <div style={{ fontSize: "9px", color: "#888" }}>TOTAL</div>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>{channel.uploadsLast30Days}</div>
+                </div>
+                <div style={{ background: "#252525", border: "1px solid #333", borderRadius: "6px", padding: "10px" }}>
+                  <div style={{ fontSize: "9px", color: "#888" }}>SHORTS</div>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#ec4899" }}>{channel.shorts30d}</div>
+                </div>
+                <div style={{ background: "#252525", border: "1px solid #333", borderRadius: "6px", padding: "10px" }}>
+                  <div style={{ fontSize: "9px", color: "#888" }}>LONG-FORM</div>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#3b82f6" }}>{channel.longs30d}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Content Series */}
+            {channel.contentSeries && channel.contentSeries.length > 0 && (
+              <div style={{ marginBottom: "20px" }}>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px" }}>Content Series</div>
+                {channel.contentSeries.slice(0, 3).map((series, idx) => (
+                  <div key={idx} style={{ background: "#252525", border: "1px solid #333", borderRadius: "6px", padding: "10px", marginBottom: "6px" }}>
+                    <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff" }}>{series.name}</div>
+                    <div style={{ fontSize: "10px", color: "#888", marginTop: "4px" }}>
+                      {series.count} episodes &middot; {fmtInt(series.avgViews)} avg views
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Top Videos */}
+            {channel.topVideos && channel.topVideos.length > 0 && (
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <PlaySquare size={14} /> Top Videos
+                </div>
+                {channel.topVideos.map((video, idx) => (
+                  <a key={video.id} href={`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener noreferrer"
+                    style={{ display: "flex", gap: "10px", padding: "8px", marginBottom: "6px", background: "#252525", borderRadius: "6px", textDecoration: "none", alignItems: "center" }}>
+                    <img src={video.thumbnail} alt="" style={{ width: "80px", height: "45px", borderRadius: "4px", objectFit: "cover", flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: "11px", fontWeight: "600", color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{video.title}</div>
+                      <div style={{ fontSize: "10px", color: "#888", marginTop: "2px" }}>
+                        {fmtInt(video.views)} views &middot; {fmtInt(video.likes)} likes &middot; {video.type === 'short' ? 'Short' : 'Long-form'}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: "14px", fontWeight: "700", color: idx === 0 ? "#fcd34d" : idx === 1 ? "#e5e7eb" : "#666", flexShrink: 0 }}>#{idx + 1}</div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Content tab */}
+        {drawerTab === 'content' && (
+          <>
+            {titleAnalysis && titleAnalysis.patterns.length > 0 && (
+              <div style={{ marginBottom: "20px" }}>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px" }}>Title Patterns (Top {titleAnalysis.topVideoCount} Videos)</div>
+                {titleAnalysis.patterns.slice(0, 5).map((pattern, idx) => (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: "#252525", borderRadius: "6px", marginBottom: "6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ fontSize: "18px" }}>{pattern.icon}</span>
+                      <div>
+                        <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff" }}>{pattern.name}</div>
+                        <div style={{ fontSize: "10px", color: "#666" }}>{pattern.insight}</div>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: "14px", fontWeight: "700", color: "#3b82f6" }}>{pattern.topPct}%</div>
+                      <div style={{ fontSize: "9px", color: "#666" }}>in top vids</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {formatAnalysis && (
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px" }}>Format Breakdown</div>
+                <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                  {formatAnalysis.durationStats.map(format => (
+                    <div key={format.name} style={{ flex: 1, background: "#252525", borderRadius: "6px", padding: "10px", borderLeft: `3px solid ${format.color}` }}>
+                      <div style={{ fontSize: "9px", color: "#888" }}>{format.name}</div>
+                      <div style={{ fontSize: "18px", fontWeight: "700", color: format.color }}>{format.count}</div>
+                      <div style={{ fontSize: "9px", color: "#666" }}>{Math.round(format.percentage)}% &middot; {fmtInt(format.avgViews)} avg</div>
+                    </div>
+                  ))}
+                </div>
+                {formatAnalysis.typeStats.slice(0, 6).map(type => (
+                  <div key={type.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: "#252525", borderRadius: "6px", marginBottom: "4px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ fontSize: "16px" }}>{type.icon}</span>
+                      <div>
+                        <div style={{ fontSize: "11px", fontWeight: "600", color: "#fff" }}>{type.name}</div>
+                        <div style={{ fontSize: "9px", color: "#666" }}>{type.count} videos &middot; {fmtInt(type.avgViews)} avg</div>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: "14px", fontWeight: "700", color: type.color }}>{Math.round(type.percentage)}%</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Schedule tab */}
+        {drawerTab === 'schedule' && scheduleAnalysis && (
+          <div>
+            <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "12px" }}>Upload Schedule</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "16px" }}>
+              <div style={{ background: "#252525", borderRadius: "6px", padding: "12px" }}>
+                <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Best Day</div>
+                <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", marginTop: "4px" }}>{scheduleAnalysis.bestDay?.day || 'N/A'}</div>
+                <div style={{ fontSize: "10px", color: "#666" }}>{scheduleAnalysis.bestDay?.avgViews ? fmtInt(scheduleAnalysis.bestDay.avgViews) + ' avg views' : ''}</div>
+              </div>
+              <div style={{ background: "#252525", borderRadius: "6px", padding: "12px" }}>
+                <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Best Time</div>
+                <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", marginTop: "4px" }}>{scheduleAnalysis.bestTime?.hour || 'N/A'}</div>
+                <div style={{ fontSize: "10px", color: "#666" }}>{scheduleAnalysis.bestTime?.avgViews ? fmtInt(scheduleAnalysis.bestTime.avgViews) + ' avg views' : ''}</div>
+              </div>
+            </div>
+            {/* Day-of-week chart */}
+            {scheduleAnalysis.dayDistribution && (
+              <div style={{ marginBottom: "16px" }}>
+                <div style={{ fontSize: "11px", color: "#888", marginBottom: "8px" }}>Day Distribution</div>
+                <div style={{ display: "flex", gap: "4px", alignItems: "flex-end", height: "60px" }}>
+                  {scheduleAnalysis.dayDistribution.map(day => (
+                    <div key={day.day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                      <div style={{
+                        width: "100%", background: "#3b82f6",
+                        height: `${Math.max(day.count / Math.max(...scheduleAnalysis.dayDistribution.map(d => d.count), 1) * 50, 4)}px`,
+                        borderRadius: "2px 2px 0 0",
+                      }} />
+                      <div style={{ fontSize: "8px", color: "#888" }}>{day.day.substring(0, 2)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <div style={{ background: "#252525", borderRadius: "6px", padding: "12px" }}>
+                <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Cadence</div>
+                <div style={{ fontSize: "14px", fontWeight: "700", color: "#fff", marginTop: "4px" }}>Every {(30 / Math.max(channel.uploadsLast30Days, 1)).toFixed(1)} days</div>
+              </div>
+              <div style={{ background: "#252525", borderRadius: "6px", padding: "12px" }}>
+                <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Consistency</div>
+                <div style={{ fontSize: "14px", fontWeight: "700", color: scheduleAnalysis.consistency > 0.7 ? "#10b981" : scheduleAnalysis.consistency > 0.4 ? "#f59e0b" : "#ef4444", marginTop: "4px" }}>
+                  {scheduleAnalysis.consistency > 0.7 ? "High" : scheduleAnalysis.consistency > 0.4 ? "Medium" : "Low"}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Content Gaps Panel — extracts content gap analysis logic
+function ContentGapsPanel({ activeCompetitors, rows }) {
+  const gaps = useMemo(() => {
+    const competitorPatterns = {};
+    activeCompetitors.forEach(comp => {
+      if (!comp.videos) return;
+      comp.videos.forEach(video => {
+        const title = video.title?.toLowerCase() || '';
+        const patterns = [];
+        if (title.includes('?')) patterns.push('Question-based hooks');
+        if (title.match(/how to|how do/i)) patterns.push('How-to tutorials');
+        if (title.match(/\d+\s+(ways|things|tips|reasons|steps)/i)) patterns.push('Numbered lists');
+        if (title.match(/beginner|basics|101|introduction|getting started/i)) patterns.push('Beginner content');
+        if (title.match(/advanced|pro|expert|master/i)) patterns.push('Advanced content');
+        if (title.match(/review|vs|comparison|better than/i)) patterns.push('Reviews & Comparisons');
+        if (title.match(/q&a|questions|ask me|ama/i)) patterns.push('Q&A sessions');
+        if (title.match(/behind|bts|making of|setup|routine/i)) patterns.push('Behind-the-scenes');
+        patterns.forEach(pattern => {
+          if (!competitorPatterns[pattern]) competitorPatterns[pattern] = { count: 0, competitors: new Set(), examples: [] };
+          competitorPatterns[pattern].count++;
+          competitorPatterns[pattern].competitors.add(comp.name);
+          if (competitorPatterns[pattern].examples.length < 2) competitorPatterns[pattern].examples.push({ title: video.title, channel: comp.name, views: video.views });
+        });
+      });
+    });
+    const yourContent = rows.map(r => r.title?.toLowerCase() || '').join(' ');
+    return Object.entries(competitorPatterns)
+      .filter(([pattern, data]) => {
+        let youUseIt = false;
+        if (pattern === 'Question-based hooks') youUseIt = yourContent.includes('?');
+        if (pattern === 'How-to tutorials') youUseIt = yourContent.match(/how to|how do/i);
+        if (pattern === 'Numbered lists') youUseIt = yourContent.match(/\d+\s+(ways|things|tips|reasons|steps)/i);
+        if (pattern === 'Beginner content') youUseIt = yourContent.match(/beginner|basics|101|introduction|getting started/i);
+        if (pattern === 'Advanced content') youUseIt = yourContent.match(/advanced|pro|expert|master/i);
+        if (pattern === 'Reviews & Comparisons') youUseIt = yourContent.match(/review|vs|comparison|better than/i);
+        if (pattern === 'Q&A sessions') youUseIt = yourContent.match(/q&a|questions|ask me|ama/i);
+        if (pattern === 'Behind-the-scenes') youUseIt = yourContent.match(/behind|bts|making of|setup|routine/i);
+        return !youUseIt && data.competitors.size >= 2;
+      })
+      .sort((a, b) => b[1].competitors.size - a[1].competitors.size)
+      .slice(0, 5);
+  }, [activeCompetitors, rows]);
+
+  if (gaps.length === 0) {
+    return <div style={{ textAlign: "center", padding: "32px", color: "#666", fontSize: "13px" }}>No major content gaps detected. You're covering similar topics.</div>;
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      {gaps.map(([pattern, data], idx) => (
+        <div key={idx} style={{ background: "#252525", border: "1px solid #ef444440", borderLeft: "4px solid #ef4444", borderRadius: "8px", padding: "14px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+            <div>
+              <div style={{ fontSize: "13px", fontWeight: "700", color: "#fff" }}>{pattern}</div>
+              <div style={{ fontSize: "11px", color: "#b0b0b0", marginTop: "2px" }}>
+                Used by {data.competitors.size} competitors: {Array.from(data.competitors).join(', ')}
+              </div>
+            </div>
+            <div style={{ fontSize: "9px", fontWeight: "700", textTransform: "uppercase", color: "#ef4444", background: "rgba(239,68,68,0.1)", border: "1px solid #ef4444", padding: "3px 8px", borderRadius: "4px" }}>Gap</div>
+          </div>
+          {data.examples.length > 0 && (
+            <div style={{ borderTop: "1px solid #333", paddingTop: "8px" }}>
+              {data.examples.map((ex, i) => (
+                <div key={i} style={{ fontSize: "11px", color: "#999", marginBottom: "4px" }}>
+                  "{ex.title}" - {ex.channel} ({fmtInt(ex.views)} views)
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 
 // Collapsible Analysis Section Component
 function AnalysisSection({ title, icon: Icon, isExpanded, onToggle, children }) {
@@ -2426,797 +2305,6 @@ function BenchmarkCard({ label, yourValue, competitorAvg, gap }) {
       }}>
         {isAhead ? "↑" : "↓"} {Math.abs(gap).toFixed(1)}% {isAhead ? "ahead" : "behind"}
       </div>
-    </div>
-  );
-}
-
-// Competitor Card Component
-function CompetitorCard({ competitor, isExpanded, onToggle, onRemove, onRefresh, isRefreshing, refreshError, userTimezone }) {
-  // State for collapsible analysis sections
-  const [titleSectionExpanded, setTitleSectionExpanded] = useState(false);
-  const [scheduleSectionExpanded, setScheduleSectionExpanded] = useState(false);
-  const [formatSectionExpanded, setFormatSectionExpanded] = useState(false);
-
-  // Calculate growth indicators from history
-  const growth = useMemo(() => {
-    if (!competitor.history || competitor.history.length === 0) return null;
-
-    const latest = {
-      subscriberCount: competitor.subscriberCount,
-      avgViews: competitor.avgViewsPerVideo,
-      uploadsLast30Days: competitor.uploadsLast30Days
-    };
-
-    const previous = competitor.history[competitor.history.length - 1];
-
-    return {
-      subscriberChange: latest.subscriberCount - previous.subscriberCount,
-      subscriberPctChange: ((latest.subscriberCount - previous.subscriberCount) / Math.max(previous.subscriberCount, 1)) * 100,
-      viewsChange: latest.avgViews - previous.avgViews,
-      viewsPctChange: ((latest.avgViews - previous.avgViews) / Math.max(previous.avgViews, 1)) * 100,
-      uploadsChange: latest.uploadsLast30Days - previous.uploadsLast30Days,
-      daysSinceLastRefresh: Math.floor((new Date() - new Date(previous.timestamp)) / (1000 * 60 * 60 * 24)),
-      lastRefreshDate: new Date(previous.timestamp).toLocaleDateString()
-    };
-  }, [competitor]);
-
-  // Analysis computations (only when expanded)
-  const titleAnalysis = useMemo(() =>
-    isExpanded ? analyzeTitlePatterns(competitor.videos) : null,
-    [competitor.videos, isExpanded]
-  );
-
-  const scheduleAnalysis = useMemo(() =>
-    isExpanded ? analyzeUploadSchedule(competitor.videos, userTimezone) : null,
-    [competitor.videos, userTimezone, isExpanded]
-  );
-
-  const formatAnalysis = useMemo(() =>
-    isExpanded ? categorizeContentFormats(competitor.videos) : null,
-    [competitor.videos, isExpanded]
-  );
-
-  return (
-    <div style={{
-      background: "#252525",
-      border: "1px solid #333",
-      borderRadius: "8px",
-      overflow: "hidden"
-    }}>
-      {/* Header */}
-      <div style={{
-        padding: "16px"
-      }}>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "auto 1fr auto auto auto",
-          gap: "12px",
-          alignItems: "center"
-        }}>
-          <a
-            href={`https://www.youtube.com/channel/${competitor.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: "block" }}
-          >
-            <img
-              src={competitor.thumbnail}
-              alt={competitor.name}
-              style={{
-                width: "48px",
-                height: "48px",
-                borderRadius: "50%",
-                objectFit: "cover",
-                transition: "opacity 0.15s ease"
-              }}
-              onMouseOver={(e) => e.target.style.opacity = "0.8"}
-              onMouseOut={(e) => e.target.style.opacity = "1"}
-            />
-          </a>
-          <div>
-            <a
-              href={`https://www.youtube.com/channel/${competitor.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ fontSize: "15px", fontWeight: "600", color: "#fff", marginBottom: "8px", display: "block", textDecoration: "none" }}
-              onMouseOver={(e) => e.target.style.textDecoration = "underline"}
-              onMouseOut={(e) => e.target.style.textDecoration = "none"}
-            >
-              {competitor.name}
-            </a>
-            <div style={{ display: "flex", gap: "16px", fontSize: "11px", color: "#888", flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <Users size={14} />
-                {fmtInt(competitor.subscriberCount)} subs
-                {growth && growth.subscriberChange !== 0 && (
-                  <span style={{
-                    fontSize: "9px",
-                    color: growth.subscriberChange > 0 ? "#10b981" : "#ef4444",
-                    fontWeight: "600"
-                  }}>
-                    {growth.subscriberChange > 0 ? "+" : ""}{fmtInt(growth.subscriberChange)}
-                  </span>
-                )}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <Video size={14} />
-                {fmtInt(competitor.videoCount)} videos
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <Eye size={14} />
-                {fmtInt(competitor.avgViewsPerVideo)} avg views
-                {growth && growth.viewsChange !== 0 && (
-                  <span style={{
-                    fontSize: "9px",
-                    color: growth.viewsChange > 0 ? "#10b981" : "#ef4444",
-                    fontWeight: "600"
-                  }}>
-                    {growth.viewsPctChange > 0 ? "+" : ""}{growth.viewsPctChange.toFixed(1)}%
-                  </span>
-                )}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <Calendar size={14} />
-                {competitor.uploadsLast30Days} uploads/30d
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={() => !isRefreshing && onRefresh(competitor.id)}
-            disabled={isRefreshing}
-            style={{
-              background: "transparent",
-              border: `1px solid ${isRefreshing ? '#555' : '#3b82f6'}`,
-              borderRadius: "6px",
-              padding: "8px 12px",
-              color: isRefreshing ? '#888' : '#3b82f6',
-              cursor: isRefreshing ? 'wait' : 'pointer',
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "12px",
-              fontWeight: "600",
-              opacity: isRefreshing ? 0.7 : 1,
-            }}
-            title={isRefreshing ? 'Syncing...' : growth ? `Last refreshed ${growth.lastRefreshDate} (${growth.daysSinceLastRefresh} days ago)` : "Refresh data and save snapshot"}
-          >
-            {isRefreshing ? <Loader size={14} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={14} />}
-            {isRefreshing ? 'Syncing...' : 'Refresh'}
-          </button>
-          <button
-            onClick={onToggle}
-            style={{
-              background: "transparent",
-              border: "1px solid #555",
-              borderRadius: "6px",
-              padding: "8px 12px",
-              color: "#888",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "12px",
-              fontWeight: "600"
-            }}
-          >
-            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            {isExpanded ? "Less" : "More"}
-          </button>
-          <button
-            onClick={onRemove}
-            style={{
-              background: "transparent",
-              border: "1px solid #ef4444",
-              borderRadius: "6px",
-              padding: "8px 12px",
-              color: "#ef4444",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              fontSize: "12px",
-              fontWeight: "600"
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = "#ef444420";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = "transparent";
-            }}
-          >
-            <Trash2 size={14} />
-            Remove
-          </button>
-        </div>
-
-        {/* Refresh error inline */}
-        {refreshError && (
-          <div style={{
-            marginTop: "8px",
-            padding: "6px 10px",
-            background: "#ef444415",
-            border: "1px solid #ef444440",
-            borderRadius: "6px",
-            color: "#ef4444",
-            fontSize: "11px",
-          }}>
-            Refresh failed: {refreshError}
-          </div>
-        )}
-
-        {/* Growth Indicators Banner */}
-        {growth && (
-          <div style={{
-            marginTop: "12px",
-            padding: "10px 12px",
-            background: "#1E1E1E",
-            border: "1px solid #333",
-            borderRadius: "6px",
-            display: "flex",
-            gap: "16px",
-            alignItems: "center",
-            fontSize: "11px"
-          }}>
-            <div style={{ color: "#888" }}>
-              Since {growth.lastRefreshDate} ({growth.daysSinceLastRefresh}d ago):
-            </div>
-            {growth.subscriberChange !== 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <span style={{ color: "#888" }}>Subscribers:</span>
-                <span style={{
-                  fontWeight: "700",
-                  color: growth.subscriberChange > 0 ? "#10b981" : "#ef4444"
-                }}>
-                  {growth.subscriberChange > 0 ? "+" : ""}{fmtInt(growth.subscriberChange)} ({growth.subscriberPctChange > 0 ? "+" : ""}{growth.subscriberPctChange.toFixed(1)}%)
-                </span>
-              </div>
-            )}
-            {growth.viewsChange !== 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <span style={{ color: "#888" }}>Avg Views:</span>
-                <span style={{
-                  fontWeight: "700",
-                  color: growth.viewsChange > 0 ? "#10b981" : "#ef4444"
-                }}>
-                  {growth.viewsChange > 0 ? "+" : ""}{fmtInt(growth.viewsChange)} ({growth.viewsPctChange > 0 ? "+" : ""}{growth.viewsPctChange.toFixed(1)}%)
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Expanded Details */}
-      {isExpanded && (
-        <div style={{ borderTop: "1px solid #333", padding: "16px" }}>
-          {/* Upload Breakdown */}
-          <div style={{ marginBottom: "20px" }}>
-            <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff", marginBottom: "12px" }}>
-              Upload Breakdown (Last 30 Days)
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
-              <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "6px", padding: "12px" }}>
-                <div style={{ fontSize: "10px", color: "#888", marginBottom: "4px" }}>TOTAL UPLOADS</div>
-                <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff" }}>
-                  {competitor.uploadsLast30Days}
-                </div>
-                <div style={{ fontSize: "10px", color: "#666", marginTop: "2px" }}>
-                  Every {(30 / Math.max(competitor.uploadsLast30Days, 1)).toFixed(1)} days
-                </div>
-              </div>
-              <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "6px", padding: "12px" }}>
-                <div style={{ fontSize: "10px", color: "#888", marginBottom: "4px" }}>SHORTS</div>
-                <div style={{ fontSize: "22px", fontWeight: "700", color: "#ec4899" }}>
-                  {competitor.shorts30d}
-                </div>
-                <div style={{ fontSize: "10px", color: "#666", marginTop: "2px" }}>
-                  {competitor.uploadsLast30Days > 0 ? Math.round((competitor.shorts30d / competitor.uploadsLast30Days) * 100) : 0}% of uploads
-                </div>
-              </div>
-              <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "6px", padding: "12px" }}>
-                <div style={{ fontSize: "10px", color: "#888", marginBottom: "4px" }}>LONG-FORM</div>
-                <div style={{ fontSize: "22px", fontWeight: "700", color: "#3b82f6" }}>
-                  {competitor.longs30d}
-                </div>
-                <div style={{ fontSize: "10px", color: "#666", marginTop: "2px" }}>
-                  {competitor.uploadsLast30Days > 0 ? Math.round((competitor.longs30d / competitor.uploadsLast30Days) * 100) : 0}% of uploads
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Content Series */}
-          {competitor.contentSeries && competitor.contentSeries.length > 0 && (
-            <div style={{ marginBottom: "20px" }}>
-              <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <BarChart3 size={16} />
-                Top Performing Content Series
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {competitor.contentSeries.slice(0, 3).map((series, idx) => (
-                  <div key={idx} style={{
-                    background: "#1E1E1E",
-                    border: "1px solid #333",
-                    borderRadius: "6px",
-                    padding: "12px"
-                  }}>
-                    <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "6px" }}>
-                      {series.name}
-                    </div>
-                    <div style={{ display: "flex", gap: "12px", fontSize: "11px", color: "#888" }}>
-                      <span>{series.count} episodes</span>
-                      <span>•</span>
-                      <span>{fmtInt(series.avgViews)} avg views</span>
-                      <span>•</span>
-                      <span>{fmtInt(series.totalViews)} total views</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Title/Thumbnail Pattern Analysis */}
-          {titleAnalysis && (
-            <AnalysisSection
-              title="Title & Thumbnail Patterns"
-              icon={Type}
-              isExpanded={titleSectionExpanded}
-              onToggle={() => setTitleSectionExpanded(!titleSectionExpanded)}
-            >
-              {titleAnalysis.patterns.length === 0 ? (
-                <div style={{ color: "#666", fontSize: "12px" }}>
-                  Need at least 10 videos with sufficient pattern data for analysis
-                </div>
-              ) : (
-                <>
-                  {/* Pattern Cards */}
-                  <div style={{ marginBottom: "16px" }}>
-                    <div style={{ fontSize: "12px", color: "#888", marginBottom: "10px" }}>
-                      Patterns in Top {titleAnalysis.topVideoCount} Videos
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {titleAnalysis.patterns.slice(0, 5).map((pattern, idx) => (
-                        <div key={idx} style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "10px 12px",
-                          background: "#252525",
-                          borderRadius: "6px"
-                        }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
-                            <span style={{ fontSize: "20px" }}>{pattern.icon}</span>
-                            <div>
-                              <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>
-                                {pattern.name}
-                              </div>
-                              <div style={{ fontSize: "10px", color: "#666", marginTop: "2px" }}>
-                                {pattern.insight}
-                              </div>
-                            </div>
-                          </div>
-                          <div style={{ textAlign: "right" }}>
-                            <div style={{
-                              fontSize: "18px",
-                              fontWeight: "700",
-                              color: pattern.topFrequency > 0.5 ? "#10b981" : "#3b82f6"
-                            }}>
-                              {Math.round(pattern.topFrequency * 100)}%
-                            </div>
-                            <div style={{ fontSize: "9px", color: "#666" }}>
-                              {pattern.topCount}/{titleAnalysis.topVideoCount} videos
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Top 10 Thumbnail Grid */}
-                  <div style={{ marginBottom: "16px" }}>
-                    <div style={{ fontSize: "12px", color: "#888", marginBottom: "10px" }}>
-                      Top 10 Performing Thumbnails
-                    </div>
-                    <div style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(5, 1fr)",
-                      gap: "8px"
-                    }}>
-                      {titleAnalysis.top10Videos.map((video, idx) => {
-                        const uploadDate = video.publishedAt
-                          ? new Date(video.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                          : 'N/A';
-
-                        return (
-                          <div key={video.id} style={{ display: "flex", flexDirection: "column" }}>
-                            <a
-                              href={`https://www.youtube.com/watch?v=${video.id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ position: "relative", display: "block" }}
-                            >
-                              <img
-                                src={video.thumbnail}
-                                alt={video.title}
-                                title={video.title}
-                                style={{
-                                  width: "100%",
-                                  aspectRatio: "16/9",
-                                  borderRadius: "4px",
-                                  objectFit: "cover",
-                                  border: "1px solid #333",
-                                  cursor: "pointer",
-                                  transition: "opacity 0.15s ease"
-                                }}
-                                onMouseOver={(e) => e.target.style.opacity = "0.8"}
-                                onMouseOut={(e) => e.target.style.opacity = "1"}
-                              />
-                              <div style={{
-                                position: "absolute",
-                                bottom: "4px",
-                                right: "4px",
-                                background: "rgba(0,0,0,0.8)",
-                                padding: "2px 6px",
-                                borderRadius: "3px",
-                                fontSize: "9px",
-                                fontWeight: "600",
-                                color: "#fff"
-                              }}>
-                                {fmtInt(video.views)}
-                              </div>
-                            </a>
-                            <div style={{
-                              fontSize: "9px",
-                              color: "#666",
-                              marginTop: "4px",
-                              textAlign: "center"
-                            }}>
-                              {uploadDate}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Title Length Insight */}
-                  <div style={{
-                    background: "#252525",
-                    border: "1px solid #333",
-                    borderRadius: "6px",
-                    padding: "10px 12px",
-                    fontSize: "11px",
-                    color: "#888"
-                  }}>
-                    <strong style={{ color: "#fff" }}>Title Length:</strong> Top videos average{" "}
-                    <span style={{ color: "#10b981", fontWeight: "600" }}>
-                      {titleAnalysis.avgTopTitleLength} characters
-                    </span>
-                    {" "}vs channel average of {titleAnalysis.avgAllTitleLength}
-                  </div>
-                </>
-              )}
-            </AnalysisSection>
-          )}
-
-          {/* Upload Schedule Analysis */}
-          {scheduleAnalysis && (
-            <AnalysisSection
-              title="Upload Schedule Insights"
-              icon={Clock}
-              isExpanded={scheduleSectionExpanded}
-              onToggle={() => setScheduleSectionExpanded(!scheduleSectionExpanded)}
-            >
-              {/* Best Day/Time Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-                {/* Best Day */}
-                {scheduleAnalysis.bestDay && (
-                  <div style={{
-                    background: "#252525",
-                    border: "1px solid #333",
-                    borderRadius: "6px",
-                    padding: "12px"
-                  }}>
-                    <div style={{ fontSize: "10px", color: "#888", marginBottom: "4px" }}>
-                      BEST DAY
-                    </div>
-                    <div style={{ fontSize: "20px", fontWeight: "700", color: "#10b981", marginBottom: "4px" }}>
-                      {scheduleAnalysis.bestDay.day}
-                    </div>
-                    <div style={{ fontSize: "10px", color: "#666" }}>
-                      {fmtInt(scheduleAnalysis.bestDay.avgViews)} avg views
-                      {" • "}
-                      {scheduleAnalysis.bestDay.count} uploads
-                    </div>
-                  </div>
-                )}
-
-                {/* Best Time */}
-                {scheduleAnalysis.bestTime && (
-                  <div style={{
-                    background: "#252525",
-                    border: "1px solid #333",
-                    borderRadius: "6px",
-                    padding: "12px"
-                  }}>
-                    <div style={{ fontSize: "10px", color: "#888", marginBottom: "4px" }}>
-                      BEST TIME ({scheduleAnalysis.timezone.split('/')[1] || scheduleAnalysis.timezone})
-                    </div>
-                    <div style={{ fontSize: "20px", fontWeight: "700", color: "#3b82f6", marginBottom: "4px" }}>
-                      {scheduleAnalysis.bestTime.name}
-                    </div>
-                    <div style={{ fontSize: "10px", color: "#666" }}>
-                      {fmtInt(scheduleAnalysis.bestTime.avgViews)} avg views
-                      {" • "}
-                      {scheduleAnalysis.bestTime.count} uploads
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Day of Week Bar Chart */}
-              {scheduleAnalysis.dayStats && scheduleAnalysis.dayStats.length > 0 && (
-                <div style={{
-                  background: "#252525",
-                  border: "1px solid #333",
-                  borderRadius: "6px",
-                  padding: "12px",
-                  marginBottom: "16px"
-                }}>
-                  <div style={{ fontSize: "11px", color: "#888", marginBottom: "10px" }}>
-                    Performance by Day of Week
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    {scheduleAnalysis.dayStats
-                      .sort((a, b) => a.dayIndex - b.dayIndex)
-                      .map(day => {
-                        const maxViews = Math.max(...scheduleAnalysis.dayStats.map(d => d.avgViews));
-                        const barWidth = (day.avgViews / maxViews) * 100;
-
-                        return (
-                          <div key={day.day} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <div style={{
-                              width: "70px",
-                              fontSize: "10px",
-                              color: "#888",
-                              textAlign: "right"
-                            }}>
-                              {day.day.substring(0, 3)}
-                            </div>
-                            <div style={{ flex: 1, background: "#1E1E1E", borderRadius: "4px", height: "20px", position: "relative" }}>
-                              <div style={{
-                                width: `${barWidth}%`,
-                                height: "100%",
-                                background: scheduleAnalysis.bestDay && day.day === scheduleAnalysis.bestDay.day
-                                  ? "linear-gradient(90deg, #10b981, #059669)"
-                                  : "linear-gradient(90deg, #3b82f6, #2563eb)",
-                                borderRadius: "4px",
-                                transition: "width 0.3s ease"
-                              }} />
-                            </div>
-                            <div style={{
-                              width: "70px",
-                              fontSize: "10px",
-                              color: "#fff",
-                              fontWeight: "600"
-                            }}>
-                              {fmtInt(day.avgViews)}
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
-              )}
-
-              {/* Cadence & Correlation Stats */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                <div style={{
-                  background: "#252525",
-                  border: "1px solid #333",
-                  borderRadius: "6px",
-                  padding: "12px"
-                }}>
-                  <div style={{ fontSize: "10px", color: "#888", marginBottom: "4px" }}>
-                    CADENCE CONSISTENCY
-                  </div>
-                  <div style={{
-                    fontSize: "20px",
-                    fontWeight: "700",
-                    color: scheduleAnalysis.consistencyScore >= 70 ? "#10b981" :
-                           scheduleAnalysis.consistencyScore >= 50 ? "#f59e0b" : "#ef4444",
-                    marginBottom: "4px"
-                  }}>
-                    {scheduleAnalysis.consistencyScore}%
-                  </div>
-                  <div style={{ fontSize: "10px", color: "#666" }}>
-                    Avg {scheduleAnalysis.avgInterval} days between uploads
-                  </div>
-                </div>
-
-                <div style={{
-                  background: "#252525",
-                  border: "1px solid #333",
-                  borderRadius: "6px",
-                  padding: "12px"
-                }}>
-                  <div style={{ fontSize: "10px", color: "#888", marginBottom: "4px" }}>
-                    FREQUENCY ↔ VIEWS
-                  </div>
-                  <div style={{
-                    fontSize: "20px",
-                    fontWeight: "700",
-                    color: scheduleAnalysis.correlation > 0.3 ? "#10b981" :
-                           scheduleAnalysis.correlation < -0.3 ? "#ef4444" : "#888",
-                    marginBottom: "4px"
-                  }}>
-                    {scheduleAnalysis.correlation > 0 ? '+' : ''}{scheduleAnalysis.correlation}
-                  </div>
-                  <div style={{ fontSize: "10px", color: "#666" }}>
-                    {scheduleAnalysis.correlation > 0.5 ? "Strong positive" :
-                     scheduleAnalysis.correlation > 0.3 ? "Moderate positive" :
-                     scheduleAnalysis.correlation < -0.3 ? "More = fewer views" :
-                     "No clear correlation"}
-                  </div>
-                </div>
-              </div>
-            </AnalysisSection>
-          )}
-
-          {/* Content Format Categorization */}
-          {formatAnalysis && (
-            <AnalysisSection
-              title="Content Format Breakdown"
-              icon={Tag}
-              isExpanded={formatSectionExpanded}
-              onToggle={() => setFormatSectionExpanded(!formatSectionExpanded)}
-            >
-              {/* Duration Split */}
-              <div style={{ marginBottom: "16px" }}>
-                <div style={{ fontSize: "12px", color: "#888", marginBottom: "10px" }}>
-                  Duration Format
-                </div>
-                <div style={{ display: "flex", gap: "12px" }}>
-                  {formatAnalysis.durationStats.map(format => (
-                    <div key={format.name} style={{ flex: 1 }}>
-                      <div style={{
-                        background: "#252525",
-                        borderRadius: "6px",
-                        padding: "12px",
-                        borderLeft: `4px solid ${format.color}`
-                      }}>
-                        <div style={{ fontSize: "10px", color: "#888", marginBottom: "4px" }}>
-                          {format.name}
-                        </div>
-                        <div style={{ fontSize: "22px", fontWeight: "700", color: format.color, marginBottom: "4px" }}>
-                          {format.count}
-                        </div>
-                        <div style={{ fontSize: "10px", color: "#666", marginBottom: "6px" }}>
-                          {Math.round(format.percentage)}% of uploads
-                        </div>
-                        <div style={{ fontSize: "10px", color: "#888" }}>
-                          {fmtInt(format.avgViews)} avg views
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Content Type Distribution */}
-              <div>
-                <div style={{ fontSize: "12px", color: "#888", marginBottom: "10px" }}>
-                  Content Type Distribution
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {formatAnalysis.typeStats.slice(0, 6).map(type => (
-                    <div key={type.name} style={{
-                      background: "#252525",
-                      borderRadius: "6px",
-                      padding: "10px 12px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center"
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
-                        <span style={{ fontSize: "18px" }}>{type.icon}</span>
-                        <div>
-                          <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff" }}>
-                            {type.name}
-                          </div>
-                          <div style={{ fontSize: "10px", color: "#666" }}>
-                            {type.count} videos • {fmtInt(type.avgViews)} avg views
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{
-                        fontSize: "16px",
-                        fontWeight: "700",
-                        color: type.color
-                      }}>
-                        {Math.round(type.percentage)}%
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </AnalysisSection>
-          )}
-
-          {/* Top Videos */}
-          {competitor.topVideos && competitor.topVideos.length > 0 && (
-            <div>
-              <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <PlaySquare size={16} />
-                Top 5 Performing Videos
-              </div>
-              <div style={{ display: "grid", gap: "8px" }}>
-                {competitor.topVideos.map((video, idx) => (
-                <div key={video.id} style={{
-                  background: "#1E1E1E",
-                  border: "1px solid #333",
-                  borderRadius: "6px",
-                  padding: "10px",
-                  display: "grid",
-                  gridTemplateColumns: "auto 1fr auto",
-                  gap: "12px",
-                  alignItems: "center"
-                }}>
-                  <a
-                    href={`https://www.youtube.com/watch?v=${video.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <img
-                      src={video.thumbnail}
-                      alt={video.title}
-                      style={{
-                        width: "120px",
-                        height: "68px",
-                        borderRadius: "4px",
-                        objectFit: "cover",
-                        transition: "opacity 0.15s ease"
-                      }}
-                      onMouseOver={(e) => e.target.style.opacity = "0.8"}
-                      onMouseOut={(e) => e.target.style.opacity = "1"}
-                    />
-                  </a>
-                  <div>
-                    <a
-                      href={`https://www.youtube.com/watch?v=${video.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontSize: "12px", fontWeight: "600", color: "#fff", marginBottom: "6px", lineHeight: "1.4", display: "block", textDecoration: "none" }}
-                      onMouseOver={(e) => e.target.style.textDecoration = "underline"}
-                      onMouseOut={(e) => e.target.style.textDecoration = "none"}
-                    >
-                      {video.title}
-                    </a>
-                    <div style={{ display: "flex", gap: "10px", fontSize: "10px", color: "#888" }}>
-                      <span>{fmtInt(video.views)} views</span>
-                      <span>•</span>
-                      <span>{fmtInt(video.likes)} likes</span>
-                      <span>•</span>
-                      <span>{fmtDuration(video.duration)}</span>
-                      <span>•</span>
-                      <span style={{ color: video.type === 'short' ? "#ec4899" : "#3b82f6" }}>
-                        {video.type === 'short' ? 'Short' : 'Long-form'}
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "18px", fontWeight: "700", color: idx === 0 ? "#fcd34d" : idx === 1 ? "#e5e7eb" : idx === 2 ? "#d6d3d1" : "#666" }}>
-                      #{idx + 1}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
