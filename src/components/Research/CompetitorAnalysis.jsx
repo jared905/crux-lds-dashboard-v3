@@ -1852,9 +1852,9 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 }
 
 
-{/* ═══════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════
     EXTRACTED INLINE COMPONENTS
-    ═══════════════════════════════════════════════════ */}
+   ═══════════════════════════════════════════════════ */
 
 // Channel Detail Drawer — right-side slide-out panel
 function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefresh, onRemove, isRefreshing, refreshError, userTimezone }) {
