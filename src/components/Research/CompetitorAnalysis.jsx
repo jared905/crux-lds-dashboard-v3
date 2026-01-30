@@ -13,6 +13,18 @@ const fmtDuration = (seconds) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
+const CATEGORY_CONFIG = {
+  'lds-official':   { label: 'LDS Official',            color: '#3b82f6', icon: '\u{1F3DB}',  order: 0, description: 'Institutional church channels' },
+  'lds-faithful':   { label: 'LDS Faithful Creators',   color: '#10b981', icon: '\u{1F64F}',  order: 1, description: 'Apologetics, scholarship, lifestyle' },
+  'ex-mormon':      { label: 'Ex-Mormon',               color: '#ef4444', icon: '\u{1F6AA}',  order: 2, description: 'Personal stories, research, expose' },
+  'counter-cult':   { label: 'Counter-Cult Evangelical', color: '#f97316', icon: '\u{26EA}',   order: 3, description: 'Evangelical critique channels' },
+  'megachurch':     { label: 'Megachurch',               color: '#8b5cf6', icon: '\u{1F3A4}',  order: 4, description: 'High-production contemporary churches' },
+  'catholic':       { label: 'Catholic',                 color: '#f59e0b', icon: '\u{271D}\uFE0F', order: 5, description: 'Catholic media and apologetics' },
+  'muslim':         { label: 'Muslim',                   color: '#06b6d4', icon: '\u{262A}\uFE0F', order: 6, description: 'Islamic dawah and debate' },
+  'jewish':         { label: 'Jewish',                   color: '#6366f1', icon: '\u{2721}\uFE0F', order: 7, description: 'Jewish educational content' },
+  'deconstruction': { label: 'Deconstruction',           color: '#ec4899', icon: '\u{1F513}',  order: 8, description: 'Multi-faith and LDS-specific deconstruction' },
+};
+
 export default function CompetitorAnalysis({ rows, activeClient }) {
   const [apiKey, setApiKey] = useState(localStorage.getItem('yt_api_key') || "");
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
@@ -24,6 +36,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   });
 
   const [expandedCompetitor, setExpandedCompetitor] = useState(null);
+  const [expandedCategories, setExpandedCategories] = useState({});
   const [newCompetitor, setNewCompetitor] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -116,6 +129,17 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       setImporting(false);
     }
   }, [activeClient?.id, reloadSupabaseCompetitors]);
+
+  // Category expand/collapse handlers
+  const toggleCategory = useCallback((categoryKey) => {
+    setExpandedCategories(prev => ({ ...prev, [categoryKey]: !prev[categoryKey] }));
+  }, []);
+
+  const toggleAllCategories = useCallback((expand) => {
+    const all = {};
+    Object.keys(CATEGORY_CONFIG).forEach(key => { all[key] = expand; });
+    setExpandedCategories(all);
+  }, []);
 
   // One-time migration: localStorage competitors → Supabase with client_id
   useEffect(() => {
@@ -796,6 +820,62 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     }
     return competitors;
   }, [supabaseCompetitors, competitors]);
+
+  // Group competitors by category for collapsible display
+  const groupedCompetitors = useMemo(() => {
+    const groups = {};
+
+    // Initialize groups from config
+    Object.entries(CATEGORY_CONFIG).forEach(([key, config]) => {
+      groups[key] = {
+        key,
+        config,
+        channels: [],
+        channelCount: 0,
+        totalSubs: 0,
+        totalViews: 0,
+        totalVideos: 0,
+        totalUploads30d: 0,
+        totalShorts30d: 0,
+        totalLongs30d: 0,
+        totalEngagement: 0,
+        primaryCount: 0,
+        secondaryCount: 0,
+        tertiaryCount: 0,
+        hasData: false,
+      };
+    });
+
+    // Assign channels to groups
+    activeCompetitors.forEach(comp => {
+      const cat = comp.category || 'lds-faithful'; // fallback
+      if (!groups[cat]) return;
+      const g = groups[cat];
+      g.channels.push(comp);
+      g.channelCount++;
+      g.totalSubs += comp.subscriberCount || 0;
+      g.totalViews += comp.viewCount || 0;
+      g.totalVideos += comp.videoCount || 0;
+      g.totalUploads30d += comp.uploadsLast30Days || 0;
+      g.totalShorts30d += comp.shorts30d || 0;
+      g.totalLongs30d += comp.longs30d || 0;
+      g.totalEngagement += comp.engagementRate || 0;
+      if (comp.tier === 'primary') g.primaryCount++;
+      else if (comp.tier === 'secondary') g.secondaryCount++;
+      else g.tertiaryCount++;
+      if (comp.subscriberCount > 0 || comp.viewCount > 0) g.hasData = true;
+    });
+
+    // Compute averages and sort
+    return Object.values(groups)
+      .filter(g => g.channelCount > 0)
+      .map(g => ({
+        ...g,
+        avgSubs: g.channelCount > 0 ? g.totalSubs / g.channelCount : 0,
+        avgEngagement: g.channelCount > 0 ? g.totalEngagement / g.channelCount : 0,
+      }))
+      .sort((a, b) => a.config.order - b.config.order);
+  }, [activeCompetitors]);
 
   // Calculate benchmarks
   const benchmarks = useMemo(() => {
@@ -1486,179 +1566,128 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               </div>
             </div>
 
-            {/* Competitors */}
-            {activeCompetitors.map((competitor) => {
-              const shortsCount = competitor.shorts30d || 0;
-              const longsCount = competitor.longs30d || 0;
+            {/* Competitors — Grouped by Category */}
+            {groupedCompetitors.map(group => {
+              const shortsCount = group.totalShorts30d;
+              const longsCount = group.totalLongs30d;
               const total = shortsCount + longsCount;
               const shortsPercent = total > 0 ? (shortsCount / total) * 100 : 0;
               const longsPercent = total > 0 ? (longsCount / total) * 100 : 0;
-
-              // Determine if they're Shorts-heavy or Long-form-heavy
               const isShortsFocused = shortsPercent > 70;
               const isLongsFocused = longsPercent > 70;
-              const isBalanced = !isShortsFocused && !isLongsFocused;
 
               return (
-                <div key={competitor.id} style={{
+                <div key={group.key} style={{
                   background: "#252525",
                   border: "1px solid #333",
+                  borderLeft: `3px solid ${group.config.color}`,
                   borderRadius: "10px",
                   padding: "20px"
                 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <a
-                        href={`https://www.youtube.com/channel/${competitor.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ display: "block" }}
-                      >
-                        <img
-                          src={competitor.thumbnail}
-                          alt={competitor.name}
-                          style={{
-                            width: "40px",
-                            height: "40px",
-                            borderRadius: "50%",
-                            objectFit: "cover",
-                            transition: "opacity 0.15s ease"
-                          }}
-                          onMouseOver={(e) => e.target.style.opacity = "0.8"}
-                          onMouseOut={(e) => e.target.style.opacity = "1"}
-                        />
-                      </a>
+                      <div style={{
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "50%",
+                        background: `${group.config.color}22`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "20px"
+                      }}>
+                        {group.config.icon}
+                      </div>
                       <div>
-                        <a
-                          href={`https://www.youtube.com/channel/${competitor.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ fontSize: "15px", fontWeight: "700", color: "#fff", textDecoration: "none" }}
-                          onMouseOver={(e) => e.target.style.textDecoration = "underline"}
-                          onMouseOut={(e) => e.target.style.textDecoration = "none"}
-                        >
-                          {competitor.name}
-                        </a>
-                        <div style={{ fontSize: "11px", color: "#666", display: "flex", alignItems: "center", gap: "8px" }}>
-                          {fmtInt(competitor.subscriberCount)} subscribers
-                          {competitor.category && (
-                            <span style={{
-                              fontSize: "9px",
-                              fontWeight: "600",
-                              textTransform: "uppercase",
-                              color: "#a78bfa",
-                              background: "rgba(139, 92, 246, 0.1)",
-                              padding: "1px 6px",
-                              borderRadius: "3px",
-                              letterSpacing: "0.5px",
-                            }}>
-                              {competitor.category}
-                            </span>
-                          )}
-                          {competitor.tier && (
-                            <span style={{
-                              fontSize: "9px",
-                              fontWeight: "600",
-                              textTransform: "uppercase",
-                              color: competitor.tier === 'primary' ? '#10b981' : competitor.tier === 'secondary' ? '#f59e0b' : '#6b7280',
-                              letterSpacing: "0.5px",
-                            }}>
-                              {competitor.tier}
-                            </span>
-                          )}
+                        <div style={{ fontSize: "15px", fontWeight: "700", color: "#fff" }}>
+                          {group.config.label}
+                          <span style={{
+                            fontSize: "11px",
+                            fontWeight: "500",
+                            color: "#888",
+                            marginLeft: "8px"
+                          }}>
+                            {group.channelCount} channel{group.channelCount !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "11px", color: "#666" }}>
+                          {group.hasData
+                            ? `${fmtInt(group.totalSubs)} total subs · ${fmtInt(group.totalUploads30d)} uploads/30d`
+                            : 'Awaiting first sync'}
                         </div>
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      {isShortsFocused && (
-                        <div style={{
-                          fontSize: "10px",
-                          fontWeight: "700",
-                          textTransform: "uppercase",
-                          color: "#f97316",
-                          background: "rgba(249, 115, 22, 0.1)",
-                          border: "1px solid #f97316",
-                          padding: "3px 8px",
-                          borderRadius: "4px"
-                        }}>
-                          📱 Shorts-Heavy
+                      <FocusBadge
+                        isShortsFocused={isShortsFocused}
+                        isLongsFocused={isLongsFocused}
+                        total={total}
+                      />
+                      {total > 0 && (
+                        <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>
+                          {total} videos
                         </div>
                       )}
-                      {isLongsFocused && (
-                        <div style={{
-                          fontSize: "10px",
-                          fontWeight: "700",
-                          textTransform: "uppercase",
-                          color: "#0ea5e9",
-                          background: "rgba(14, 165, 233, 0.1)",
-                          border: "1px solid #0ea5e9",
-                          padding: "3px 8px",
-                          borderRadius: "4px"
-                        }}>
-                          🎬 Long-form Heavy
-                        </div>
-                      )}
-                      {isBalanced && (
-                        <div style={{
-                          fontSize: "10px",
-                          fontWeight: "700",
-                          textTransform: "uppercase",
-                          color: "#10b981",
-                          background: "rgba(16, 185, 129, 0.1)",
-                          border: "1px solid #10b981",
-                          padding: "3px 8px",
-                          borderRadius: "4px"
-                        }}>
-                          ⚖️ Balanced
-                        </div>
-                      )}
-                      <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>
-                        {total} videos
-                      </div>
                     </div>
                   </div>
 
                   {/* Format Bar */}
-                  <div style={{ marginBottom: "12px" }}>
+                  {total > 0 ? (
+                    <div style={{ marginBottom: "12px" }}>
+                      <div style={{
+                        height: "40px",
+                        borderRadius: "8px",
+                        overflow: "hidden",
+                        display: "flex",
+                        background: "#1a1a1a"
+                      }}>
+                        {shortsCount > 0 && (
+                          <div style={{
+                            width: `${shortsPercent}%`,
+                            background: "linear-gradient(90deg, #f97316, #fb923c)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#fff",
+                            fontSize: "13px",
+                            fontWeight: "700",
+                            minWidth: shortsPercent > 15 ? "60px" : "0"
+                          }}>
+                            {shortsPercent > 15 && `${shortsPercent.toFixed(0)}%`}
+                          </div>
+                        )}
+                        {longsCount > 0 && (
+                          <div style={{
+                            width: `${longsPercent}%`,
+                            background: "linear-gradient(90deg, #0ea5e9, #38bdf8)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#fff",
+                            fontSize: "13px",
+                            fontWeight: "700",
+                            minWidth: longsPercent > 15 ? "60px" : "0"
+                          }}>
+                            {longsPercent > 15 && `${longsPercent.toFixed(0)}%`}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
                     <div style={{
                       height: "40px",
                       borderRadius: "8px",
-                      overflow: "hidden",
+                      background: "#1a1a1a",
                       display: "flex",
-                      background: "#1a1a1a"
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#555",
+                      fontSize: "12px",
+                      marginBottom: "12px"
                     }}>
-                      {shortsCount > 0 && (
-                        <div style={{
-                          width: `${shortsPercent}%`,
-                          background: "linear-gradient(90deg, #f97316, #fb923c)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#fff",
-                          fontSize: "13px",
-                          fontWeight: "700",
-                          minWidth: shortsPercent > 15 ? "60px" : "0"
-                        }}>
-                          {shortsPercent > 15 && `${shortsPercent.toFixed(0)}%`}
-                        </div>
-                      )}
-                      {longsCount > 0 && (
-                        <div style={{
-                          width: `${longsPercent}%`,
-                          background: "linear-gradient(90deg, #0ea5e9, #38bdf8)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#fff",
-                          fontSize: "13px",
-                          fontWeight: "700",
-                          minWidth: longsPercent > 15 ? "60px" : "0"
-                        }}>
-                          {longsPercent > 15 && `${longsPercent.toFixed(0)}%`}
-                        </div>
-                      )}
+                      No format data yet — awaiting sync
                     </div>
-                  </div>
+                  )}
 
                   {/* Legend */}
                   <div style={{ display: "flex", gap: "20px", fontSize: "12px" }}>
@@ -2199,7 +2228,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         </div>
       )}
 
-      {/* Competitor List */}
+      {/* Competitor List — Grouped by Category */}
       {activeCompetitors.length === 0 ? (
         <div style={{
           background: "#1E1E1E",
@@ -2214,28 +2243,64 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           <div style={{ fontSize: "12px" }}>Add competitor channels to start benchmarking your performance</div>
         </div>
       ) : (
-        <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "12px",
-          padding: "24px"
-        }}>
-          <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>
-            Tracked Competitors ({activeCompetitors.length})
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {/* Section header */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "4px"
+          }}>
+            <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff" }}>
+              Tracked Competitors
+              <span style={{ fontSize: "13px", fontWeight: "400", color: "#888", marginLeft: "8px" }}>
+                {activeCompetitors.length} channels, {groupedCompetitors.length} categories
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                const anyExpanded = Object.values(expandedCategories).some(Boolean);
+                toggleAllCategories(!anyExpanded);
+              }}
+              style={{
+                background: "transparent",
+                border: "1px solid #555",
+                borderRadius: "6px",
+                padding: "4px 12px",
+                fontSize: "11px",
+                color: "#aaa",
+                cursor: "pointer",
+              }}
+            >
+              {Object.values(expandedCategories).some(Boolean) ? "Collapse All" : "Expand All"}
+            </button>
           </div>
-          <div style={{ display: "grid", gap: "12px" }}>
-            {activeCompetitors.map(competitor => (
-              <CompetitorCard
-                key={competitor.id}
-                competitor={competitor}
-                isExpanded={expandedCompetitor === competitor.id}
-                onToggle={() => setExpandedCompetitor(expandedCompetitor === competitor.id ? null : competitor.id)}
-                onRemove={() => removeCompetitor(competitor.id)}
-                onRefresh={refreshCompetitor}
-                userTimezone={userTimezone}
-              />
-            ))}
-          </div>
+
+          {/* Category groups */}
+          {groupedCompetitors.map(group => (
+            <CategoryHeader
+              key={group.key}
+              group={group}
+              isExpanded={!!expandedCategories[group.key]}
+              onToggle={() => toggleCategory(group.key)}
+            >
+              {expandedCategories[group.key] && (
+                <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
+                  {group.channels.map(competitor => (
+                    <CompetitorCard
+                      key={competitor.id}
+                      competitor={competitor}
+                      isExpanded={expandedCompetitor === competitor.id}
+                      onToggle={() => setExpandedCompetitor(expandedCompetitor === competitor.id ? null : competitor.id)}
+                      onRemove={() => removeCompetitor(competitor.id)}
+                      onRefresh={refreshCompetitor}
+                      userTimezone={userTimezone}
+                    />
+                  ))}
+                </div>
+              )}
+            </CategoryHeader>
+          ))}
         </div>
       )}
     </div>
@@ -3108,6 +3173,231 @@ function CompetitorCard({ competitor, isExpanded, onToggle, onRemove, onRefresh,
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Category Header — collapsible group card with summary stats
+function CategoryHeader({ group, isExpanded, onToggle, children }) {
+  const { config } = group;
+  const tierParts = [];
+  if (group.primaryCount > 0) tierParts.push(`${group.primaryCount} primary`);
+  if (group.secondaryCount > 0) tierParts.push(`${group.secondaryCount} secondary`);
+  if (group.tertiaryCount > 0) tierParts.push(`${group.tertiaryCount} tertiary`);
+
+  return (
+    <div style={{
+      background: "#1E1E1E",
+      border: "1px solid #333",
+      borderLeft: `4px solid ${config.color}`,
+      borderRadius: "12px",
+      overflow: "hidden",
+    }}>
+      {/* Clickable header */}
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          background: "transparent",
+          border: "none",
+          padding: "20px 24px",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        {/* Top row: icon + label + count + chevron */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "12px",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{
+              width: "44px",
+              height: "44px",
+              borderRadius: "10px",
+              background: `${config.color}18`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "22px",
+            }}>
+              {config.icon}
+            </div>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>
+                  {config.label}
+                </span>
+                <span style={{
+                  fontSize: "11px",
+                  fontWeight: "600",
+                  color: config.color,
+                  background: `${config.color}18`,
+                  padding: "2px 8px",
+                  borderRadius: "10px",
+                }}>
+                  {group.channelCount}
+                </span>
+              </div>
+              <div style={{ fontSize: "12px", color: "#777", marginTop: "2px" }}>
+                {config.description}
+              </div>
+            </div>
+          </div>
+          <div style={{ color: "#888", transition: "transform 0.2s" }}>
+            {isExpanded
+              ? <ChevronUp size={20} />
+              : <ChevronDown size={20} />
+            }
+          </div>
+        </div>
+
+        {/* Stats row */}
+        {group.hasData ? (
+          <div style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "8px",
+            marginBottom: "10px",
+          }}>
+            <StatPill label="Subscribers" value={fmtInt(group.totalSubs)} color={config.color} />
+            <StatPill label="Views" value={fmtInt(group.totalViews)} color="#9ca3af" />
+            <StatPill label="30d Uploads" value={fmtInt(group.totalUploads30d)} color="#9ca3af" />
+            <StatPill label="Avg Engagement" value={fmtPct(group.avgEngagement)} color="#9ca3af" />
+          </div>
+        ) : (
+          <div style={{
+            fontSize: "12px",
+            color: "#555",
+            fontStyle: "italic",
+            marginBottom: "10px",
+          }}>
+            Awaiting first sync — stats will appear after nightly data collection
+          </div>
+        )}
+
+        {/* Format mini-bar + tier breakdown */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          {/* Mini format bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}>
+            <div style={{
+              height: "8px",
+              flex: 1,
+              maxWidth: "200px",
+              borderRadius: "4px",
+              overflow: "hidden",
+              display: "flex",
+              background: "#2a2a2a",
+            }}>
+              {(group.totalShorts30d + group.totalLongs30d) > 0 ? (
+                <>
+                  <div style={{
+                    width: `${(group.totalShorts30d / (group.totalShorts30d + group.totalLongs30d)) * 100}%`,
+                    background: "#f97316",
+                  }} />
+                  <div style={{
+                    flex: 1,
+                    background: "#0ea5e9",
+                  }} />
+                </>
+              ) : null}
+            </div>
+            <div style={{ fontSize: "10px", color: "#666" }}>
+              {group.totalShorts30d}S / {group.totalLongs30d}L
+            </div>
+          </div>
+
+          {/* Tier breakdown */}
+          {tierParts.length > 0 && (
+            <div style={{ fontSize: "10px", color: "#666" }}>
+              {tierParts.join(' · ')}
+            </div>
+          )}
+        </div>
+      </button>
+
+      {/* Expanded children (CompetitorCards) */}
+      {isExpanded && children && (
+        <div style={{
+          padding: "0 24px 20px",
+          background: `${config.color}06`,
+          borderTop: `1px solid ${config.color}22`,
+        }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Stat Pill — inline metric display
+function StatPill({ label, value, color }) {
+  return (
+    <div style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "6px",
+      background: "#252525",
+      border: "1px solid #333",
+      borderRadius: "6px",
+      padding: "4px 10px",
+      fontSize: "11px",
+    }}>
+      <span style={{ color: "#888" }}>{label}</span>
+      <span style={{ color: color || "#fff", fontWeight: "600" }}>{value}</span>
+    </div>
+  );
+}
+
+// Focus Badge — format focus indicator for Format Strategy section
+function FocusBadge({ isShortsFocused, isLongsFocused, total }) {
+  if (total === 0) return null;
+  if (isShortsFocused) {
+    return (
+      <div style={{
+        fontSize: "10px",
+        fontWeight: "700",
+        textTransform: "uppercase",
+        color: "#f97316",
+        background: "rgba(249, 115, 22, 0.1)",
+        border: "1px solid #f97316",
+        padding: "3px 8px",
+        borderRadius: "4px",
+      }}>
+        Shorts-Heavy
+      </div>
+    );
+  }
+  if (isLongsFocused) {
+    return (
+      <div style={{
+        fontSize: "10px",
+        fontWeight: "700",
+        textTransform: "uppercase",
+        color: "#0ea5e9",
+        background: "rgba(14, 165, 233, 0.1)",
+        border: "1px solid #0ea5e9",
+        padding: "3px 8px",
+        borderRadius: "4px",
+      }}>
+        Long-form Heavy
+      </div>
+    );
+  }
+  return (
+    <div style={{
+      fontSize: "10px",
+      fontWeight: "700",
+      textTransform: "uppercase",
+      color: "#10b981",
+      background: "rgba(16, 185, 129, 0.1)",
+      border: "1px solid #10b981",
+      padding: "3px 8px",
+      borderRadius: "4px",
+    }}>
+      Balanced
     </div>
   );
 }
