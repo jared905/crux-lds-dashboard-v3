@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, lazy, Suspense } from "react";
 import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, Upload, Download, RefreshCw, X, Check, Zap, Loader, MoreVertical, Table2, LayoutGrid, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../../lib/competitorAnalysis";
 import { getOutlierVideos, analyzeCompetitorVideo } from '../../services/competitorInsightsService';
 import { importCompetitorDatabase } from '../../services/competitorImport';
-import CompetitorTrends from './CompetitorTrends';
+
+const CompetitorTrends = lazy(() => import('./CompetitorTrends'));
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -1674,16 +1675,24 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
       {/* 3C: Trends View */}
       {activeCompetitors.length > 0 && viewMode === 'trends' && (
-        <CompetitorTrends
-          activeCompetitors={activeCompetitors}
-          selectedCategory={selectedCategory}
-          CATEGORY_CONFIG={CATEGORY_CONFIG}
-          timeRange={trendsTimeRange}
-          onTimeRangeChange={setTrendsTimeRange}
-          snapshotData={snapshotData}
-          snapshotLoading={snapshotLoading}
-          yourChannelId={activeClient?.youtube_channel_id || null}
-        />
+        <Suspense fallback={
+          <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px", padding: "64px 24px", textAlign: "center", marginBottom: "16px" }}>
+            <Loader size={32} style={{ color: "#555", margin: "0 auto 12px", animation: "spin 1s linear infinite" }} />
+            <div style={{ fontSize: "14px", color: "#888" }}>Loading trends...</div>
+            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+          </div>
+        }>
+          <CompetitorTrends
+            activeCompetitors={activeCompetitors}
+            selectedCategory={selectedCategory}
+            CATEGORY_CONFIG={CATEGORY_CONFIG}
+            timeRange={trendsTimeRange}
+            onTimeRangeChange={setTrendsTimeRange}
+            snapshotData={snapshotData}
+            snapshotLoading={snapshotLoading}
+            yourChannelId={activeClient?.youtube_channel_id || null}
+          />
+        </Suspense>
       )}
 
       {/* Empty state */}
