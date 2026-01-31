@@ -18,7 +18,26 @@ import {
   ReferenceArea,
 } from "recharts";
 import { TrendingUp, ArrowUp, ArrowDown, ChevronDown, Check, Loader } from "lucide-react";
-import { aggregateSnapshotsByCategory } from "../../services/competitorDatabase";
+
+// ─── Aggregate snapshots by category (pure transform, no DB) ─────────────────
+
+function aggregateSnapshotsByCategory(bulkSnapshots, channelCategoryMap) {
+  const byCatDate = {};
+  Object.entries(bulkSnapshots).forEach(([channelId, snapshots]) => {
+    const category = channelCategoryMap[channelId] || "unknown";
+    if (!byCatDate[category]) byCatDate[category] = {};
+    snapshots.forEach((snap) => {
+      const date = snap.snapshot_date;
+      if (!byCatDate[category][date]) {
+        byCatDate[category][date] = { totalSubs: 0, totalViews: 0, count: 0 };
+      }
+      byCatDate[category][date].totalSubs += snap.subscriber_count || 0;
+      byCatDate[category][date].totalViews += snap.total_view_count || 0;
+      byCatDate[category][date].count++;
+    });
+  });
+  return byCatDate;
+}
 
 // ─── Shared formatting helpers ───────────────────────────────────────────────
 
