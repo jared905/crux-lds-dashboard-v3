@@ -14,106 +14,178 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
   const [youtubeChannelUrl, setYoutubeChannelUrl] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [parsedRows, setParsedRows] = useState(null);
+  const [detectedChannels, setDetectedChannels] = useState([]);
+  const [channelEdits, setChannelEdits] = useState({});
+  const [channelUrls, setChannelUrls] = useState({});
+  const [showChannelPreview, setShowChannelPreview] = useState(false);
 
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Reset input so re-selecting the same file triggers onChange again
+    e.target.value = "";
     setUploadedFile(file);
+    detectChannels(file);
+  };
+
+  const detectChannels = (file) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (result) => {
+        const rawData = result.data;
+        setParsedRows(rawData);
+
+        const channelCounts = {};
+        rawData.forEach(r => {
+          const title = r['Video title'] || r.title || "";
+          if (!title || title.trim().toLowerCase() === 'total' || title.trim() === "") return;
+          const ch = r['Channel'] || r['Channel name'] || r.channel || "";
+          const channelName = ch.trim() || "Main Channel";
+          channelCounts[channelName] = (channelCounts[channelName] || 0) + 1;
+        });
+
+        const channels = Object.entries(channelCounts).map(([name, count]) => ({
+          original: name,
+          count,
+        }));
+
+        setDetectedChannels(channels);
+        const edits = {};
+        const urls = {};
+        channels.forEach(ch => { edits[ch.original] = ch.original; urls[ch.original] = ""; });
+        setChannelEdits(edits);
+        setChannelUrls(urls);
+        setShowChannelPreview(true);
+      },
+      error: () => {
+        // Parse errors will be caught again in processCSV
+        setShowChannelPreview(false);
+      }
+    });
+  };
+
+  const applyChannelEdits = (rawRows) => {
+    return rawRows.map(row => {
+      const originalChannel = (
+        row['Channel'] || row['Channel name'] || row.channel || ""
+      ).trim() || "Main Channel";
+      const editedChannel = channelEdits[originalChannel] || originalChannel;
+      return { ...row, 'Channel': editedChannel, channel: editedChannel };
+    });
   };
 
   const processCSV = async (file, name, isUpdate = false) => {
     setIsSaving(true);
     setSaveError(null);
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (result) => {
-        try {
-          // Extract subscriber count and normalize data
-          const { rows: allRows, channelTotalSubscribers } = normalizeData(result.data);
-          const normalizedRows = allRows.filter(r => !r.isTotal && r.views > 0);
-          const channelUrl = youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : "");
-
-          console.log('[Supabase] Saving client:', name, 'with', normalizedRows.length, 'videos');
-
-          // Save to Supabase with timeout to prevent indefinite hang
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Supabase save timed out after 15s')), 15000)
-          );
-          const savedClient = await Promise.race([
-            saveClientToSupabase(
-              name,
-              normalizedRows,
-              channelUrl,
-              channelTotalSubscribers,
-              result.data // Raw rows for backward compatibility
-            ),
-            timeoutPromise
-          ]);
-
-          console.log('[Supabase] Client saved successfully:', savedClient.id);
-
-          // Update local state
-          let updatedClients;
-          if (isUpdate) {
-            updatedClients = clients.map(c =>
-              (c.id === editingClient.id || c.supabaseId === editingClient.supabaseId)
-                ? savedClient
-                : c
-            );
-          } else {
-            updatedClients = [...clients, savedClient];
-          }
-
-          onClientsUpdate(updatedClients);
-          onClientChange(savedClient);
-
-          setShowModal(false);
-          setClientName("");
-          setUploadedFile(null);
-          setEditingClient(null);
-          setYoutubeChannelUrl("");
-        } catch (error) {
-          console.error('[Supabase] Error saving client:', error);
-          setSaveError(error.message || 'Failed to save to cloud');
-
-          // Fallback: save locally if Supabase fails
-          const localClient = {
-            id: isUpdate ? editingClient.id : `client-${Date.now()}`,
-            name: name,
-            uploadDate: new Date().toISOString(),
-            rows: result.data,
-            subscriberCount: channelTotalSubscribers,
-            channels: [...new Set(result.data.map(r => r['Channel'] || r['Channel name'] || r.channel).filter(Boolean))],
-            youtubeChannelUrl: youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : ""),
-            syncedToSupabase: false,
-          };
-
-          let updatedClients;
-          if (isUpdate) {
-            updatedClients = clients.map(c => c.id === editingClient.id ? localClient : c);
-          } else {
-            updatedClients = [...clients, localClient];
-          }
-
-          onClientsUpdate(updatedClients);
-          onClientChange(localClient);
-        } finally {
-          setIsSaving(false);
-        }
-      },
-      error: (error) => {
-        setIsSaving(false);
-        setSaveError(error.message);
-        alert(`Error parsing CSV: ${error.message}`);
+    try {
+      // Use pre-parsed rows with channel edits applied, or fall back to fresh parse
+      let rawData;
+      if (parsedRows) {
+        rawData = applyChannelEdits(parsedRows);
+      } else {
+        const result = await new Promise((resolve, reject) => {
+          Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: resolve,
+            error: reject,
+          });
+        });
+        rawData = result.data;
       }
-    });
+
+      const { rows: allRows, channelTotalSubscribers } = normalizeData(rawData);
+      const normalizedRows = allRows.filter(r => !r.isTotal && r.views > 0);
+
+      // Resolve YouTube URL: use per-channel URL from detection panel (first non-empty),
+      // fall back to the global URL field, then to existing client URL on update
+      const perChannelUrl = Object.values(channelUrls).find(u => u && u.trim()) || "";
+      const channelUrl = perChannelUrl.trim() || youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : "");
+
+      console.log('[Supabase] Saving client:', name, 'with', normalizedRows.length, 'videos');
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Supabase save timed out after 15s')), 15000)
+      );
+      const savedClient = await Promise.race([
+        saveClientToSupabase(
+          name,
+          normalizedRows,
+          channelUrl,
+          channelTotalSubscribers,
+          rawData
+        ),
+        timeoutPromise
+      ]);
+
+      console.log('[Supabase] Client saved successfully:', savedClient.id);
+
+      let updatedClients;
+      if (isUpdate) {
+        updatedClients = clients.map(c =>
+          (c.id === editingClient.id || c.supabaseId === editingClient.supabaseId)
+            ? savedClient
+            : c
+        );
+      } else {
+        updatedClients = [...clients, savedClient];
+      }
+
+      onClientsUpdate(updatedClients);
+      onClientChange(savedClient);
+
+      setShowModal(false);
+      setClientName("");
+      setUploadedFile(null);
+      setEditingClient(null);
+      setYoutubeChannelUrl("");
+      setParsedRows(null);
+      setDetectedChannels([]);
+      setChannelEdits({});
+      setChannelUrls({});
+      setShowChannelPreview(false);
+    } catch (error) {
+      console.error('[Supabase] Error saving client:', error);
+      setSaveError(error.message || 'Failed to save to cloud');
+
+      const editedRows = parsedRows ? applyChannelEdits(parsedRows) : [];
+      const { channelTotalSubscribers } = normalizeData(editedRows);
+      const localClient = {
+        id: isUpdate ? editingClient.id : `client-${Date.now()}`,
+        name: name,
+        uploadDate: new Date().toISOString(),
+        rows: editedRows,
+        subscriberCount: channelTotalSubscribers,
+        channels: [...new Set(editedRows.map(r => r['Channel'] || r['Channel name'] || r.channel).filter(Boolean))],
+        youtubeChannelUrl: (Object.values(channelUrls).find(u => u && u.trim()) || "").trim() || youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : ""),
+        syncedToSupabase: false,
+      };
+
+      let updatedClients;
+      if (isUpdate) {
+        updatedClients = clients.map(c => c.id === editingClient.id ? localClient : c);
+      } else {
+        updatedClients = [...clients, localClient];
+      }
+
+      onClientsUpdate(updatedClients);
+      onClientChange(localClient);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAddClient = () => {
     if (!clientName.trim() || !uploadedFile) {
       alert("Please enter a client name and upload a CSV file");
+      return;
+    }
+    const emptyChannels = Object.entries(channelEdits).filter(([, name]) => !name.trim());
+    if (emptyChannels.length > 0) {
+      alert("Please provide a name for all detected channels");
       return;
     }
     processCSV(uploadedFile, clientName);
@@ -122,6 +194,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
   const handleUpdateClient = () => {
     if (!uploadedFile) {
       alert("Please upload a CSV file");
+      return;
+    }
+    const emptyChannels = Object.entries(channelEdits).filter(([, name]) => !name.trim());
+    if (emptyChannels.length > 0) {
+      alert("Please provide a name for all detected channels");
       return;
     }
     processCSV(uploadedFile, editingClient.name, true);
@@ -208,6 +285,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
     setUploadedFile(null);
     setEditingClient(null);
     setYoutubeChannelUrl("");
+    setParsedRows(null);
+    setDetectedChannels([]);
+    setChannelEdits({});
+    setChannelUrls({});
+    setShowChannelPreview(false);
     setShowModal(true);
   };
 
@@ -216,6 +298,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
     setEditingClient(client);
     setUploadedFile(null);
     setYoutubeChannelUrl(client.youtubeChannelUrl || "");
+    setParsedRows(null);
+    setDetectedChannels([]);
+    setChannelEdits({});
+    setChannelUrls({});
+    setShowChannelPreview(false);
     setShowModal(true);
   };
 
@@ -434,42 +521,106 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                   </label>
                 </div>
 
-                <div style={{ marginBottom: "16px" }}>
-                  <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <Youtube size={14} style={{ color: "#FF0000" }} />
-                      YouTube Channel URL (Optional)
-                    </span>
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <input
-                      type="text"
-                      value={youtubeChannelUrl}
-                      onChange={(e) => setYoutubeChannelUrl(e.target.value)}
-                      placeholder="https://www.youtube.com/@channelname or channel URL"
-                      style={{
-                        width: "100%",
-                        background: "#1E1E1E",
-                        border: "1px solid #333",
-                        borderRadius: "8px",
-                        padding: "12px",
-                        paddingLeft: "40px",
-                        color: "#E0E0E0",
-                        fontSize: "14px"
-                      }}
-                    />
-                    <Link size={16} style={{
-                      position: "absolute",
-                      left: "12px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      color: "#666"
-                    }} />
+                {showChannelPreview && uploadedFile && (
+                  <div style={{
+                    background: "#1a1a2e",
+                    border: "1px solid #333",
+                    borderRadius: "8px",
+                    padding: "16px",
+                    marginBottom: "16px"
+                  }}>
+                    <div style={{ fontSize: "14px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+                      Channel Detection
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "12px" }}>
+                      {detectedChannels.length === 1 && detectedChannels[0].original === "Main Channel"
+                        ? "No channel column found in CSV. Name this channel:"
+                        : `Found ${detectedChannels.length} channel${detectedChannels.length !== 1 ? 's' : ''} in CSV. Confirm or edit names below:`
+                      }
+                    </div>
+                    {detectedChannels.map((ch) => (
+                      <div key={ch.original} style={{ marginBottom: "12px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "6px" }}>
+                          <input
+                            type="text"
+                            value={channelEdits[ch.original] || ""}
+                            onChange={(e) => setChannelEdits(prev => ({ ...prev, [ch.original]: e.target.value }))}
+                            placeholder="Channel name"
+                            style={{
+                              flex: 1,
+                              background: "#1E1E1E",
+                              border: "1px solid #444",
+                              borderRadius: "6px",
+                              padding: "8px 12px",
+                              color: "#E0E0E0",
+                              fontSize: "13px"
+                            }}
+                          />
+                          <span style={{ fontSize: "12px", color: "#666", whiteSpace: "nowrap" }}>
+                            {ch.count} video{ch.count !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <Youtube size={12} style={{ color: "#FF0000", flexShrink: 0 }} />
+                          <input
+                            type="text"
+                            value={channelUrls[ch.original] || ""}
+                            onChange={(e) => setChannelUrls(prev => ({ ...prev, [ch.original]: e.target.value }))}
+                            placeholder="https://www.youtube.com/@channel (optional)"
+                            style={{
+                              flex: 1,
+                              background: "#1E1E1E",
+                              border: "1px solid #333",
+                              borderRadius: "6px",
+                              padding: "6px 10px",
+                              color: "#9E9E9E",
+                              fontSize: "12px"
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ fontSize: "11px", color: "#666", marginTop: "6px" }}>
-                    Adding a channel URL enables video thumbnails and direct YouTube links in the dashboard
+                )}
+
+                {!showChannelPreview && (
+                  <div style={{ marginBottom: "16px" }}>
+                    <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <Youtube size={14} style={{ color: "#FF0000" }} />
+                        YouTube Channel URL (Optional)
+                      </span>
+                    </label>
+                    <div style={{ position: "relative" }}>
+                      <input
+                        type="text"
+                        value={youtubeChannelUrl}
+                        onChange={(e) => setYoutubeChannelUrl(e.target.value)}
+                        placeholder="https://www.youtube.com/@channelname or channel URL"
+                        style={{
+                          width: "100%",
+                          background: "#1E1E1E",
+                          border: "1px solid #333",
+                          borderRadius: "8px",
+                          padding: "12px",
+                          paddingLeft: "40px",
+                          color: "#E0E0E0",
+                          fontSize: "14px"
+                        }}
+                      />
+                      <Link size={16} style={{
+                        position: "absolute",
+                        left: "12px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        color: "#666"
+                      }} />
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#666", marginTop: "6px" }}>
+                      Adding a channel URL enables video thumbnails and direct YouTube links in the dashboard
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {saveError && (
                   <div style={{
@@ -514,6 +665,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                       setClientName("");
                       setUploadedFile(null);
                       setYoutubeChannelUrl("");
+                      setParsedRows(null);
+                      setDetectedChannels([]);
+                      setChannelEdits({});
+                      setChannelUrls({});
+                      setShowChannelPreview(false);
                     }}
                     style={{
                       background: "#333",
