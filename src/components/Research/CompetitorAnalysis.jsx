@@ -117,32 +117,6 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     loadFromSupabase();
   }, [activeClient?.id, masterView]);
 
-  // Fetch bulk snapshots when trends view is active
-  useEffect(() => {
-    if (viewMode !== 'trends') return;
-    if (activeCompetitors.length === 0) return;
-
-    const fetchSnapshots = async () => {
-      setSnapshotLoading(true);
-      try {
-        const { getBulkChannelSnapshots } = await import('../../services/competitorDatabase');
-        const supabaseIds = activeCompetitors
-          .map(c => c.supabaseId)
-          .filter(Boolean);
-        if (supabaseIds.length === 0) { setSnapshotLoading(false); return; }
-        const days = trendsTimeRange === 0 ? 365 : trendsTimeRange;
-        const data = await getBulkChannelSnapshots(supabaseIds, { days });
-        setSnapshotData(data);
-      } catch (err) {
-        console.error('[Trends] Failed to load snapshots:', err);
-      } finally {
-        setSnapshotLoading(false);
-      }
-    };
-
-    fetchSnapshots();
-  }, [viewMode, activeCompetitors, trendsTimeRange]);
-
   // Helper to reload Supabase competitors after mutations
   const reloadSupabaseCompetitors = useCallback(async () => {
     try {
@@ -901,6 +875,32 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     }
     return competitors;
   }, [supabaseCompetitors, competitors]);
+
+  // Fetch bulk snapshots when trends view is active
+  useEffect(() => {
+    if (viewMode !== 'trends') return;
+    if (activeCompetitors.length === 0) return;
+
+    const fetchSnapshots = async () => {
+      setSnapshotLoading(true);
+      try {
+        const { getBulkChannelSnapshots } = await import('../../services/competitorDatabase');
+        const supabaseIds = activeCompetitors
+          .map(c => c.supabaseId)
+          .filter(Boolean);
+        if (supabaseIds.length === 0) { setSnapshotLoading(false); return; }
+        const days = trendsTimeRange === 0 ? 365 : trendsTimeRange;
+        const data = await getBulkChannelSnapshots(supabaseIds, { days });
+        setSnapshotData(data);
+      } catch (err) {
+        console.error('[Trends] Failed to load snapshots:', err);
+      } finally {
+        setSnapshotLoading(false);
+      }
+    };
+
+    fetchSnapshots();
+  }, [viewMode, activeCompetitors, trendsTimeRange]);
 
   // Group competitors by category for collapsible display
   const groupedCompetitors = useMemo(() => {
