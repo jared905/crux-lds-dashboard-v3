@@ -80,6 +80,13 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   const [showAddPopover, setShowAddPopover] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
+  // Sync competitors state to localStorage for enriched data persistence
+  useEffect(() => {
+    if (competitors.length > 0) {
+      localStorage.setItem('competitors', JSON.stringify(competitors));
+    }
+  }, [competitors]);
+
   // Load competitors from Supabase when activeClient or masterView changes
   useEffect(() => {
     if (!activeClient?.id && !masterView) return;
@@ -699,37 +706,41 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       const totalComments = videos.reduce((sum, v) => sum + v.comments, 0);
       const engagementRate = totalViews > 0 ? ((totalLikes + totalComments) / totalViews) : 0;
 
-      // Update localStorage copy if it exists there
-      const localMatch = competitors.find(c => c.id === competitorId);
+      // Update localStorage-backed competitors state (upsert — insert if not present)
+      const enrichedData = {
+        id: resolvedChannelId,
+        name: ytChannel.snippet.title,
+        description: ytChannel.snippet.description,
+        thumbnail: ytChannel.snippet.thumbnails.default.url,
+        subscriberCount: parseInt(ytChannel.statistics.subscriberCount) || 0,
+        videoCount: parseInt(ytChannel.statistics.videoCount) || 0,
+        viewCount: parseInt(ytChannel.statistics.viewCount) || 0,
+        uploadsLast30Days: last30Days.length,
+        uploadsLast60Days: last60Days.length,
+        uploadsLast90Days: last90Days.length,
+        shortsCount: shorts.length,
+        longsCount: longs.length,
+        shorts30d,
+        longs30d,
+        avgViewsPerVideo: videos.length > 0 ? totalViews / videos.length : 0,
+        avgShortsViews: shorts.length > 0 ? shorts.reduce((s, v) => s + v.views, 0) / shorts.length : 0,
+        avgLongsViews: longs.length > 0 ? longs.reduce((s, v) => s + v.views, 0) / longs.length : 0,
+        engagementRate,
+        uploadFrequency: last30Days.length > 0 ? 30 / last30Days.length : 0,
+        topVideos,
+        contentSeries: seriesPatterns,
+        videos,
+        lastRefreshed: new Date().toISOString(),
+      };
+      const localMatch = competitors.find(c => c.id === competitorId || c.id === resolvedChannelId);
       if (localMatch) {
-        const updatedLocal = {
-          ...localMatch,
-          id: resolvedChannelId,
-          name: ytChannel.snippet.title,
-          description: ytChannel.snippet.description,
-          thumbnail: ytChannel.snippet.thumbnails.default.url,
-          subscriberCount: parseInt(ytChannel.statistics.subscriberCount) || 0,
-          videoCount: parseInt(ytChannel.statistics.videoCount) || 0,
-          viewCount: parseInt(ytChannel.statistics.viewCount) || 0,
-          uploadsLast30Days: last30Days.length,
-          uploadsLast60Days: last60Days.length,
-          uploadsLast90Days: last90Days.length,
-          shortsCount: shorts.length,
-          longsCount: longs.length,
-          shorts30d,
-          longs30d,
-          avgViewsPerVideo: videos.length > 0 ? totalViews / videos.length : 0,
-          avgShortsViews: shorts.length > 0 ? shorts.reduce((s, v) => s + v.views, 0) / shorts.length : 0,
-          avgLongsViews: longs.length > 0 ? longs.reduce((s, v) => s + v.views, 0) / longs.length : 0,
-          engagementRate,
-          uploadFrequency: last30Days.length > 0 ? 30 / last30Days.length : 0,
-          topVideos,
-          contentSeries: seriesPatterns,
-          videos,
-          lastRefreshed: new Date().toISOString(),
-        };
-        const updated = competitors.map(c => c.id === competitorId ? updatedLocal : c);
+        const updated = competitors.map(c =>
+          (c.id === competitorId || c.id === resolvedChannelId) ? { ...c, ...enrichedData } : c
+        );
         setCompetitors(updated);
+      } else {
+        // Supabase-only competitor — add to localStorage so enriched stats persist
+        setCompetitors(prev => [...prev, { ...competitor, ...enrichedData }]);
       }
 
       // Save to Supabase
