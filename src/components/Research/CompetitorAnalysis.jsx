@@ -3,6 +3,7 @@ import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronD
 import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../../lib/competitorAnalysis";
 import { getOutlierVideos, analyzeCompetitorVideo } from '../../services/competitorInsightsService';
 import { importCompetitorDatabase } from '../../services/competitorImport';
+import CompetitorTrends from './CompetitorTrends';
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -80,6 +81,11 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   const [showAddPopover, setShowAddPopover] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
+  // Trends view state
+  const [trendsTimeRange, setTrendsTimeRange] = useState(30);
+  const [snapshotData, setSnapshotData] = useState({});
+  const [snapshotLoading, setSnapshotLoading] = useState(false);
+
   // Sync competitors state to localStorage for enriched data persistence
   useEffect(() => {
     if (competitors.length > 0) {
@@ -109,6 +115,32 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
     loadFromSupabase();
   }, [activeClient?.id, masterView]);
+
+  // Fetch bulk snapshots when trends view is active
+  useEffect(() => {
+    if (viewMode !== 'trends') return;
+    if (activeCompetitors.length === 0) return;
+
+    const fetchSnapshots = async () => {
+      setSnapshotLoading(true);
+      try {
+        const { getBulkChannelSnapshots } = await import('../../services/competitorDatabase');
+        const supabaseIds = activeCompetitors
+          .map(c => c.supabaseId)
+          .filter(Boolean);
+        if (supabaseIds.length === 0) { setSnapshotLoading(false); return; }
+        const days = trendsTimeRange === 0 ? 365 : trendsTimeRange;
+        const data = await getBulkChannelSnapshots(supabaseIds, { days });
+        setSnapshotData(data);
+      } catch (err) {
+        console.error('[Trends] Failed to load snapshots:', err);
+      } finally {
+        setSnapshotLoading(false);
+      }
+    };
+
+    fetchSnapshots();
+  }, [viewMode, activeCompetitors, trendsTimeRange]);
 
   // Helper to reload Supabase competitors after mutations
   const reloadSupabaseCompetitors = useCallback(async () => {
@@ -1448,13 +1480,23 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             <button
               onClick={() => setViewMode('cards')}
               style={{
-                padding: "6px 8px", borderRadius: "0 6px 6px 0",
+                padding: "6px 8px", borderRadius: "0",
                 background: viewMode === 'cards' ? '#333' : 'transparent',
                 border: "1px solid #444", borderLeft: "none",
                 color: viewMode === 'cards' ? '#fff' : '#666', cursor: "pointer",
               }}
               title="Card view"
             ><LayoutGrid size={14} /></button>
+            <button
+              onClick={() => setViewMode('trends')}
+              style={{
+                padding: "6px 8px", borderRadius: "0 6px 6px 0",
+                background: viewMode === 'trends' ? '#333' : 'transparent',
+                border: "1px solid #444", borderLeft: "none",
+                color: viewMode === 'trends' ? '#fff' : '#666', cursor: "pointer",
+              }}
+              title="Trends view"
+            ><TrendingUp size={14} /></button>
           </div>
         </div>
       )}
@@ -1628,6 +1670,20 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             </CategoryHeader>
           ))}
         </div>
+      )}
+
+      {/* 3C: Trends View */}
+      {activeCompetitors.length > 0 && viewMode === 'trends' && (
+        <CompetitorTrends
+          activeCompetitors={activeCompetitors}
+          selectedCategory={selectedCategory}
+          CATEGORY_CONFIG={CATEGORY_CONFIG}
+          timeRange={trendsTimeRange}
+          onTimeRangeChange={setTrendsTimeRange}
+          snapshotData={snapshotData}
+          snapshotLoading={snapshotLoading}
+          yourChannelId={activeClient?.youtube_channel_id || null}
+        />
       )}
 
       {/* Empty state */}

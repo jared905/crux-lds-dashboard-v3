@@ -338,6 +338,82 @@ export async function getChannelSnapshots(channelId, { days = 30 } = {}) {
 }
 
 /**
+ * Get snapshots for multiple channels in a single query.
+ * Returns { [channel_id]: snapshot[] } grouped by channel.
+ */
+export async function getBulkChannelSnapshots(channelIds, { days = 30 } = {}) {
+  if (!supabase) throw new Error('Supabase not configured');
+  if (!channelIds.length) return {};
+
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - (days === 0 ? 365 : days));
+
+  const { data, error } = await supabase
+    .from('channel_snapshots')
+    .select('*')
+    .in('channel_id', channelIds)
+    .gte('snapshot_date', cutoffDate.toISOString().split('T')[0])
+    .order('snapshot_date', { ascending: true });
+
+  if (error) throw error;
+
+  const grouped = {};
+  (data || []).forEach(snap => {
+    if (!grouped[snap.channel_id]) grouped[snap.channel_id] = [];
+    grouped[snap.channel_id].push(snap);
+  });
+  return grouped;
+}
+
+/**
+ * Aggregate snapshot data by category (pure JS transform, no DB call).
+ * Takes bulk snapshot data and a { channelId: category } map.
+ * Returns { [category]: { [date]: { totalSubs, totalViews, count } } }
+ */
+export function aggregateSnapshotsByCategory(bulkSnapshots, channelCategoryMap) {
+  const byCatDate = {};
+
+  Object.entries(bulkSnapshots).forEach(([channelId, snapshots]) => {
+    const category = channelCategoryMap[channelId] || 'unknown';
+    if (!byCatDate[category]) byCatDate[category] = {};
+
+    snapshots.forEach(snap => {
+      const date = snap.snapshot_date;
+      if (!byCatDate[category][date]) {
+        byCatDate[category][date] = { totalSubs: 0, totalViews: 0, count: 0 };
+      }
+      byCatDate[category][date].totalSubs += snap.subscriber_count || 0;
+      byCatDate[category][date].totalViews += snap.total_view_count || 0;
+      byCatDate[category][date].count++;
+    });
+  });
+
+  return byCatDate;
+}
+
+/**
+ * Get snapshot count per channel to determine data coverage.
+ * Returns { [channel_id]: number }
+ */
+export async function getSnapshotCoverage(channelIds) {
+  if (!supabase) throw new Error('Supabase not configured');
+  if (!channelIds.length) return {};
+
+  const { data, error } = await supabase
+    .from('channel_snapshots')
+    .select('channel_id, snapshot_date')
+    .in('channel_id', channelIds);
+
+  if (error) throw error;
+
+  const coverage = {};
+  (data || []).forEach(snap => {
+    coverage[snap.channel_id] = (coverage[snap.channel_id] || 0) + 1;
+  });
+  return coverage;
+}
+
+/**
  * Create video snapshots for performance tracking
  */
 export async function createVideoSnapshots(videos) {
@@ -709,6 +785,9 @@ export default {
   // Snapshots
   createChannelSnapshot,
   getChannelSnapshots,
+  getBulkChannelSnapshots,
+  aggregateSnapshotsByCategory,
+  getSnapshotCoverage,
   createVideoSnapshots,
 
   // Sync
