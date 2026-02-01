@@ -14,7 +14,9 @@ Rules:
 - Be direct and actionable — avoid vague advice
 - Limit to 3-5 recommendations per category
 - Consider the channel's size tier when calibrating advice
-- Return ONLY valid JSON, no other text`;
+- You MUST provide at least 1 recommendation per category (stop, start, optimize) — every channel has something to improve
+- If benchmark data is unavailable, base recommendations on the channel's own performance patterns and YouTube best practices for the size tier
+- Return ONLY valid JSON (no markdown fences, no commentary), starting with { and ending with }`;
 
 /**
  * Generate stop/start/optimize recommendations.
@@ -56,7 +58,7 @@ ${seriesSummary?.series?.length > 0
 ## Benchmark Comparison
 ${benchmarkData?.comparison?.metrics?.map(m =>
   `- ${m.name}: ${m.value?.toLocaleString()} vs peer median ${m.benchmark?.toLocaleString()} (${m.ratio}x, ${m.status})`
-).join('\n') || 'No benchmarks available'}
+).join('\n') || 'No benchmarks available — base advice on the channel\'s own data and general best practices'}
 ${benchmarkData?.comparison?.overallScore ? `Overall benchmark score: ${benchmarkData.comparison.overallScore}x peer median` : ''}
 
 ## Identified Opportunities
@@ -122,6 +124,10 @@ Provide recommendations in this JSON format:
       start: parsed.start || [],
       optimize: parsed.optimize || [],
     };
+
+    if (recommendationData.stop.length === 0 && recommendationData.start.length === 0 && recommendationData.optimize.length === 0) {
+      console.warn('[auditRecommendations] Parsed result has zero recommendations. Claude response (first 500 chars):', (result.text || '').slice(0, 500));
+    }
 
     await updateAuditProgress(auditId, { step: 'recommendations', pct: 83, message: 'Recommendations complete' });
     await updateAuditSection(auditId, 'recommendations', {

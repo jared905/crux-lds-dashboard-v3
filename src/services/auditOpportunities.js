@@ -13,7 +13,9 @@ Rules:
 - Be specific and data-driven — reference actual numbers from the data
 - Focus on gaps between the channel and its peers
 - Prioritize opportunities by potential impact
-- Return ONLY valid JSON, no other text`;
+- You MUST identify at least 2 content gaps and 2 growth levers for every channel — even if data is limited, use the channel's own video performance trends, upload patterns, and content variety to find opportunities
+- If peer benchmarks are unavailable, compare the channel against general YouTube best practices for its size tier
+- Return ONLY valid JSON (no markdown fences, no commentary), starting with { and ending with }`;
 
 /**
  * Analyze content gaps and growth opportunities.
@@ -68,7 +70,7 @@ Peer content mix: ${benchmarkData.benchmarks?.contentMix?.shortsRatio || 0}% sho
 ${benchmarkData.comparison?.metrics?.map(m =>
   `- ${m.name}: Channel ${m.value?.toLocaleString()} vs Peer ${m.benchmark?.toLocaleString()} (${m.ratio}x, ${m.status})`
 ).join('\n') || ''}`
-  : 'No peer benchmarks available'}
+  : 'No peer benchmarks available — compare against general YouTube best practices for this size tier instead'}
 
 ## Top Performing Videos
 ${topVideos.map(v => `- "${v.title}" — ${(v.view_count || 0).toLocaleString()} views`).join('\n')}
@@ -129,6 +131,10 @@ Identify opportunities in this JSON format:
       growth_levers: parsed.growth_levers || [],
       market_potential: parsed.market_potential || null,
     };
+
+    if (opportunityData.content_gaps.length === 0 && opportunityData.growth_levers.length === 0) {
+      console.warn('[auditOpportunities] Parsed result has zero opportunities. Claude response (first 500 chars):', (result.text || '').slice(0, 500));
+    }
 
     await updateAuditProgress(auditId, { step: 'opportunity_analysis', pct: 68, message: 'Opportunity analysis complete' });
     await updateAuditSection(auditId, 'opportunity_analysis', {
