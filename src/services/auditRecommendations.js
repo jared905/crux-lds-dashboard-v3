@@ -1,0 +1,141 @@
+/**
+ * Audit Recommendations Service
+ * Claude-powered Stop/Start/Optimize recommendation generation.
+ */
+
+import claudeAPI from './claudeAPI';
+import { parseClaudeJSON } from '../lib/parseClaudeJSON';
+import { addAuditCost, updateAuditSection, updateAuditProgress } from './auditDatabase';
+
+const RECOMMENDATIONS_SYSTEM_PROMPT = `You are a YouTube growth strategist delivering actionable recommendations based on a comprehensive channel audit. Organize recommendations into three categories: Stop (things to stop doing), Start (new things to begin), and Optimize (existing things to improve).
+
+Rules:
+- Each recommendation must cite specific data from the analysis
+- Be direct and actionable — avoid vague advice
+- Limit to 3-5 recommendations per category
+- Consider the channel's size tier when calibrating advice
+- Return ONLY valid JSON, no other text`;
+
+/**
+ * Generate stop/start/optimize recommendations.
+ */
+export async function generateRecommendations(auditId, context) {
+  await updateAuditSection(auditId, 'recommendations', { status: 'running' });
+  await updateAuditProgress(auditId, { step: 'recommendations', pct: 72, message: 'Generating recommendations...' });
+
+  try {
+    const { channelSnapshot, seriesSummary, benchmarkData, opportunities, videos } = context;
+
+    // Identify underperforming content
+    const avgViews = channelSnapshot?.avg_views_recent || 0;
+    const underperformers = (videos || [])
+      .filter(v => {
+        if (!v.published_at) return false;
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 180);
+        return new Date(v.published_at) > cutoff && (v.view_count || 0) < avgViews * 0.3;
+      })
+      .slice(0, 10);
+
+    const prompt = `Generate strategic recommendations for this YouTube channel based on the full audit:
+
+## Channel Overview
+- Name: ${channelSnapshot?.name || 'Unknown'}
+- Subscribers: ${(channelSnapshot?.subscriber_count || 0).toLocaleString()}
+- Size Tier: ${channelSnapshot?.size_tier || 'unknown'}
+- Avg Views (recent 90d): ${(channelSnapshot?.avg_views_recent || 0).toLocaleString()}
+- Avg Engagement (recent): ${((channelSnapshot?.avg_engagement_recent || 0) * 100).toFixed(2)}%
+
+## Series Analysis
+${seriesSummary?.series?.length > 0
+  ? seriesSummary.series.map(s =>
+      `- "${s.name}": ${s.videoCount} videos, ${s.avgViews.toLocaleString()} avg views, engagement: ${(s.avgEngagementRate * 100).toFixed(2)}%, trend: ${s.performanceTrend}, cadence: ${s.cadenceDays ? s.cadenceDays + ' days' : 'irregular'}`
+    ).join('\n')
+  : 'No series detected'}
+
+## Benchmark Comparison
+${benchmarkData?.comparison?.metrics?.map(m =>
+  `- ${m.name}: ${m.value?.toLocaleString()} vs peer median ${m.benchmark?.toLocaleString()} (${m.ratio}x, ${m.status})`
+).join('\n') || 'No benchmarks available'}
+${benchmarkData?.comparison?.overallScore ? `Overall benchmark score: ${benchmarkData.comparison.overallScore}x peer median` : ''}
+
+## Identified Opportunities
+Content Gaps:
+${opportunities?.content_gaps?.map(g => `- ${g.gap} (${g.potential_impact} impact)`).join('\n') || 'None identified'}
+
+Growth Levers:
+${opportunities?.growth_levers?.map(l => `- ${l.lever}: ${l.current_state} → ${l.target_state} (${l.priority} priority)`).join('\n') || 'None identified'}
+
+## Underperforming Content (last 180 days, <30% of avg views)
+${underperformers.length > 0
+  ? underperformers.map(v => `- "${v.title}" — ${(v.view_count || 0).toLocaleString()} views (${v.video_type || 'long'})`).join('\n')
+  : 'None identified'}
+
+Provide recommendations in this JSON format:
+{
+  "stop": [
+    {
+      "action": "What to stop doing",
+      "rationale": "Why, with data references",
+      "evidence": "Specific data point supporting this",
+      "impact": "high" | "medium" | "low"
+    }
+  ],
+  "start": [
+    {
+      "action": "What to start doing",
+      "rationale": "Why, with data references",
+      "evidence": "Specific data point supporting this",
+      "impact": "high" | "medium" | "low",
+      "effort": "high" | "medium" | "low"
+    }
+  ],
+  "optimize": [
+    {
+      "action": "What to optimize",
+      "rationale": "Why, with data references",
+      "evidence": "Specific data point supporting this",
+      "impact": "high" | "medium" | "low"
+    }
+  ]
+}`;
+
+    const result = await claudeAPI.call(
+      prompt,
+      RECOMMENDATIONS_SYSTEM_PROMPT,
+      'audit_recommendations',
+      2000
+    );
+
+    // Track cost
+    if (result.usage) {
+      await addAuditCost(auditId, {
+        tokens: (result.usage.input_tokens || 0) + (result.usage.output_tokens || 0),
+        cost: result.cost || 0,
+      });
+    }
+
+    const parsed = parseClaudeJSON(result.text, { stop: [], start: [], optimize: [] });
+
+    const recommendationData = {
+      stop: parsed.stop || [],
+      start: parsed.start || [],
+      optimize: parsed.optimize || [],
+    };
+
+    await updateAuditProgress(auditId, { step: 'recommendations', pct: 83, message: 'Recommendations complete' });
+    await updateAuditSection(auditId, 'recommendations', {
+      status: 'completed',
+      result_data: recommendationData,
+    });
+
+    return recommendationData;
+
+  } catch (err) {
+    await updateAuditSection(auditId, 'recommendations', {
+      status: 'failed',
+      error_message: err.message,
+    });
+    throw err;
+  }
+}

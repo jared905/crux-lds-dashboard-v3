@@ -20,11 +20,13 @@ import {
   Building,
   Key,
   Shield,
+  ClipboardCheck,
   // Section icons
   BarChart3,
   Search,
   FlaskConical,
   Map,
+  Briefcase,
   Settings,
 } from "lucide-react";
 
@@ -66,6 +68,14 @@ const SECTIONS = [
       { id: "briefs", label: "Briefs", icon: FileText },
       { id: "actions", label: "Actions", icon: Target },
       { id: "calendar", label: "Calendar", icon: Calendar },
+    ],
+  },
+  {
+    id: "sales",
+    label: "Sales",
+    icon: Briefcase,
+    tabs: [
+      { id: "audits", label: "Audits", icon: ClipboardCheck },
     ],
   },
   {

@@ -2,7 +2,8 @@
  * Competitor Sync Service
  * Full View Analytics - Crux Media
  *
- * Handles fetching data from YouTube API and syncing to database
+ * Handles syncing competitor channel data from YouTube API to database.
+ * Uses the consolidated youtubeAPI service for all YouTube Data API calls.
  */
 
 import {
@@ -16,177 +17,16 @@ import {
   getChannelByYouTubeId,
 } from './competitorDatabase';
 
-// YouTube API configuration
-const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
-
-/**
- * Parse ISO 8601 duration to seconds
- */
-function parseDuration(duration) {
-  if (!duration) return 0;
-  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!match) return 0;
-  const hours = parseInt(match[1]) || 0;
-  const minutes = parseInt(match[2]) || 0;
-  const seconds = parseInt(match[3]) || 0;
-  return hours * 3600 + minutes * 60 + seconds;
-}
-
-/**
- * Get YouTube API key from localStorage
- */
-function getYouTubeApiKey() {
-  return localStorage.getItem('yt_api_key') || '';
-}
-
-/**
- * Resolve a YouTube channel URL/handle to channel ID
- */
-async function resolveChannelId(input, apiKey) {
-  let channelId = input.trim();
-
-  // Direct channel ID
-  if (channelId.match(/^UC[\w-]{22}$/)) {
-    return channelId;
-  }
-
-  // URL formats
-  if (channelId.includes('youtube.com/channel/')) {
-    return channelId.split('youtube.com/channel/')[1].split(/[?/]/)[0];
-  }
-
-  // Handle format (@username)
-  if (channelId.includes('youtube.com/@') || channelId.startsWith('@')) {
-    const handle = channelId.includes('@')
-      ? channelId.split('@')[1].split(/[?/]/)[0]
-      : channelId;
-
-    const response = await fetch(
-      `${YOUTUBE_API_BASE}/search?part=snippet&type=channel&q=${encodeURIComponent('@' + handle)}&key=${apiKey}`
-    );
-    const data = await response.json();
-
-    if (data.error) throw new Error(data.error.message);
-    if (!data.items?.length) throw new Error('Channel not found');
-
-    return data.items[0].snippet.channelId;
-  }
-
-  // Custom URL or username format
-  if (channelId.includes('youtube.com/c/') || channelId.includes('youtube.com/user/')) {
-    const customName = channelId.split(/youtube\.com\/[cu]\//)[1].split(/[?/]/)[0];
-
-    const response = await fetch(
-      `${YOUTUBE_API_BASE}/search?part=snippet&type=channel&q=${encodeURIComponent(customName)}&key=${apiKey}`
-    );
-    const data = await response.json();
-
-    if (data.error) throw new Error(data.error.message);
-    if (!data.items?.length) throw new Error('Channel not found');
-
-    return data.items[0].snippet.channelId;
-  }
-
-  // Assume it's a channel ID or search term
-  return channelId;
-}
-
-/**
- * Fetch channel details from YouTube API
- */
-async function fetchChannelDetails(channelId, apiKey) {
-  const response = await fetch(
-    `${YOUTUBE_API_BASE}/channels?part=snippet,statistics,contentDetails&id=${channelId}&key=${apiKey}`
-  );
-  const data = await response.json();
-
-  if (data.error) throw new Error(data.error.message);
-  if (!data.items?.length) throw new Error('Channel not found');
-
-  const channel = data.items[0];
-
-  return {
-    youtube_channel_id: channel.id,
-    name: channel.snippet.title,
-    description: channel.snippet.description,
-    thumbnail_url: channel.snippet.thumbnails?.default?.url,
-    custom_url: channel.snippet.customUrl,
-    subscriber_count: parseInt(channel.statistics.subscriberCount) || 0,
-    total_view_count: parseInt(channel.statistics.viewCount) || 0,
-    video_count: parseInt(channel.statistics.videoCount) || 0,
-    uploads_playlist_id: channel.contentDetails?.relatedPlaylists?.uploads,
-  };
-}
-
-/**
- * Fetch recent videos from a channel with pagination support
- * Fetches up to maxResults videos across multiple API pages (50 per page)
- */
-async function fetchChannelVideos(uploadsPlaylistId, apiKey, maxResults = 200) {
-  const perPage = 50;
-  let allItems = [];
-  let pageToken = null;
-
-  // Page through playlist items until we have enough or run out
-  while (allItems.length < maxResults) {
-    const url = `${YOUTUBE_API_BASE}/playlistItems?part=snippet,contentDetails&playlistId=${uploadsPlaylistId}&maxResults=${perPage}&key=${apiKey}` +
-      (pageToken ? `&pageToken=${pageToken}` : '');
-
-    const playlistResponse = await fetch(url);
-    const playlistData = await playlistResponse.json();
-
-    if (playlistData.error) throw new Error(playlistData.error.message);
-    if (!playlistData.items?.length) break;
-
-    allItems = allItems.concat(playlistData.items);
-    pageToken = playlistData.nextPageToken;
-    if (!pageToken) break;
-  }
-
-  // Trim to maxResults
-  allItems = allItems.slice(0, maxResults);
-  if (!allItems.length) return [];
-
-  // Fetch video details in batches of 50 (API limit per call)
-  const allVideos = [];
-  for (let i = 0; i < allItems.length; i += 50) {
-    const batch = allItems.slice(i, i + 50);
-    const videoIds = batch.map(item => item.contentDetails.videoId).join(',');
-
-    const videosResponse = await fetch(
-      `${YOUTUBE_API_BASE}/videos?part=statistics,contentDetails,snippet&id=${videoIds}&key=${apiKey}`
-    );
-    const videosData = await videosResponse.json();
-
-    if (videosData.error) throw new Error(videosData.error.message);
-
-    const mapped = videosData.items.map(video => ({
-      youtube_video_id: video.id,
-      title: video.snippet.title,
-      description: video.snippet.description,
-      thumbnail_url: video.snippet.thumbnails?.medium?.url || video.snippet.thumbnails?.default?.url,
-      published_at: video.snippet.publishedAt,
-      duration_seconds: parseDuration(video.contentDetails.duration),
-      view_count: parseInt(video.statistics.viewCount) || 0,
-      like_count: parseInt(video.statistics.likeCount) || 0,
-      comment_count: parseInt(video.statistics.commentCount) || 0,
-    }));
-
-    allVideos.push(...mapped);
-  }
-
-  return allVideos;
-}
+import { youtubeAPI } from './youtubeAPI';
 
 /**
  * Add a new competitor channel
  */
 export async function addCompetitor(input, { category, tags, clientId } = {}) {
-  const apiKey = getYouTubeApiKey();
-  if (!apiKey) throw new Error('YouTube API key not configured');
+  if (!youtubeAPI.loadAPIKey()) throw new Error('YouTube API key not configured');
 
   // Resolve channel ID
-  const channelId = await resolveChannelId(input, apiKey);
+  const channelId = await youtubeAPI.resolveChannelId(input);
 
   // Check if already exists
   const existing = await getChannelByYouTubeId(channelId);
@@ -195,7 +35,7 @@ export async function addCompetitor(input, { category, tags, clientId } = {}) {
   }
 
   // Fetch channel details
-  const channelDetails = await fetchChannelDetails(channelId, apiKey);
+  const channelDetails = await youtubeAPI.fetchChannelDetails(channelId);
 
   // Save to database
   const channel = await upsertChannel({
@@ -208,7 +48,7 @@ export async function addCompetitor(input, { category, tags, clientId } = {}) {
 
   // Fetch and save recent videos
   if (channelDetails.uploads_playlist_id) {
-    const videos = await fetchChannelVideos(channelDetails.uploads_playlist_id, apiKey);
+    const videos = await youtubeAPI.fetchChannelVideos(channelDetails.uploads_playlist_id);
     await upsertVideos(videos, channel.id);
 
     // Create initial snapshot
@@ -237,8 +77,7 @@ export async function addCompetitor(input, { category, tags, clientId } = {}) {
  * Sync a single channel (refresh data)
  */
 export async function syncChannel(channelId) {
-  const apiKey = getYouTubeApiKey();
-  if (!apiKey) throw new Error('YouTube API key not configured');
+  if (!youtubeAPI.loadAPIKey()) throw new Error('YouTube API key not configured');
 
   // Get existing channel record
   const { data: channelRecord, error } = await import('./supabaseClient')
@@ -247,7 +86,7 @@ export async function syncChannel(channelId) {
   if (error || !channelRecord) throw new Error('Channel not found');
 
   // Fetch fresh data from YouTube
-  const channelDetails = await fetchChannelDetails(channelRecord.youtube_channel_id, apiKey);
+  const channelDetails = await youtubeAPI.fetchChannelDetails(channelRecord.youtube_channel_id);
 
   // Update channel record
   const updatedChannel = await upsertChannel({
@@ -261,7 +100,7 @@ export async function syncChannel(channelId) {
   // Fetch and update videos
   let videos = [];
   if (channelDetails.uploads_playlist_id) {
-    videos = await fetchChannelVideos(channelDetails.uploads_playlist_id, apiKey);
+    videos = await youtubeAPI.fetchChannelVideos(channelDetails.uploads_playlist_id);
     const savedVideos = await upsertVideos(videos, updatedChannel.id);
 
     // Create video snapshots for tracking
@@ -293,8 +132,7 @@ export async function syncChannel(channelId) {
  * Sync all tracked channels in parallel batches
  */
 export async function syncAllChannels({ onProgress, batchSize = 5, clientId } = {}) {
-  const apiKey = getYouTubeApiKey();
-  if (!apiKey) throw new Error('YouTube API key not configured');
+  if (!youtubeAPI.loadAPIKey()) throw new Error('YouTube API key not configured');
 
   // Start sync log
   const syncLog = await startSyncLog('manual');
@@ -357,8 +195,7 @@ export async function syncAllChannels({ onProgress, batchSize = 5, clientId } = 
  * Scheduled sync (for cron job) — parallel batches of 5
  */
 export async function scheduledSync() {
-  const apiKey = getYouTubeApiKey();
-  if (!apiKey) {
+  if (!youtubeAPI.loadAPIKey()) {
     console.warn('Scheduled sync skipped: No YouTube API key');
     return null;
   }

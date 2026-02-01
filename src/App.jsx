@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { Menu, ChevronDown } from "lucide-react";
 
 // Auth
@@ -29,6 +29,9 @@ import Atomizer from "./components/ContentLab/Atomizer.jsx";
 import VideoIdeaGenerator from "./components/ContentLab/VideoIdeaGenerator.jsx";
 import BriefsList from "./components/Strategy/BriefsList.jsx";
 import UserManagement from "./components/Admin/UserManagement.jsx";
+
+// Lazy-loaded audit feature
+const AuditPage = lazy(() => import("./components/Audit/AuditPage.jsx"));
 
 export default function App() {
   // Auth state
@@ -728,6 +731,13 @@ export default function App() {
           </>
         )}
         {/* End activeClient wrapper */}
+
+        {/* Audits - works with or without a client */}
+        {tab === "audits" && (
+          <Suspense fallback={<div style={{ padding: "40px", textAlign: "center", color: "#9E9E9E" }}>Loading Audits...</div>}>
+            <AuditPage activeClient={activeClient} />
+          </Suspense>
+        )}
 
         {/* User Management - Admin Only */}
         {tab === "user-management" && isAdmin && (

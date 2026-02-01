@@ -1,27 +1,290 @@
 /**
  * YouTube Data API Service
- * Handles fetching comments and other data from YouTube
+ * Handles fetching comments, channel data, videos, and other data from YouTube
+ * Includes quota tracking and consolidated fetch methods for audits
  */
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 
+/**
+ * Parse ISO 8601 duration (PT1H2M3S) to seconds
+ */
+function parseDuration(duration) {
+  if (!duration) return 0;
+  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return 0;
+  return (parseInt(match[1]) || 0) * 3600 +
+         (parseInt(match[2]) || 0) * 60 +
+         (parseInt(match[3]) || 0);
+}
+
 class YouTubeAPIService {
   constructor() {
     this.apiKey = this.loadAPIKey();
+    this.quotaUsage = this.loadQuotaUsage();
   }
 
-  // Load API key from localStorage
+  // ============================================
+  // API Key Management
+  // ============================================
+
   loadAPIKey() {
-    return localStorage.getItem('youtube_api_key') || '';
+    // Check both key names for backwards compatibility
+    return localStorage.getItem('youtube_api_key')
+      || localStorage.getItem('yt_api_key')
+      || '';
   }
 
-  // Save API key to localStorage
   saveAPIKey(key) {
     this.apiKey = key;
     localStorage.setItem('youtube_api_key', key);
   }
 
-  // Fetch comment threads for a video
+  // ============================================
+  // Quota Tracking (10,000 units/day default)
+  // ============================================
+
+  loadQuotaUsage() {
+    const saved = localStorage.getItem('youtube_quota_usage');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const today = new Date().toISOString().split('T')[0];
+        if (parsed.date === today) return parsed;
+      } catch { /* reset below */ }
+    }
+    return this.resetQuotaUsage();
+  }
+
+  resetQuotaUsage() {
+    const usage = { date: new Date().toISOString().split('T')[0], units: 0, calls: 0 };
+    localStorage.setItem('youtube_quota_usage', JSON.stringify(usage));
+    return usage;
+  }
+
+  trackQuota(units) {
+    const today = new Date().toISOString().split('T')[0];
+    if (this.quotaUsage.date !== today) {
+      this.quotaUsage = this.resetQuotaUsage();
+    }
+    this.quotaUsage.units += units;
+    this.quotaUsage.calls += 1;
+    localStorage.setItem('youtube_quota_usage', JSON.stringify(this.quotaUsage));
+  }
+
+  getQuotaUsage() {
+    const today = new Date().toISOString().split('T')[0];
+    if (this.quotaUsage.date !== today) {
+      this.quotaUsage = this.resetQuotaUsage();
+    }
+    return { ...this.quotaUsage, limit: 10000, remaining: 10000 - this.quotaUsage.units };
+  }
+
+  checkQuota(estimatedUnits) {
+    const usage = this.getQuotaUsage();
+    return usage.remaining >= estimatedUnits;
+  }
+
+  // ============================================
+  // Channel Resolution & Details
+  // ============================================
+
+  /**
+   * Resolve a YouTube channel URL, handle, or ID to a UC channel ID.
+   * Handles: direct UC IDs, @handles, /channel/ URLs, /c/ URLs, /user/ URLs.
+   * Quota: 0 if direct ID, 100 if search is needed.
+   */
+  async resolveChannelId(input) {
+    if (!this.apiKey) {
+      throw new Error('YouTube API key not configured. Please add your API key in settings.');
+    }
+
+    let channelId = (input || '').trim();
+
+    // Direct UC channel ID
+    if (channelId.match(/^UC[\w-]{22}$/)) {
+      return channelId;
+    }
+
+    // URL: youtube.com/channel/UC...
+    if (channelId.includes('youtube.com/channel/')) {
+      return channelId.split('youtube.com/channel/')[1].split(/[?/]/)[0];
+    }
+
+    // Handle format: @username or youtube.com/@username
+    if (channelId.includes('youtube.com/@') || channelId.startsWith('@')) {
+      const handle = channelId.includes('@')
+        ? channelId.split('@')[1].split(/[?/]/)[0]
+        : channelId;
+
+      return await this._searchForChannel('@' + handle);
+    }
+
+    // Custom URL: youtube.com/c/name or youtube.com/user/name
+    if (channelId.includes('youtube.com/c/') || channelId.includes('youtube.com/user/')) {
+      const customName = channelId.split(/youtube\.com\/(?:c|user)\//)[1].split(/[?/]/)[0];
+      return await this._searchForChannel(customName);
+    }
+
+    // Bare handle without @ prefix
+    if (channelId.length > 2 && !channelId.includes('/') && !channelId.startsWith('UC')) {
+      return await this._searchForChannel('@' + channelId);
+    }
+
+    return channelId;
+  }
+
+  async _searchForChannel(query) {
+    const url = new URL(`${YOUTUBE_API_BASE}/search`);
+    url.searchParams.append('part', 'snippet');
+    url.searchParams.append('type', 'channel');
+    url.searchParams.append('q', query);
+    url.searchParams.append('maxResults', '1');
+    url.searchParams.append('key', this.apiKey);
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    this.trackQuota(100); // search.list costs 100 units
+
+    if (data.error) throw new Error(data.error.message);
+    if (!data.items?.length) throw new Error(`No channel found for "${query}"`);
+
+    return data.items[0].snippet.channelId;
+  }
+
+  /**
+   * Fetch full channel details including uploads playlist ID.
+   * Quota: 1 unit (channels.list).
+   */
+  async fetchChannelDetails(channelId) {
+    if (!this.apiKey) {
+      throw new Error('YouTube API key not configured.');
+    }
+
+    const url = new URL(`${YOUTUBE_API_BASE}/channels`);
+    url.searchParams.append('part', 'snippet,statistics,contentDetails');
+    url.searchParams.append('id', channelId);
+    url.searchParams.append('key', this.apiKey);
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    this.trackQuota(1);
+
+    if (data.error) throw new Error(data.error.message);
+    if (!data.items?.length) throw new Error('Channel not found');
+
+    const channel = data.items[0];
+
+    return {
+      youtube_channel_id: channel.id,
+      name: channel.snippet.title,
+      description: channel.snippet.description,
+      thumbnail_url: channel.snippet.thumbnails?.high?.url || channel.snippet.thumbnails?.default?.url,
+      custom_url: channel.snippet.customUrl,
+      subscriber_count: parseInt(channel.statistics.subscriberCount) || 0,
+      total_view_count: parseInt(channel.statistics.viewCount) || 0,
+      video_count: parseInt(channel.statistics.videoCount) || 0,
+      uploads_playlist_id: channel.contentDetails?.relatedPlaylists?.uploads,
+      published_at: channel.snippet.publishedAt,
+    };
+  }
+
+  /**
+   * Fetch videos from a channel's uploads playlist with pagination.
+   * Quota: 1 unit per playlistItems page + 1 unit per videos batch.
+   */
+  async fetchChannelVideos(uploadsPlaylistId, maxResults = 200) {
+    if (!this.apiKey) {
+      throw new Error('YouTube API key not configured.');
+    }
+
+    if (!uploadsPlaylistId) return [];
+
+    const perPage = 50;
+    let allItems = [];
+    let pageToken = null;
+
+    // Page through playlist items
+    while (allItems.length < maxResults) {
+      const url = new URL(`${YOUTUBE_API_BASE}/playlistItems`);
+      url.searchParams.append('part', 'snippet,contentDetails');
+      url.searchParams.append('playlistId', uploadsPlaylistId);
+      url.searchParams.append('maxResults', String(perPage));
+      url.searchParams.append('key', this.apiKey);
+      if (pageToken) {
+        url.searchParams.append('pageToken', pageToken);
+      }
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      this.trackQuota(1);
+
+      if (data.error) throw new Error(data.error.message);
+      if (!data.items?.length) break;
+
+      allItems = allItems.concat(data.items);
+      pageToken = data.nextPageToken;
+      if (!pageToken) break;
+    }
+
+    // Trim to maxResults
+    allItems = allItems.slice(0, maxResults);
+    if (!allItems.length) return [];
+
+    // Fetch video details in batches of 50
+    const allVideos = [];
+    for (let i = 0; i < allItems.length; i += 50) {
+      const batch = allItems.slice(i, i + 50);
+      const videoIds = batch.map(item => item.contentDetails.videoId).join(',');
+
+      const url = new URL(`${YOUTUBE_API_BASE}/videos`);
+      url.searchParams.append('part', 'statistics,contentDetails,snippet');
+      url.searchParams.append('id', videoIds);
+      url.searchParams.append('key', this.apiKey);
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      this.trackQuota(1);
+
+      if (data.error) throw new Error(data.error.message);
+
+      const mapped = (data.items || []).map(video => ({
+        youtube_video_id: video.id,
+        title: video.snippet.title,
+        description: video.snippet.description,
+        thumbnail_url: video.snippet.thumbnails?.medium?.url || video.snippet.thumbnails?.default?.url,
+        published_at: video.snippet.publishedAt,
+        duration_seconds: parseDuration(video.contentDetails.duration),
+        view_count: parseInt(video.statistics.viewCount) || 0,
+        like_count: parseInt(video.statistics.likeCount) || 0,
+        comment_count: parseInt(video.statistics.commentCount) || 0,
+        tags: video.snippet.tags || [],
+      }));
+
+      allVideos.push(...mapped);
+    }
+
+    return allVideos;
+  }
+
+  /**
+   * Convenience: resolve channel + fetch details + fetch videos in one call.
+   */
+  async fetchFullChannelData(input, { maxVideos = 200 } = {}) {
+    const channelId = await this.resolveChannelId(input);
+    const channel = await this.fetchChannelDetails(channelId);
+    const videos = await this.fetchChannelVideos(channel.uploads_playlist_id, maxVideos);
+    return { channel, videos };
+  }
+
+  // ============================================
+  // Comments (existing methods)
+  // ============================================
+
   async getVideoComments(videoId, maxResults = 100) {
     if (!this.apiKey) {
       throw new Error('YouTube API key not configured. Please add your API key in settings.');
@@ -32,7 +295,7 @@ class YouTubeAPIService {
       url.searchParams.append('part', 'snippet,replies');
       url.searchParams.append('videoId', videoId);
       url.searchParams.append('maxResults', Math.min(maxResults, 100));
-      url.searchParams.append('order', 'relevance'); // or 'time'
+      url.searchParams.append('order', 'relevance');
       url.searchParams.append('textFormat', 'plainText');
       url.searchParams.append('key', this.apiKey);
 
@@ -44,6 +307,8 @@ class YouTubeAPIService {
       }
 
       const data = await response.json();
+
+      this.trackQuota(1);
 
       return {
         comments: this.parseComments(data.items),
@@ -57,7 +322,6 @@ class YouTubeAPIService {
     }
   }
 
-  // Fetch all comments for a video with pagination
   async getAllVideoComments(videoId, maxComments = 1000, onProgress = null) {
     let allComments = [];
     let nextPageToken = null;
@@ -79,15 +343,12 @@ class YouTubeAPIService {
       }
 
       nextPageToken = result.nextPageToken;
-
-      // Rate limiting: wait 100ms between requests
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     return allComments;
   }
 
-  // Fetch a batch of comments with pagination token
   async getVideoCommentsBatch(videoId, maxResults = 100, pageToken = null) {
     if (!this.apiKey) {
       throw new Error('YouTube API key not configured.');
@@ -114,6 +375,8 @@ class YouTubeAPIService {
 
     const data = await response.json();
 
+    this.trackQuota(1);
+
     return {
       comments: this.parseComments(data.items),
       nextPageToken: data.nextPageToken,
@@ -121,7 +384,6 @@ class YouTubeAPIService {
     };
   }
 
-  // Fetch comments for multiple videos (channel-wide)
   async getChannelComments(videoIds, maxCommentsPerVideo = 100, onProgress = null) {
     const allComments = [];
     let processedCount = 0;
@@ -136,26 +398,22 @@ class YouTubeAPIService {
           onProgress(processedCount, videoIds.length);
         }
 
-        // Rate limiting between videos
         await new Promise(resolve => setTimeout(resolve, 200));
 
       } catch (error) {
         console.warn(`Failed to fetch comments for video ${videoId}:`, error);
-        // Continue with other videos
       }
     }
 
     return allComments;
   }
 
-  // Parse comment items from API response
   parseComments(items) {
     const comments = [];
 
     for (const item of items) {
       const snippet = item.snippet.topLevelComment.snippet;
 
-      // Add top-level comment
       comments.push({
         id: item.snippet.topLevelComment.id,
         videoId: snippet.videoId,
@@ -168,7 +426,6 @@ class YouTubeAPIService {
         isReply: false
       });
 
-      // Add replies if any
       if (item.replies) {
         for (const reply of item.replies.comments) {
           const replySnippet = reply.snippet;
@@ -191,11 +448,14 @@ class YouTubeAPIService {
     return comments;
   }
 
-  // Extract video ID from YouTube URL
+  // ============================================
+  // Video & Channel Stats (existing methods)
+  // ============================================
+
   extractVideoId(url) {
     const patterns = [
       /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-      /^([a-zA-Z0-9_-]{11})$/ // Direct video ID
+      /^([a-zA-Z0-9_-]{11})$/
     ];
 
     for (const pattern of patterns) {
@@ -208,7 +468,6 @@ class YouTubeAPIService {
     return null;
   }
 
-  // Get channel statistics (subscribers, total views, video count)
   async getChannelStats(channelId) {
     if (!this.apiKey) {
       throw new Error('YouTube API key not configured.');
@@ -226,6 +485,8 @@ class YouTubeAPIService {
     }
 
     const data = await response.json();
+
+    this.trackQuota(1);
 
     if (!data.items || data.items.length === 0) {
       throw new Error('Channel not found');
@@ -247,7 +508,6 @@ class YouTubeAPIService {
     };
   }
 
-  // Get video statistics
   async getVideoStats(videoId) {
     if (!this.apiKey) {
       throw new Error('YouTube API key not configured.');
@@ -265,6 +525,8 @@ class YouTubeAPIService {
     }
 
     const data = await response.json();
+
+    this.trackQuota(1);
 
     if (!data.items || data.items.length === 0) {
       throw new Error('Video not found');
@@ -286,7 +548,6 @@ class YouTubeAPIService {
     };
   }
 
-  // Get video statistics for multiple videos in a single API call (max 50 per request)
   async getMultipleVideoStats(videoIds) {
     if (!this.apiKey) {
       throw new Error('YouTube API key not configured.');
@@ -296,7 +557,6 @@ class YouTubeAPIService {
       return [];
     }
 
-    // YouTube API allows up to 50 video IDs per request
     const results = [];
     const chunks = [];
 
@@ -318,6 +578,8 @@ class YouTubeAPIService {
       }
 
       const data = await response.json();
+
+      this.trackQuota(1);
 
       if (data.items) {
         for (const item of data.items) {
@@ -345,7 +607,6 @@ class YouTubeAPIService {
         }
       }
 
-      // Rate limiting between batch requests
       if (chunks.length > 1) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
@@ -354,9 +615,7 @@ class YouTubeAPIService {
     return results;
   }
 
-  // Enrich video rows with YouTube API data (thumbnails, etc.)
   async enrichVideosWithYouTubeData(videos, onProgress = null) {
-    // Filter videos that have YouTube video IDs
     const videosWithIds = videos.filter(v => v.youtubeVideoId);
 
     if (videosWithIds.length === 0) {
@@ -367,13 +626,11 @@ class YouTubeAPIService {
       const videoIds = videosWithIds.map(v => v.youtubeVideoId);
       const ytData = await this.getMultipleVideoStats(videoIds);
 
-      // Create lookup map
       const ytDataMap = {};
       for (const yt of ytData) {
         ytDataMap[yt.videoId] = yt;
       }
 
-      // Enrich original videos
       const enrichedVideos = videos.map(video => {
         if (video.youtubeVideoId && ytDataMap[video.youtubeVideoId]) {
           const yt = ytDataMap[video.youtubeVideoId];
