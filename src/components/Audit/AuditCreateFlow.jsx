@@ -9,6 +9,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { youtubeAPI } from "../../services/youtubeAPI";
+import { claudeAPI } from "../../services/claudeAPI";
 import { classifySizeTier, getTierConfig } from "../../services/auditIngestion";
 import { runAudit } from "../../services/auditOrchestrator";
 
@@ -70,6 +71,16 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
 
   // ── Step 3: Launch audit ──
   const handleLaunch = async () => {
+    // Pre-flight: check API keys before creating audit record
+    if (!claudeAPI.apiKey) {
+      setError("Claude API key not configured. Go to Settings → API Keys and add your Anthropic key.");
+      return;
+    }
+    if (!youtubeAPI.apiKey) {
+      setError("YouTube API key not configured. Go to Settings → API Keys and add your YouTube Data API key.");
+      return;
+    }
+
     setLaunching(true);
     setError("");
     try {
