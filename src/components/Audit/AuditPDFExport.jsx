@@ -99,6 +99,17 @@ export default function AuditPDFExport({ audit }) {
 
       // ── Page 5: Benchmarks ──
       if (benchmark.hasBenchmarks && benchmark.comparison?.metrics?.length > 0) {
+        const TIER_INFO = {
+          emerging: { label: "Emerging", range: "0 – 10K subs" },
+          growing: { label: "Growing", range: "10K – 100K subs" },
+          established: { label: "Established", range: "100K – 500K subs" },
+          major: { label: "Major", range: "500K – 1M subs" },
+          elite: { label: "Elite", range: "1M+ subs" },
+        };
+        const tierKey = benchmark.tier || snapshot.size_tier;
+        const tierInfo = TIER_INFO[tierKey] || { label: tierKey, range: "" };
+        const bm = benchmark.benchmarks || {};
+
         const benchRows = benchmark.comparison.metrics.map(m => `
           <tr>
             <td style="padding:8px 12px;border-bottom:1px solid #eee;font-weight:600;">${esc(m.name)}</td>
@@ -110,7 +121,10 @@ export default function AuditPDFExport({ audit }) {
 
         pages.push(buildPage(`
           <div style="font-size:22px;font-weight:700;color:#1a1a2e;margin-bottom:20px;">Competitive Benchmarks</div>
-          <div style="font-size:13px;color:#666;margin-bottom:12px;">Compared against ${benchmark.peer_count} peer channels</div>
+          <div style="padding:12px 16px;background:#f0f4ff;border-radius:8px;margin-bottom:16px;">
+            <div style="font-size:14px;font-weight:700;color:#1a1a2e;">${esc(tierInfo.label)} Tier</div>
+            <div style="font-size:12px;color:#666;margin-top:2px;">${esc(tierInfo.range)} · ${benchmark.peer_count} peer channels · ${(snapshot.subscriber_count || 0).toLocaleString()} subscribers (this channel)</div>
+          </div>
           <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead>
               <tr style="background:#f5f5f5;">
@@ -126,6 +140,22 @@ export default function AuditPDFExport({ audit }) {
             <div style="margin-top:20px;padding:16px;background:#f0f4ff;border-radius:8px;text-align:center;">
               <div style="font-size:12px;color:#666;">Overall Benchmark Score</div>
               <div style="font-size:28px;font-weight:800;color:${benchmark.comparison.overallScore >= 1 ? "#16a34a" : "#dc2626"}">${benchmark.comparison.overallScore}x</div>
+              <div style="font-size:11px;color:#888;margin-top:4px;">${benchmark.comparison.overallScore >= 1.2 ? "Outperforming peers" : benchmark.comparison.overallScore >= 0.8 ? "On par with peers" : "Below peer average"}</div>
+            </div>
+          ` : ""}
+          ${bm.engagementRate ? `
+            <div style="margin-top:20px;">
+              <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:8px;">Tier Ranges</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <div style="padding:10px;background:#fafafa;border-radius:8px;">
+                  <div style="font-size:11px;color:#888;">Views per Video</div>
+                  <div style="font-size:12px;margin-top:4px;">p25: ${(bm.all?.p25 || 0).toLocaleString()} · Median: ${(bm.all?.median || 0).toLocaleString()} · p75: ${(bm.all?.p75 || 0).toLocaleString()}</div>
+                </div>
+                <div style="padding:10px;background:#fafafa;border-radius:8px;">
+                  <div style="font-size:11px;color:#888;">Engagement Rate</div>
+                  <div style="font-size:12px;margin-top:4px;">p25: ${((bm.engagementRate.p25 || 0) * 100).toFixed(2)}% · Median: ${((bm.engagementRate.median || 0) * 100).toFixed(2)}% · p75: ${((bm.engagementRate.p75 || 0) * 100).toFixed(2)}%</div>
+                </div>
+              </div>
             </div>
           ` : ""}
         `));

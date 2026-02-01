@@ -231,76 +231,283 @@ export default function AuditResults({ audit, onBack }) {
             </div>
           ) : (
             <>
+              {/* Tier Context Panel */}
+              {(() => {
+                const TIER_INFO = {
+                  emerging:    { label: "Emerging",    range: "0 – 10K",   color: "#6b7280" },
+                  growing:     { label: "Growing",     range: "10K – 100K", color: "#3b82f6" },
+                  established: { label: "Established", range: "100K – 500K", color: "#8b5cf6" },
+                  major:       { label: "Major",       range: "500K – 1M",  color: "#f59e0b" },
+                  elite:       { label: "Elite",       range: "1M+",        color: "#ef4444" },
+                };
+                const tier = benchmark.tier || snapshot.size_tier;
+                const info = TIER_INFO[tier];
+                if (!info) return null;
+                const subs = snapshot.subscriber_count || 0;
+                return (
+                  <div style={{
+                    ...card(), display: "flex", alignItems: "center", gap: "16px",
+                    borderLeft: `3px solid ${info.color}`,
+                  }}>
+                    <div style={{
+                      width: "48px", height: "48px", borderRadius: "10px",
+                      background: `${info.color}20`, display: "flex",
+                      alignItems: "center", justifyContent: "center",
+                      fontSize: "20px", fontWeight: "800", color: info.color,
+                    }}>
+                      {info.label[0]}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "15px", fontWeight: "700" }}>
+                        <span style={{ color: info.color }}>{info.label}</span> Tier
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "2px" }}>
+                        {info.range} subscribers · {subs.toLocaleString()} subs (this channel)
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: "12px", color: "#9E9E9E" }}>Peers matched</div>
+                      <div style={{ fontSize: "18px", fontWeight: "700" }}>{benchmark.peer_count}</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Peer Comparison with range bars */}
               <div style={card()}>
                 {sectionTitle("Peer Comparison")}
                 <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "16px" }}>
-                  Compared against {benchmark.peer_count} peer channels
+                  Compared against {benchmark.peer_count} channels in same/adjacent tier
                   {benchmark.peer_names?.length > 0 && `: ${benchmark.peer_names.slice(0, 5).join(", ")}${benchmark.peer_names.length > 5 ? "..." : ""}`}
                 </div>
 
                 {(benchmark.comparison?.metrics || []).map((m, i) => {
                   const statusColor = m.status === "above" ? "#22c55e" : m.status === "below" ? "#ef4444" : "#f59e0b";
+                  const bm = benchmark.benchmarks || {};
+                  // Get p25/p75 range for this metric
+                  let p25, p75, channelVal, fmtVal;
+                  if (m.name === "Engagement Rate") {
+                    p25 = bm.engagementRate?.p25;
+                    p75 = bm.engagementRate?.p75;
+                    channelVal = m.value;
+                    fmtVal = (v) => (v * 100).toFixed(2) + "%";
+                  } else if (m.name === "Average Views per Video") {
+                    p25 = bm.all?.p25;
+                    p75 = bm.all?.p75;
+                    channelVal = m.value;
+                    fmtVal = (v) => Math.round(v).toLocaleString();
+                  } else if (m.name.includes("Upload Frequency")) {
+                    p25 = null; // upload frequency only has median/avg
+                    p75 = null;
+                    channelVal = m.value;
+                    fmtVal = (v) => (typeof v === "number" ? v.toFixed(1) : v) + "/wk";
+                  }
+
                   return (
                     <div key={i} style={{
-                      display: "flex", alignItems: "center", gap: "12px",
-                      padding: "12px 16px", background: "#252525", borderRadius: "8px",
-                      marginBottom: "8px",
+                      padding: "14px 16px", background: "#252525", borderRadius: "8px",
+                      marginBottom: "10px",
                     }}>
-                      <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
                         <div style={{ fontSize: "13px", fontWeight: "600" }}>{m.name}</div>
-                        <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "2px" }}>
-                          You: {typeof m.value === "number" ? m.value.toLocaleString() : m.value}
-                          {" · "}Peers: {typeof m.benchmark === "number" ? m.benchmark.toLocaleString() : m.benchmark}
+                        <div style={{
+                          padding: "3px 10px", borderRadius: "6px", fontSize: "12px",
+                          fontWeight: "600", color: statusColor,
+                          background: `${statusColor}15`,
+                          textTransform: "capitalize",
+                        }}>
+                          {m.ratio}x · {m.status}
                         </div>
                       </div>
-                      <div style={{
-                        padding: "4px 10px", borderRadius: "6px", fontSize: "12px",
-                        fontWeight: "600", color: statusColor,
-                        background: `${statusColor}15`,
-                        textTransform: "capitalize",
-                      }}>
-                        {m.ratio}x · {m.status}
+
+                      {/* Values row */}
+                      <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "#9E9E9E", marginBottom: p25 != null ? "10px" : "0" }}>
+                        <span>You: <strong style={{ color: "#E0E0E0" }}>{typeof m.value === "number" && fmtVal ? fmtVal(m.value) : m.value}</strong></span>
+                        <span>Peer median: <strong style={{ color: "#E0E0E0" }}>{typeof m.benchmark === "number" && fmtVal ? fmtVal(m.benchmark) : m.benchmark}</strong></span>
+                        {p25 != null && p75 != null && fmtVal && (
+                          <span>Range: <strong style={{ color: "#E0E0E0" }}>{fmtVal(p25)} – {fmtVal(p75)}</strong></span>
+                        )}
                       </div>
+
+                      {/* Range bar visualization */}
+                      {p25 != null && p75 != null && channelVal != null && p75 > 0 && (
+                        <div style={{ position: "relative", height: "24px" }}>
+                          {/* Track */}
+                          <div style={{
+                            position: "absolute", top: "10px", left: 0, right: 0, height: "4px",
+                            background: "#333", borderRadius: "2px",
+                          }} />
+                          {/* P25-P75 range (peer spread) */}
+                          {(() => {
+                            const rangeMax = Math.max(p75 * 1.5, channelVal * 1.2);
+                            const leftPct = Math.min((p25 / rangeMax) * 100, 95);
+                            const widthPct = Math.min(((p75 - p25) / rangeMax) * 100, 95 - leftPct);
+                            const channelPct = Math.min((channelVal / rangeMax) * 100, 98);
+                            const medianPct = Math.min((m.benchmark / rangeMax) * 100, 98);
+                            return (
+                              <>
+                                {/* Peer range bar */}
+                                <div style={{
+                                  position: "absolute", top: "8px", height: "8px",
+                                  left: `${leftPct}%`, width: `${Math.max(widthPct, 1)}%`,
+                                  background: "rgba(96, 165, 250, 0.25)", borderRadius: "4px",
+                                  border: "1px solid rgba(96, 165, 250, 0.4)",
+                                }} />
+                                {/* Median marker */}
+                                <div style={{
+                                  position: "absolute", top: "6px",
+                                  left: `${medianPct}%`, width: "2px", height: "12px",
+                                  background: "#60a5fa", borderRadius: "1px",
+                                }} />
+                                {/* Channel marker */}
+                                <div style={{
+                                  position: "absolute", top: "4px",
+                                  left: `calc(${channelPct}% - 7px)`,
+                                  width: "14px", height: "14px", borderRadius: "50%",
+                                  background: statusColor, border: "2px solid #252525",
+                                }} />
+                              </>
+                            );
+                          })()}
+                          {/* Labels */}
+                          <div style={{
+                            position: "absolute", top: "0", left: "0", right: "0",
+                            display: "flex", justifyContent: "space-between",
+                            fontSize: "9px", color: "#555",
+                          }}>
+                            <span>p25</span>
+                            <span>p75</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
 
                 {benchmark.comparison?.overallScore && (
                   <div style={{
-                    marginTop: "12px", padding: "14px", background: "#252525",
+                    marginTop: "12px", padding: "16px", background: "#252525",
                     borderRadius: "8px", textAlign: "center",
                   }}>
                     <div style={{ fontSize: "12px", color: "#9E9E9E" }}>Overall Benchmark Score</div>
                     <div style={{
-                      fontSize: "28px", fontWeight: "700", marginTop: "4px",
+                      fontSize: "32px", fontWeight: "700", marginTop: "4px",
                       color: benchmark.comparison.overallScore >= 1.2 ? "#22c55e"
                         : benchmark.comparison.overallScore >= 0.8 ? "#f59e0b" : "#ef4444",
                     }}>
                       {benchmark.comparison.overallScore}x
                     </div>
-                    <div style={{ fontSize: "11px", color: "#666" }}>vs peer median</div>
+                    <div style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}>
+                      vs peer median · {benchmark.comparison.overallScore >= 1.2 ? "Outperforming peers" : benchmark.comparison.overallScore >= 0.8 ? "On par with peers" : "Below peer average"}
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Benchmark stats */}
+              {/* Tier Ranges Reference */}
               {benchmark.benchmarks && (
                 <div style={card()}>
-                  {sectionTitle("Peer Statistics")}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
-                    {[
-                      { label: "Peer Median Views (all)", value: (benchmark.benchmarks.all?.median || 0).toLocaleString() },
-                      { label: "Long-form Median", value: (benchmark.benchmarks.longForm?.median || 0).toLocaleString() },
-                      { label: "Short-form Median", value: (benchmark.benchmarks.shortForm?.median || 0).toLocaleString() },
-                      { label: "Upload Frequency", value: `${(benchmark.benchmarks.uploadFrequency?.median || 0).toFixed(1)}/week` },
-                      { label: "Content Mix", value: `${benchmark.benchmarks.contentMix?.shortsRatio || 0}% shorts` },
-                      { label: "Videos Analyzed", value: benchmark.benchmarks.videos_analyzed },
-                    ].map(({ label, value }) => (
-                      <div key={label} style={{ background: "#252525", borderRadius: "8px", padding: "12px" }}>
-                        <div style={{ fontSize: "11px", color: "#9E9E9E" }}>{label}</div>
-                        <div style={{ fontSize: "15px", fontWeight: "600", marginTop: "4px" }}>{value}</div>
+                  {sectionTitle("Tier Ranges (90-day peer data)")}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {/* Views range */}
+                    {benchmark.benchmarks.all && (
+                      <div style={{ padding: "14px", background: "#252525", borderRadius: "8px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                          <div style={{ fontSize: "13px", fontWeight: "600" }}>Views per Video</div>
+                          <div style={{ fontSize: "11px", color: "#9E9E9E" }}>
+                            {benchmark.benchmarks.all.count} videos from {benchmark.peer_count} peers
+                          </div>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+                          <div style={{ background: "#1E1E1E", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
+                            <div style={{ fontSize: "10px", color: "#666" }}>Bottom 25%</div>
+                            <div style={{ fontSize: "14px", fontWeight: "600", color: "#ef4444" }}>{(benchmark.benchmarks.all.p25 || 0).toLocaleString()}</div>
+                          </div>
+                          <div style={{ background: "#1E1E1E", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
+                            <div style={{ fontSize: "10px", color: "#666" }}>Median</div>
+                            <div style={{ fontSize: "14px", fontWeight: "600", color: "#f59e0b" }}>{(benchmark.benchmarks.all.median || 0).toLocaleString()}</div>
+                          </div>
+                          <div style={{ background: "#1E1E1E", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
+                            <div style={{ fontSize: "10px", color: "#666" }}>Top 25%</div>
+                            <div style={{ fontSize: "14px", fontWeight: "600", color: "#22c55e" }}>{(benchmark.benchmarks.all.p75 || 0).toLocaleString()}</div>
+                          </div>
+                        </div>
+                        {benchmark.channel_metrics?.avgViews != null && (
+                          <div style={{ fontSize: "11px", color: "#9E9E9E", marginTop: "8px", textAlign: "center" }}>
+                            This channel: <strong style={{ color: "#E0E0E0" }}>{benchmark.channel_metrics.avgViews.toLocaleString()}</strong> avg views
+                          </div>
+                        )}
                       </div>
-                    ))}
+                    )}
+
+                    {/* Engagement range */}
+                    {benchmark.benchmarks.engagementRate && (
+                      <div style={{ padding: "14px", background: "#252525", borderRadius: "8px" }}>
+                        <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>Engagement Rate</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+                          <div style={{ background: "#1E1E1E", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
+                            <div style={{ fontSize: "10px", color: "#666" }}>Bottom 25%</div>
+                            <div style={{ fontSize: "14px", fontWeight: "600", color: "#ef4444" }}>{((benchmark.benchmarks.engagementRate.p25 || 0) * 100).toFixed(2)}%</div>
+                          </div>
+                          <div style={{ background: "#1E1E1E", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
+                            <div style={{ fontSize: "10px", color: "#666" }}>Median</div>
+                            <div style={{ fontSize: "14px", fontWeight: "600", color: "#f59e0b" }}>{((benchmark.benchmarks.engagementRate.median || 0) * 100).toFixed(2)}%</div>
+                          </div>
+                          <div style={{ background: "#1E1E1E", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
+                            <div style={{ fontSize: "10px", color: "#666" }}>Top 25%</div>
+                            <div style={{ fontSize: "14px", fontWeight: "600", color: "#22c55e" }}>{((benchmark.benchmarks.engagementRate.p75 || 0) * 100).toFixed(2)}%</div>
+                          </div>
+                        </div>
+                        {benchmark.channel_metrics?.avgEngagement != null && (
+                          <div style={{ fontSize: "11px", color: "#9E9E9E", marginTop: "8px", textAlign: "center" }}>
+                            This channel: <strong style={{ color: "#E0E0E0" }}>{(benchmark.channel_metrics.avgEngagement * 100).toFixed(2)}%</strong>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Long vs Short form breakdown */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      <div style={{ padding: "14px", background: "#252525", borderRadius: "8px" }}>
+                        <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "8px" }}>Long-form Views</div>
+                        <div style={{ fontSize: "11px", color: "#9E9E9E", lineHeight: "1.8" }}>
+                          <div>p25: <strong style={{ color: "#E0E0E0" }}>{(benchmark.benchmarks.longForm?.p25 || 0).toLocaleString()}</strong></div>
+                          <div>Median: <strong style={{ color: "#E0E0E0" }}>{(benchmark.benchmarks.longForm?.median || 0).toLocaleString()}</strong></div>
+                          <div>p75: <strong style={{ color: "#E0E0E0" }}>{(benchmark.benchmarks.longForm?.p75 || 0).toLocaleString()}</strong></div>
+                        </div>
+                        <div style={{ fontSize: "10px", color: "#555", marginTop: "4px" }}>{benchmark.benchmarks.longForm?.count || 0} videos</div>
+                      </div>
+                      <div style={{ padding: "14px", background: "#252525", borderRadius: "8px" }}>
+                        <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "8px" }}>Short-form Views</div>
+                        <div style={{ fontSize: "11px", color: "#9E9E9E", lineHeight: "1.8" }}>
+                          <div>p25: <strong style={{ color: "#E0E0E0" }}>{(benchmark.benchmarks.shortForm?.p25 || 0).toLocaleString()}</strong></div>
+                          <div>Median: <strong style={{ color: "#E0E0E0" }}>{(benchmark.benchmarks.shortForm?.median || 0).toLocaleString()}</strong></div>
+                          <div>p75: <strong style={{ color: "#E0E0E0" }}>{(benchmark.benchmarks.shortForm?.p75 || 0).toLocaleString()}</strong></div>
+                        </div>
+                        <div style={{ fontSize: "10px", color: "#555", marginTop: "4px" }}>{benchmark.benchmarks.shortForm?.count || 0} videos</div>
+                      </div>
+                    </div>
+
+                    {/* Upload frequency & content mix */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      <div style={{ padding: "14px", background: "#252525", borderRadius: "8px" }}>
+                        <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>Upload Frequency</div>
+                        <div style={{ fontSize: "20px", fontWeight: "700" }}>{(benchmark.benchmarks.uploadFrequency?.median || 0).toFixed(1)}<span style={{ fontSize: "13px", color: "#9E9E9E" }}>/week</span></div>
+                        <div style={{ fontSize: "11px", color: "#9E9E9E", marginTop: "4px" }}>
+                          peer median
+                          {benchmark.channel_metrics?.uploadFrequency != null && (
+                            <> · You: <strong style={{ color: "#E0E0E0" }}>{benchmark.channel_metrics.uploadFrequency}/wk</strong></>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ padding: "14px", background: "#252525", borderRadius: "8px" }}>
+                        <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>Content Mix</div>
+                        <div style={{ fontSize: "20px", fontWeight: "700" }}>{benchmark.benchmarks.contentMix?.shortsRatio || 0}<span style={{ fontSize: "13px", color: "#9E9E9E" }}>% shorts</span></div>
+                        <div style={{ fontSize: "11px", color: "#9E9E9E", marginTop: "4px" }}>
+                          {benchmark.benchmarks.contentMix?.longsRatio || 0}% long-form · {benchmark.benchmarks.videos_analyzed} total videos
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
