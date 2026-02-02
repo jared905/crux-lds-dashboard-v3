@@ -597,6 +597,22 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     }
   };
 
+  // Update channel category in Supabase
+  const updateChannelCategory = async (channelId, newCategory) => {
+    try {
+      const { supabase } = await import('../../services/supabaseClient');
+      const comp = activeCompetitors.find(c => c.id === channelId);
+      if (!comp?.supabaseId) return;
+      await supabase
+        .from('channels')
+        .update({ category: newCategory })
+        .eq('id', comp.supabaseId);
+      await reloadSupabaseCompetitors();
+    } catch (err) {
+      console.warn('[Competitors] Category update failed:', err);
+    }
+  };
+
   // Refresh competitor data with historical snapshot
   const refreshCompetitor = async (competitorId) => {
     // Look up in activeCompetitors (Supabase-backed), not localStorage
@@ -1541,7 +1557,18 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                           {video.thumbnail_url && <img src={video.thumbnail_url} alt="" style={{ width: "100px", height: "56px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }} />}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{video.title}</div>
-                            <div style={{ fontSize: "11px", color: "#888", marginTop: "2px" }}>{video.channel?.name || "Unknown"}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "2px" }}>
+                              <span style={{ fontSize: "11px", color: "#888" }}>{video.channel?.name || "Unknown"}</span>
+                              {(() => {
+                                const comp = activeCompetitors.find(c => c.supabaseId === video.channel_id);
+                                const cat = comp ? CATEGORY_CONFIG[comp.category] : null;
+                                return cat ? (
+                                  <span style={{ fontSize: "9px", fontWeight: "600", color: cat.color, background: `${cat.color}15`, padding: "1px 6px", borderRadius: "8px" }}>
+                                    {cat.label}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
                             <div style={{ display: "flex", gap: "10px", marginTop: "4px", fontSize: "10px", color: "#b0b0b0" }}>
                               <span>{fmtInt(video.view_count)} views</span>
                               <span>Ch avg: {fmtInt(video.channelAvgViews)}</span>
@@ -1767,6 +1794,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           onClose={() => setSelectedChannelId(null)}
           onRefresh={refreshCompetitor}
           onRemove={(id) => { removeCompetitor(id); setSelectedChannelId(null); }}
+          onCategoryChange={updateChannelCategory}
           isRefreshing={refreshingId === selectedChannel.id}
           refreshError={refreshError[selectedChannel.id] || null}
           userTimezone={userTimezone}
@@ -1845,7 +1873,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
    ═══════════════════════════════════════════════════ */
 
 // Channel Detail Drawer — right-side slide-out panel
-function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefresh, onRemove, isRefreshing, refreshError, userTimezone }) {
+function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefresh, onRemove, onCategoryChange, isRefreshing, refreshError, userTimezone }) {
   const titleAnalysis = useMemo(() => drawerTab === 'content' ? analyzeTitlePatterns(channel.videos) : null, [channel.videos, drawerTab]);
   const scheduleAnalysis = useMemo(() => drawerTab === 'schedule' ? analyzeUploadSchedule(channel.videos, userTimezone) : null, [channel.videos, userTimezone, drawerTab]);
   const formatAnalysis = useMemo(() => drawerTab === 'content' ? categorizeContentFormats(channel.videos) : null, [channel.videos, drawerTab]);
@@ -1879,9 +1907,24 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>{channel.name}</div>
             <div style={{ display: "flex", gap: "8px", marginTop: "4px", alignItems: "center" }}>
-              <span style={{ fontSize: "10px", fontWeight: "600", color: catCfg.color, background: `${catCfg.color}15`, padding: "2px 8px", borderRadius: "10px" }}>
-                {catCfg.label}
-              </span>
+              <select
+                value={channel.category || ''}
+                onChange={(e) => onCategoryChange && onCategoryChange(channel.id, e.target.value)}
+                style={{
+                  fontSize: "10px", fontWeight: "600",
+                  color: catCfg.color,
+                  background: `${catCfg.color}15`,
+                  border: `1px solid ${catCfg.color}40`,
+                  padding: "2px 6px", borderRadius: "10px",
+                  cursor: "pointer", appearance: "auto",
+                }}
+              >
+                {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
+                  <option key={key} value={key} style={{ background: "#1a1a1a", color: "#fff" }}>
+                    {cfg.icon} {cfg.label}
+                  </option>
+                ))}
+              </select>
               {channel.tier && (
                 <span style={{ fontSize: "10px", color: "#888" }}>{channel.tier}</span>
               )}
