@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, lazy, Suspense } from "react";
-import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, Upload, Download, RefreshCw, X, Check, Zap, Loader, MoreVertical, Table2, LayoutGrid, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, Upload, Download, RefreshCw, X, Check, Zap, Loader, MoreVertical, Table2, LayoutGrid, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Crown, Target, Activity, Layers } from "lucide-react";
 import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../../lib/competitorAnalysis";
 import { getOutlierVideos, analyzeCompetitorVideo } from '../../services/competitorInsightsService';
 import { importCompetitorDatabase } from '../../services/competitorImport';
@@ -74,7 +74,8 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   const [selectedChannelId, setSelectedChannelId] = useState(null);
   const [drawerTab, setDrawerTab] = useState('overview');
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const [viewMode, setViewMode] = useState('table');
+  const [viewMode, setViewMode] = useState('hubs');
+  const [expandedHubCategory, setExpandedHubCategory] = useState(null);
   const [sortCol, setSortCol] = useState('subscriberCount');
   const [sortDir, setSortDir] = useState(true); // true = descending
   const [intelligenceTab, setIntelligenceTab] = useState('benchmarks');
@@ -947,14 +948,55 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       if (comp.subscriberCount > 0 || comp.viewCount > 0) g.hasData = true;
     });
 
-    // Compute averages and sort
+    // Compute averages, derived metrics, and sort
     return Object.values(groups)
       .filter(g => g.channelCount > 0)
-      .map(g => ({
-        ...g,
-        avgSubs: g.channelCount > 0 ? g.totalSubs / g.channelCount : 0,
-        avgEngagement: g.channelCount > 0 ? g.totalEngagement / g.channelCount : 0,
-      }))
+      .map(g => {
+        // Top performer by avg views per video
+        const topPerformer = g.channels.reduce((best, ch) =>
+          (ch.avgViewsPerVideo || 0) > (best?.avgViewsPerVideo || 0) ? ch : best
+        , null);
+
+        // Category-level subscriber growth from channel history
+        const channelsWithGrowth = g.channels.filter(ch => ch.history && ch.history.length > 0);
+        const avgSubGrowthPct = channelsWithGrowth.length > 0
+          ? channelsWithGrowth.reduce((sum, ch) => {
+              const prev = ch.history[ch.history.length - 1];
+              return sum + ((ch.subscriberCount - prev.subscriberCount) / Math.max(prev.subscriberCount, 1)) * 100;
+            }, 0) / channelsWithGrowth.length
+          : 0;
+
+        // Format distribution
+        const totalFormat = g.totalShorts30d + g.totalLongs30d;
+        const shortsPct = totalFormat > 0 ? (g.totalShorts30d / totalFormat) * 100 : 0;
+        const longsPct = totalFormat > 0 ? (g.totalLongs30d / totalFormat) * 100 : 0;
+
+        // Format variance — high variance = diverse strategies = content gap signal
+        const formatVariance = g.channels.length > 1
+          ? g.channels.reduce((variance, ch) => {
+              const chTotal = (ch.shorts30d || 0) + (ch.longs30d || 0);
+              if (chTotal === 0) return variance;
+              const chShortsPct = (ch.shorts30d || 0) / chTotal;
+              const groupShortsPct = totalFormat > 0 ? g.totalShorts30d / totalFormat : 0;
+              return variance + Math.abs(chShortsPct - groupShortsPct);
+            }, 0) / g.channels.length
+          : 0;
+
+        return {
+          ...g,
+          avgSubs: g.channelCount > 0 ? g.totalSubs / g.channelCount : 0,
+          avgEngagement: g.channelCount > 0 ? g.totalEngagement / g.channelCount : 0,
+          avgViews: g.channelCount > 0
+            ? g.channels.reduce((s, ch) => s + (ch.avgViewsPerVideo || 0), 0) / g.channelCount
+            : 0,
+          avgUploads30d: g.channelCount > 0 ? g.totalUploads30d / g.channelCount : 0,
+          topPerformer,
+          avgSubGrowthPct,
+          shortsPct,
+          longsPct,
+          formatVariance,
+        };
+      })
       .sort((a, b) => a.config.order - b.config.order);
   }, [activeCompetitors]);
 
@@ -1434,12 +1476,12 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             paddingBottom: "4px",
           }}>
             <button
-              onClick={() => setSelectedCategory(null)}
+              onClick={() => { if (viewMode === 'hubs') { setExpandedHubCategory(null); } else { setSelectedCategory(null); } }}
               style={{
                 padding: "5px 12px", borderRadius: "16px", fontSize: "11px", fontWeight: "600",
-                border: `1px solid ${!selectedCategory ? '#3b82f6' : '#444'}`,
-                background: !selectedCategory ? 'rgba(59,130,246,0.15)' : 'transparent',
-                color: !selectedCategory ? '#3b82f6' : '#888',
+                border: `1px solid ${(viewMode === 'hubs' ? !expandedHubCategory : !selectedCategory) ? '#3b82f6' : '#444'}`,
+                background: (viewMode === 'hubs' ? !expandedHubCategory : !selectedCategory) ? 'rgba(59,130,246,0.15)' : 'transparent',
+                color: (viewMode === 'hubs' ? !expandedHubCategory : !selectedCategory) ? '#3b82f6' : '#888',
                 cursor: "pointer", whiteSpace: "nowrap",
               }}
             >
@@ -1448,15 +1490,22 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => {
               const count = activeCompetitors.filter(c => c.category === key).length;
               if (count === 0) return null;
+              const isActive = viewMode === 'hubs' ? expandedHubCategory === key : selectedCategory === key;
               return (
                 <button
                   key={key}
-                  onClick={() => setSelectedCategory(selectedCategory === key ? null : key)}
+                  onClick={() => {
+                    if (viewMode === 'hubs') {
+                      setExpandedHubCategory(expandedHubCategory === key ? null : key);
+                    } else {
+                      setSelectedCategory(selectedCategory === key ? null : key);
+                    }
+                  }}
                   style={{
                     padding: "5px 12px", borderRadius: "16px", fontSize: "11px", fontWeight: "600",
-                    border: `1px solid ${selectedCategory === key ? cfg.color : '#444'}`,
-                    background: selectedCategory === key ? `${cfg.color}20` : 'transparent',
-                    color: selectedCategory === key ? cfg.color : '#888',
+                    border: `1px solid ${isActive ? cfg.color : '#444'}`,
+                    background: isActive ? `${cfg.color}20` : 'transparent',
+                    color: isActive ? cfg.color : '#888',
                     cursor: "pointer", whiteSpace: "nowrap",
                     display: "flex", alignItems: "center", gap: "4px",
                   }}
@@ -1469,15 +1518,15 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           </div>
           <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
             <button
-              onClick={() => setViewMode('table')}
+              onClick={() => { setViewMode('hubs'); setExpandedHubCategory(null); }}
               style={{
                 padding: "6px 8px", borderRadius: "6px 0 0 6px",
-                background: viewMode === 'table' ? '#333' : 'transparent',
-                border: "1px solid #444", color: viewMode === 'table' ? '#fff' : '#666',
+                background: viewMode === 'hubs' ? '#333' : 'transparent',
+                border: "1px solid #444", color: viewMode === 'hubs' ? '#fff' : '#666',
                 cursor: "pointer",
               }}
-              title="Table view"
-            ><Table2 size={14} /></button>
+              title="Category Hubs"
+            ><Layers size={14} /></button>
             <button
               onClick={() => setViewMode('cards')}
               style={{
@@ -1502,106 +1551,47 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         </div>
       )}
 
-      {/* 3B: Sortable Table View */}
-      {activeCompetitors.length > 0 && viewMode === 'table' && (
-        <div style={{
-          background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
-          overflow: "hidden", marginBottom: "16px",
-        }}>
-          {/* Table header */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "52px 1fr 120px 100px 100px 110px",
-            gap: "8px", padding: "10px 16px",
-            background: "#1a1a1a", borderBottom: "1px solid #333",
-            fontSize: "10px", fontWeight: "600", color: "#888",
-            textTransform: "uppercase", letterSpacing: "0.5px",
-          }}>
-            <div />
-            <div>Channel</div>
-            <div style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => handleSort('subscriberCount')}>
-              Subscribers {sortCol === 'subscriberCount' && (sortDir ? <ArrowDown size={10} /> : <ArrowUp size={10} />)}
-            </div>
-            <div style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => handleSort('avgViewsPerVideo')}>
-              Avg Views {sortCol === 'avgViewsPerVideo' && (sortDir ? <ArrowDown size={10} /> : <ArrowUp size={10} />)}
-            </div>
-            <div style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => handleSort('uploadsLast30Days')}>
-              30d Uploads {sortCol === 'uploadsLast30Days' && (sortDir ? <ArrowDown size={10} /> : <ArrowUp size={10} />)}
-            </div>
-            <div>Category</div>
-          </div>
+      {/* 3B: Category Hubs View */}
+      {activeCompetitors.length > 0 && viewMode === 'hubs' && (
+        <div style={{ marginBottom: "16px" }}>
+          {expandedHubCategory && (
+            <button
+              onClick={() => setExpandedHubCategory(null)}
+              style={{
+                display: "flex", alignItems: "center", gap: "6px",
+                background: "transparent", border: "1px solid #444",
+                borderRadius: "6px", padding: "6px 12px", marginBottom: "12px",
+                color: "#aaa", fontSize: "12px", fontWeight: "600", cursor: "pointer",
+              }}
+            >
+              <ArrowUp size={12} style={{ transform: "rotate(-90deg)" }} /> All Categories
+            </button>
+          )}
 
-          {/* Table rows */}
-          {filteredSortedCompetitors.map(comp => {
-            const catCfg = CATEGORY_CONFIG[comp.category] || CATEGORY_CONFIG['lds-faithful'];
-            const growth = comp.history && comp.history.length > 0 ? {
-              subChange: comp.subscriberCount - comp.history[comp.history.length - 1].subscriberCount,
-              subPct: ((comp.subscriberCount - comp.history[comp.history.length - 1].subscriberCount) / Math.max(comp.history[comp.history.length - 1].subscriberCount, 1)) * 100,
-            } : null;
-
-            return (
-              <div
-                key={comp.id}
-                onClick={() => { setSelectedChannelId(comp.id); setDrawerTab('overview'); }}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "52px 1fr 120px 100px 100px 110px",
-                  gap: "8px", padding: "10px 16px",
-                  borderBottom: "1px solid #2a2a2a",
-                  cursor: "pointer", alignItems: "center",
-                  background: selectedChannelId === comp.id ? "#252525" : "transparent",
-                  transition: "background 0.1s",
-                }}
-                onMouseOver={e => { if (selectedChannelId !== comp.id) e.currentTarget.style.background = "#1a1a1a"; }}
-                onMouseOut={e => { if (selectedChannelId !== comp.id) e.currentTarget.style.background = "transparent"; }}
-              >
-                <div>
-                  <img
-                    src={comp.thumbnail}
-                    alt=""
-                    style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover" }}
-                  />
-                </div>
-                <div>
-                  <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>
-                    {comp.name}
-                  </div>
-                  <div style={{ fontSize: "10px", color: "#666", marginTop: "1px" }}>
-                    {comp.subcategory || comp.tier || ''}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>
-                    {fmtInt(comp.subscriberCount)}
-                  </div>
-                  {growth && growth.subChange !== 0 && (
-                    <div style={{ fontSize: "10px", fontWeight: "600", color: growth.subChange > 0 ? "#10b981" : "#ef4444" }}>
-                      {growth.subChange > 0 ? "+" : ""}{growth.subPct.toFixed(1)}%
-                    </div>
-                  )}
-                </div>
-                <div style={{ fontSize: "13px", color: "#ccc" }}>
-                  {fmtInt(comp.avgViewsPerVideo)}
-                </div>
-                <div style={{ fontSize: "13px", color: "#ccc" }}>
-                  {comp.uploadsLast30Days}
-                  <span style={{ fontSize: "10px", color: "#666", marginLeft: "4px" }}>
-                    ({comp.shorts30d || 0}S/{comp.longs30d || 0}L)
-                  </span>
-                </div>
-                <div>
-                  <span style={{
-                    fontSize: "10px", fontWeight: "600",
-                    color: catCfg.color,
-                    background: `${catCfg.color}15`,
-                    padding: "2px 8px", borderRadius: "10px",
-                  }}>
-                    {catCfg.label.split(' ')[0]}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+          {!expandedHubCategory ? (
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
+              gap: "16px",
+            }}>
+              {groupedCompetitors.map(group => (
+                <CategoryHubCard
+                  key={group.key}
+                  group={group}
+                  onClick={() => setExpandedHubCategory(group.key)}
+                />
+              ))}
+            </div>
+          ) : (
+            <HubDrilldown
+              group={groupedCompetitors.find(g => g.key === expandedHubCategory)}
+              onChannelClick={(id) => { setSelectedChannelId(id); setDrawerTab('overview'); }}
+              selectedChannelId={selectedChannelId}
+              sortCol={sortCol}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
+          )}
         </div>
       )}
 
@@ -2606,6 +2596,325 @@ function FocusBadge({ isShortsFocused, isLongsFocused, total }) {
       borderRadius: "4px",
     }}>
       Balanced
+    </div>
+  );
+}
+
+// ─── HubMetric — small metric cell for the 2×3 grid inside hub cards ───
+function HubMetric({ label, value, sublabel, valueColor }) {
+  return (
+    <div>
+      <div style={{ fontSize: "10px", color: "#666", marginBottom: "2px" }}>{label}</div>
+      <div style={{ fontSize: "16px", fontWeight: "700", color: valueColor || "#fff" }}>{value}</div>
+      {sublabel && (
+        <div style={{ fontSize: "9px", color: "#555", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          {sublabel}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── CategoryHubCard — one card per category in the hubs grid ───
+function CategoryHubCard({ group, onClick }) {
+  const { config } = group;
+
+  const formatLabel = group.shortsPct > 65 ? 'Shorts-Heavy'
+    : group.longsPct > 65 ? 'Long-form Heavy'
+    : 'Balanced';
+  const formatColor = group.shortsPct > 65 ? '#f97316'
+    : group.longsPct > 65 ? '#0ea5e9'
+    : '#10b981';
+
+  const growthLabel = group.avgSubGrowthPct > 2 ? 'Growing Fast'
+    : group.avgSubGrowthPct > 0 ? 'Steady'
+    : group.avgSubGrowthPct < -1 ? 'Declining'
+    : 'Flat';
+  const growthColor = group.avgSubGrowthPct > 2 ? '#10b981'
+    : group.avgSubGrowthPct > 0 ? '#3b82f6'
+    : group.avgSubGrowthPct < -1 ? '#ef4444'
+    : '#888';
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: "#1E1E1E",
+        border: "1px solid #333",
+        borderTop: `3px solid ${config.color}`,
+        borderRadius: "12px",
+        padding: "20px",
+        cursor: "pointer",
+        transition: "border-color 0.15s, transform 0.1s",
+      }}
+      onMouseOver={e => {
+        e.currentTarget.style.borderColor = config.color;
+        e.currentTarget.style.transform = "translateY(-2px)";
+      }}
+      onMouseOut={e => {
+        e.currentTarget.style.borderColor = "#333";
+        e.currentTarget.style.borderTopColor = config.color;
+        e.currentTarget.style.transform = "translateY(0)";
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+        <div style={{
+          width: "40px", height: "40px", borderRadius: "10px",
+          background: `${config.color}18`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: "20px",
+        }}>
+          {config.icon}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: "15px", fontWeight: "700", color: "#fff" }}>
+            {config.label}
+          </div>
+          <div style={{ fontSize: "11px", color: "#777" }}>{config.description}</div>
+        </div>
+        <div style={{
+          fontSize: "20px", fontWeight: "700", color: config.color,
+          background: `${config.color}15`, padding: "4px 12px", borderRadius: "8px",
+        }}>
+          {group.channelCount}
+        </div>
+      </div>
+
+      {/* Metrics grid */}
+      {group.hasData ? (
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
+          gap: "12px", marginBottom: "16px",
+        }}>
+          <HubMetric label="Avg Subscribers" value={fmtInt(group.avgSubs)} sublabel="landscape" />
+          <HubMetric label="Avg Uploads/mo" value={fmtInt(group.avgUploads30d)} sublabel="velocity" />
+          <HubMetric label="Avg Views" value={fmtInt(group.avgViews)} sublabel="benchmark" />
+          <HubMetric label="Engagement" value={fmtPct(group.avgEngagement)} sublabel="quality" />
+          <HubMetric label="Channels" value={group.channelCount} sublabel="density" />
+          <HubMetric
+            label="Growth"
+            value={`${group.avgSubGrowthPct > 0 ? '+' : ''}${group.avgSubGrowthPct.toFixed(1)}%`}
+            sublabel="momentum"
+            valueColor={growthColor}
+          />
+        </div>
+      ) : (
+        <div style={{
+          fontSize: "12px", color: "#555", fontStyle: "italic",
+          marginBottom: "16px", padding: "12px", background: "#252525",
+          borderRadius: "8px", textAlign: "center",
+        }}>
+          Awaiting first sync
+        </div>
+      )}
+
+      {/* Format mix bar */}
+      {group.hasData && (
+        <div style={{ marginBottom: "16px" }}>
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginBottom: "6px",
+          }}>
+            <span style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Format Mix
+            </span>
+            <span style={{
+              fontSize: "10px", fontWeight: "700", color: formatColor,
+              background: `${formatColor}15`, padding: "2px 8px", borderRadius: "4px",
+            }}>
+              {formatLabel}
+            </span>
+          </div>
+          <div style={{
+            height: "8px", borderRadius: "4px", overflow: "hidden",
+            display: "flex", background: "#2a2a2a",
+          }}>
+            {(group.totalShorts30d + group.totalLongs30d) > 0 && (
+              <>
+                <div style={{
+                  width: `${group.shortsPct}%`, background: "#f97316",
+                  transition: "width 0.3s",
+                }} />
+                <div style={{ flex: 1, background: "#0ea5e9" }} />
+              </>
+            )}
+          </div>
+          <div style={{
+            display: "flex", justifyContent: "space-between",
+            fontSize: "10px", color: "#666", marginTop: "4px",
+          }}>
+            <span>{group.totalShorts30d} Shorts</span>
+            <span>{group.totalLongs30d} Long-form</span>
+          </div>
+        </div>
+      )}
+
+      {/* Actionable callout */}
+      {group.topPerformer && group.hasData && (
+        <div style={{
+          background: "#252525", border: "1px solid #333",
+          borderRadius: "8px", padding: "12px",
+        }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px",
+          }}>
+            <Crown size={12} color="#f59e0b" />
+            <span style={{ fontSize: "11px", color: "#aaa" }}>Top performer:</span>
+            <span style={{ fontSize: "11px", fontWeight: "600", color: "#fff" }}>
+              {group.topPerformer.name}
+            </span>
+            <span style={{ fontSize: "10px", color: "#888", marginLeft: "auto" }}>
+              {fmtInt(group.topPerformer.avgViewsPerVideo)} avg views
+            </span>
+          </div>
+
+          <div style={{
+            display: "flex", alignItems: "center", gap: "8px",
+            ...(group.formatVariance > 0.25 ? { marginBottom: "8px" } : {}),
+          }}>
+            <Activity size={12} color={growthColor} />
+            <span style={{ fontSize: "11px", color: growthColor, fontWeight: "600" }}>
+              {growthLabel}
+            </span>
+            <span style={{ fontSize: "10px", color: "#666" }}>
+              category avg sub growth
+            </span>
+          </div>
+
+          {group.formatVariance > 0.25 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Target size={12} color="#ec4899" />
+              <span style={{ fontSize: "11px", color: "#ec4899", fontWeight: "600" }}>
+                Format Gap
+              </span>
+              <span style={{ fontSize: "10px", color: "#666" }}>
+                Mixed strategies — explore underserved format
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Footer hint */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        gap: "4px", marginTop: "12px",
+        fontSize: "10px", color: "#555",
+      }}>
+        Click to explore channels <ChevronDown size={10} />
+      </div>
+    </div>
+  );
+}
+
+// ─── HubDrilldown — category detail view with sortable channel table ───
+function HubDrilldown({ group, onChannelClick, selectedChannelId, sortCol, sortDir, onSort }) {
+  if (!group) return null;
+  const { config } = group;
+
+  const sortedChannels = [...group.channels].sort((a, b) => {
+    const aVal = a[sortCol] || 0;
+    const bVal = b[sortCol] || 0;
+    return sortDir ? bVal - aVal : aVal - bVal;
+  });
+
+  return (
+    <div>
+      {/* Category summary banner */}
+      <div style={{
+        background: "#1E1E1E", border: "1px solid #333",
+        borderLeft: `4px solid ${config.color}`, borderRadius: "12px",
+        padding: "20px", marginBottom: "16px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+          <div style={{
+            width: "48px", height: "48px", borderRadius: "10px",
+            background: `${config.color}18`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "24px",
+          }}>
+            {config.icon}
+          </div>
+          <div>
+            <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff" }}>
+              {config.label}
+            </div>
+            <div style={{ fontSize: "12px", color: "#777" }}>
+              {group.channelCount} channels — {config.description}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          <StatPill label="Avg Subs" value={fmtInt(group.avgSubs)} color={config.color} />
+          <StatPill label="Avg Views" value={fmtInt(group.avgViews)} color="#9ca3af" />
+          <StatPill label="Avg Uploads/mo" value={fmtInt(group.avgUploads30d)} color="#9ca3af" />
+          <StatPill label="Engagement" value={fmtPct(group.avgEngagement)} color="#9ca3af" />
+          <StatPill label="Growth" value={`${group.avgSubGrowthPct > 0 ? '+' : ''}${group.avgSubGrowthPct.toFixed(1)}%`} color={group.avgSubGrowthPct > 0 ? '#10b981' : '#ef4444'} />
+        </div>
+      </div>
+
+      {/* Sortable channel table */}
+      <div style={{
+        background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
+        overflow: "hidden",
+      }}>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "44px 1fr 110px 100px 100px 80px",
+          gap: "8px", padding: "10px 16px",
+          background: "#1a1a1a", borderBottom: "1px solid #333",
+          fontSize: "10px", fontWeight: "600", color: "#888",
+          textTransform: "uppercase", letterSpacing: "0.5px",
+        }}>
+          <div />
+          <div>Channel</div>
+          <div style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => onSort('subscriberCount')}>
+            Subs {sortCol === 'subscriberCount' && (sortDir ? <ArrowDown size={10} /> : <ArrowUp size={10} />)}
+          </div>
+          <div style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => onSort('avgViewsPerVideo')}>
+            Avg Views {sortCol === 'avgViewsPerVideo' && (sortDir ? <ArrowDown size={10} /> : <ArrowUp size={10} />)}
+          </div>
+          <div style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }} onClick={() => onSort('uploadsLast30Days')}>
+            30d {sortCol === 'uploadsLast30Days' && (sortDir ? <ArrowDown size={10} /> : <ArrowUp size={10} />)}
+          </div>
+          <div>Engage</div>
+        </div>
+
+        {sortedChannels.map(comp => (
+          <div
+            key={comp.id}
+            onClick={() => onChannelClick(comp.id)}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "44px 1fr 110px 100px 100px 80px",
+              gap: "8px", padding: "10px 16px",
+              borderBottom: "1px solid #2a2a2a",
+              cursor: "pointer", alignItems: "center",
+              background: selectedChannelId === comp.id ? "#252525" : "transparent",
+              transition: "background 0.1s",
+            }}
+            onMouseOver={e => { if (selectedChannelId !== comp.id) e.currentTarget.style.background = "#1a1a1a"; }}
+            onMouseOut={e => { if (selectedChannelId !== comp.id) e.currentTarget.style.background = "transparent"; }}
+          >
+            <img src={comp.thumbnail} alt="" style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover" }} />
+            <div>
+              <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>{comp.name}</div>
+              <div style={{ fontSize: "10px", color: "#666" }}>{comp.subcategory || comp.tier || ''}</div>
+            </div>
+            <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>{fmtInt(comp.subscriberCount)}</div>
+            <div style={{ fontSize: "13px", color: "#ccc" }}>{fmtInt(comp.avgViewsPerVideo)}</div>
+            <div style={{ fontSize: "13px", color: "#ccc" }}>
+              {comp.uploadsLast30Days}
+              <span style={{ fontSize: "10px", color: "#666", marginLeft: "4px" }}>
+                ({comp.shorts30d || 0}S/{comp.longs30d || 0}L)
+              </span>
+            </div>
+            <div style={{ fontSize: "12px", color: "#aaa" }}>{fmtPct(comp.engagementRate)}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
