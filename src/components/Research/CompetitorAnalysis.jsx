@@ -78,7 +78,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   const [expandedHubCategory, setExpandedHubCategory] = useState(null);
   const [sortCol, setSortCol] = useState('subscriberCount');
   const [sortDir, setSortDir] = useState(true); // true = descending
-  const [intelligenceTab, setIntelligenceTab] = useState('benchmarks');
+  const [intelligenceTab, setIntelligenceTab] = useState('outliers');
   const [intelligenceCollapsed, setIntelligenceCollapsed] = useState(false);
   const [showAddPopover, setShowAddPopover] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
@@ -1463,7 +1463,146 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         </div>
       )}
 
-      {/* ── SECTION 3: COMPETITOR ROSTER ── */}
+      {/* ── COMPETITIVE INTELLIGENCE PANEL ── */}
+      {activeCompetitors.length > 0 && (
+        <div style={{
+          background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
+          overflow: "hidden", marginBottom: "16px",
+        }}>
+          {/* Panel header */}
+          <button
+            onClick={() => setIntelligenceCollapsed(!intelligenceCollapsed)}
+            style={{
+              width: "100%", background: "transparent", border: "none",
+              padding: "16px 20px", cursor: "pointer", textAlign: "left",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}
+          >
+            <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", display: "flex", alignItems: "center", gap: "8px" }}>
+              <BarChart3 size={16} color="#3b82f6" />
+              Competitive Intelligence
+            </div>
+            {intelligenceCollapsed ? <ChevronDown size={16} color="#888" /> : <ChevronUp size={16} color="#888" />}
+          </button>
+
+          {!intelligenceCollapsed && (
+            <div style={{ padding: "0 20px 20px" }}>
+              {/* Tab bar */}
+              <div style={{ display: "flex", gap: "0", borderBottom: "1px solid #333", marginBottom: "16px" }}>
+                {[
+                  { key: 'outliers', label: 'Outliers' },
+                  { key: 'benchmarks', label: 'Benchmarks' },
+                  { key: 'gaps', label: 'Content Gaps' },
+                  { key: 'insights', label: 'Insights' },
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setIntelligenceTab(tab.key)}
+                    style={{
+                      padding: "8px 16px", background: "transparent", border: "none",
+                      borderBottom: intelligenceTab === tab.key ? "2px solid #3b82f6" : "2px solid transparent",
+                      color: intelligenceTab === tab.key ? "#fff" : "#888",
+                      fontSize: "12px", fontWeight: "600", cursor: "pointer",
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab: Outliers */}
+              {intelligenceTab === 'outliers' && (
+                <div>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "12px" }}>
+                    <select value={outlierDays} onChange={(e) => setOutlierDays(Number(e.target.value))}
+                      style={{ background: "#252525", border: "1px solid #555", borderRadius: "6px", padding: "6px 10px", color: "#fff", fontSize: "12px" }}>
+                      <option value={30}>30 days</option><option value={60}>60 days</option><option value={90}>90 days</option><option value={180}>180 days</option>
+                    </select>
+                    <select value={outlierMinMultiplier} onChange={(e) => setOutlierMinMultiplier(Number(e.target.value))}
+                      style={{ background: "#252525", border: "1px solid #555", borderRadius: "6px", padding: "6px 10px", color: "#fff", fontSize: "12px" }}>
+                      <option value={2}>2x+ avg</option><option value={2.5}>2.5x+ avg</option><option value={3}>3x+ avg</option><option value={5}>5x+ avg</option>
+                    </select>
+                    <button onClick={fetchOutliers} disabled={outliersLoading}
+                      style={{ background: "#3b82f6", border: "none", borderRadius: "6px", padding: "6px 12px", color: "#fff", fontSize: "12px", fontWeight: "600", cursor: outliersLoading ? "not-allowed" : "pointer", opacity: outliersLoading ? 0.6 : 1 }}>
+                      {outliersLoading ? "Loading..." : "Refresh"}
+                    </button>
+                  </div>
+                  {outliersLoading && outliers.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "32px", color: "#888" }}>
+                      <Loader size={24} style={{ animation: "spin 1s linear infinite", margin: "0 auto 8px" }} />
+                      <div style={{ fontSize: "13px" }}>Detecting outlier videos...</div>
+                    </div>
+                  ) : outliers.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "24px", color: "#666", fontSize: "13px" }}>No outlier videos found. Try adjusting filters.</div>
+                  ) : (
+                    <div style={{ display: "grid", gap: "8px" }}>
+                      {outliers.map(video => (
+                        <div key={video.id} style={{ background: "#252525", border: "1px solid #333", borderRadius: "8px", padding: "10px", display: "flex", gap: "12px", alignItems: "center" }}>
+                          {video.thumbnail_url && <img src={video.thumbnail_url} alt="" style={{ width: "100px", height: "56px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }} />}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{video.title}</div>
+                            <div style={{ fontSize: "11px", color: "#888", marginTop: "2px" }}>{video.channel?.name || "Unknown"}</div>
+                            <div style={{ display: "flex", gap: "10px", marginTop: "4px", fontSize: "10px", color: "#b0b0b0" }}>
+                              <span>{fmtInt(video.view_count)} views</span>
+                              <span>Ch avg: {fmtInt(video.channelAvgViews)}</span>
+                            </div>
+                          </div>
+                          <div style={{
+                            background: video.outlierScore >= 5 ? "#166534" : video.outlierScore >= 3 ? "#854d0e" : "#1e3a5f",
+                            border: `1px solid ${video.outlierScore >= 5 ? "#22c55e" : video.outlierScore >= 3 ? "#f59e0b" : "#3b82f6"}`,
+                            borderRadius: "6px", padding: "4px 8px", textAlign: "center", flexShrink: 0,
+                          }}>
+                            <div style={{ fontSize: "14px", fontWeight: "700", color: video.outlierScore >= 5 ? "#22c55e" : video.outlierScore >= 3 ? "#f59e0b" : "#3b82f6" }}>{video.outlierScore}x</div>
+                          </div>
+                          <button onClick={() => handleViewInsight(video)}
+                            style={{ background: "#374151", border: "1px solid #555", borderRadius: "6px", padding: "6px 10px", color: "#fff", fontSize: "11px", fontWeight: "600", cursor: "pointer", flexShrink: 0 }}>
+                            Insights
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tab: Benchmarks */}
+              {intelligenceTab === 'benchmarks' && yourStats && benchmarks && (
+                <div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                    <BenchmarkCard label="Subscribers" yourValue={yourStats.totalSubscribers} competitorAvg={benchmarks.avgCompetitorSubs} gap={benchmarks.subscriberGap} />
+                    <BenchmarkCard label="Avg Views/Video" yourValue={yourStats.avgViewsPerVideo} competitorAvg={benchmarks.avgCompetitorViews} gap={benchmarks.viewsGap} />
+                    <BenchmarkCard label="Uploads (30d)" yourValue={yourStats.videosLast30Days} competitorAvg={benchmarks.avgCompetitorFrequency} gap={benchmarks.frequencyGap} />
+                    <BenchmarkCard label="Shorts (30d)" yourValue={yourStats.shortsCount} competitorAvg={benchmarks.avgCompetitorShorts} gap={benchmarks.shortsGap} />
+                    <BenchmarkCard label="Long-form (30d)" yourValue={yourStats.longsCount} competitorAvg={benchmarks.avgCompetitorLongs} gap={benchmarks.longsGap} />
+                  </div>
+                </div>
+              )}
+
+              {/* Tab: Content Gaps */}
+              {intelligenceTab === 'gaps' && rows && rows.length > 0 && (
+                <ContentGapsPanel activeCompetitors={activeCompetitors} rows={rows} />
+              )}
+
+              {/* Tab: Insights */}
+              {intelligenceTab === 'insights' && insights.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "12px" }}>
+                  {insights.map((insight, idx) => (
+                    <div key={idx} style={{ background: "#252525", border: "1px solid #333", borderRadius: "8px", padding: "14px", display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                      <div style={{ fontSize: "24px" }}>{insight.icon}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "4px" }}>{insight.type}</div>
+                        <div style={{ fontSize: "12px", color: "#b0b0b0", lineHeight: "1.5" }}>{insight.insight}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── COMPETITOR ROSTER ── */}
 
       {/* 3A: Category Filter Bar + View Toggle */}
       {activeCompetitors.length > 0 && (
@@ -1528,16 +1667,6 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               title="Category Hubs"
             ><Layers size={14} /></button>
             <button
-              onClick={() => setViewMode('cards')}
-              style={{
-                padding: "6px 8px", borderRadius: "0",
-                background: viewMode === 'cards' ? '#333' : 'transparent',
-                border: "1px solid #444", borderLeft: "none",
-                color: viewMode === 'cards' ? '#fff' : '#666', cursor: "pointer",
-              }}
-              title="Card view"
-            ><LayoutGrid size={14} /></button>
-            <button
               onClick={() => setViewMode('trends')}
               style={{
                 padding: "6px 8px", borderRadius: "0 6px 6px 0",
@@ -1595,74 +1724,6 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         </div>
       )}
 
-      {/* 3C: Card View */}
-      {activeCompetitors.length > 0 && viewMode === 'cards' && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
-            <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>
-              Tracked Competitors
-              <span style={{ fontSize: "12px", fontWeight: "400", color: "#888", marginLeft: "8px" }}>
-                {(selectedCategory ? filteredSortedCompetitors.length : activeCompetitors.length)} channels
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                const anyExpanded = Object.values(expandedCategories).some(Boolean);
-                toggleAllCategories(!anyExpanded);
-              }}
-              style={{
-                background: "transparent", border: "1px solid #555", borderRadius: "6px",
-                padding: "4px 12px", fontSize: "11px", color: "#aaa", cursor: "pointer",
-              }}
-            >
-              {Object.values(expandedCategories).some(Boolean) ? "Collapse All" : "Expand All"}
-            </button>
-          </div>
-          {groupedCompetitors
-            .filter(g => !selectedCategory || g.key === selectedCategory)
-            .map(group => (
-            <CategoryHeader
-              key={group.key}
-              group={group}
-              isExpanded={!!expandedCategories[group.key]}
-              onToggle={() => toggleCategory(group.key)}
-            >
-              {expandedCategories[group.key] && (
-                <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
-                  {group.channels.map(comp => {
-                    const catCfg = CATEGORY_CONFIG[comp.category] || CATEGORY_CONFIG['lds-faithful'];
-                    return (
-                      <div
-                        key={comp.id}
-                        onClick={() => { setSelectedChannelId(comp.id); setDrawerTab('overview'); }}
-                        style={{
-                          background: "#252525", border: "1px solid #333", borderRadius: "8px",
-                          padding: "12px", cursor: "pointer", display: "flex", alignItems: "center", gap: "12px",
-                          transition: "background 0.1s",
-                        }}
-                        onMouseOver={e => e.currentTarget.style.background = "#2a2a2a"}
-                        onMouseOut={e => e.currentTarget.style.background = "#252525"}
-                      >
-                        <img src={comp.thumbnail} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%", objectFit: "cover" }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff" }}>{comp.name}</div>
-                          <div style={{ display: "flex", gap: "12px", fontSize: "11px", color: "#888", marginTop: "4px" }}>
-                            <span>{fmtInt(comp.subscriberCount)} subs</span>
-                            <span>{fmtInt(comp.avgViewsPerVideo)} avg views</span>
-                            <span>{comp.uploadsLast30Days} uploads/30d</span>
-                          </div>
-                        </div>
-                        <ChevronDown size={14} color="#666" />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CategoryHeader>
-          ))}
-        </div>
-      )}
-
       {/* 3C: Trends View */}
       {activeCompetitors.length > 0 && viewMode === 'trends' && (
         <Suspense fallback={
@@ -1710,145 +1771,6 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           refreshError={refreshError[selectedChannel.id] || null}
           userTimezone={userTimezone}
         />
-      )}
-
-      {/* ── SECTION 5: COMPETITIVE INTELLIGENCE PANEL ── */}
-      {activeCompetitors.length > 0 && (
-        <div style={{
-          background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
-          overflow: "hidden", marginBottom: "16px",
-        }}>
-          {/* Panel header */}
-          <button
-            onClick={() => setIntelligenceCollapsed(!intelligenceCollapsed)}
-            style={{
-              width: "100%", background: "transparent", border: "none",
-              padding: "16px 20px", cursor: "pointer", textAlign: "left",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-            }}
-          >
-            <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", display: "flex", alignItems: "center", gap: "8px" }}>
-              <BarChart3 size={16} color="#3b82f6" />
-              Competitive Intelligence
-            </div>
-            {intelligenceCollapsed ? <ChevronDown size={16} color="#888" /> : <ChevronUp size={16} color="#888" />}
-          </button>
-
-          {!intelligenceCollapsed && (
-            <div style={{ padding: "0 20px 20px" }}>
-              {/* Tab bar */}
-              <div style={{ display: "flex", gap: "0", borderBottom: "1px solid #333", marginBottom: "16px" }}>
-                {[
-                  { key: 'benchmarks', label: 'Benchmarks' },
-                  { key: 'gaps', label: 'Content Gaps' },
-                  { key: 'outliers', label: 'Outliers' },
-                  { key: 'insights', label: 'Insights' },
-                ].map(tab => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setIntelligenceTab(tab.key)}
-                    style={{
-                      padding: "8px 16px", background: "transparent", border: "none",
-                      borderBottom: intelligenceTab === tab.key ? "2px solid #3b82f6" : "2px solid transparent",
-                      color: intelligenceTab === tab.key ? "#fff" : "#888",
-                      fontSize: "12px", fontWeight: "600", cursor: "pointer",
-                    }}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Tab: Benchmarks */}
-              {intelligenceTab === 'benchmarks' && yourStats && benchmarks && (
-                <div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "20px" }}>
-                    <BenchmarkCard label="Subscribers" yourValue={yourStats.totalSubscribers} competitorAvg={benchmarks.avgCompetitorSubs} gap={benchmarks.subscriberGap} />
-                    <BenchmarkCard label="Avg Views/Video" yourValue={yourStats.avgViewsPerVideo} competitorAvg={benchmarks.avgCompetitorViews} gap={benchmarks.viewsGap} />
-                    <BenchmarkCard label="Uploads (30d)" yourValue={yourStats.videosLast30Days} competitorAvg={benchmarks.avgCompetitorFrequency} gap={benchmarks.frequencyGap} />
-                    <BenchmarkCard label="Shorts (30d)" yourValue={yourStats.shortsCount} competitorAvg={benchmarks.avgCompetitorShorts} gap={benchmarks.shortsGap} />
-                    <BenchmarkCard label="Long-form (30d)" yourValue={yourStats.longsCount} competitorAvg={benchmarks.avgCompetitorLongs} gap={benchmarks.longsGap} />
-                  </div>
-                </div>
-              )}
-
-              {/* Tab: Content Gaps */}
-              {intelligenceTab === 'gaps' && rows && rows.length > 0 && (
-                <ContentGapsPanel activeCompetitors={activeCompetitors} rows={rows} />
-              )}
-
-              {/* Tab: Outliers */}
-              {intelligenceTab === 'outliers' && (
-                <div>
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "12px" }}>
-                    <select value={outlierDays} onChange={(e) => setOutlierDays(Number(e.target.value))}
-                      style={{ background: "#252525", border: "1px solid #555", borderRadius: "6px", padding: "6px 10px", color: "#fff", fontSize: "12px" }}>
-                      <option value={30}>30 days</option><option value={60}>60 days</option><option value={90}>90 days</option><option value={180}>180 days</option>
-                    </select>
-                    <select value={outlierMinMultiplier} onChange={(e) => setOutlierMinMultiplier(Number(e.target.value))}
-                      style={{ background: "#252525", border: "1px solid #555", borderRadius: "6px", padding: "6px 10px", color: "#fff", fontSize: "12px" }}>
-                      <option value={2}>2x+ avg</option><option value={2.5}>2.5x+ avg</option><option value={3}>3x+ avg</option><option value={5}>5x+ avg</option>
-                    </select>
-                    <button onClick={fetchOutliers} disabled={outliersLoading}
-                      style={{ background: "#3b82f6", border: "none", borderRadius: "6px", padding: "6px 12px", color: "#fff", fontSize: "12px", fontWeight: "600", cursor: outliersLoading ? "not-allowed" : "pointer", opacity: outliersLoading ? 0.6 : 1 }}>
-                      {outliersLoading ? "Loading..." : "Refresh"}
-                    </button>
-                  </div>
-                  {outliersLoading && outliers.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "32px", color: "#888" }}>
-                      <Loader size={24} style={{ animation: "spin 1s linear infinite", margin: "0 auto 8px" }} />
-                      <div style={{ fontSize: "13px" }}>Detecting outlier videos...</div>
-                    </div>
-                  ) : outliers.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "24px", color: "#666", fontSize: "13px" }}>No outlier videos found. Try adjusting filters.</div>
-                  ) : (
-                    <div style={{ display: "grid", gap: "8px" }}>
-                      {outliers.map(video => (
-                        <div key={video.id} style={{ background: "#252525", border: "1px solid #333", borderRadius: "8px", padding: "10px", display: "flex", gap: "12px", alignItems: "center" }}>
-                          {video.thumbnail_url && <img src={video.thumbnail_url} alt="" style={{ width: "100px", height: "56px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }} />}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{video.title}</div>
-                            <div style={{ fontSize: "11px", color: "#888", marginTop: "2px" }}>{video.channel?.name || "Unknown"}</div>
-                            <div style={{ display: "flex", gap: "10px", marginTop: "4px", fontSize: "10px", color: "#b0b0b0" }}>
-                              <span>{fmtInt(video.view_count)} views</span>
-                              <span>Ch avg: {fmtInt(video.channelAvgViews)}</span>
-                            </div>
-                          </div>
-                          <div style={{
-                            background: video.outlierScore >= 5 ? "#166534" : video.outlierScore >= 3 ? "#854d0e" : "#1e3a5f",
-                            border: `1px solid ${video.outlierScore >= 5 ? "#22c55e" : video.outlierScore >= 3 ? "#f59e0b" : "#3b82f6"}`,
-                            borderRadius: "6px", padding: "4px 8px", textAlign: "center", flexShrink: 0,
-                          }}>
-                            <div style={{ fontSize: "14px", fontWeight: "700", color: video.outlierScore >= 5 ? "#22c55e" : video.outlierScore >= 3 ? "#f59e0b" : "#3b82f6" }}>{video.outlierScore}x</div>
-                          </div>
-                          <button onClick={() => handleViewInsight(video)}
-                            style={{ background: "#374151", border: "1px solid #555", borderRadius: "6px", padding: "6px 10px", color: "#fff", fontSize: "11px", fontWeight: "600", cursor: "pointer", flexShrink: 0 }}>
-                            Insights
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Tab: Insights */}
-              {intelligenceTab === 'insights' && insights.length > 0 && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "12px" }}>
-                  {insights.map((insight, idx) => (
-                    <div key={idx} style={{ background: "#252525", border: "1px solid #333", borderRadius: "8px", padding: "14px", display: "flex", gap: "12px", alignItems: "flex-start" }}>
-                      <div style={{ fontSize: "24px" }}>{insight.icon}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "4px" }}>{insight.type}</div>
-                        <div style={{ fontSize: "12px", color: "#b0b0b0", lineHeight: "1.5" }}>{insight.insight}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       )}
 
       {/* Outlier Insights Slide-out Panel */}
