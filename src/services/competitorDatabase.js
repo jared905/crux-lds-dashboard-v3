@@ -6,6 +6,7 @@
  */
 
 import { supabase } from './supabaseClient';
+import { youtubeAPI, determineVideoType } from './youtubeAPI';
 
 // Title pattern detection (matches competitorAnalysis.js)
 const TITLE_PATTERNS = [
@@ -238,25 +239,35 @@ export async function upsertVideos(videos, channelId) {
   if (!supabase) throw new Error('Supabase not configured');
   if (!videos.length) return [];
 
-  const videosToUpsert = videos.map(v => ({
-    youtube_video_id: v.youtube_video_id,
-    channel_id: channelId,
-    title: v.title,
-    description: v.description,
-    thumbnail_url: v.thumbnail_url,
-    published_at: v.published_at,
-    duration_seconds: v.duration_seconds,
-    video_type: v.duration_seconds <= 60 ? 'short' : 'long',
-    view_count: v.view_count,
-    like_count: v.like_count,
-    comment_count: v.comment_count,
-    engagement_rate: v.view_count > 0
-      ? (v.like_count + v.comment_count) / v.view_count
-      : 0,
-    detected_format: detectContentFormat(v.title),
-    title_patterns: detectTitlePatterns(v.title),
-    last_synced_at: new Date().toISOString(),
-  }));
+  // Detect Shorts via HEAD request proxy (skips generated IDs and videos > 180s)
+  const shortsMap = await youtubeAPI.checkIfShortBatch(
+    videos.map(v => ({ youtube_video_id: v.youtube_video_id, duration_seconds: v.duration_seconds }))
+  );
+
+  const videosToUpsert = videos.map(v => {
+    const isShort = shortsMap.get(v.youtube_video_id) ?? null;
+    const videoType = determineVideoType(isShort, v.duration_seconds);
+    return {
+      youtube_video_id: v.youtube_video_id,
+      channel_id: channelId,
+      title: v.title,
+      description: v.description,
+      thumbnail_url: v.thumbnail_url,
+      published_at: v.published_at,
+      duration_seconds: v.duration_seconds,
+      video_type: videoType,
+      is_short: isShort ?? (videoType === 'short'),
+      view_count: v.view_count,
+      like_count: v.like_count,
+      comment_count: v.comment_count,
+      engagement_rate: v.view_count > 0
+        ? (v.like_count + v.comment_count) / v.view_count
+        : 0,
+      detected_format: detectContentFormat(v.title),
+      title_patterns: detectTitlePatterns(v.title),
+      last_synced_at: new Date().toISOString(),
+    };
+  });
 
   const { data, error } = await supabase
     .from('videos')

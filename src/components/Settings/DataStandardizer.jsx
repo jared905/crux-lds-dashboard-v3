@@ -128,9 +128,9 @@ export default function DataStandardizer() {
             const ctr = Number(lookup['impressionsclickthroughrate'] || 0);
             const retention = Number(lookup['averagepercentageviewed'] || 0);
 
-            // 3. Type Logic - YouTube Shorts are ≤60 seconds
+            // 3. Type Logic - YouTube Shorts can be up to 3 minutes (180 seconds)
             let type = "Long";
-            if (duration > 0 && duration <= 60) type = "Short";
+            if (duration > 0 && duration <= 180) type = "Short";
 
             const title = lookup['videotitle'] || lookup['title'] || "Unknown Video";
             const videoId = lookup['videoid'] || lookup['content'] || "";

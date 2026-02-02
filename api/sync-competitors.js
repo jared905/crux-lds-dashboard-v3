@@ -115,6 +115,59 @@ async function fetchChannelVideos(uploadsPlaylistId, apiKey, maxResults = 50) {
 }
 
 /**
+ * Check if a YouTube video is a Short via HEAD request.
+ * youtube.com/shorts/{videoId} returns 200 for Shorts, 303 redirect for non-Shorts.
+ */
+async function checkIfShort(videoId) {
+  try {
+    const response = await fetch(`https://www.youtube.com/shorts/${videoId}`, {
+      method: 'HEAD',
+      redirect: 'manual',
+    });
+    return response.status === 200;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Batch Shorts detection with concurrency control.
+ * Only checks videos with duration <= 180s (Shorts max is 3 min).
+ */
+async function checkShortsBatch(videos, { concurrency = 5, delayMs = 80 } = {}) {
+  const results = new Map();
+
+  const candidates = videos.filter(v => {
+    if (v.duration_seconds > 180) {
+      results.set(v.youtube_video_id, false);
+      return false;
+    }
+    return !!v.youtube_video_id;
+  });
+
+  if (candidates.length === 0) return results;
+
+  let index = 0;
+  const workers = Array.from(
+    { length: Math.min(concurrency, candidates.length) },
+    async () => {
+      while (index < candidates.length) {
+        const current = index++;
+        const video = candidates[current];
+        const isShort = await checkIfShort(video.youtube_video_id);
+        results.set(video.youtube_video_id, isShort ?? (video.duration_seconds <= 180));
+        if (current < candidates.length - 1) {
+          await new Promise(r => setTimeout(r, delayMs));
+        }
+      }
+    }
+  );
+
+  await Promise.all(workers);
+  return results;
+}
+
+/**
  * Detect title patterns
  */
 function detectTitlePatterns(title) {
@@ -167,37 +220,48 @@ async function syncChannel(channel, apiKey) {
 
   // Fetch and update videos
   let videos = [];
+  let videosToUpsert = [];
   if (channelDetails.uploads_playlist_id) {
     videos = await fetchChannelVideos(channelDetails.uploads_playlist_id, apiKey);
 
+    // Detect Shorts via HEAD requests (server-side, no CORS issue)
+    const shortsMap = await checkShortsBatch(videos);
+
     // Upsert videos
-    const videosToUpsert = videos.map(v => ({
-      youtube_video_id: v.youtube_video_id,
-      channel_id: channel.id,
-      title: v.title,
-      description: v.description,
-      thumbnail_url: v.thumbnail_url,
-      published_at: v.published_at,
-      duration_seconds: v.duration_seconds,
-      video_type: v.duration_seconds <= 60 ? 'short' : 'long',
-      view_count: v.view_count,
-      like_count: v.like_count,
-      comment_count: v.comment_count,
-      engagement_rate: v.view_count > 0 ? (v.like_count + v.comment_count) / v.view_count : 0,
-      detected_format: detectContentFormat(v.title),
-      title_patterns: detectTitlePatterns(v.title),
-      last_synced_at: new Date().toISOString(),
-    }));
+    videosToUpsert = videos.map(v => {
+      const isShort = shortsMap.get(v.youtube_video_id) ?? null;
+      const videoType = isShort === true ? 'short'
+        : isShort === false ? 'long'
+        : (v.duration_seconds > 0 && v.duration_seconds <= 180) ? 'short' : 'long';
+      return {
+        youtube_video_id: v.youtube_video_id,
+        channel_id: channel.id,
+        title: v.title,
+        description: v.description,
+        thumbnail_url: v.thumbnail_url,
+        published_at: v.published_at,
+        duration_seconds: v.duration_seconds,
+        video_type: videoType,
+        is_short: isShort ?? (videoType === 'short'),
+        view_count: v.view_count,
+        like_count: v.like_count,
+        comment_count: v.comment_count,
+        engagement_rate: v.view_count > 0 ? (v.like_count + v.comment_count) / v.view_count : 0,
+        detected_format: detectContentFormat(v.title),
+        title_patterns: detectTitlePatterns(v.title),
+        last_synced_at: new Date().toISOString(),
+      };
+    });
 
     await supabase
       .from('videos')
       .upsert(videosToUpsert, { onConflict: 'youtube_video_id' });
   }
 
-  // Create channel snapshot
+  // Create channel snapshot (use classified video_type from Shorts detection)
   const today = new Date().toISOString().split('T')[0];
-  const shorts = videos.filter(v => v.duration_seconds <= 60);
-  const longs = videos.filter(v => v.duration_seconds > 60);
+  const shorts = videosToUpsert.filter(v => v.video_type === 'short');
+  const longs = videosToUpsert.filter(v => v.video_type === 'long');
 
   // Get previous snapshot
   const { data: prevSnapshot } = await supabase

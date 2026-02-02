@@ -96,8 +96,8 @@ export async function computeBenchmarks(peerChannelIds, days = 90) {
   }
 
   // Split by type
-  const longFormVideos = peerVideos.filter(v => v.video_type === 'long' || (v.duration_seconds && v.duration_seconds > 60));
-  const shortFormVideos = peerVideos.filter(v => v.video_type === 'short' || (v.duration_seconds && v.duration_seconds <= 60));
+  const longFormVideos = peerVideos.filter(v => v.video_type === 'long' || (v.duration_seconds && v.duration_seconds > 180));
+  const shortFormVideos = peerVideos.filter(v => v.video_type === 'short' || (v.duration_seconds && v.duration_seconds <= 180));
 
   // View stats
   const longViews = longFormVideos.map(v => v.view_count || 0).sort((a, b) => a - b);

@@ -109,7 +109,9 @@ export async function saveClientToSupabase(clientName, normalizedRows, youtubeCh
         title: row.title,
         published_at: row.publishDate,
         duration_seconds: row.duration || 0,
-        video_type: (row.duration > 0 && row.duration <= 60) ? 'short' : 'long',
+        // CSV videos use duration heuristic (no real YouTube ID for HEAD request check)
+        video_type: (row.duration > 0 && row.duration <= 180) ? 'short' : 'long',
+        is_short: (row.duration > 0 && row.duration <= 180),
         view_count: row.views || 0,
         like_count: 0, // Not available in YouTube Studio CSV
         comment_count: 0, // Not available in YouTube Studio CSV

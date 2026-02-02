@@ -49,11 +49,11 @@ export async function addCompetitor(input, { category, tags, clientId } = {}) {
   // Fetch and save recent videos
   if (channelDetails.uploads_playlist_id) {
     const videos = await youtubeAPI.fetchChannelVideos(channelDetails.uploads_playlist_id);
-    await upsertVideos(videos, channel.id);
+    const savedVideos = await upsertVideos(videos, channel.id);
 
-    // Create initial snapshot
-    const shorts = videos.filter(v => v.duration_seconds <= 60);
-    const longs = videos.filter(v => v.duration_seconds > 60);
+    // Create initial snapshot (use DB-stored video_type which includes Shorts detection)
+    const shorts = savedVideos.filter(v => v.video_type === 'short');
+    const longs = savedVideos.filter(v => v.video_type === 'long');
 
     await createChannelSnapshot(channel.id, {
       subscriber_count: channelDetails.subscriber_count,
@@ -61,11 +61,11 @@ export async function addCompetitor(input, { category, tags, clientId } = {}) {
       video_count: channelDetails.video_count,
       shorts_count: shorts.length,
       longs_count: longs.length,
-      avg_views_per_video: videos.length > 0
-        ? videos.reduce((sum, v) => sum + v.view_count, 0) / videos.length
+      avg_views_per_video: savedVideos.length > 0
+        ? savedVideos.reduce((sum, v) => sum + v.view_count, 0) / savedVideos.length
         : 0,
-      avg_engagement_rate: videos.length > 0
-        ? videos.reduce((sum, v) => sum + (v.like_count + v.comment_count) / Math.max(v.view_count, 1), 0) / videos.length
+      avg_engagement_rate: savedVideos.length > 0
+        ? savedVideos.reduce((sum, v) => sum + (v.like_count + v.comment_count) / Math.max(v.view_count, 1), 0) / savedVideos.length
         : 0,
     });
   }
@@ -98,18 +98,18 @@ export async function syncChannel(channelId) {
   });
 
   // Fetch and update videos
-  let videos = [];
+  let savedVideos = [];
   if (channelDetails.uploads_playlist_id) {
-    videos = await youtubeAPI.fetchChannelVideos(channelDetails.uploads_playlist_id);
-    const savedVideos = await upsertVideos(videos, updatedChannel.id);
+    const videos = await youtubeAPI.fetchChannelVideos(channelDetails.uploads_playlist_id);
+    savedVideos = await upsertVideos(videos, updatedChannel.id);
 
     // Create video snapshots for tracking
     await createVideoSnapshots(savedVideos);
   }
 
-  // Create channel snapshot
-  const shorts = videos.filter(v => v.duration_seconds <= 60);
-  const longs = videos.filter(v => v.duration_seconds > 60);
+  // Create channel snapshot (use DB-stored video_type which includes Shorts detection)
+  const shorts = savedVideos.filter(v => v.video_type === 'short');
+  const longs = savedVideos.filter(v => v.video_type === 'long');
 
   await createChannelSnapshot(updatedChannel.id, {
     subscriber_count: channelDetails.subscriber_count,
@@ -117,15 +117,15 @@ export async function syncChannel(channelId) {
     video_count: channelDetails.video_count,
     shorts_count: shorts.length,
     longs_count: longs.length,
-    avg_views_per_video: videos.length > 0
-      ? videos.reduce((sum, v) => sum + v.view_count, 0) / videos.length
+    avg_views_per_video: savedVideos.length > 0
+      ? savedVideos.reduce((sum, v) => sum + v.view_count, 0) / savedVideos.length
       : 0,
-    avg_engagement_rate: videos.length > 0
-      ? videos.reduce((sum, v) => sum + (v.like_count + v.comment_count) / Math.max(v.view_count, 1), 0) / videos.length
+    avg_engagement_rate: savedVideos.length > 0
+      ? savedVideos.reduce((sum, v) => sum + (v.like_count + v.comment_count) / Math.max(v.view_count, 1), 0) / savedVideos.length
       : 0,
   });
 
-  return { channel: updatedChannel, videosCount: videos.length };
+  return { channel: updatedChannel, videosCount: savedVideos.length };
 }
 
 /**

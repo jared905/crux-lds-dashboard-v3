@@ -656,6 +656,75 @@ class YouTubeAPIService {
       return videos;
     }
   }
+
+  // ============================================
+  // Shorts Detection (via server-side proxy)
+  // ============================================
+
+  /**
+   * Batch-check videos for YouTube Shorts status.
+   * Uses /api/check-shorts proxy to avoid CORS issues.
+   * Only checks videos with duration <= 180s and real YouTube IDs.
+   *
+   * @param {Array<{youtube_video_id: string, duration_seconds: number}>} videos
+   * @returns {Promise<Map<string, boolean>>} Map of videoId -> isShort
+   */
+  async checkIfShortBatch(videos) {
+    const results = new Map();
+
+    if (!videos || videos.length === 0) return results;
+
+    // Pre-filter: videos over 180s are definitively NOT Shorts
+    const candidates = [];
+    for (const v of videos) {
+      const id = v.youtube_video_id;
+      if (!id || id.startsWith('csv_') || id.startsWith('client_')) continue;
+      if (v.duration_seconds > 180) {
+        results.set(id, false);
+        continue;
+      }
+      candidates.push(id);
+    }
+
+    if (candidates.length === 0) return results;
+
+    // Send to proxy in batches of 50
+    for (let i = 0; i < candidates.length; i += 50) {
+      const batch = candidates.slice(i, i + 50);
+      try {
+        const response = await fetch('/api/check-shorts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ videoIds: batch }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          for (const [videoId, isShort] of Object.entries(data.results)) {
+            results.set(videoId, isShort);
+          }
+        }
+      } catch (err) {
+        console.warn('Shorts detection proxy failed:', err.message);
+        // Fallback: leave these IDs out of results (caller handles missing)
+      }
+    }
+
+    return results;
+  }
+}
+
+/**
+ * Determine video_type from Shorts detection result.
+ * @param {boolean|null|undefined} isShort - Result from checkIfShortBatch
+ * @param {number} durationSeconds - Video duration
+ * @returns {string} 'short' or 'long'
+ */
+export function determineVideoType(isShort, durationSeconds) {
+  if (isShort === true) return 'short';
+  if (isShort === false) return 'long';
+  // Fallback when detection was not attempted or failed
+  return (durationSeconds > 0 && durationSeconds <= 180) ? 'short' : 'long';
 }
 
 // Export singleton instance

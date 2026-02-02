@@ -417,7 +417,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           likes: parseInt(video.statistics.likeCount) || 0,
           comments: parseInt(video.statistics.commentCount) || 0,
           duration: duration,
-          type: duration <= 60 ? 'short' : 'long' // YouTube Shorts are ≤60 seconds
+          type: duration <= 180 ? 'short' : 'long'
         };
       });
 
@@ -685,7 +685,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             likes: parseInt(video.statistics.likeCount) || 0,
             comments: parseInt(video.statistics.commentCount) || 0,
             duration: duration,
-            type: duration <= 60 ? 'short' : 'long'
+            type: duration <= 180 ? 'short' : 'long'
           };
         });
       }

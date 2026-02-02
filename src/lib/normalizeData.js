@@ -73,7 +73,7 @@ export function normalizeData(rawData) {
         type = "short";
       } else if (urlStr.includes("/watch?v=")) {
         type = "long";
-      } else if (duration > 0 && duration <= 60) {
+      } else if (duration > 0 && duration <= 180) {
         type = "short";
       } else {
         type = "long";
