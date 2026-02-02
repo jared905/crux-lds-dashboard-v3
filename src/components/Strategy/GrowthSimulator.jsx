@@ -3,7 +3,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { TrendingUp, MonitorPlay, Smartphone, Zap, MousePointerClick, UserPlus, ArrowRight, RotateCcw, Minus } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/utils";
 
-export default function GrowthSimulator({ rows, currentSubscribers = 0 }) {
+export default function GrowthSimulator({ rows, currentSubscribers = 0, channelSubscriberMap = {}, selectedChannel = "all" }) {
   // Allow manual override of subscriber count if the auto-detected value is 0 or seems wrong
   const [manualSubCount, setManualSubCount] = useState(null);
   // --- CALCULATE BASELINES WITH IMPROVED LOGIC ---
@@ -127,10 +127,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0 }) {
   // Use manual override if set, otherwise use the passed prop
   const currentSubCount = manualSubCount !== null ? manualSubCount : currentSubscribers;
 
-  // Debug: Log the value we received
-  console.log('GrowthSimulator received currentSubscribers:', currentSubscribers);
-  console.log('Manual override:', manualSubCount);
-  console.log('Using currentSubCount:', currentSubCount);
+  const hasMultipleChannels = Object.keys(channelSubscriberMap).length > 1;
 
   // --- PROJECTION CALCULATION ---
   const projection = useMemo(() => {
@@ -448,11 +445,29 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0 }) {
                 }}
               />
               <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '600', maxWidth: '120px', lineHeight: '1.3' }}>
-                No Total row found. Enter manually.
+                No subscriber data found. Enter manually.
               </div>
             </div>
           ) : (
-            <div style={s.forecastValue}>{fmtInt(currentSubCount)}</div>
+            <div>
+              <div style={s.forecastValue}>{fmtInt(currentSubCount)}</div>
+              {hasMultipleChannels && selectedChannel === "all" && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px' }}>
+                  {Object.entries(channelSubscriberMap).map(([name, stats]) => (
+                    <div key={name} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#9E9E9E' }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#60a5fa', flexShrink: 0 }} />
+                      <span style={{ fontWeight: '600', color: '#E0E0E0' }}>{stats.title || name}</span>
+                      <span>{fmtInt(stats.subscriberCount)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!hasMultipleChannels && selectedChannel !== "all" && (
+                <div style={{ fontSize: '11px', color: '#9E9E9E', marginTop: '4px' }}>
+                  {selectedChannel}
+                </div>
+              )}
+            </div>
           )}
         </div>
         

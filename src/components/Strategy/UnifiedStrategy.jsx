@@ -13,7 +13,7 @@ const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
  * Combines Diagnostics + Strategist + Dynamic Action Items
  * Creates a clear narrative: What to do next and in what order
  */
-export default function UnifiedStrategy({ rows, activeClient, channelSubscriberCount = 0 }) {
+export default function UnifiedStrategy({ rows, activeClient, channelSubscriberCount = 0, channelSubscriberMap = {}, selectedChannel = "all" }) {
   // Generate action items from GROW quadrant patterns
   const actionItems = useMemo(() => {
     if (!rows || rows.length === 0) return [];
@@ -31,7 +31,7 @@ export default function UnifiedStrategy({ rows, activeClient, channelSubscriberC
       <ActionItemsSection rows={rows} />
 
       {/* 3. PROJECTED GROWTH CHART - Visual motivation */}
-      <GrowthSimulator rows={rows} currentSubscribers={channelSubscriberCount} />
+      <GrowthSimulator rows={rows} currentSubscribers={channelSubscriberCount} channelSubscriberMap={channelSubscriberMap} selectedChannel={selectedChannel} />
 
       {/* 4-7. REST OF STRATEGY - Handled by DiagnosticEngine */}
       <DiagnosticEngine rows={rows} />
