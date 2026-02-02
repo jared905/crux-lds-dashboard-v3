@@ -44,8 +44,8 @@ function detectType(rawType, durationSeconds, youtubeUrl = null) {
     if (url.includes("/watch?v=")) return "long";
   }
 
-  // 3. Fall back to duration-based detection
-  if (durationSeconds > 0 && durationSeconds <= 61) return "short";
+  // 3. Fall back to duration-based detection (Shorts can be up to 180s)
+  if (durationSeconds > 0 && durationSeconds <= 180) return "short";
   return "long";
 }
 
