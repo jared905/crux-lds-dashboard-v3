@@ -20,6 +20,7 @@ import {
   Building,
   Key,
   Shield,
+  Table,
   ClipboardCheck,
   // Section icons
   BarChart3,
@@ -85,6 +86,7 @@ const SECTIONS = [
     tabs: [
       { id: "clients", label: "Clients", icon: Building },
       { id: "api-keys", label: "API Keys", icon: Key },
+      { id: "standardizer", label: "Data Standardizer", icon: Table },
       { id: "user-management", label: "User Management", icon: Shield, adminOnly: true },
     ],
   },
