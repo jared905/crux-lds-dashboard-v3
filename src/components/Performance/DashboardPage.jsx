@@ -1,10 +1,95 @@
-import React from "react";
-import { Eye, Clock, Users, Target, BarChart3, TrendingUp, TrendingDown, Video, PlaySquare, Activity } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Eye, Clock, Users, Target, BarChart3, TrendingUp, TrendingDown, Video, PlaySquare, Activity, ChevronDown, ChevronUp } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/formatters.js";
 import Chart from "./Chart.jsx";
 import TopVideos from "./TopVideos.jsx";
 import PublishingTimeline from "./PublishingTimeline.jsx";
 import BrandFunnel from "./BrandFunnel.jsx";
+
+/* ── tiny delta badge used on KPI cards ── */
+function DeltaBadge({ current, previous, isPct }) {
+  if (!previous && previous !== 0) return null;
+  const delta = previous !== 0 ? ((current - previous) / Math.abs(previous)) * 100 : (current > 0 ? 100 : 0);
+  if (Math.abs(delta) < 0.5) return (
+    <span style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600" }}>No change vs prior</span>
+  );
+  const up = delta > 0;
+  const Arrow = up ? TrendingUp : TrendingDown;
+  const color = isPct
+    ? (up ? "#10b981" : "#ef4444")  // for rates, up = good
+    : (up ? "#10b981" : "#ef4444");
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: "600", color }}>
+      <Arrow size={12} /> {up ? "+" : ""}{delta.toFixed(1)}% vs prior
+    </span>
+  );
+}
+
+/* ── expandable KPI card wrapper ── */
+function KpiCard({ icon: Icon, label, value, allTimeLabel, allTimeValue, color, accentBg, delta, filtered, metricKey }) {
+  const [open, setOpen] = useState(false);
+
+  // Build per-video mini-table when expanded
+  const topForMetric = useMemo(() => {
+    if (!open || !filtered?.length) return [];
+    const key = metricKey || "views";
+    return [...filtered]
+      .sort((a, b) => (b[key] || 0) - (a[key] || 0))
+      .slice(0, 5);
+  }, [open, filtered, metricKey]);
+
+  return (
+    <div
+      onClick={() => setOpen(o => !o)}
+      style={{
+        background: "#1E1E1E",
+        border: open ? `1px solid ${color}55` : "1px solid #333",
+        borderRadius: "12px",
+        padding: "20px",
+        position: "relative",
+        overflow: "hidden",
+        cursor: "pointer",
+        transition: "border-color 0.2s"
+      }}
+    >
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: color }} />
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+        <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: accentBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon size={16} style={{ color }} />
+        </div>
+        <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
+        <div style={{ marginLeft: "auto" }}>
+          {open ? <ChevronUp size={14} style={{ color: "#666" }} /> : <ChevronDown size={14} style={{ color: "#666" }} />}
+        </div>
+      </div>
+      <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+        {value}
+      </div>
+      {/* Delta badge */}
+      {delta}
+      <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
+        <span style={{ color: "#aaa" }}>{allTimeValue}</span> {allTimeLabel}
+      </div>
+
+      {/* Expandable drill-down */}
+      {open && topForMetric.length > 0 && (
+        <div style={{ marginTop: "14px", borderTop: "1px solid #333", paddingTop: "12px" }}>
+          <div style={{ fontSize: "10px", color: "#666", textTransform: "uppercase", marginBottom: "8px", letterSpacing: "0.5px" }}>Top 5 Videos</div>
+          {topForMetric.map((v, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: i < 4 ? "1px solid #2a2a2a" : "none" }}>
+              <div style={{ fontSize: "12px", color: "#ccc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>
+                {v.title || "Untitled"}
+              </div>
+              <div style={{ fontSize: "12px", color, fontWeight: "600", flexShrink: 0 }}>
+                {metricKey === "retention" || metricKey === "ctr" ? fmtPct(v[metricKey] || 0) : fmtInt(v[metricKey] || v.views || 0)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric }) {
   return (
@@ -23,7 +108,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         Channel Stats
       </div>
 
-      {/* Top Level KPIs - Period + All Time */}
+      {/* Top Level KPIs - Period + All Time — now with deltas & click-to-expand */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
@@ -31,148 +116,59 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         marginBottom: "24px"
       }}>
         {/* Videos */}
-        <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "12px",
-          padding: "20px",
-          position: "relative",
-          overflow: "hidden"
-        }}>
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "#94a3b8" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-            <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(148, 163, 184, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Video size={16} style={{ color: "#94a3b8" }} />
-            </div>
-            <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Videos</div>
-          </div>
-          <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
-            {fmtInt(filtered.length)}
-          </div>
-          <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
-            <span style={{ color: "#aaa" }}>{fmtInt(allTimeKpis.count)}</span> total
-          </div>
-        </div>
+        <KpiCard
+          icon={Video} label="Videos" color="#94a3b8" accentBg="rgba(148, 163, 184, 0.1)"
+          value={fmtInt(filtered.length)}
+          allTimeLabel="total" allTimeValue={fmtInt(allTimeKpis.count)}
+          delta={<DeltaBadge current={filtered.length} previous={previousKpis.shortsMetrics.count + previousKpis.longsMetrics.count} />}
+          filtered={filtered} metricKey="views"
+        />
 
         {/* Views */}
-        <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "12px",
-          padding: "20px",
-          position: "relative",
-          overflow: "hidden"
-        }}>
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "#818cf8" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-            <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(129, 140, 248, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Eye size={16} style={{ color: "#818cf8" }} />
-            </div>
-            <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Views</div>
-          </div>
-          <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
-            {fmtInt(kpis.views)}
-          </div>
-          <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
-            <span style={{ color: "#aaa" }}>{fmtInt(allTimeKpis.views)}</span> total
-          </div>
-        </div>
+        <KpiCard
+          icon={Eye} label="Views" color="#818cf8" accentBg="rgba(129, 140, 248, 0.1)"
+          value={fmtInt(kpis.views)}
+          allTimeLabel="total" allTimeValue={fmtInt(allTimeKpis.views)}
+          delta={<DeltaBadge current={kpis.views} previous={previousKpis.views} />}
+          filtered={filtered} metricKey="views"
+        />
 
         {/* Watch Hours */}
-        <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "12px",
-          padding: "20px",
-          position: "relative",
-          overflow: "hidden"
-        }}>
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "#a78bfa" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-            <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(167, 139, 250, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Clock size={16} style={{ color: "#a78bfa" }} />
-            </div>
-            <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Watch Hours</div>
-          </div>
-          <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
-            {fmtInt(kpis.watchHours)}
-          </div>
-          <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
-            <span style={{ color: "#aaa" }}>{fmtInt(allTimeKpis.watchHours)}</span> total
-          </div>
-        </div>
+        <KpiCard
+          icon={Clock} label="Watch Hours" color="#a78bfa" accentBg="rgba(167, 139, 250, 0.1)"
+          value={fmtInt(kpis.watchHours)}
+          allTimeLabel="total" allTimeValue={fmtInt(allTimeKpis.watchHours)}
+          delta={<DeltaBadge current={kpis.watchHours} previous={previousKpis.watchHours} />}
+          filtered={filtered} metricKey="watchHours"
+        />
 
-        {/* Subscribers Gained */}
-        <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "12px",
-          padding: "20px",
-          position: "relative",
-          overflow: "hidden"
-        }}>
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "#f472b6" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-            <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(244, 114, 182, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Users size={16} style={{ color: "#f472b6" }} />
-            </div>
-            <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Subscribers</div>
-          </div>
-          <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
-            {kpis.subs >= 0 ? '+' : ''}{fmtInt(kpis.subs)}
-          </div>
-          <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
-            <span style={{ color: "#aaa" }}>{allTimeKpis.subs >= 0 ? '+' : ''}{fmtInt(allTimeKpis.subs)}</span> total
-          </div>
-        </div>
+        {/* Subscribers */}
+        <KpiCard
+          icon={Users} label="Subscribers" color="#f472b6" accentBg="rgba(244, 114, 182, 0.1)"
+          value={`${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`}
+          allTimeLabel="total" allTimeValue={`${allTimeKpis.subs >= 0 ? "+" : ""}${fmtInt(allTimeKpis.subs)}`}
+          delta={<DeltaBadge current={kpis.subs} previous={previousKpis.subs} />}
+          filtered={filtered} metricKey="subscribers"
+        />
 
         {/* Avg Retention */}
-        <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "12px",
-          padding: "20px",
-          position: "relative",
-          overflow: "hidden"
-        }}>
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "#34d399" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-            <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(52, 211, 153, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <BarChart3 size={16} style={{ color: "#34d399" }} />
-            </div>
-            <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Avg Retention</div>
-          </div>
-          <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
-            {fmtPct(kpis.avgRet)}
-          </div>
-          <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
-            <span style={{ color: "#aaa" }}>{fmtPct(allTimeKpis.avgRet)}</span> all-time avg
-          </div>
-        </div>
+        <KpiCard
+          icon={BarChart3} label="Avg Retention" color="#34d399" accentBg="rgba(52, 211, 153, 0.1)"
+          value={fmtPct(kpis.avgRet)}
+          allTimeLabel="all-time avg" allTimeValue={fmtPct(allTimeKpis.avgRet)}
+          delta={<DeltaBadge current={kpis.avgRet} previous={previousKpis.avgRet} isPct />}
+          filtered={filtered} metricKey="retention"
+        />
 
         {/* Avg CTR */}
-        <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "12px",
-          padding: "20px",
-          position: "relative",
-          overflow: "hidden"
-        }}>
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "#fbbf24" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-            <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "rgba(251, 191, 36, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Target size={16} style={{ color: "#fbbf24" }} />
-            </div>
-            <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>Avg CTR</div>
-          </div>
-          <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
-            {fmtPct(kpis.avgCtr)}
-          </div>
-          <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
-            <span style={{ color: "#aaa" }}>{fmtPct(allTimeKpis.avgCtr)}</span> all-time avg
-          </div>
-        </div>
+        <KpiCard
+          icon={Target} label="Avg CTR" color="#fbbf24" accentBg="rgba(251, 191, 36, 0.1)"
+          value={fmtPct(kpis.avgCtr)}
+          allTimeLabel="all-time avg" allTimeValue={fmtPct(allTimeKpis.avgCtr)}
+          delta={<DeltaBadge current={kpis.avgCtr} previous={previousKpis.avgCtr} isPct />}
+          filtered={filtered} metricKey="ctr"
+        />
+
       </div>
 
       {/* KPI Cards - Shorts vs Long-form Side by Side */}
