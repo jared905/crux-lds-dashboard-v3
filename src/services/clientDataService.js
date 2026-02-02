@@ -115,6 +115,8 @@ export async function saveClientToSupabase(clientName, normalizedRows, youtubeCh
         view_count: row.views || 0,
         like_count: 0, // Not available in YouTube Studio CSV
         comment_count: 0, // Not available in YouTube Studio CSV
+        // Store thumbnail URL from CSV parsing (uses real YouTube video ID)
+        thumbnail_url: row.thumbnailUrl || null,
         // CSV-specific analytics fields
         impressions: row.impressions || 0,
         ctr: row.ctr || null,
@@ -210,6 +212,9 @@ export async function getClientsFromSupabase() {
       // Use content_source if available (for multi-channel clients), otherwise fall back to channel name
       const rows = (videos || []).map(video => {
         const contentSource = video.content_source || channel.name;
+        // Extract real YouTube video ID from stored thumbnail URL if available
+        const thumbMatch = video.thumbnail_url?.match(/\/vi\/([a-zA-Z0-9_-]{11})\//);
+        const realVideoId = thumbMatch ? thumbMatch[1] : null;
         return {
           'Video title': video.title,
           'Video publish time': video.published_at,
@@ -220,6 +225,8 @@ export async function getClientsFromSupabase() {
           'Average percentage viewed (%)': video.avg_view_percentage ? video.avg_view_percentage * 100 : null,
           'Subscribers gained': video.subscribers_gained,
           'Content': contentSource,
+          // Pass real YouTube video ID so normalizeData can extract it
+          videoId: realVideoId,
           // Normalized fields for direct use
           title: video.title,
           publishDate: video.published_at,

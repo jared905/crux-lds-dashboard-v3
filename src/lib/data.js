@@ -37,14 +37,14 @@ function detectType(rawType, durationSeconds, youtubeUrl = null) {
   if (t.includes("short")) return "short";
   if (t.includes("long")) return "long";
 
-  // 2. Check URL pattern: /shorts/ = short, /watch?v= = long
+  // 2. Check URL pattern: /shorts/ is definitive; /watch?v= is NOT
+  // (YouTube Studio exports Shorts with /watch?v= URLs)
   if (youtubeUrl) {
     const url = String(youtubeUrl).toLowerCase();
     if (url.includes("/shorts/")) return "short";
-    if (url.includes("/watch?v=")) return "long";
   }
 
-  // 3. Fall back to duration-based detection (Shorts can be up to 180s)
+  // 3. Duration-based detection (Shorts max is 180s)
   if (durationSeconds > 0 && durationSeconds <= 180) return "short";
   return "long";
 }

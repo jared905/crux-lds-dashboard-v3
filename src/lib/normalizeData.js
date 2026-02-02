@@ -71,9 +71,9 @@ export function normalizeData(rawData) {
       const urlStr = String(rawVideoId).toLowerCase();
       if (urlStr.includes("/shorts/")) {
         type = "short";
-      } else if (urlStr.includes("/watch?v=")) {
-        type = "long";
       } else if (duration > 0 && duration <= 180) {
+        // YouTube Studio exports Shorts with /watch?v= URLs, so we can't rely on
+        // URL pattern alone — use duration to classify (Shorts max is 180s)
         type = "short";
       } else {
         type = "long";
