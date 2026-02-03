@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Eye, Clock, Users, Target, BarChart3, TrendingUp, TrendingDown, Video, PlaySquare, Activity, ChevronDown, ChevronUp } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/formatters.js";
+import { youtubeAPI } from "../../services/youtubeAPI.js";
 import Chart from "./Chart.jsx";
 import TopVideos from "./TopVideos.jsx";
 import PublishingTimeline from "./PublishingTimeline.jsx";
@@ -91,7 +92,71 @@ function KpiCard({ icon: Icon, label, value, allTimeLabel, allTimeValue, color, 
   );
 }
 
-export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric, channelStats, channelStatsLoading, clientSubscriberCount }) {
+export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric, channelStats }) {
+  // Self-contained YouTube API fetch for channel stats (subscribers, views, videoCount)
+  // This runs independently of the parent's channelStats to avoid race conditions
+  const [localChannelStats, setLocalChannelStats] = useState(null);
+  const [localLoading, setLocalLoading] = useState(false);
+  const fetchedForRef = useRef(null);
+
+  useEffect(() => {
+    // Find a video ID from the rows to resolve the channel
+    const videoRow = rows.find(r => r.youtubeVideoId && !r.isTotal);
+    if (!videoRow) return;
+
+    const videoId = videoRow.youtubeVideoId;
+
+    // Don't re-fetch if we already fetched for this video ID
+    if (fetchedForRef.current === videoId) return;
+
+    const apiKey = youtubeAPI.apiKey || youtubeAPI.loadAPIKey();
+    if (!apiKey) return;
+
+    let cancelled = false;
+    setLocalLoading(true);
+
+    (async () => {
+      try {
+        const response = await fetch('/api/youtube-channel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey, videoIds: [videoId] }),
+        });
+
+        if (!response.ok || cancelled) return;
+
+        const { videoResults = {}, channels = {} } = await response.json();
+        if (cancelled) return;
+
+        const channelId = videoResults[videoId]?.channelId;
+        const stats = channelId ? channels[channelId] : null;
+
+        console.log('[DashboardKPI] Direct fetch result:', {
+          videoId,
+          channelId,
+          subscriberCount: stats?.subscriberCount,
+          viewCount: stats?.viewCount,
+          videoCount: stats?.videoCount,
+        });
+
+        if (stats && !cancelled) {
+          fetchedForRef.current = videoId;
+          setLocalChannelStats(stats);
+        }
+      } catch (err) {
+        console.warn('[DashboardKPI] Direct fetch failed:', err);
+      } finally {
+        if (!cancelled) setLocalLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [rows]);
+
+  // Use local fetch result, fall back to parent's channelStats
+  const resolvedStats = localChannelStats || channelStats;
+  const isLoading = localLoading && !resolvedStats;
+
   return (
     <>
       {/* Channel Stats Section Title */}
@@ -119,8 +184,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         <KpiCard
           icon={Video} label="Videos" color="#94a3b8" accentBg="rgba(148, 163, 184, 0.1)"
           value={fmtInt(filtered.length)}
-          allTimeLabel="total" allTimeValue={channelStats?.videoCount
-            ? fmtInt(channelStats.videoCount)
+          allTimeLabel="total" allTimeValue={resolvedStats?.videoCount
+            ? fmtInt(resolvedStats.videoCount)
             : fmtInt(allTimeKpis.count)}
           delta={<DeltaBadge current={filtered.length} previous={previousKpis.shortsMetrics.count + previousKpis.longsMetrics.count} />}
           filtered={filtered} metricKey="views"
@@ -130,8 +195,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         <KpiCard
           icon={Eye} label="Views" color="#818cf8" accentBg="rgba(129, 140, 248, 0.1)"
           value={fmtInt(kpis.views)}
-          allTimeLabel="total" allTimeValue={channelStats?.viewCount
-            ? fmtInt(channelStats.viewCount)
+          allTimeLabel="total" allTimeValue={resolvedStats?.viewCount
+            ? fmtInt(resolvedStats.viewCount)
             : fmtInt(allTimeKpis.views)}
           delta={<DeltaBadge current={kpis.views} previous={previousKpis.views} />}
           filtered={filtered} metricKey="views"
@@ -146,33 +211,21 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
           filtered={filtered} metricKey="watchHours"
         />
 
-        {/* Subscribers — uses YouTube API data when available */}
-        {(() => {
-          const apiSubs = channelStats?.subscriberCount;
-          console.log('[DashboardKPI] Subscribers debug:', {
-            channelStats,
-            channelStatsLoading,
-            apiSubs,
-            clientSubscriberCount,
-            kpisSubs: kpis.subs,
-          });
-          return (
-            <KpiCard
-              icon={Users} label="Subscribers" color="#f472b6" accentBg="rgba(244, 114, 182, 0.1)"
-              value={channelStatsLoading
-                ? "..."
-                : apiSubs
-                  ? fmtInt(apiSubs)
-                  : `${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`}
-              allTimeLabel={apiSubs ? "gained in period" : "net gained"}
-              allTimeValue={apiSubs
-                ? `${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`
-                : `${allTimeKpis.subs >= 0 ? "+" : ""}${fmtInt(allTimeKpis.subs)}`}
-              delta={<DeltaBadge current={kpis.subs} previous={previousKpis.subs} />}
-              filtered={filtered} metricKey="subscribers"
-            />
-          );
-        })()}
+        {/* Subscribers — self-contained API fetch, falls back to CSV */}
+        <KpiCard
+          icon={Users} label="Subscribers" color="#f472b6" accentBg="rgba(244, 114, 182, 0.1)"
+          value={isLoading
+            ? "..."
+            : resolvedStats?.subscriberCount
+              ? fmtInt(resolvedStats.subscriberCount)
+              : `${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`}
+          allTimeLabel={resolvedStats?.subscriberCount ? "gained in period" : "net gained"}
+          allTimeValue={resolvedStats?.subscriberCount
+            ? `${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`
+            : `${allTimeKpis.subs >= 0 ? "+" : ""}${fmtInt(allTimeKpis.subs)}`}
+          delta={<DeltaBadge current={kpis.subs} previous={previousKpis.subs} />}
+          filtered={filtered} metricKey="subscribers"
+        />
 
         {/* Avg Retention */}
         <KpiCard
