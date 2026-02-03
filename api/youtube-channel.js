@@ -97,7 +97,9 @@ export default async function handler(req, res) {
   const { apiKey: clientKey, videoIds, channelIds, handles } = req.body || {};
 
   // Prefer the server-side env var (no referrer restrictions) over the client-provided key
-  const apiKey = process.env.YOUTUBE_API_KEY || clientKey;
+  const serverKey = process.env.YOUTUBE_API_KEY;
+  const apiKey = serverKey || clientKey;
+  const keySource = serverKey ? 'env' : 'client';
 
   if (!apiKey) {
     return res.status(400).json({ error: 'apiKey required' });
@@ -107,6 +109,7 @@ export default async function handler(req, res) {
     const videoResults = {};
     const handleResults = {};
     const resolvedChannelIds = new Set(channelIds || []);
+    const _debug = { keySource, keyPrefix: apiKey.slice(0, 8) + '...' };
 
     // Step 1a: If videoIds provided, resolve them to channelIds
     if (Array.isArray(videoIds) && videoIds.length > 0) {
@@ -118,8 +121,10 @@ export default async function handler(req, res) {
         url.searchParams.append('key', apiKey);
 
         const response = await fetch(url);
+        _debug.videosStatus = response.status;
         if (response.ok) {
           const data = await response.json();
+          _debug.videosItemCount = (data.items || []).length;
           for (const item of (data.items || [])) {
             resolvedChannelIds.add(item.snippet.channelId);
             videoResults[item.id] = {
@@ -128,6 +133,9 @@ export default async function handler(req, res) {
               channelTitle: item.snippet.channelTitle,
             };
           }
+        } else {
+          const errBody = await response.text();
+          _debug.videosError = errBody.slice(0, 300);
         }
       }
     }
@@ -178,7 +186,7 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ videoResults, handleResults, channels });
+    return res.status(200).json({ videoResults, handleResults, channels, _debug });
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Internal server error' });
   }

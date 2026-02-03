@@ -128,8 +128,10 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
 
         if (!response.ok || cancelled) return;
 
-        const { videoResults = {}, channels = {} } = await response.json();
+        const { videoResults = {}, channels = {}, _debug } = await response.json();
         if (cancelled) return;
+
+        console.log('[DashboardKPI] Proxy debug:', _debug);
 
         // Find the first resolved channel from any video
         let stats = null;
