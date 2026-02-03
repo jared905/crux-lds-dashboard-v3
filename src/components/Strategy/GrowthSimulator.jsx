@@ -456,7 +456,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
                   {Object.entries(channelSubscriberMap).map(([name, stats]) => (
                     <div key={name} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#9E9E9E' }}>
                       <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#60a5fa', flexShrink: 0 }} />
-                      <span style={{ fontWeight: '600', color: '#E0E0E0' }}>{stats.title || name}</span>
+                      <span style={{ fontWeight: '600', color: '#E0E0E0' }}>{name}</span>
                       <span>{fmtInt(stats.subscriberCount)}</span>
                     </div>
                   ))}
