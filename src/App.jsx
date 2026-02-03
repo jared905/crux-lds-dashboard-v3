@@ -198,32 +198,32 @@ export default function App() {
       try {
         const uniqueChannels = [...new Set(rows.map(r => r.channel).filter(Boolean))];
         const isMultiChannel = uniqueChannels.length > 1;
-
-        // Collect one video ID per channel for resolution
-        const videoIdsByChannel = {};
-        for (const chName of uniqueChannels) {
-          const chRows = selectedChannel !== "all" && selectedChannel !== chName ? [] :
-            rows.filter(r => r.channel === chName);
-          const video = chRows.find(r => r.youtubeVideoId && !r.isTotal);
-          if (video) videoIdsByChannel[chName] = video.youtubeVideoId;
-        }
+        const urlsMap = activeClient?.channelUrlsMap || {};
 
         // If viewing a single channel, only resolve that one
         const targetChannels = selectedChannel !== "all"
           ? uniqueChannels.filter(c => c === selectedChannel)
           : uniqueChannels;
 
-        const allVideoIds = targetChannels
-          .map(ch => videoIdsByChannel[ch])
-          .filter(Boolean);
+        // Collect one video ID per channel for resolution
+        const videoIdsByChannel = {};
+        for (const chName of targetChannels) {
+          const chRows = rows.filter(r => r.channel === chName);
+          const video = chRows.find(r => r.youtubeVideoId && !r.isTotal);
+          if (video) videoIdsByChannel[chName] = video.youtubeVideoId;
+        }
 
-        console.log('[SubFetch] Target channels:', targetChannels);
-        console.log('[SubFetch] Video IDs by channel:', videoIdsByChannel);
-        console.log('[SubFetch] Video IDs to resolve:', allVideoIds);
+        const allVideoIds = Object.values(videoIdsByChannel).filter(Boolean);
 
-        if (allVideoIds.length === 0) {
-          console.warn('[SubFetch] No video IDs found in rows — falling back');
-          // No video IDs available — fall back to client-side API calls
+        // Build handles list for channels without video IDs
+        const handles = [];
+        for (const chName of targetChannels) {
+          if (videoIdsByChannel[chName]) continue; // already have a video ID
+          const url = urlsMap[chName] || activeClient?.youtubeChannelUrl;
+          if (url) handles.push({ name: chName, url });
+        }
+
+        if (allVideoIds.length === 0 && handles.length === 0) {
           if (!cancelled) {
             setChannelStats(null);
             setAllChannelStats({});
@@ -231,11 +231,15 @@ export default function App() {
           return;
         }
 
-        // Single server-side proxy call: resolves video IDs → channel IDs → channel stats
+        // Single server-side proxy call
+        const body = { apiKey: youtubeAPI.apiKey };
+        if (allVideoIds.length > 0) body.videoIds = allVideoIds;
+        if (handles.length > 0) body.handles = handles;
+
         const response = await fetch('/api/youtube-channel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey: youtubeAPI.apiKey, videoIds: allVideoIds }),
+          body: JSON.stringify(body),
         });
 
         if (!response.ok) {
@@ -247,18 +251,25 @@ export default function App() {
           return;
         }
 
-        const { videoResults, channels } = await response.json();
-        console.log('[SubFetch] Proxy response — videoResults:', videoResults);
-        console.log('[SubFetch] Proxy response — channels:', channels);
+        const { videoResults = {}, handleResults = {}, channels = {} } = await response.json();
         if (cancelled) return;
 
         // Map each channel name to its YouTube channel stats (deduplicate by channelId)
         const seenYtIds = new Set();
         const statsMap = {};
         for (const chName of targetChannels) {
+          let ytChannelId = null;
+
+          // Try video-based resolution first
           const vid = videoIdsByChannel[chName];
-          if (!vid || !videoResults[vid]) continue;
-          const ytChannelId = videoResults[vid].channelId;
+          if (vid && videoResults[vid]) {
+            ytChannelId = videoResults[vid].channelId;
+          }
+          // Try handle-based resolution
+          if (!ytChannelId && handleResults[chName]) {
+            ytChannelId = handleResults[chName].channelId;
+          }
+
           if (!ytChannelId || !channels[ytChannelId]) continue;
           if (seenYtIds.has(ytChannelId)) continue;
           seenYtIds.add(ytChannelId);
@@ -267,11 +278,8 @@ export default function App() {
 
         if (cancelled) return;
 
-        console.log('[SubFetch] Final statsMap:', JSON.stringify(statsMap, null, 2));
-
         if (selectedChannel !== "all" || !isMultiChannel) {
           const chName = targetChannels[0];
-          console.log('[SubFetch] Single channel mode — setting stats for:', chName, statsMap[chName]);
           setChannelStats(statsMap[chName] || null);
           setAllChannelStats({});
         } else {
@@ -279,11 +287,8 @@ export default function App() {
           const totalSubs = Object.values(statsMap).reduce(
             (sum, s) => sum + (s.subscriberCount || 0), 0
           );
-          console.log('[SubFetch] Multi-channel mode — total subs:', totalSubs, 'from', Object.entries(statsMap).map(([n,s]) => `${n}: ${s.subscriberCount}`));
           setChannelStats({ subscriberCount: totalSubs });
         }
-
-        youtubeAPI.trackQuota(allVideoIds.length > 0 ? 2 : 0);
       } catch (err) {
         console.warn('Failed to fetch channel stats:', err);
         if (!cancelled) setChannelStats(null);
@@ -294,7 +299,7 @@ export default function App() {
 
     fetchChannelStats();
     return () => { cancelled = true; };
-  }, [rows, selectedChannel]);
+  }, [rows, selectedChannel, activeClient?.youtubeChannelUrl, activeClient?.channelUrlsMap]);
 
   const handleClientsUpdate = (updatedClients) => {
     setClients(updatedClients);
