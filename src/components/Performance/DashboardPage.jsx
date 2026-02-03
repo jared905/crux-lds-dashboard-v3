@@ -94,20 +94,21 @@ function KpiCard({ icon: Icon, label, value, allTimeLabel, allTimeValue, color, 
 
 export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric, channelStats }) {
   // Self-contained YouTube API fetch for channel stats (subscribers, views, videoCount)
-  // This runs independently of the parent's channelStats to avoid race conditions
   const [localChannelStats, setLocalChannelStats] = useState(null);
   const [localLoading, setLocalLoading] = useState(false);
   const fetchedForRef = useRef(null);
 
   useEffect(() => {
-    // Find a video ID from the rows to resolve the channel
-    const videoRow = rows.find(r => r.youtubeVideoId && !r.isTotal);
-    if (!videoRow) return;
+    // Collect up to 10 unique video IDs (some may be deleted/private, so send a batch)
+    const videoIds = [...new Set(
+      rows.filter(r => r.youtubeVideoId && !r.isTotal)
+          .map(r => r.youtubeVideoId)
+    )].slice(0, 10);
 
-    const videoId = videoRow.youtubeVideoId;
-
-    // Don't re-fetch if we already fetched for this video ID
-    if (fetchedForRef.current === videoId) return;
+    // Build a stable key from sorted video IDs to avoid redundant fetches
+    const fetchKey = videoIds.sort().join(',');
+    if (!fetchKey) return;
+    if (fetchedForRef.current === fetchKey) return;
 
     const apiKey = youtubeAPI.apiKey || youtubeAPI.loadAPIKey();
     if (!apiKey) return;
@@ -117,10 +118,12 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
 
     (async () => {
       try {
+        console.log('[DashboardKPI] Fetching with', videoIds.length, 'video IDs:', videoIds);
+
         const response = await fetch('/api/youtube-channel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey, videoIds: [videoId] }),
+          body: JSON.stringify({ apiKey, videoIds }),
         });
 
         if (!response.ok || cancelled) return;
@@ -128,23 +131,31 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         const { videoResults = {}, channels = {} } = await response.json();
         if (cancelled) return;
 
-        const channelId = videoResults[videoId]?.channelId;
-        const stats = channelId ? channels[channelId] : null;
+        // Find the first resolved channel from any video
+        let stats = null;
+        for (const vid of videoIds) {
+          const chId = videoResults[vid]?.channelId;
+          if (chId && channels[chId]) {
+            stats = channels[chId];
+            break;
+          }
+        }
 
-        console.log('[DashboardKPI] Direct fetch result:', {
-          videoId,
-          channelId,
+        console.log('[DashboardKPI] Fetch result:', {
+          videoIdsSent: videoIds.length,
+          videosResolved: Object.keys(videoResults).length,
+          channelsFound: Object.keys(channels).length,
           subscriberCount: stats?.subscriberCount,
           viewCount: stats?.viewCount,
           videoCount: stats?.videoCount,
         });
 
         if (stats && !cancelled) {
-          fetchedForRef.current = videoId;
+          fetchedForRef.current = fetchKey;
           setLocalChannelStats(stats);
         }
       } catch (err) {
-        console.warn('[DashboardKPI] Direct fetch failed:', err);
+        console.warn('[DashboardKPI] Fetch failed:', err);
       } finally {
         if (!cancelled) setLocalLoading(false);
       }

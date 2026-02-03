@@ -214,28 +214,27 @@ export default function App() {
         return;
       }
 
-      // Collect one video ID per channel for resolution
+      // Collect multiple video IDs per channel for resolution (some may be deleted/private)
       const videoIdsByChannel = {};
       for (const chName of targetChannels) {
         const chRows = rows.filter(r => r.channel === chName);
-        const video = chRows.find(r => r.youtubeVideoId && !r.isTotal);
-        if (video) videoIdsByChannel[chName] = video.youtubeVideoId;
+        const ids = [...new Set(chRows.filter(r => r.youtubeVideoId && !r.isTotal).map(r => r.youtubeVideoId))].slice(0, 5);
+        if (ids.length > 0) videoIdsByChannel[chName] = ids;
       }
 
-      const allVideoIds = Object.values(videoIdsByChannel).filter(Boolean);
+      const allVideoIds = Object.values(videoIdsByChannel).flat().filter(Boolean);
 
-      // Build handles list for channels without video IDs
+      // Build handles list for channels without video IDs — also as fallback for ALL channels
       const handles = [];
       for (const chName of targetChannels) {
-        if (videoIdsByChannel[chName]) continue; // already have a video ID
         const url = urlsMap[chName];
         if (url) {
           handles.push({ name: chName, url });
         } else if (!isMultiChannel && activeClient?.youtubeChannelUrl) {
           // Single-channel: fall back to the main channel URL
           handles.push({ name: chName, url: activeClient.youtubeChannelUrl });
-        } else {
-          // Multi-channel with no per-channel URL: use channel name as search query
+        } else if (!videoIdsByChannel[chName]?.length) {
+          // No video IDs and no URL: use channel name as search query
           handles.push({ name: chName, url: chName });
         }
       }
@@ -280,10 +279,13 @@ export default function App() {
         for (const chName of targetChannels) {
           let ytChannelId = null;
 
-          // Try video-based resolution first
-          const vid = videoIdsByChannel[chName];
-          if (vid && videoResults[vid]) {
-            ytChannelId = videoResults[vid].channelId;
+          // Try video-based resolution first (check all video IDs for this channel)
+          const vids = videoIdsByChannel[chName] || [];
+          for (const vid of vids) {
+            if (videoResults[vid]) {
+              ytChannelId = videoResults[vid].channelId;
+              break;
+            }
           }
           // Try handle-based resolution
           if (!ytChannelId && handleResults[chName]) {
