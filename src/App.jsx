@@ -217,7 +217,12 @@ export default function App() {
           .map(ch => videoIdsByChannel[ch])
           .filter(Boolean);
 
+        console.log('[SubFetch] Target channels:', targetChannels);
+        console.log('[SubFetch] Video IDs by channel:', videoIdsByChannel);
+        console.log('[SubFetch] Video IDs to resolve:', allVideoIds);
+
         if (allVideoIds.length === 0) {
+          console.warn('[SubFetch] No video IDs found in rows — falling back');
           // No video IDs available — fall back to client-side API calls
           if (!cancelled) {
             setChannelStats(null);
@@ -243,6 +248,8 @@ export default function App() {
         }
 
         const { videoResults, channels } = await response.json();
+        console.log('[SubFetch] Proxy response — videoResults:', videoResults);
+        console.log('[SubFetch] Proxy response — channels:', channels);
         if (cancelled) return;
 
         // Map each channel name to its YouTube channel stats (deduplicate by channelId)
@@ -260,8 +267,11 @@ export default function App() {
 
         if (cancelled) return;
 
+        console.log('[SubFetch] Final statsMap:', JSON.stringify(statsMap, null, 2));
+
         if (selectedChannel !== "all" || !isMultiChannel) {
           const chName = targetChannels[0];
+          console.log('[SubFetch] Single channel mode — setting stats for:', chName, statsMap[chName]);
           setChannelStats(statsMap[chName] || null);
           setAllChannelStats({});
         } else {
@@ -269,6 +279,7 @@ export default function App() {
           const totalSubs = Object.values(statsMap).reduce(
             (sum, s) => sum + (s.subscriberCount || 0), 0
           );
+          console.log('[SubFetch] Multi-channel mode — total subs:', totalSubs, 'from', Object.entries(statsMap).map(([n,s]) => `${n}: ${s.subscriberCount}`));
           setChannelStats({ subscriberCount: totalSubs });
         }
 
