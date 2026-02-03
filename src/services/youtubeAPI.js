@@ -517,36 +517,68 @@ class YouTubeAPIService {
     if (!this.apiKey || !input) return null;
 
     const trimmed = input.trim();
+
+    // --- Direct ID resolution (no forHandle needed) ---
+    if (trimmed.match(/^UC[\w-]{22}$/)) {
+      return this._fetchChannelStatsById(trimmed);
+    }
+    if (trimmed.includes('youtube.com/channel/')) {
+      const id = trimmed.split('youtube.com/channel/')[1].split(/[?/]/)[0];
+      return this._fetchChannelStatsById(id);
+    }
+
+    // --- Extract handle from various URL formats ---
+    let handle = null;
+    if (trimmed.includes('youtube.com/@')) {
+      handle = trimmed.split('@')[1].split(/[?/]/)[0];
+    } else if (trimmed.startsWith('@')) {
+      handle = trimmed.slice(1).split(/[?/]/)[0];
+    } else if (trimmed.includes('youtube.com/c/')) {
+      handle = trimmed.split('youtube.com/c/')[1].split(/[?/]/)[0];
+    } else if (trimmed.includes('youtube.com/user/')) {
+      handle = trimmed.split('youtube.com/user/')[1].split(/[?/]/)[0];
+    } else if (trimmed.length > 2 && !trimmed.includes('/')) {
+      handle = trimmed;
+    }
+
+    if (!handle) return null;
+
+    // Try forHandle first (1 quota unit)
+    const forHandleUrl = new URL(`${YOUTUBE_API_BASE}/channels`);
+    forHandleUrl.searchParams.append('part', 'statistics,snippet');
+    forHandleUrl.searchParams.append('key', this.apiKey);
+    forHandleUrl.searchParams.append('forHandle', handle);
+
+    try {
+      const response = await fetch(forHandleUrl);
+      if (response.ok) {
+        const data = await response.json();
+        this.trackQuota(1);
+        if (data.items && data.items.length > 0) {
+          return this._parseChannelStatsItem(data.items[0]);
+        }
+      }
+    } catch { /* forHandle failed, try search fallback */ }
+
+    // Fallback: use search.list to resolve handle → channelId, then channels.list
+    try {
+      const channelId = await this._searchForChannel('@' + handle);
+      if (channelId) {
+        return this._fetchChannelStatsById(channelId);
+      }
+    } catch {
+      // search also failed
+    }
+
+    return null;
+  }
+
+  /** Fetch channel stats by a known UC channel ID. */
+  async _fetchChannelStatsById(channelId) {
     const url = new URL(`${YOUTUBE_API_BASE}/channels`);
     url.searchParams.append('part', 'statistics,snippet');
+    url.searchParams.append('id', channelId);
     url.searchParams.append('key', this.apiKey);
-
-    // Determine the right parameter based on URL format
-    if (trimmed.match(/^UC[\w-]{22}$/)) {
-      url.searchParams.append('id', trimmed);
-    } else if (trimmed.includes('youtube.com/channel/')) {
-      const id = trimmed.split('youtube.com/channel/')[1].split(/[?/]/)[0];
-      url.searchParams.append('id', id);
-    } else {
-      // Extract handle from various URL formats
-      let handle = null;
-      if (trimmed.includes('youtube.com/@')) {
-        handle = trimmed.split('@')[1].split(/[?/]/)[0];
-      } else if (trimmed.startsWith('@')) {
-        handle = trimmed.slice(1).split(/[?/]/)[0];
-      } else if (trimmed.includes('youtube.com/c/')) {
-        handle = trimmed.split('youtube.com/c/')[1].split(/[?/]/)[0];
-      } else if (trimmed.includes('youtube.com/user/')) {
-        handle = trimmed.split('youtube.com/user/')[1].split(/[?/]/)[0];
-      } else if (trimmed.length > 2 && !trimmed.includes('/')) {
-        handle = trimmed;
-      }
-      if (handle) {
-        url.searchParams.append('forHandle', handle);
-      } else {
-        return null;
-      }
-    }
 
     const response = await fetch(url);
     if (!response.ok) return null;
@@ -555,8 +587,11 @@ class YouTubeAPIService {
     this.trackQuota(1);
 
     if (!data.items || data.items.length === 0) return null;
+    return this._parseChannelStatsItem(data.items[0]);
+  }
 
-    const item = data.items[0];
+  /** Parse a channels.list response item into our standard stats shape. */
+  _parseChannelStatsItem(item) {
     return {
       channelId: item.id,
       title: item.snippet.title,
