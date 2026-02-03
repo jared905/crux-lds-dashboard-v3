@@ -94,7 +94,10 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { apiKey, videoIds, channelIds, handles } = req.body || {};
+  const { apiKey: clientKey, videoIds, channelIds, handles } = req.body || {};
+
+  // Prefer the server-side env var (no referrer restrictions) over the client-provided key
+  const apiKey = process.env.YOUTUBE_API_KEY || clientKey;
 
   if (!apiKey) {
     return res.status(400).json({ error: 'apiKey required' });
