@@ -138,7 +138,7 @@ async function cacheChannelStats(channelData) {
  * Resolves video IDs → channel via the videos table, handles via custom_url,
  * and direct channel IDs. Then reads cached stats from channels + channel_snapshots.
  */
-async function getCachedStats(videoIds, channelIds, handles) {
+async function getCachedStats(videoIds, channelIds, handles, clientSupabaseId) {
   const channels = {};
   const videoResults = {};
   const handleResults = {};
@@ -146,8 +146,22 @@ async function getCachedStats(videoIds, channelIds, handles) {
   try {
     const resolvedChannelDbIds = new Set();
 
+    // Strategy 0 (fastest): Direct lookup by Supabase channel UUID
+    if (clientSupabaseId) {
+      const { data: directChannel } = await supabase
+        .from('channels')
+        .select('id')
+        .eq('id', clientSupabaseId)
+        .limit(1);
+
+      if (directChannel && directChannel.length > 0) {
+        console.log('[Cache] Matched via clientSupabaseId:', clientSupabaseId);
+        resolvedChannelDbIds.add(directChannel[0].id);
+      }
+    }
+
     // Strategy 1: Resolve video IDs via the videos table (thumbnail_url contains real YT video IDs)
-    if (videoIds && videoIds.length > 0) {
+    if (resolvedChannelDbIds.size === 0 && videoIds && videoIds.length > 0) {
       for (const vid of videoIds) {
         const { data: videoRows } = await supabase
           .from('videos')
@@ -162,7 +176,7 @@ async function getCachedStats(videoIds, channelIds, handles) {
     }
 
     // Strategy 2: Resolve handles/URLs via multiple matching approaches
-    if (handles && handles.length > 0) {
+    if (resolvedChannelDbIds.size === 0 && handles && handles.length > 0) {
       for (const { name, url: handleUrl } of handles) {
         if (!handleUrl) continue;
         console.log('[Cache] Resolving handle:', { name, url: handleUrl });
@@ -346,7 +360,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { apiKey: clientKey, videoIds, channelIds, handles } = req.body || {};
+  const { apiKey: clientKey, videoIds, channelIds, handles, clientSupabaseId } = req.body || {};
 
   // Prefer the server-side env var (no referrer restrictions) over the client-provided key
   const serverKey = process.env.YOUTUBE_API_KEY;
@@ -417,7 +431,8 @@ export default async function handler(req, res) {
       const cached = await getCachedStats(
         Array.isArray(videoIds) ? videoIds : [],
         [...resolvedChannelIds],
-        Array.isArray(handles) ? handles : []
+        Array.isArray(handles) ? handles : [],
+        clientSupabaseId
       );
       _debug.cachedChannelsFound = Object.keys(cached.channels).length;
       _debug.cachedHandleResults = Object.keys(cached.handleResults);

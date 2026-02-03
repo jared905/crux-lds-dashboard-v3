@@ -806,6 +806,7 @@ export default function App() {
                 channelStats={channelStats}
                 youtubeChannelUrl={activeClient?.youtubeChannelUrl}
                 channelUrlsMap={activeClient?.channelUrlsMap}
+                clientSupabaseId={activeClient?.supabaseId || activeClient?.id}
               />
             )}
 

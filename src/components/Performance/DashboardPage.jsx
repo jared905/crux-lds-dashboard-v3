@@ -92,7 +92,7 @@ function KpiCard({ icon: Icon, label, value, allTimeLabel, allTimeValue, color, 
   );
 }
 
-export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric, channelStats, youtubeChannelUrl, channelUrlsMap }) {
+export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric, channelStats, youtubeChannelUrl, channelUrlsMap, clientSupabaseId }) {
   // Self-contained YouTube API fetch for channel stats (subscribers, views, videoCount)
   // Falls back to Supabase cache when YouTube API quota is exhausted (403)
   const [localChannelStats, setLocalChannelStats] = useState(null);
@@ -136,6 +136,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
 
         const body = { apiKey, videoIds };
         if (handles.length > 0) body.handles = handles;
+        if (clientSupabaseId) body.clientSupabaseId = clientSupabaseId;
 
         const response = await fetch('/api/youtube-channel', {
           method: 'POST',
