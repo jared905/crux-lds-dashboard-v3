@@ -142,25 +142,20 @@ async function getCachedStats(videoIds, channelIds, handles, clientSupabaseId) {
   const channels = {};
   const videoResults = {};
   const handleResults = {};
-  const _cacheDebug = { strategies: [] };
-
   try {
     const resolvedChannelDbIds = new Set();
 
     // Strategy 0: Direct lookup by Supabase channel UUID or client_id
     if (clientSupabaseId) {
-      // Try as UUID first
-      const { data: byId, error: byIdErr } = await supabase
+      const { data: byId } = await supabase
         .from('channels')
         .select('id')
         .eq('id', clientSupabaseId)
         .limit(1);
 
       if (byId && byId.length > 0) {
-        _cacheDebug.strategies.push('s0_uuid_match');
         resolvedChannelDbIds.add(byId[0].id);
       } else {
-        // Try as client_id field
         const { data: byClientId } = await supabase
           .from('channels')
           .select('id')
@@ -168,33 +163,21 @@ async function getCachedStats(videoIds, channelIds, handles, clientSupabaseId) {
           .limit(1);
 
         if (byClientId && byClientId.length > 0) {
-          _cacheDebug.strategies.push('s0_client_id_match');
           resolvedChannelDbIds.add(byClientId[0].id);
-        } else {
-          _cacheDebug.strategies.push('s0_no_match');
-          _cacheDebug.s0Error = byIdErr?.message || null;
         }
       }
     }
 
     // Strategy 1: Resolve video IDs via the videos table
     if (resolvedChannelDbIds.size === 0 && videoIds && videoIds.length > 0) {
-      const firstVid = videoIds[0];
-      const { data: videoRows, error: vidErr } = await supabase
+      const { data: videoRows } = await supabase
         .from('videos')
         .select('channel_id, thumbnail_url')
-        .like('thumbnail_url', `%${firstVid}%`)
+        .like('thumbnail_url', `%${videoIds[0]}%`)
         .limit(1);
-
-      _cacheDebug.s1_query = firstVid;
-      _cacheDebug.s1_results = videoRows?.length || 0;
-      _cacheDebug.s1_error = vidErr?.message || null;
 
       if (videoRows && videoRows.length > 0) {
         resolvedChannelDbIds.add(videoRows[0].channel_id);
-        _cacheDebug.strategies.push('s1_video_match');
-      } else {
-        _cacheDebug.strategies.push('s1_no_match');
       }
     }
 
@@ -208,8 +191,6 @@ async function getCachedStats(videoIds, channelIds, handles, clientSupabaseId) {
         } else if (handleUrl.startsWith('@')) {
           handle = handleUrl.slice(1);
         }
-        _cacheDebug.s2_handle = handle;
-        _cacheDebug.s2_handleIdQuery = handle ? `handle_${handle}` : null;
 
         // 2a: Exact custom_url match
         const { data: byUrl } = await supabase
@@ -221,7 +202,6 @@ async function getCachedStats(videoIds, channelIds, handles, clientSupabaseId) {
         if (byUrl && byUrl.length > 0) {
           resolvedChannelDbIds.add(byUrl[0].id);
           handleResults[name] = { channelId: byUrl[0].youtube_channel_id, input: handleUrl };
-          _cacheDebug.strategies.push('s2a_exact_url');
         } else if (handle) {
           // 2b: ilike custom_url
           const { data: byHandle } = await supabase
@@ -233,47 +213,32 @@ async function getCachedStats(videoIds, channelIds, handles, clientSupabaseId) {
           if (byHandle && byHandle.length > 0) {
             resolvedChannelDbIds.add(byHandle[0].id);
             handleResults[name] = { channelId: byHandle[0].youtube_channel_id, input: handleUrl };
-            _cacheDebug.strategies.push('s2b_ilike_url');
           } else {
-            // 2b2: handle_ ID match
-            const { data: byHandleId, error: handleErr } = await supabase
+            // 2c: handle_ ID match
+            const { data: byHandleId } = await supabase
               .from('channels')
               .select('id, youtube_channel_id')
               .eq('youtube_channel_id', `handle_${handle}`)
               .limit(1);
 
-            _cacheDebug.s2b_handleIdResults = byHandleId?.length || 0;
-            _cacheDebug.s2b_handleIdError = handleErr?.message || null;
-
             if (byHandleId && byHandleId.length > 0) {
               resolvedChannelDbIds.add(byHandleId[0].id);
               handleResults[name] = { channelId: byHandleId[0].youtube_channel_id, input: handleUrl };
-              _cacheDebug.strategies.push('s2b_handle_id');
-            } else {
-              _cacheDebug.strategies.push('s2b_no_match');
             }
           }
         }
 
-        // 2d: Last resort — list all non-competitor channels
+        // 2d: Last resort — first non-competitor channel
         if (resolvedChannelDbIds.size === 0) {
           const { data: clientChannels } = await supabase
             .from('channels')
-            .select('id, youtube_channel_id, name, custom_url')
+            .select('id, youtube_channel_id')
             .eq('is_competitor', false)
-            .limit(10);
+            .limit(1);
 
-          _cacheDebug.s2d_clientChannels = clientChannels?.map(c => ({
-            ytId: c.youtube_channel_id,
-            name: c.name,
-            customUrl: c.custom_url?.slice(0, 50),
-          })) || [];
-
-          // Use first client channel as fallback
           if (clientChannels && clientChannels.length > 0) {
             resolvedChannelDbIds.add(clientChannels[0].id);
             handleResults[name] = { channelId: clientChannels[0].youtube_channel_id, input: handleUrl };
-            _cacheDebug.strategies.push('s2d_first_client');
           }
         }
       }
@@ -291,7 +256,7 @@ async function getCachedStats(videoIds, channelIds, handles, clientSupabaseId) {
       }
     }
 
-    if (resolvedChannelDbIds.size === 0) return { channels, videoResults, handleResults, _cacheDebug };
+    if (resolvedChannelDbIds.size === 0) return { channels, videoResults, handleResults };
 
     const dbIds = [...resolvedChannelDbIds];
 
@@ -339,7 +304,7 @@ async function getCachedStats(videoIds, channelIds, handles, clientSupabaseId) {
     console.warn('[Cache] Failed to read cached stats:', err.message);
   }
 
-  return { channels, videoResults, handleResults, _cacheDebug };
+  return { channels, videoResults, handleResults };
 }
 
 export default async function handler(req, res) {
@@ -371,7 +336,7 @@ export default async function handler(req, res) {
     const videoResults = {};
     const handleResults = {};
     const resolvedChannelIds = new Set(channelIds || []);
-    const _debug = { keySource, keyPrefix: apiKey.slice(0, 8) + '...', clientSupabaseId: clientSupabaseId || null };
+    const _debug = { keySource };
     let quotaExhausted = false;
 
     // Step 1a: If videoIds provided, resolve them to channelIds
@@ -384,10 +349,8 @@ export default async function handler(req, res) {
         url.searchParams.append('key', apiKey);
 
         const response = await fetch(url);
-        _debug.videosStatus = response.status;
         if (response.ok) {
           const data = await response.json();
-          _debug.videosItemCount = (data.items || []).length;
           for (const item of (data.items || [])) {
             resolvedChannelIds.add(item.snippet.channelId);
             videoResults[item.id] = {
@@ -398,8 +361,6 @@ export default async function handler(req, res) {
           }
         } else {
           if (response.status === 403) quotaExhausted = true;
-          const errBody = await response.text();
-          _debug.videosError = errBody.slice(0, 300);
         }
       }
     }
@@ -422,17 +383,12 @@ export default async function handler(req, res) {
     // If quota is exhausted, fall back to Supabase cached stats
     if (quotaExhausted) {
       _debug.fallback = 'supabase_cache';
-      _debug.handlesReceived = Array.isArray(handles) ? handles.map(h => h.url) : [];
-      _debug.videoIdsReceived = Array.isArray(videoIds) ? videoIds.length : 0;
       const cached = await getCachedStats(
         Array.isArray(videoIds) ? videoIds : [],
         [...resolvedChannelIds],
         Array.isArray(handles) ? handles : [],
         clientSupabaseId
       );
-      _debug.cachedChannelsFound = Object.keys(cached.channels).length;
-      _debug.cachedHandleResults = Object.keys(cached.handleResults);
-      _debug.cacheDebug = cached._cacheDebug || {};
       return res.status(200).json({
         videoResults: cached.videoResults,
         handleResults: { ...handleResults, ...cached.handleResults },
@@ -457,10 +413,9 @@ export default async function handler(req, res) {
         if (!response.ok) {
           if (response.status === 403) {
             // Quota exhausted mid-request — fall back to cache
-            _debug.fallback = 'supabase_cache_channels';
+            _debug.fallback = 'supabase_cache_partial';
             const cached = await getCachedStats(null, batch);
             Object.assign(channels, cached.channels);
-            _debug.cachedChannelsFound = Object.keys(cached.channels).length;
             continue;
           }
           continue;

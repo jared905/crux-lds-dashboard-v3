@@ -132,8 +132,6 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
 
     (async () => {
       try {
-        console.log('[DashboardKPI] Fetching with', videoIds.length, 'video IDs,', handles.length, 'handles, clientSupabaseId:', clientSupabaseId);
-
         const body = { apiKey, videoIds };
         if (handles.length > 0) body.handles = handles;
         if (clientSupabaseId) body.clientSupabaseId = clientSupabaseId;
@@ -146,10 +144,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
 
         if (!response.ok || cancelled) return;
 
-        const { videoResults = {}, channels = {}, handleResults = {}, _debug } = await response.json();
+        const { videoResults = {}, channels = {}, handleResults = {} } = await response.json();
         if (cancelled) return;
-
-        console.log('[DashboardKPI] Proxy debug:', _debug);
 
         // Find channel stats: try video results first, then handle results, then any channel
         let stats = null;
@@ -166,15 +162,6 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
           const firstChannel = Object.values(channels)[0];
           if (firstChannel) stats = firstChannel;
         }
-
-        console.log('[DashboardKPI] Result:', {
-          videoIdsSent: videoIds.length,
-          videosResolved: Object.keys(videoResults).length,
-          channelsFound: Object.keys(channels).length,
-          subscriberCount: stats?.subscriberCount,
-          cached: stats?.cached || false,
-          fallback: _debug?.fallback || 'none',
-        });
 
         if (stats && !cancelled) {
           fetchedForRef.current = fetchKey;
