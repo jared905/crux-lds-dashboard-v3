@@ -231,7 +231,10 @@ export default function App() {
           }
         }
 
+        console.log('[SubFetch] handles:', handles.length, 'videoIds:', allVideoIds.length, 'urlsMap keys:', Object.keys(urlsMap).length);
+
         if (allVideoIds.length === 0 && handles.length === 0) {
+          console.log('[SubFetch] No video IDs or handles — skipping proxy call');
           if (!cancelled) {
             setChannelStats(null);
             setAllChannelStats({});
@@ -260,6 +263,11 @@ export default function App() {
         }
 
         const { videoResults = {}, handleResults = {}, channels = {} } = await response.json();
+        console.log('[SubFetch] Proxy response:', {
+          handleResults: Object.keys(handleResults).length,
+          channels: Object.keys(channels).length,
+          channelSubs: Object.fromEntries(Object.values(channels).map(c => [c.title, c.subscriberCount]))
+        });
         if (cancelled) return;
 
         // Map each channel name to its YouTube channel stats (deduplicate by channelId)
@@ -286,6 +294,8 @@ export default function App() {
 
         if (cancelled) return;
 
+        console.log('[SubFetch] statsMap:', Object.fromEntries(Object.entries(statsMap).map(([name, s]) => [name, s.subscriberCount])));
+
         if (selectedChannel !== "all" || !isMultiChannel) {
           const chName = targetChannels[0];
           setChannelStats(statsMap[chName] || null);
@@ -295,6 +305,7 @@ export default function App() {
           const totalSubs = Object.values(statsMap).reduce(
             (sum, s) => sum + (s.subscriberCount || 0), 0
           );
+          console.log('[SubFetch] Total subscriber sum:', totalSubs);
           setChannelStats({ subscriberCount: totalSubs });
         }
       } catch (err) {
