@@ -183,8 +183,12 @@ export default function App() {
 
   // Resolve a YouTube channel ID from a video row or a channel URL fallback
   const resolveChannelIdFromVideo = async (video) => {
-    const videoStats = await youtubeAPI.getVideoStats(video.youtubeVideoId);
-    return videoStats.channelId || null;
+    try {
+      const videoStats = await youtubeAPI.getVideoStats(video.youtubeVideoId);
+      return videoStats.channelId || null;
+    } catch {
+      return null;
+    }
   };
 
   const resolveChannelIdFromUrl = async (url) => {
@@ -291,7 +295,7 @@ export default function App() {
     };
 
     fetchChannelStats();
-  }, [rows, selectedChannel, activeClient?.youtubeChannelUrl]);
+  }, [rows, selectedChannel, activeClient?.youtubeChannelUrl, activeClient?.channelUrlsMap]);
 
   const handleClientsUpdate = (updatedClients) => {
     setClients(updatedClients);
