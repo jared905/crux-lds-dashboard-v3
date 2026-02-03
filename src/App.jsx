@@ -804,6 +804,8 @@ export default function App() {
                 chartMetric={chartMetric}
                 setChartMetric={setChartMetric}
                 channelStats={channelStats}
+                youtubeChannelUrl={activeClient?.youtubeChannelUrl}
+                channelUrlsMap={activeClient?.channelUrlsMap}
               />
             )}
 
