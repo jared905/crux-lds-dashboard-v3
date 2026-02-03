@@ -181,12 +181,11 @@ export default function App() {
     }
   }, [activeClient?.id]);
 
-  // Fetch channel stats from YouTube API for the currently selected channel
+  // Fetch channel stats via server-side proxy (bypasses API key referrer restrictions)
   useEffect(() => {
     let cancelled = false;
 
     const fetchChannelStats = async () => {
-      // Re-read API key in case it was set after the singleton was constructed
       if (!youtubeAPI.apiKey) {
         youtubeAPI.apiKey = youtubeAPI.loadAPIKey();
       }
@@ -199,90 +198,81 @@ export default function App() {
       try {
         const uniqueChannels = [...new Set(rows.map(r => r.channel).filter(Boolean))];
         const isMultiChannel = uniqueChannels.length > 1;
-        const urlsMap = activeClient?.channelUrlsMap || {};
 
-        // Cache resolved channel stats by channelId to avoid duplicate API calls
-        const channelIdCache = new Map();
+        // Collect one video ID per channel for resolution
+        const videoIdsByChannel = {};
+        for (const chName of uniqueChannels) {
+          const chRows = selectedChannel !== "all" && selectedChannel !== chName ? [] :
+            rows.filter(r => r.channel === chName);
+          const video = chRows.find(r => r.youtubeVideoId && !r.isTotal);
+          if (video) videoIdsByChannel[chName] = video.youtubeVideoId;
+        }
 
-        // Get stats for a channel — prioritise video-based resolution (proven to work)
-        // over URL/handle resolution (forHandle returns 403 on some API keys)
-        const getStatsForChannel = async (chName, sourceRows) => {
-          // 1. Try resolving from a video ID (videos.list + channels.list by ID — reliable)
-          const video = sourceRows.find(r => r.youtubeVideoId && !r.isTotal);
-          if (video) {
-            try {
-              const videoStats = await youtubeAPI.getVideoStats(video.youtubeVideoId);
-              if (videoStats.channelId) {
-                if (channelIdCache.has(videoStats.channelId)) {
-                  return channelIdCache.get(videoStats.channelId);
-                }
-                const stats = await youtubeAPI.getChannelStats(videoStats.channelId);
-                if (stats) {
-                  channelIdCache.set(stats.channelId, stats);
-                  return stats;
-                }
-              }
-            } catch { /* continue to URL fallbacks */ }
+        // If viewing a single channel, only resolve that one
+        const targetChannels = selectedChannel !== "all"
+          ? uniqueChannels.filter(c => c === selectedChannel)
+          : uniqueChannels;
+
+        const allVideoIds = targetChannels
+          .map(ch => videoIdsByChannel[ch])
+          .filter(Boolean);
+
+        if (allVideoIds.length === 0) {
+          // No video IDs available — fall back to client-side API calls
+          if (!cancelled) {
+            setChannelStats(null);
+            setAllChannelStats({});
           }
-          // 2. Try per-channel URL (may use forHandle — less reliable)
-          if (urlsMap[chName]) {
-            try {
-              const stats = await youtubeAPI.getChannelStatsByUrl(urlsMap[chName]);
-              if (stats) {
-                channelIdCache.set(stats.channelId, stats);
-                return stats;
-              }
-            } catch { /* continue */ }
+          return;
+        }
+
+        // Single server-side proxy call: resolves video IDs → channel IDs → channel stats
+        const response = await fetch('/api/youtube-channel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: youtubeAPI.apiKey, videoIds: allVideoIds }),
+        });
+
+        if (!response.ok) {
+          console.warn('YouTube channel proxy error:', response.status);
+          if (!cancelled) {
+            setChannelStats(null);
+            setAllChannelStats({});
           }
-          // 3. Try client-level URL
-          if (activeClient?.youtubeChannelUrl) {
-            try {
-              const stats = await youtubeAPI.getChannelStatsByUrl(activeClient.youtubeChannelUrl);
-              if (stats) {
-                channelIdCache.set(stats.channelId, stats);
-                return stats;
-              }
-            } catch { /* continue */ }
-          }
-          return null;
-        };
+          return;
+        }
+
+        const { videoResults, channels } = await response.json();
+        if (cancelled) return;
+
+        // Map each channel name to its YouTube channel stats (deduplicate by channelId)
+        const seenYtIds = new Set();
+        const statsMap = {};
+        for (const chName of targetChannels) {
+          const vid = videoIdsByChannel[chName];
+          if (!vid || !videoResults[vid]) continue;
+          const ytChannelId = videoResults[vid].channelId;
+          if (!ytChannelId || !channels[ytChannelId]) continue;
+          if (seenYtIds.has(ytChannelId)) continue;
+          seenYtIds.add(ytChannelId);
+          statsMap[chName] = channels[ytChannelId];
+        }
 
         if (cancelled) return;
 
         if (selectedChannel !== "all" || !isMultiChannel) {
-          // Single channel fetch
-          const sourceRows = selectedChannel !== "all"
-            ? rows.filter(r => r.channel === selectedChannel)
-            : rows;
-          const chName = selectedChannel !== "all" ? selectedChannel : uniqueChannels[0];
-          const stats = await getStatsForChannel(chName, sourceRows);
-          if (!cancelled) {
-            setChannelStats(stats);
-            setAllChannelStats({});
-          }
+          const chName = targetChannels[0];
+          setChannelStats(statsMap[chName] || null);
+          setAllChannelStats({});
         } else {
-          // Multi-channel: fetch stats per content source, deduplicate by YouTube channel ID
-          const seenYtIds = new Set();
-          const statsMap = {};
-          await Promise.all(uniqueChannels.map(async (chName) => {
-            try {
-              const chRows = rows.filter(r => r.channel === chName);
-              const stats = await getStatsForChannel(chName, chRows);
-              if (stats && !seenYtIds.has(stats.channelId)) {
-                seenYtIds.add(stats.channelId);
-                statsMap[chName] = stats;
-              }
-            } catch (err) {
-              console.warn(`Failed to fetch stats for "${chName}":`, err);
-            }
-          }));
-
-          if (!cancelled) {
-            setAllChannelStats(statsMap);
-            const totalSubs = Object.values(statsMap).reduce((sum, s) => sum + (s.subscriberCount || 0), 0);
-            setChannelStats({ subscriberCount: totalSubs });
-          }
+          setAllChannelStats(statsMap);
+          const totalSubs = Object.values(statsMap).reduce(
+            (sum, s) => sum + (s.subscriberCount || 0), 0
+          );
+          setChannelStats({ subscriberCount: totalSubs });
         }
+
+        youtubeAPI.trackQuota(allVideoIds.length > 0 ? 2 : 0);
       } catch (err) {
         console.warn('Failed to fetch channel stats:', err);
         if (!cancelled) setChannelStats(null);
@@ -293,7 +283,7 @@ export default function App() {
 
     fetchChannelStats();
     return () => { cancelled = true; };
-  }, [rows, selectedChannel, activeClient?.youtubeChannelUrl, activeClient?.channelUrlsMap]);
+  }, [rows, selectedChannel]);
 
   const handleClientsUpdate = (updatedClients) => {
     setClients(updatedClients);
