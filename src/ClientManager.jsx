@@ -105,6 +105,17 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
       const perChannelUrl = Object.values(channelUrls).find(u => u && u.trim()) || "";
       const channelUrl = perChannelUrl.trim() || youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : "");
 
+      // Build a clean map of per-channel YouTube URLs (only non-empty entries)
+      const cleanChannelUrls = {};
+      for (const [ch, url] of Object.entries(channelUrls)) {
+        if (url && url.trim()) cleanChannelUrls[ch] = url.trim();
+      }
+      // Merge with any existing per-channel URLs from a previous save
+      const mergedChannelUrlsMap = {
+        ...(isUpdate ? editingClient.channelUrlsMap : {}),
+        ...cleanChannelUrls
+      };
+
       console.log('[Supabase] Saving client:', name, 'with', normalizedRows.length, 'videos');
 
       const timeoutPromise = new Promise((_, reject) =>
@@ -116,7 +127,8 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
           normalizedRows,
           channelUrl,
           channelTotalSubscribers,
-          rawData
+          rawData,
+          mergedChannelUrlsMap
         ),
         timeoutPromise
       ]);
@@ -153,6 +165,10 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
 
       const editedRows = parsedRows ? applyChannelEdits(parsedRows) : [];
       const { channelTotalSubscribers } = normalizeData(editedRows);
+      const localCleanUrls = {};
+      for (const [ch, url] of Object.entries(channelUrls)) {
+        if (url && url.trim()) localCleanUrls[ch] = url.trim();
+      }
       const localClient = {
         id: isUpdate ? editingClient.id : `client-${Date.now()}`,
         name: name,
@@ -161,6 +177,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
         subscriberCount: channelTotalSubscribers,
         channels: [...new Set(editedRows.map(r => r['Channel'] || r['Channel name'] || r.channel).filter(Boolean))],
         youtubeChannelUrl: (Object.values(channelUrls).find(u => u && u.trim()) || "").trim() || youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : ""),
+        channelUrlsMap: { ...(isUpdate ? editingClient.channelUrlsMap : {}), ...localCleanUrls },
         syncedToSupabase: false,
       };
 
@@ -301,7 +318,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
     setParsedRows(null);
     setDetectedChannels([]);
     setChannelEdits({});
-    setChannelUrls({});
+    setChannelUrls(client.channelUrlsMap || {});
     setShowChannelPreview(false);
     setShowModal(true);
   };

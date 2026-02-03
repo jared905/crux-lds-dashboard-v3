@@ -63,9 +63,10 @@ function extractOrGenerateChannelId(youtubeChannelUrl, clientName) {
  * @param {string} youtubeChannelUrl - Optional YouTube channel URL
  * @param {number} subscriberCount - Total subscriber count from CSV
  * @param {Array} rawRows - Original raw CSV data for storage
+ * @param {Object} channelUrlsMap - Optional per-channel YouTube URL mapping
  * @returns {Object} - The saved client object in ClientManager format
  */
-export async function saveClientToSupabase(clientName, normalizedRows, youtubeChannelUrl, subscriberCount, rawRows) {
+export async function saveClientToSupabase(clientName, normalizedRows, youtubeChannelUrl, subscriberCount, rawRows, channelUrlsMap = {}) {
   if (!supabase) throw new Error('Supabase not configured');
 
   const youtubeChannelId = extractOrGenerateChannelId(youtubeChannelUrl, clientName);
@@ -165,6 +166,7 @@ export async function saveClientToSupabase(clientName, normalizedRows, youtubeCh
     subscriberCount: subscriberCount,
     channels: [...new Set(normalizedRows.map(r => r.channel).filter(Boolean))],
     youtubeChannelUrl: youtubeChannelUrl || '',
+    channelUrlsMap: channelUrlsMap || {},
     syncedToSupabase: true,
   };
 }
@@ -255,6 +257,7 @@ export async function getClientsFromSupabase() {
         subscriberCount: channel.subscriber_count || 0,
         channels: uniqueChannels.length > 0 ? uniqueChannels : [channel.name],
         youtubeChannelUrl: channel.custom_url || '',
+        channelUrlsMap: {},
         syncedToSupabase: true,
       };
     })

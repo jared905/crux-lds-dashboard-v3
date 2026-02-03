@@ -104,7 +104,15 @@ export default function App() {
             local => !local.syncedToSupabase && !supabaseClients.some(sb => sb.name === local.name)
           );
 
-          const mergedClients = [...supabaseClients, ...localOnlyClients];
+          // Carry over channelUrlsMap from localStorage since Supabase doesn't store it
+          const supabaseWithLocalData = supabaseClients.map(sb => {
+            const localMatch = clients.find(l => l.id === sb.id || l.name === sb.name);
+            return localMatch?.channelUrlsMap
+              ? { ...sb, channelUrlsMap: localMatch.channelUrlsMap }
+              : sb;
+          });
+
+          const mergedClients = [...supabaseWithLocalData, ...localOnlyClients];
           setClients(mergedClients);
 
           // Set active client from Supabase data if available
@@ -205,21 +213,36 @@ export default function App() {
         const uniqueChannels = [...new Set(rows.map(r => r.channel).filter(Boolean))];
         const isMultiChannel = uniqueChannels.length > 1;
 
+        // Per-channel YouTube URL map from client config
+        const urlsMap = activeClient?.channelUrlsMap || {};
+
+        // Helper: resolve channel ID for a given content source name
+        const resolveForChannel = async (chName, sourceRows) => {
+          // 1. Try from a video's YouTube ID
+          const video = sourceRows.find(r => r.youtubeVideoId && !r.isTotal);
+          if (video) {
+            const id = await resolveChannelIdFromVideo(video);
+            if (id) return id;
+          }
+          // 2. Try from per-channel URL map
+          if (urlsMap[chName]) {
+            const id = await resolveChannelIdFromUrl(urlsMap[chName]);
+            if (id) return id;
+          }
+          // 3. Fallback to single client-level URL
+          if (activeClient?.youtubeChannelUrl) {
+            return await resolveChannelIdFromUrl(activeClient.youtubeChannelUrl);
+          }
+          return null;
+        };
+
         if (selectedChannel !== "all" || !isMultiChannel) {
           // Single channel fetch
           const sourceRows = selectedChannel !== "all"
             ? rows.filter(r => r.channel === selectedChannel)
             : rows;
-          const videoWithChannel = sourceRows.find(r => r.youtubeVideoId && !r.isTotal);
-
-          let channelId = null;
-          if (videoWithChannel) {
-            channelId = await resolveChannelIdFromVideo(videoWithChannel);
-          }
-          // Fallback: resolve from the client's stored YouTube channel URL
-          if (!channelId && activeClient?.youtubeChannelUrl) {
-            channelId = await resolveChannelIdFromUrl(activeClient.youtubeChannelUrl);
-          }
+          const chName = selectedChannel !== "all" ? selectedChannel : uniqueChannels[0];
+          const channelId = await resolveForChannel(chName, sourceRows);
 
           if (channelId) {
             const stats = await youtubeAPI.getChannelStats(channelId);
@@ -229,26 +252,14 @@ export default function App() {
             setChannelStats(null);
           }
         } else {
-          // Multi-channel: resolve YouTube channel IDs for each content source,
-          // then deduplicate so channels sharing the same YouTube account aren't double-counted
-          const channelIdToName = {};  // ytChannelId → first CSV channel name that mapped to it
-          const resolvedIds = {};      // CSV channel name → ytChannelId
-
+          // Multi-channel: resolve per content source, deduplicate by YouTube channel ID
+          const channelIdToName = {};
           await Promise.all(uniqueChannels.map(async (chName) => {
-            const video = rows.find(r => r.channel === chName && r.youtubeVideoId && !r.isTotal);
             try {
-              let channelId = null;
-              if (video) {
-                channelId = await resolveChannelIdFromVideo(video);
-              }
-              if (!channelId && activeClient?.youtubeChannelUrl) {
-                channelId = await resolveChannelIdFromUrl(activeClient.youtubeChannelUrl);
-              }
-              if (channelId) {
-                resolvedIds[chName] = channelId;
-                if (!channelIdToName[channelId]) {
-                  channelIdToName[channelId] = chName;
-                }
+              const chRows = rows.filter(r => r.channel === chName);
+              const channelId = await resolveForChannel(chName, chRows);
+              if (channelId && !channelIdToName[channelId]) {
+                channelIdToName[channelId] = chName;
               }
             } catch (err) {
               console.warn(`Failed to resolve channel ID for "${chName}":`, err);
@@ -257,11 +268,9 @@ export default function App() {
 
           // Fetch stats only once per unique YouTube channel ID
           const statsMap = {};
-          const uniqueYtIds = Object.keys(channelIdToName);
-          await Promise.all(uniqueYtIds.map(async (ytId) => {
+          await Promise.all(Object.entries(channelIdToName).map(async ([ytId, csvName]) => {
             try {
               const stats = await youtubeAPI.getChannelStats(ytId);
-              const csvName = channelIdToName[ytId];
               statsMap[csvName] = stats;
             } catch (err) {
               console.warn(`Failed to fetch stats for YouTube channel ${ytId}:`, err);
@@ -270,7 +279,6 @@ export default function App() {
 
           setAllChannelStats(statsMap);
 
-          // Sum subscriber counts across unique YouTube channels only
           const totalSubs = Object.values(statsMap).reduce((sum, s) => sum + (s.subscriberCount || 0), 0);
           setChannelStats({ subscriberCount: totalSubs });
         }
