@@ -229,9 +229,12 @@ export default function App() {
             setChannelStats(null);
           }
         } else {
-          // Multi-channel: fetch stats for each unique channel in parallel
-          const statsMap = {};
-          const fetchPromises = uniqueChannels.map(async (chName) => {
+          // Multi-channel: resolve YouTube channel IDs for each content source,
+          // then deduplicate so channels sharing the same YouTube account aren't double-counted
+          const channelIdToName = {};  // ytChannelId → first CSV channel name that mapped to it
+          const resolvedIds = {};      // CSV channel name → ytChannelId
+
+          await Promise.all(uniqueChannels.map(async (chName) => {
             const video = rows.find(r => r.channel === chName && r.youtubeVideoId && !r.isTotal);
             try {
               let channelId = null;
@@ -242,17 +245,32 @@ export default function App() {
                 channelId = await resolveChannelIdFromUrl(activeClient.youtubeChannelUrl);
               }
               if (channelId) {
-                const stats = await youtubeAPI.getChannelStats(channelId);
-                statsMap[chName] = stats;
+                resolvedIds[chName] = channelId;
+                if (!channelIdToName[channelId]) {
+                  channelIdToName[channelId] = chName;
+                }
               }
             } catch (err) {
-              console.warn(`Failed to fetch stats for channel "${chName}":`, err);
+              console.warn(`Failed to resolve channel ID for "${chName}":`, err);
             }
-          });
-          await Promise.all(fetchPromises);
+          }));
+
+          // Fetch stats only once per unique YouTube channel ID
+          const statsMap = {};
+          const uniqueYtIds = Object.keys(channelIdToName);
+          await Promise.all(uniqueYtIds.map(async (ytId) => {
+            try {
+              const stats = await youtubeAPI.getChannelStats(ytId);
+              const csvName = channelIdToName[ytId];
+              statsMap[csvName] = stats;
+            } catch (err) {
+              console.warn(`Failed to fetch stats for YouTube channel ${ytId}:`, err);
+            }
+          }));
+
           setAllChannelStats(statsMap);
 
-          // Set channelStats to a combined summary so existing consumers still work
+          // Sum subscriber counts across unique YouTube channels only
           const totalSubs = Object.values(statsMap).reduce((sum, s) => sum + (s.subscriberCount || 0), 0);
           setChannelStats({ subscriberCount: totalSubs });
         }
