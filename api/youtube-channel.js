@@ -161,12 +161,13 @@ async function getCachedStats(videoIds, channelIds, handles) {
       }
     }
 
-    // Strategy 2: Resolve handles/URLs via the custom_url or youtube_channel_id fields
+    // Strategy 2: Resolve handles/URLs via multiple matching approaches
     if (handles && handles.length > 0) {
       for (const { name, url: handleUrl } of handles) {
         if (!handleUrl) continue;
+        console.log('[Cache] Resolving handle:', { name, url: handleUrl });
 
-        // Try matching custom_url (stores the original YouTube URL or @handle)
+        // 2a: Exact match on custom_url
         const { data: byUrl } = await supabase
           .from('channels')
           .select('id, youtube_channel_id')
@@ -174,19 +175,22 @@ async function getCachedStats(videoIds, channelIds, handles) {
           .limit(1);
 
         if (byUrl && byUrl.length > 0) {
+          console.log('[Cache] Matched via custom_url exact:', byUrl[0].youtube_channel_id);
           resolvedChannelDbIds.add(byUrl[0].id);
           handleResults[name] = { channelId: byUrl[0].youtube_channel_id, input: handleUrl };
           continue;
         }
 
-        // Try matching by extracting handle from URL and matching custom_url patterns
+        // 2b: Extract handle from URL and try matching custom_url with ilike
         let handle = null;
         if (handleUrl.includes('youtube.com/@')) {
-          handle = '@' + handleUrl.split('@')[1].split(/[?/]/)[0];
+          handle = handleUrl.split('@')[1].split(/[?/]/)[0];
         } else if (handleUrl.startsWith('@')) {
-          handle = handleUrl;
+          handle = handleUrl.slice(1);
         }
+
         if (handle) {
+          // Try matching custom_url containing the handle
           const { data: byHandle } = await supabase
             .from('channels')
             .select('id, youtube_channel_id')
@@ -194,8 +198,72 @@ async function getCachedStats(videoIds, channelIds, handles) {
             .limit(1);
 
           if (byHandle && byHandle.length > 0) {
+            console.log('[Cache] Matched via custom_url ilike:', byHandle[0].youtube_channel_id);
             resolvedChannelDbIds.add(byHandle[0].id);
             handleResults[name] = { channelId: byHandle[0].youtube_channel_id, input: handleUrl };
+            continue;
+          }
+
+          // Try matching youtube_channel_id = handle_XXX
+          const { data: byHandleId } = await supabase
+            .from('channels')
+            .select('id, youtube_channel_id')
+            .eq('youtube_channel_id', `handle_${handle}`)
+            .limit(1);
+
+          if (byHandleId && byHandleId.length > 0) {
+            console.log('[Cache] Matched via handle_ ID:', byHandleId[0].youtube_channel_id);
+            resolvedChannelDbIds.add(byHandleId[0].id);
+            handleResults[name] = { channelId: byHandleId[0].youtube_channel_id, input: handleUrl };
+            continue;
+          }
+        }
+
+        // 2c: Search channel_urls_map JSONB for this URL
+        // channel_urls_map stores { "ChannelName": "https://youtube.com/@handle" }
+        const { data: byMap } = await supabase
+          .from('channels')
+          .select('id, youtube_channel_id')
+          .neq('channel_urls_map', '{}')
+          .not('channel_urls_map', 'is', null);
+
+        if (byMap && byMap.length > 0) {
+          // Need to check each channel's map since Supabase can't search JSONB values easily
+          // Fetch the actual maps for these channels
+          const { data: withMaps } = await supabase
+            .from('channels')
+            .select('id, youtube_channel_id, channel_urls_map')
+            .eq('is_competitor', false);
+
+          for (const ch of withMaps || []) {
+            const map = ch.channel_urls_map || {};
+            const urls = Object.values(map);
+            if (urls.some(u => u === handleUrl || (handle && u.toLowerCase().includes(handle.toLowerCase())))) {
+              console.log('[Cache] Matched via channel_urls_map:', ch.youtube_channel_id);
+              resolvedChannelDbIds.add(ch.id);
+              handleResults[name] = { channelId: ch.youtube_channel_id, input: handleUrl };
+              break;
+            }
+          }
+        }
+
+        // 2d: Last resort — find non-competitor channels (client channels) and return the first match
+        if (resolvedChannelDbIds.size === 0) {
+          const { data: clientChannels } = await supabase
+            .from('channels')
+            .select('id, youtube_channel_id, name, custom_url')
+            .eq('is_competitor', false)
+            .limit(5);
+
+          console.log('[Cache] Client channels found:', clientChannels?.map(c => ({
+            id: c.youtube_channel_id, name: c.name, custom_url: c.custom_url
+          })));
+
+          // Try name-based matching or just use the first client channel if only one exists
+          if (clientChannels && clientChannels.length === 1) {
+            console.log('[Cache] Single client channel, using it:', clientChannels[0].youtube_channel_id);
+            resolvedChannelDbIds.add(clientChannels[0].id);
+            handleResults[name] = { channelId: clientChannels[0].youtube_channel_id, input: handleUrl };
           }
         }
       }
@@ -344,12 +412,15 @@ export default async function handler(req, res) {
     // If quota is exhausted, fall back to Supabase cached stats
     if (quotaExhausted) {
       _debug.fallback = 'supabase_cache';
+      _debug.handlesReceived = Array.isArray(handles) ? handles.map(h => h.url) : [];
+      _debug.videoIdsReceived = Array.isArray(videoIds) ? videoIds.length : 0;
       const cached = await getCachedStats(
         Array.isArray(videoIds) ? videoIds : [],
         [...resolvedChannelIds],
         Array.isArray(handles) ? handles : []
       );
       _debug.cachedChannelsFound = Object.keys(cached.channels).length;
+      _debug.cachedHandleResults = Object.keys(cached.handleResults);
       return res.status(200).json({
         videoResults: cached.videoResults,
         handleResults: { ...handleResults, ...cached.handleResults },
