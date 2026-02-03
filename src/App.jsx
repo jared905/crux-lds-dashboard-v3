@@ -182,6 +182,9 @@ export default function App() {
   }, [activeClient?.id]);
 
   // Fetch channel stats via server-side proxy (bypasses API key referrer restrictions)
+  // Use a ref to track the last successful fetch key so we don't re-fetch for the same data
+  const lastFetchKeyRef = React.useRef(null);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -190,58 +193,62 @@ export default function App() {
         youtubeAPI.apiKey = youtubeAPI.loadAPIKey();
       }
       if (!youtubeAPI.apiKey || rows.length === 0) {
-        setChannelStats(null);
+        // Only clear if we never had data
+        if (!channelStats) setChannelStats(null);
+        return;
+      }
+
+      const uniqueChannels = [...new Set(rows.map(r => r.channel).filter(Boolean))];
+      const isMultiChannel = uniqueChannels.length > 1;
+      const urlsMap = activeClient?.channelUrlsMap || {};
+
+      // If viewing a single channel, only resolve that one
+      const targetChannels = selectedChannel !== "all"
+        ? uniqueChannels.filter(c => c === selectedChannel)
+        : uniqueChannels;
+
+      // Build a stable key to avoid redundant fetches when deps change by reference only
+      const fetchKey = JSON.stringify({ channels: targetChannels, selectedChannel });
+      if (lastFetchKeyRef.current === fetchKey && channelStats) {
+        console.log('[SubFetch] Skipping redundant fetch, data already loaded for:', fetchKey);
+        return;
+      }
+
+      // Collect one video ID per channel for resolution
+      const videoIdsByChannel = {};
+      for (const chName of targetChannels) {
+        const chRows = rows.filter(r => r.channel === chName);
+        const video = chRows.find(r => r.youtubeVideoId && !r.isTotal);
+        if (video) videoIdsByChannel[chName] = video.youtubeVideoId;
+      }
+
+      const allVideoIds = Object.values(videoIdsByChannel).filter(Boolean);
+
+      // Build handles list for channels without video IDs
+      const handles = [];
+      for (const chName of targetChannels) {
+        if (videoIdsByChannel[chName]) continue; // already have a video ID
+        const url = urlsMap[chName];
+        if (url) {
+          handles.push({ name: chName, url });
+        } else if (!isMultiChannel && activeClient?.youtubeChannelUrl) {
+          // Single-channel: fall back to the main channel URL
+          handles.push({ name: chName, url: activeClient.youtubeChannelUrl });
+        } else {
+          // Multi-channel with no per-channel URL: use channel name as search query
+          handles.push({ name: chName, url: chName });
+        }
+      }
+
+      console.log('[SubFetch] handles:', handles.length, 'videoIds:', allVideoIds.length, 'urlsMap keys:', Object.keys(urlsMap).length);
+
+      if (allVideoIds.length === 0 && handles.length === 0) {
+        console.log('[SubFetch] No video IDs or handles — skipping proxy call');
         return;
       }
 
       setChannelStatsLoading(true);
       try {
-        const uniqueChannels = [...new Set(rows.map(r => r.channel).filter(Boolean))];
-        const isMultiChannel = uniqueChannels.length > 1;
-        const urlsMap = activeClient?.channelUrlsMap || {};
-
-        // If viewing a single channel, only resolve that one
-        const targetChannels = selectedChannel !== "all"
-          ? uniqueChannels.filter(c => c === selectedChannel)
-          : uniqueChannels;
-
-        // Collect one video ID per channel for resolution
-        const videoIdsByChannel = {};
-        for (const chName of targetChannels) {
-          const chRows = rows.filter(r => r.channel === chName);
-          const video = chRows.find(r => r.youtubeVideoId && !r.isTotal);
-          if (video) videoIdsByChannel[chName] = video.youtubeVideoId;
-        }
-
-        const allVideoIds = Object.values(videoIdsByChannel).filter(Boolean);
-
-        // Build handles list for channels without video IDs
-        const handles = [];
-        for (const chName of targetChannels) {
-          if (videoIdsByChannel[chName]) continue; // already have a video ID
-          const url = urlsMap[chName];
-          if (url) {
-            handles.push({ name: chName, url });
-          } else if (!isMultiChannel && activeClient?.youtubeChannelUrl) {
-            // Single-channel: fall back to the main channel URL
-            handles.push({ name: chName, url: activeClient.youtubeChannelUrl });
-          } else {
-            // Multi-channel with no per-channel URL: use channel name as search query
-            handles.push({ name: chName, url: chName });
-          }
-        }
-
-        console.log('[SubFetch] handles:', handles.length, 'videoIds:', allVideoIds.length, 'urlsMap keys:', Object.keys(urlsMap).length);
-
-        if (allVideoIds.length === 0 && handles.length === 0) {
-          console.log('[SubFetch] No video IDs or handles — skipping proxy call');
-          if (!cancelled) {
-            setChannelStats(null);
-            setAllChannelStats({});
-          }
-          return;
-        }
-
         // Single server-side proxy call
         const body = { apiKey: youtubeAPI.apiKey };
         if (allVideoIds.length > 0) body.videoIds = allVideoIds;
@@ -255,10 +262,7 @@ export default function App() {
 
         if (!response.ok) {
           console.warn('YouTube channel proxy error:', response.status);
-          if (!cancelled) {
-            setChannelStats(null);
-            setAllChannelStats({});
-          }
+          // Don't clear existing data on error
           return;
         }
 
@@ -296,21 +300,26 @@ export default function App() {
 
         console.log('[SubFetch] statsMap:', Object.fromEntries(Object.entries(statsMap).map(([name, s]) => [name, s.subscriberCount])));
 
-        if (selectedChannel !== "all" || !isMultiChannel) {
-          const chName = targetChannels[0];
-          setChannelStats(statsMap[chName] || null);
-          setAllChannelStats({});
-        } else {
-          setAllChannelStats(statsMap);
-          const totalSubs = Object.values(statsMap).reduce(
-            (sum, s) => sum + (s.subscriberCount || 0), 0
-          );
-          console.log('[SubFetch] Total subscriber sum:', totalSubs);
-          setChannelStats({ subscriberCount: totalSubs });
+        // Only update state if we got actual data
+        if (Object.keys(statsMap).length > 0) {
+          lastFetchKeyRef.current = fetchKey;
+
+          if (selectedChannel !== "all" || !isMultiChannel) {
+            const chName = targetChannels[0];
+            setChannelStats(statsMap[chName] || null);
+            setAllChannelStats({});
+          } else {
+            setAllChannelStats(statsMap);
+            const totalSubs = Object.values(statsMap).reduce(
+              (sum, s) => sum + (s.subscriberCount || 0), 0
+            );
+            console.log('[SubFetch] Total subscriber sum:', totalSubs);
+            setChannelStats({ subscriberCount: totalSubs });
+          }
         }
       } catch (err) {
         console.warn('Failed to fetch channel stats:', err);
-        if (!cancelled) setChannelStats(null);
+        // Don't clear existing data on error
       } finally {
         if (!cancelled) setChannelStatsLoading(false);
       }

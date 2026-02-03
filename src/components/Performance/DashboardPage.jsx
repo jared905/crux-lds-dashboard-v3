@@ -146,22 +146,26 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
           filtered={filtered} metricKey="watchHours"
         />
 
-        {/* Subscribers — fallback: API → CSV total row → sum of per-video gains */}
+        {/* Subscribers — uses YouTube API data when available */}
         {(() => {
           const apiSubs = channelStats?.subscriberCount;
-          const csvTotalSubs = clientSubscriberCount;
-          const hasRealCount = apiSubs || csvTotalSubs;
-          const realCount = apiSubs || csvTotalSubs;
+          console.log('[DashboardKPI] Subscribers debug:', {
+            channelStats,
+            channelStatsLoading,
+            apiSubs,
+            clientSubscriberCount,
+            kpisSubs: kpis.subs,
+          });
           return (
             <KpiCard
               icon={Users} label="Subscribers" color="#f472b6" accentBg="rgba(244, 114, 182, 0.1)"
               value={channelStatsLoading
                 ? "..."
-                : hasRealCount
-                  ? fmtInt(realCount)
+                : apiSubs
+                  ? fmtInt(apiSubs)
                   : `${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`}
-              allTimeLabel={hasRealCount ? "gained in period" : "total"}
-              allTimeValue={hasRealCount
+              allTimeLabel={apiSubs ? "gained in period" : "net gained"}
+              allTimeValue={apiSubs
                 ? `${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`
                 : `${allTimeKpis.subs >= 0 ? "+" : ""}${fmtInt(allTimeKpis.subs)}`}
               delta={<DeltaBadge current={kpis.subs} previous={previousKpis.subs} />}
