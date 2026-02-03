@@ -132,7 +132,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
 
     (async () => {
       try {
-        console.log('[DashboardKPI] Fetching with', videoIds.length, 'video IDs and', handles.length, 'handles');
+        console.log('[DashboardKPI] Fetching with', videoIds.length, 'video IDs,', handles.length, 'handles, clientSupabaseId:', clientSupabaseId);
 
         const body = { apiKey, videoIds };
         if (handles.length > 0) body.handles = handles;

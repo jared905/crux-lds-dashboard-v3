@@ -375,7 +375,7 @@ export default async function handler(req, res) {
     const videoResults = {};
     const handleResults = {};
     const resolvedChannelIds = new Set(channelIds || []);
-    const _debug = { keySource, keyPrefix: apiKey.slice(0, 8) + '...' };
+    const _debug = { keySource, keyPrefix: apiKey.slice(0, 8) + '...', clientSupabaseId: clientSupabaseId || null };
     let quotaExhausted = false;
 
     // Step 1a: If videoIds provided, resolve them to channelIds
