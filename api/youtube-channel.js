@@ -142,46 +142,76 @@ async function getCachedStats(videoIds, channelIds, handles, clientSupabaseId) {
   const channels = {};
   const videoResults = {};
   const handleResults = {};
+  const _cacheDebug = { strategies: [] };
 
   try {
     const resolvedChannelDbIds = new Set();
 
-    // Strategy 0 (fastest): Direct lookup by Supabase channel UUID
+    // Strategy 0: Direct lookup by Supabase channel UUID or client_id
     if (clientSupabaseId) {
-      const { data: directChannel } = await supabase
+      // Try as UUID first
+      const { data: byId, error: byIdErr } = await supabase
         .from('channels')
         .select('id')
         .eq('id', clientSupabaseId)
         .limit(1);
 
-      if (directChannel && directChannel.length > 0) {
-        console.log('[Cache] Matched via clientSupabaseId:', clientSupabaseId);
-        resolvedChannelDbIds.add(directChannel[0].id);
-      }
-    }
-
-    // Strategy 1: Resolve video IDs via the videos table (thumbnail_url contains real YT video IDs)
-    if (resolvedChannelDbIds.size === 0 && videoIds && videoIds.length > 0) {
-      for (const vid of videoIds) {
-        const { data: videoRows } = await supabase
-          .from('videos')
-          .select('channel_id')
-          .like('thumbnail_url', `%${vid}%`)
+      if (byId && byId.length > 0) {
+        _cacheDebug.strategies.push('s0_uuid_match');
+        resolvedChannelDbIds.add(byId[0].id);
+      } else {
+        // Try as client_id field
+        const { data: byClientId } = await supabase
+          .from('channels')
+          .select('id')
+          .eq('client_id', clientSupabaseId)
           .limit(1);
 
-        if (videoRows && videoRows.length > 0) {
-          resolvedChannelDbIds.add(videoRows[0].channel_id);
+        if (byClientId && byClientId.length > 0) {
+          _cacheDebug.strategies.push('s0_client_id_match');
+          resolvedChannelDbIds.add(byClientId[0].id);
+        } else {
+          _cacheDebug.strategies.push('s0_no_match');
+          _cacheDebug.s0Error = byIdErr?.message || null;
         }
       }
     }
 
-    // Strategy 2: Resolve handles/URLs via multiple matching approaches
-    if (resolvedChannelDbIds.size === 0 && handles && handles.length > 0) {
-      for (const { name, url: handleUrl } of handles) {
-        if (!handleUrl) continue;
-        console.log('[Cache] Resolving handle:', { name, url: handleUrl });
+    // Strategy 1: Resolve video IDs via the videos table
+    if (resolvedChannelDbIds.size === 0 && videoIds && videoIds.length > 0) {
+      const firstVid = videoIds[0];
+      const { data: videoRows, error: vidErr } = await supabase
+        .from('videos')
+        .select('channel_id, thumbnail_url')
+        .like('thumbnail_url', `%${firstVid}%`)
+        .limit(1);
 
-        // 2a: Exact match on custom_url
+      _cacheDebug.s1_query = firstVid;
+      _cacheDebug.s1_results = videoRows?.length || 0;
+      _cacheDebug.s1_error = vidErr?.message || null;
+
+      if (videoRows && videoRows.length > 0) {
+        resolvedChannelDbIds.add(videoRows[0].channel_id);
+        _cacheDebug.strategies.push('s1_video_match');
+      } else {
+        _cacheDebug.strategies.push('s1_no_match');
+      }
+    }
+
+    // Strategy 2: Resolve handles/URLs
+    if (resolvedChannelDbIds.size === 0 && handles && handles.length > 0) {
+      const { name, url: handleUrl } = handles[0];
+      if (handleUrl) {
+        let handle = null;
+        if (handleUrl.includes('youtube.com/@')) {
+          handle = handleUrl.split('@')[1].split(/[?/]/)[0];
+        } else if (handleUrl.startsWith('@')) {
+          handle = handleUrl.slice(1);
+        }
+        _cacheDebug.s2_handle = handle;
+        _cacheDebug.s2_handleIdQuery = handle ? `handle_${handle}` : null;
+
+        // 2a: Exact custom_url match
         const { data: byUrl } = await supabase
           .from('channels')
           .select('id, youtube_channel_id')
@@ -189,22 +219,11 @@ async function getCachedStats(videoIds, channelIds, handles, clientSupabaseId) {
           .limit(1);
 
         if (byUrl && byUrl.length > 0) {
-          console.log('[Cache] Matched via custom_url exact:', byUrl[0].youtube_channel_id);
           resolvedChannelDbIds.add(byUrl[0].id);
           handleResults[name] = { channelId: byUrl[0].youtube_channel_id, input: handleUrl };
-          continue;
-        }
-
-        // 2b: Extract handle from URL and try matching custom_url with ilike
-        let handle = null;
-        if (handleUrl.includes('youtube.com/@')) {
-          handle = handleUrl.split('@')[1].split(/[?/]/)[0];
-        } else if (handleUrl.startsWith('@')) {
-          handle = handleUrl.slice(1);
-        }
-
-        if (handle) {
-          // Try matching custom_url containing the handle
+          _cacheDebug.strategies.push('s2a_exact_url');
+        } else if (handle) {
+          // 2b: ilike custom_url
           const { data: byHandle } = await supabase
             .from('channels')
             .select('id, youtube_channel_id')
@@ -212,72 +231,49 @@ async function getCachedStats(videoIds, channelIds, handles, clientSupabaseId) {
             .limit(1);
 
           if (byHandle && byHandle.length > 0) {
-            console.log('[Cache] Matched via custom_url ilike:', byHandle[0].youtube_channel_id);
             resolvedChannelDbIds.add(byHandle[0].id);
             handleResults[name] = { channelId: byHandle[0].youtube_channel_id, input: handleUrl };
-            continue;
-          }
+            _cacheDebug.strategies.push('s2b_ilike_url');
+          } else {
+            // 2b2: handle_ ID match
+            const { data: byHandleId, error: handleErr } = await supabase
+              .from('channels')
+              .select('id, youtube_channel_id')
+              .eq('youtube_channel_id', `handle_${handle}`)
+              .limit(1);
 
-          // Try matching youtube_channel_id = handle_XXX
-          const { data: byHandleId } = await supabase
-            .from('channels')
-            .select('id, youtube_channel_id')
-            .eq('youtube_channel_id', `handle_${handle}`)
-            .limit(1);
+            _cacheDebug.s2b_handleIdResults = byHandleId?.length || 0;
+            _cacheDebug.s2b_handleIdError = handleErr?.message || null;
 
-          if (byHandleId && byHandleId.length > 0) {
-            console.log('[Cache] Matched via handle_ ID:', byHandleId[0].youtube_channel_id);
-            resolvedChannelDbIds.add(byHandleId[0].id);
-            handleResults[name] = { channelId: byHandleId[0].youtube_channel_id, input: handleUrl };
-            continue;
-          }
-        }
-
-        // 2c: Search channel_urls_map JSONB for this URL
-        // channel_urls_map stores { "ChannelName": "https://youtube.com/@handle" }
-        const { data: byMap } = await supabase
-          .from('channels')
-          .select('id, youtube_channel_id')
-          .neq('channel_urls_map', '{}')
-          .not('channel_urls_map', 'is', null);
-
-        if (byMap && byMap.length > 0) {
-          // Need to check each channel's map since Supabase can't search JSONB values easily
-          // Fetch the actual maps for these channels
-          const { data: withMaps } = await supabase
-            .from('channels')
-            .select('id, youtube_channel_id, channel_urls_map')
-            .eq('is_competitor', false);
-
-          for (const ch of withMaps || []) {
-            const map = ch.channel_urls_map || {};
-            const urls = Object.values(map);
-            if (urls.some(u => u === handleUrl || (handle && u.toLowerCase().includes(handle.toLowerCase())))) {
-              console.log('[Cache] Matched via channel_urls_map:', ch.youtube_channel_id);
-              resolvedChannelDbIds.add(ch.id);
-              handleResults[name] = { channelId: ch.youtube_channel_id, input: handleUrl };
-              break;
+            if (byHandleId && byHandleId.length > 0) {
+              resolvedChannelDbIds.add(byHandleId[0].id);
+              handleResults[name] = { channelId: byHandleId[0].youtube_channel_id, input: handleUrl };
+              _cacheDebug.strategies.push('s2b_handle_id');
+            } else {
+              _cacheDebug.strategies.push('s2b_no_match');
             }
           }
         }
 
-        // 2d: Last resort — find non-competitor channels (client channels) and return the first match
+        // 2d: Last resort — list all non-competitor channels
         if (resolvedChannelDbIds.size === 0) {
           const { data: clientChannels } = await supabase
             .from('channels')
             .select('id, youtube_channel_id, name, custom_url')
             .eq('is_competitor', false)
-            .limit(5);
+            .limit(10);
 
-          console.log('[Cache] Client channels found:', clientChannels?.map(c => ({
-            id: c.youtube_channel_id, name: c.name, custom_url: c.custom_url
-          })));
+          _cacheDebug.s2d_clientChannels = clientChannels?.map(c => ({
+            ytId: c.youtube_channel_id,
+            name: c.name,
+            customUrl: c.custom_url?.slice(0, 50),
+          })) || [];
 
-          // Try name-based matching or just use the first client channel if only one exists
-          if (clientChannels && clientChannels.length === 1) {
-            console.log('[Cache] Single client channel, using it:', clientChannels[0].youtube_channel_id);
+          // Use first client channel as fallback
+          if (clientChannels && clientChannels.length > 0) {
             resolvedChannelDbIds.add(clientChannels[0].id);
             handleResults[name] = { channelId: clientChannels[0].youtube_channel_id, input: handleUrl };
+            _cacheDebug.strategies.push('s2d_first_client');
           }
         }
       }
@@ -295,7 +291,7 @@ async function getCachedStats(videoIds, channelIds, handles, clientSupabaseId) {
       }
     }
 
-    if (resolvedChannelDbIds.size === 0) return { channels, videoResults, handleResults };
+    if (resolvedChannelDbIds.size === 0) return { channels, videoResults, handleResults, _cacheDebug };
 
     const dbIds = [...resolvedChannelDbIds];
 
@@ -343,7 +339,7 @@ async function getCachedStats(videoIds, channelIds, handles, clientSupabaseId) {
     console.warn('[Cache] Failed to read cached stats:', err.message);
   }
 
-  return { channels, videoResults, handleResults };
+  return { channels, videoResults, handleResults, _cacheDebug };
 }
 
 export default async function handler(req, res) {
@@ -436,6 +432,7 @@ export default async function handler(req, res) {
       );
       _debug.cachedChannelsFound = Object.keys(cached.channels).length;
       _debug.cachedHandleResults = Object.keys(cached.handleResults);
+      _debug.cacheDebug = cached._cacheDebug || {};
       return res.status(200).json({
         videoResults: cached.videoResults,
         handleResults: { ...handleResults, ...cached.handleResults },
