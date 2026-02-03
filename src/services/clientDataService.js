@@ -83,6 +83,7 @@ export async function saveClientToSupabase(clientName, normalizedRows, youtubeCh
         client_id: youtubeChannelId, // Use channel ID as client_id for grouping
         subscriber_count: subscriberCount || 0,
         video_count: normalizedRows.length,
+        channel_urls_map: channelUrlsMap && Object.keys(channelUrlsMap).length > 0 ? channelUrlsMap : {},
         last_synced_at: new Date().toISOString(),
       },
       { onConflict: 'youtube_channel_id' }
@@ -257,7 +258,7 @@ export async function getClientsFromSupabase() {
         subscriberCount: channel.subscriber_count || 0,
         channels: uniqueChannels.length > 0 ? uniqueChannels : [channel.name],
         youtubeChannelUrl: channel.custom_url || '',
-        channelUrlsMap: {},
+        channelUrlsMap: channel.channel_urls_map || {},
         syncedToSupabase: true,
       };
     })

@@ -219,8 +219,16 @@ export default function App() {
         const handles = [];
         for (const chName of targetChannels) {
           if (videoIdsByChannel[chName]) continue; // already have a video ID
-          const url = urlsMap[chName] || activeClient?.youtubeChannelUrl;
-          if (url) handles.push({ name: chName, url });
+          const url = urlsMap[chName];
+          if (url) {
+            handles.push({ name: chName, url });
+          } else if (!isMultiChannel && activeClient?.youtubeChannelUrl) {
+            // Single-channel: fall back to the main channel URL
+            handles.push({ name: chName, url: activeClient.youtubeChannelUrl });
+          } else {
+            // Multi-channel with no per-channel URL: use channel name as search query
+            handles.push({ name: chName, url: chName });
+          }
         }
 
         if (allVideoIds.length === 0 && handles.length === 0) {
