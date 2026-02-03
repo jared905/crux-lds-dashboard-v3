@@ -508,6 +508,69 @@ class YouTubeAPIService {
     };
   }
 
+  /**
+   * Get channel stats directly from a YouTube URL or @handle.
+   * Uses forHandle/forUsername/id on channels.list (1 quota unit) instead of search (100 units).
+   * Returns the same format as getChannelStats, or null if not found.
+   */
+  async getChannelStatsByUrl(input) {
+    if (!this.apiKey || !input) return null;
+
+    const trimmed = input.trim();
+    const url = new URL(`${YOUTUBE_API_BASE}/channels`);
+    url.searchParams.append('part', 'statistics,snippet');
+    url.searchParams.append('key', this.apiKey);
+
+    // Determine the right parameter based on URL format
+    if (trimmed.match(/^UC[\w-]{22}$/)) {
+      url.searchParams.append('id', trimmed);
+    } else if (trimmed.includes('youtube.com/channel/')) {
+      const id = trimmed.split('youtube.com/channel/')[1].split(/[?/]/)[0];
+      url.searchParams.append('id', id);
+    } else {
+      // Extract handle from various URL formats
+      let handle = null;
+      if (trimmed.includes('youtube.com/@')) {
+        handle = trimmed.split('@')[1].split(/[?/]/)[0];
+      } else if (trimmed.startsWith('@')) {
+        handle = trimmed.slice(1).split(/[?/]/)[0];
+      } else if (trimmed.includes('youtube.com/c/')) {
+        handle = trimmed.split('youtube.com/c/')[1].split(/[?/]/)[0];
+      } else if (trimmed.includes('youtube.com/user/')) {
+        handle = trimmed.split('youtube.com/user/')[1].split(/[?/]/)[0];
+      } else if (trimmed.length > 2 && !trimmed.includes('/')) {
+        handle = trimmed;
+      }
+      if (handle) {
+        url.searchParams.append('forHandle', handle);
+      } else {
+        return null;
+      }
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    this.trackQuota(1);
+
+    if (!data.items || data.items.length === 0) return null;
+
+    const item = data.items[0];
+    return {
+      channelId: item.id,
+      title: item.snippet.title,
+      description: item.snippet.description,
+      customUrl: item.snippet.customUrl,
+      publishedAt: item.snippet.publishedAt,
+      thumbnailUrl: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default?.url,
+      subscriberCount: parseInt(item.statistics.subscriberCount) || 0,
+      viewCount: parseInt(item.statistics.viewCount) || 0,
+      videoCount: parseInt(item.statistics.videoCount) || 0,
+      hiddenSubscriberCount: item.statistics.hiddenSubscriberCount || false
+    };
+  }
+
   async getVideoStats(videoId) {
     if (!this.apiKey) {
       throw new Error('YouTube API key not configured.');
