@@ -792,6 +792,9 @@ export default function App() {
                 dateRange={dateRange}
                 chartMetric={chartMetric}
                 setChartMetric={setChartMetric}
+                channelStats={channelStats}
+                channelStatsLoading={channelStatsLoading}
+                clientSubscriberCount={activeClient?.subscriberCount}
               />
             )}
 

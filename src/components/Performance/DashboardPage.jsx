@@ -91,7 +91,7 @@ function KpiCard({ icon: Icon, label, value, allTimeLabel, allTimeValue, color, 
   );
 }
 
-export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric }) {
+export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric, channelStats, channelStatsLoading, clientSubscriberCount }) {
   return (
     <>
       {/* Channel Stats Section Title */}
@@ -119,7 +119,9 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         <KpiCard
           icon={Video} label="Videos" color="#94a3b8" accentBg="rgba(148, 163, 184, 0.1)"
           value={fmtInt(filtered.length)}
-          allTimeLabel="total" allTimeValue={fmtInt(allTimeKpis.count)}
+          allTimeLabel="total" allTimeValue={channelStats?.videoCount
+            ? fmtInt(channelStats.videoCount)
+            : fmtInt(allTimeKpis.count)}
           delta={<DeltaBadge current={filtered.length} previous={previousKpis.shortsMetrics.count + previousKpis.longsMetrics.count} />}
           filtered={filtered} metricKey="views"
         />
@@ -128,7 +130,9 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         <KpiCard
           icon={Eye} label="Views" color="#818cf8" accentBg="rgba(129, 140, 248, 0.1)"
           value={fmtInt(kpis.views)}
-          allTimeLabel="total" allTimeValue={fmtInt(allTimeKpis.views)}
+          allTimeLabel="total" allTimeValue={channelStats?.viewCount
+            ? fmtInt(channelStats.viewCount)
+            : fmtInt(allTimeKpis.views)}
           delta={<DeltaBadge current={kpis.views} previous={previousKpis.views} />}
           filtered={filtered} metricKey="views"
         />
@@ -142,14 +146,29 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
           filtered={filtered} metricKey="watchHours"
         />
 
-        {/* Subscribers */}
-        <KpiCard
-          icon={Users} label="Subscribers" color="#f472b6" accentBg="rgba(244, 114, 182, 0.1)"
-          value={`${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`}
-          allTimeLabel="total" allTimeValue={`${allTimeKpis.subs >= 0 ? "+" : ""}${fmtInt(allTimeKpis.subs)}`}
-          delta={<DeltaBadge current={kpis.subs} previous={previousKpis.subs} />}
-          filtered={filtered} metricKey="subscribers"
-        />
+        {/* Subscribers — fallback: API → CSV total row → sum of per-video gains */}
+        {(() => {
+          const apiSubs = channelStats?.subscriberCount;
+          const csvTotalSubs = clientSubscriberCount;
+          const hasRealCount = apiSubs || csvTotalSubs;
+          const realCount = apiSubs || csvTotalSubs;
+          return (
+            <KpiCard
+              icon={Users} label="Subscribers" color="#f472b6" accentBg="rgba(244, 114, 182, 0.1)"
+              value={channelStatsLoading
+                ? "..."
+                : hasRealCount
+                  ? fmtInt(realCount)
+                  : `${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`}
+              allTimeLabel={hasRealCount ? "gained in period" : "total"}
+              allTimeValue={hasRealCount
+                ? `${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`
+                : `${allTimeKpis.subs >= 0 ? "+" : ""}${fmtInt(allTimeKpis.subs)}`}
+              delta={<DeltaBadge current={kpis.subs} previous={previousKpis.subs} />}
+              filtered={filtered} metricKey="subscribers"
+            />
+          );
+        })()}
 
         {/* Avg Retention */}
         <KpiCard
