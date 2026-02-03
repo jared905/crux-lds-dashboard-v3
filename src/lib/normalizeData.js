@@ -86,7 +86,9 @@ export function normalizeData(rawData) {
     const isTotal = titleLower === "total";
 
     // Extract YouTube video ID
-    const rawVideoId = r['Content'] || r.videoId || r['Video ID'] || r['YouTube URL'] || r['URL'];
+    // Check r.videoId first — when loaded from Supabase, r['Content'] contains the channel name
+    // (content_source), not the video ID, while r.videoId has the real ID from thumbnail_url
+    const rawVideoId = r.videoId || r['Content'] || r['Video ID'] || r['YouTube URL'] || r['URL'];
     const youtubeVideoId = extractYouTubeVideoId(rawVideoId);
     const thumbnailUrl = getYouTubeThumbnailUrl(youtubeVideoId);
     const youtubeUrl = getYouTubeVideoUrl(youtubeVideoId);
