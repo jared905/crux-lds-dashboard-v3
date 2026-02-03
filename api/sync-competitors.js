@@ -23,29 +23,6 @@ const supabase = createClient(
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 
 /**
- * Resolve a handle_ placeholder ID to a real YouTube UC channel ID.
- * Uses the custom_url field (@handle) and the YouTube Search API.
- * Returns the resolved UC ID, or null if resolution fails.
- */
-async function resolveHandleToChannelId(channel, apiKey) {
-  // Extract handle from custom_url (e.g., "@SaintsUnscripted") or from the placeholder ID
-  const handle = channel.custom_url
-    || '@' + channel.youtube_channel_id.replace('handle_', '');
-
-  const cleanHandle = handle.startsWith('@') ? handle : '@' + handle;
-
-  const response = await fetch(
-    `${YOUTUBE_API_BASE}/search?part=snippet&type=channel&q=${encodeURIComponent(cleanHandle)}&maxResults=1&key=${apiKey}`
-  );
-  const data = await response.json();
-
-  if (data.error) throw new Error(data.error.message);
-  if (!data.items?.length) throw new Error(`No channel found for handle ${cleanHandle}`);
-
-  return data.items[0].snippet.channelId;
-}
-
-/**
  * Parse ISO 8601 duration to seconds
  */
 function parseDuration(duration) {
@@ -378,7 +355,7 @@ export default async function handler(req, res) {
   const results = {
     channels_synced: 0,
     videos_synced: 0,
-    handles_resolved: 0,
+    handles_skipped: 0,
     youtube_api_calls: 0,
     errors: [],
   };
@@ -393,42 +370,13 @@ export default async function handler(req, res) {
     if (channelsError) throw channelsError;
 
     for (const channel of channels || []) {
-      let syncTarget = channel;
-
-      // Phase 1: Resolve handle_ placeholder IDs to real YouTube UC IDs
+      // Skip channels with unresolved handle_ IDs — they need a real UC ID to sync
       if (channel.youtube_channel_id.startsWith('handle_')) {
-        try {
-          const resolvedId = await resolveHandleToChannelId(channel, apiKey);
-          results.youtube_api_calls += 1; // Search API call
-
-          // Update the channel record with the real YouTube ID
-          const { error: updateError } = await supabase
-            .from('channels')
-            .update({ youtube_channel_id: resolvedId })
-            .eq('id', channel.id);
-
-          if (updateError) throw updateError;
-
-          // Use the resolved ID for sync
-          syncTarget = { ...channel, youtube_channel_id: resolvedId };
-          results.handles_resolved++;
-          console.log(`[Resolve] ${channel.name}: ${channel.youtube_channel_id} → ${resolvedId}`);
-
-          // Rate limit between handle resolutions (Search API is expensive)
-          await new Promise(resolve => setTimeout(resolve, 300));
-        } catch (resolveErr) {
-          // Log the error but don't crash — skip this channel for now
-          results.errors.push({
-            channel: channel.name,
-            error: `Handle resolution failed: ${resolveErr.message}`,
-          });
-          // Don't attempt sync with a handle_ ID — it will fail
-          await new Promise(resolve => setTimeout(resolve, 200));
-          continue;
-        }
+        results.handles_skipped++;
+        continue;
       }
 
-      // Phase 2: Sync the channel (fetch stats, videos, create snapshots)
+      // Sync the channel (fetch stats, videos, create snapshots)
       try {
         const videosCount = await syncChannel(syncTarget, apiKey);
         results.channels_synced++;
@@ -461,7 +409,7 @@ export default async function handler(req, res) {
 
   return res.status(200).json({
     success: true,
-    handles_resolved: results.handles_resolved,
+    handles_skipped: results.handles_skipped,
     ...results,
   });
 }
