@@ -550,7 +550,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
 
 
       {/* Top Videos */}
-      <TopVideos rows={filtered} n={8} />
+      <TopVideos rows={filtered} n={10} />
 
       {/* Upload Cadence Visualization */}
       <PublishingTimeline rows={filtered} dateRange={dateRange} />

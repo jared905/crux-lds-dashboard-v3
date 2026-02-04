@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Smartphone, MonitorPlay, Eye,
-  Percent, MousePointerClick, UserPlus, Clock, ExternalLink
+  Percent, MousePointerClick, UserPlus, Clock, ExternalLink, ChevronDown, ChevronUp
 } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/utils";
 import { getYouTubeThumbnailUrl } from "../../lib/schema";
@@ -49,11 +49,14 @@ const getDurationString = (video) => {
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-export default function TopVideos({ rows, n = 8 }) {
+export default function TopVideos({ rows, n = 10 }) {
+  const [expanded, setExpanded] = useState(false);
   const safeRows = rows || [];
-  
-  const sorted = [...safeRows].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, n);
+  const displayCount = expanded ? n * 2 : n;
+
+  const sorted = [...safeRows].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, displayCount);
   const maxViews = sorted[0]?.views || 1;
+  const canExpand = safeRows.length > n;
 
   const s = {
     card: {
@@ -243,7 +246,7 @@ export default function TopVideos({ rows, n = 8 }) {
       <div style={s.topGradient} />
       <div style={s.header}>
         <h2 style={s.title}>Top Videos</h2>
-        <span style={s.countBadge}>{sorted.length} Videos</span>
+        <span style={s.countBadge}>Top {sorted.length} of {safeRows.length}</span>
       </div>
 
       <div style={s.listContainer}>
@@ -380,6 +383,51 @@ export default function TopVideos({ rows, n = 8 }) {
           );
         })}
       </div>
+
+      {canExpand && (
+        <button
+          onClick={() => setExpanded(e => !e)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "6px",
+            width: "100%",
+            padding: "12px",
+            marginTop: "16px",
+            background: "#252525",
+            border: "1px solid #333",
+            borderRadius: "8px",
+            color: "#9E9E9E",
+            fontSize: "13px",
+            fontWeight: "600",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#2a2a2a";
+            e.currentTarget.style.borderColor = "#555";
+            e.currentTarget.style.color = "#E0E0E0";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "#252525";
+            e.currentTarget.style.borderColor = "#333";
+            e.currentTarget.style.color = "#9E9E9E";
+          }}
+        >
+          {expanded ? (
+            <>
+              <ChevronUp size={14} />
+              Show Top {n} Only
+            </>
+          ) : (
+            <>
+              <ChevronDown size={14} />
+              Show Top {n * 2}
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 }
