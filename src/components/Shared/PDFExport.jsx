@@ -8,7 +8,7 @@ import { FileDown } from "lucide-react";
  * Creates a clean, presentation-ready PDF with key executive metrics
  * Can optionally include AI-generated summary and video ideas
  */
-export default function PDFExport({ kpis, top, filtered, dateRange, customDateRange, clientName, selectedChannel }) {
+export default function PDFExport({ kpis, top, filtered, dateRange, customDateRange, clientName, selectedChannel, allTimeKpis, channelStats }) {
   const [exporting, setExporting] = useState(false);
 
   // Load AI content from localStorage if it should be included
@@ -134,22 +134,31 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
 
           <!-- Key Metrics Grid -->
           <div data-pdf-section style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px;">
-            <div style="background: #f8fafc; padding: 22px; border-radius: 12px; border-left: 5px solid #2563eb;">
-              <div style="font-size: 14px; color: #64748b; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">TOTAL VIEWS</div>
-              <div style="font-size: 36px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.views.toLocaleString()}</div>
-              ${kpis.viewsChange !== undefined ? `<div style="font-size: 14px; color: ${kpis.viewsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 8px; font-weight: 600;">${kpis.viewsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.viewsChange).toFixed(1)}% vs previous period</div>` : ''}
+            <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border-left: 5px solid #2563eb;">
+              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px;">TOTAL VIEWS</div>
+              <div style="font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.views.toLocaleString()}</div>
+              ${kpis.viewsChange !== undefined ? `<div style="font-size: 13px; color: ${kpis.viewsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 6px; font-weight: 600;">${kpis.viewsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.viewsChange).toFixed(1)}% vs previous period</div>` : ''}
+              ${allTimeKpis ? `<div style="border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 8px;">
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Lifetime: <span style="color: #64748b; font-weight: 600;">${allTimeKpis.views.toLocaleString()} views</span></div>
+              </div>` : ''}
             </div>
 
-            <div style="background: #f8fafc; padding: 22px; border-radius: 12px; border-left: 5px solid #16a34a;">
-              <div style="font-size: 14px; color: #64748b; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">WATCH HOURS</div>
-              <div style="font-size: 36px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.watchHours.toLocaleString()}</div>
-              ${kpis.watchHoursChange !== undefined ? `<div style="font-size: 14px; color: ${kpis.watchHoursChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 8px; font-weight: 600;">${kpis.watchHoursChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.watchHoursChange).toFixed(1)}% vs previous period</div>` : ''}
+            <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border-left: 5px solid #16a34a;">
+              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px;">WATCH HOURS</div>
+              <div style="font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.watchHours.toLocaleString()}</div>
+              ${kpis.watchHoursChange !== undefined ? `<div style="font-size: 13px; color: ${kpis.watchHoursChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 6px; font-weight: 600;">${kpis.watchHoursChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.watchHoursChange).toFixed(1)}% vs previous period</div>` : ''}
+              ${allTimeKpis ? `<div style="border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 8px;">
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Lifetime: <span style="color: #64748b; font-weight: 600;">${allTimeKpis.watchHours.toLocaleString()} hours</span></div>
+              </div>` : ''}
             </div>
 
-            <div style="background: #f8fafc; padding: 22px; border-radius: 12px; border-left: 5px solid #f59e0b;">
-              <div style="font-size: 14px; color: #64748b; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">SUBSCRIBERS</div>
-              <div style="font-size: 36px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}</div>
-              ${kpis.subsChange !== undefined ? `<div style="font-size: 14px; color: ${kpis.subsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 8px; font-weight: 600;">${kpis.subsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.subsChange).toFixed(1)}% vs previous period</div>` : ''}
+            <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border-left: 5px solid #f59e0b;">
+              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px;">SUBSCRIBERS</div>
+              <div style="font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}</div>
+              ${kpis.subsChange !== undefined ? `<div style="font-size: 13px; color: ${kpis.subsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 6px; font-weight: 600;">${kpis.subsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.subsChange).toFixed(1)}% vs previous period</div>` : ''}
+              <div style="border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 8px;">
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Total: <span style="color: #64748b; font-weight: 600;">${channelStats?.subscriberCount ? Number(channelStats.subscriberCount).toLocaleString() : allTimeKpis ? allTimeKpis.subs.toLocaleString() : '—'} subscribers</span></div>
+              </div>
             </div>
           </div>
 

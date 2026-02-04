@@ -743,6 +743,8 @@ export default function App() {
               customDateRange={customDateRange}
               clientName={activeClient?.name}
               selectedChannel={selectedChannel}
+              allTimeKpis={allTimeKpis}
+              channelStats={channelStats}
             />
             
             {/* Client Manager Button */}
