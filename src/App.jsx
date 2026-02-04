@@ -715,6 +715,8 @@ export default function App() {
               top={top}
               filtered={filtered}
               dateRange={dateRange}
+              clientName={activeClient?.name}
+              selectedChannel={selectedChannel}
             />
             
             {/* Client Manager Button */}

@@ -8,7 +8,7 @@ import { FileDown } from "lucide-react";
  * Creates a clean, presentation-ready PDF with key executive metrics
  * Can optionally include AI-generated summary and video ideas
  */
-export default function PDFExport({ kpis, top, filtered, dateRange }) {
+export default function PDFExport({ kpis, top, filtered, dateRange, clientName, selectedChannel }) {
   const [exporting, setExporting] = useState(false);
 
   // Load AI content from localStorage if it should be included
@@ -102,6 +102,12 @@ export default function PDFExport({ kpis, top, filtered, dateRange }) {
         console.warn('Could not fetch comments for PDF:', err);
       }
 
+      // Determine channel display name
+      const uniqueChannels = [...new Set(filtered.map(r => r.channel).filter(Boolean))];
+      const displayName = selectedChannel && selectedChannel !== 'all'
+        ? selectedChannel
+        : clientName || uniqueChannels[0] || '';
+
       // Build the PDF content
       container.innerHTML = `
         <div style="max-width: 1080px; margin: 0 auto;">
@@ -112,6 +118,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange }) {
                 <img src="/Full_View_Logo.png" alt="Full View Analytics" style="height: 85px; object-fit: contain; display: block;" />
               </div>
               <div style="border-left: 2px solid #cbd5e1; padding-left: 20px;">
+                ${displayName ? `<div style="font-size: 22px; font-weight: 700; color: #2563eb; margin-bottom: 4px;">${displayName}</div>` : ''}
                 <h1 style="margin: 0; font-size: 38px; font-weight: 700; color: #1e293b; line-height: 1.2;">Strategic YouTube Insights</h1>
                 <p style="margin: 8px 0 0 0; font-size: 18px; color: #64748b; font-weight: 500;">${dateLabel} • ${dateStr}</p>
               </div>
@@ -207,7 +214,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange }) {
                   </tr>
                 </thead>
                 <tbody>
-                  ${top.slice(0, 8).map((video, idx) => `
+                  ${top.slice(0, 10).map((video, idx) => `
                     <tr style="border-bottom: 1px solid #e2e8f0;">
                       <td style="padding: 18px 20px; font-size: 16px; color: #1e293b; max-width: 400px; font-weight: 500;">
                         <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 5px;">${video.title || 'Untitled'}</div>
