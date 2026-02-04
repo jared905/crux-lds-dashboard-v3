@@ -8,7 +8,7 @@ import { FileDown } from "lucide-react";
  * Creates a clean, presentation-ready PDF with key executive metrics
  * Can optionally include AI-generated summary and video ideas
  */
-export default function PDFExport({ kpis, top, filtered, dateRange, clientName, selectedChannel }) {
+export default function PDFExport({ kpis, top, filtered, dateRange, customDateRange, clientName, selectedChannel }) {
   const [exporting, setExporting] = useState(false);
 
   // Load AI content from localStorage if it should be included
@@ -37,6 +37,13 @@ export default function PDFExport({ kpis, top, filtered, dateRange, clientName, 
       case '90d': return 'Last 90 Days';
       case 'ytd': return 'Year to Date';
       case 'all': return 'All Time';
+      case 'custom': {
+        if (customDateRange?.start && customDateRange?.end) {
+          const fmt = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          return `${fmt(customDateRange.start)} – ${fmt(customDateRange.end)}`;
+        }
+        return 'Custom Range';
+      }
       default: return 'Last 28 Days';
     }
   };

@@ -740,6 +740,7 @@ export default function App() {
               top={top}
               filtered={filtered}
               dateRange={dateRange}
+              customDateRange={customDateRange}
               clientName={activeClient?.name}
               selectedChannel={selectedChannel}
             />
