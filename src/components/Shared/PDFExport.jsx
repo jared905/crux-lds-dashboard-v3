@@ -215,6 +215,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
                   <tr style="background: #e2e8f0;">
                     <th style="text-align: left; padding: 16px 20px; font-size: 15px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TITLE</th>
                     <th style="text-align: center; padding: 16px 20px; font-size: 15px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TYPE</th>
+                    <th style="text-align: center; padding: 16px 20px; font-size: 15px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">UPLOADED</th>
                     <th style="text-align: right; padding: 16px 20px; font-size: 15px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">VIEWS</th>
                     <th style="text-align: right; padding: 16px 20px; font-size: 15px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">CTR</th>
                     <th style="text-align: right; padding: 16px 20px; font-size: 15px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">RETENTION</th>
@@ -232,6 +233,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
                           ${video.type === 'short' ? 'SHORT' : 'LONG'}
                         </span>
                       </td>
+                      <td style="padding: 18px 20px; text-align: center; font-size: 14px; color: #64748b; font-weight: 500; white-space: nowrap;">${video.publishDate ? new Date(video.publishDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
                       <td style="padding: 18px 20px; text-align: right; font-size: 17px; font-weight: 600; color: #1e293b;">${(video.views || 0).toLocaleString()}</td>
                       <td style="padding: 18px 20px; text-align: right; font-size: 16px; color: #64748b; font-weight: 500;">${((video.ctr || 0) * 100).toFixed(1)}%</td>
                       <td style="padding: 18px 20px; text-align: right; font-size: 16px; color: #64748b; font-weight: 500;">${((video.retention || 0) * 100).toFixed(1)}%</td>
