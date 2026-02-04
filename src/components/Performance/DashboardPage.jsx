@@ -150,12 +150,10 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
           filtered={filtered} metricKey="watchHours"
         />
 
-        {/* Subscribers — self-contained API fetch, falls back to CSV */}
+        {/* Subscribers — uses parent-fetched channel stats */}
         <KpiCard
           icon={Users} label="Subscribers" color="#f472b6" accentBg="rgba(244, 114, 182, 0.1)"
-          value={isLoading
-            ? "..."
-            : resolvedStats?.subscriberCount
+          value={resolvedStats?.subscriberCount
               ? fmtInt(resolvedStats.subscriberCount)
               : `${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`}
           allTimeLabel={resolvedStats?.subscriberCount ? "gained in period" : "net gained"}
