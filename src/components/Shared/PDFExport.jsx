@@ -379,7 +379,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, clientName, 
         // If section spans two pages and fits on a single page, push it to the next page
         if (endPage > startPage && sectionHeight < pageHeightPx * 0.85) {
           const nextPageStart = (startPage + 1) * pageHeightPx;
-          const spacer = nextPageStart - sectionTop + 20;
+          const spacer = nextPageStart - sectionTop + 40;
           section.style.marginTop = `${spacer}px`;
         }
       });
