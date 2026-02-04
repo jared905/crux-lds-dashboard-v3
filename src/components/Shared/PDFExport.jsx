@@ -112,7 +112,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, clientName, 
       container.innerHTML = `
         <div style="max-width: 1080px; margin: 0 auto;">
           <!-- Header -->
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 36px; padding-bottom: 20px; border-bottom: 3px solid #2563eb;">
+          <div data-pdf-section style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 36px; padding-bottom: 20px; border-bottom: 3px solid #2563eb;">
             <div style="display: flex; align-items: center; gap: 20px;">
               <div style="background: #1a1a1a; padding: 16px 20px; border-radius: 10px;">
                 <img src="/Full_View_Logo.png" alt="Full View Analytics" style="height: 85px; object-fit: contain; display: block;" />
@@ -126,7 +126,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, clientName, 
           </div>
 
           <!-- Key Metrics Grid -->
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 40px;">
+          <div data-pdf-section style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 40px;">
             <div style="background: #f8fafc; padding: 28px; border-radius: 14px; border-left: 5px solid #2563eb;">
               <div style="font-size: 16px; color: #64748b; font-weight: 600; margin-bottom: 10px; letter-spacing: 0.5px;">TOTAL VIEWS</div>
               <div style="font-size: 42px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.views.toLocaleString()}</div>
@@ -147,7 +147,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, clientName, 
           </div>
 
           <!-- Content Performance -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px;">
+          <div data-pdf-section style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px;">
             <div style="background: #fff7ed; padding: 24px; border-radius: 14px; border: 3px solid #f97316;">
               <div style="font-size: 24px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">📱 Shorts Performance</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;">
@@ -194,13 +194,13 @@ export default function PDFExport({ kpis, top, filtered, dateRange, clientName, 
           </div>
 
           <!-- Metric Definitions -->
-          <div style="display: flex; gap: 24px; margin-bottom: 32px; padding: 14px 20px; background: #f1f5f9; border-radius: 10px; border-left: 4px solid #94a3b8;">
+          <div data-pdf-section style="display: flex; gap: 24px; margin-bottom: 32px; padding: 14px 20px; background: #f1f5f9; border-radius: 10px; border-left: 4px solid #94a3b8;">
             <p style="margin: 0; font-size: 13px; color: #64748b; line-height: 1.5;"><strong style="color: #475569;">CTR (Click-Through Rate):</strong> The percentage of people who saw your thumbnail and clicked to watch.</p>
             <p style="margin: 0; font-size: 13px; color: #64748b; line-height: 1.5;"><strong style="color: #475569;">Retention:</strong> The average percentage of your video that viewers watched before leaving.</p>
           </div>
 
           <!-- Top Performers -->
-          <div style="margin-bottom: 32px;">
+          <div data-pdf-section style="margin-bottom: 32px;">
             <h2 style="font-size: 30px; font-weight: 700; color: #1e293b; margin-bottom: 20px;">🏆 Top Performing Videos</h2>
             <div style="background: #f8fafc; border-radius: 14px; overflow: hidden; border: 2px solid #e2e8f0;">
               <table style="width: 100%; border-collapse: collapse;">
@@ -237,7 +237,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, clientName, 
 
           ${topComments.length > 0 ? `
           <!-- Top Comments -->
-          <div style="margin-bottom: 32px;">
+          <div data-pdf-section style="margin-bottom: 32px;">
             <h2 style="font-size: 30px; font-weight: 700; color: #1e293b; margin-bottom: 20px;">💬 Top Audience Comments</h2>
             ${topComments.map(c => `
               <div style="background: #f8fafc; padding: 18px 22px; border-radius: 12px; margin-bottom: 12px; border-left: 4px solid #2563eb;">
@@ -255,7 +255,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, clientName, 
           ` : ''}
 
           <!-- Summary Stats -->
-          <div style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 28px; border-radius: 14px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+          <div data-pdf-section style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 28px; border-radius: 14px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: center;">
               <div>
                 <div style="font-size: 16px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">TOTAL VIDEOS</div>
@@ -278,7 +278,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, clientName, 
 
           ${aiContent.summary ? `
           <!-- AI Executive Summary -->
-          <div style="margin-top: 36px; page-break-before: always;">
+          <div data-pdf-section style="margin-top: 36px;">
             <h2 style="font-size: 32px; font-weight: 700; color: #1e293b; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 3px solid #2563eb; background: linear-gradient(90deg, #2563eb, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
               🤖 AI Executive Summary
             </h2>
@@ -308,7 +308,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, clientName, 
 
           ${aiContent.ideas && aiContent.ideas.length > 0 ? `
           <!-- AI Video Ideas -->
-          <div style="margin-top: 36px; page-break-before: always;">
+          <div data-pdf-section style="margin-top: 36px;">
             <h2 style="font-size: 32px; font-weight: 700; color: #1e293b; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 3px solid #7c3aed; background: linear-gradient(90deg, #7c3aed, #2563eb); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
               💡 AI-Generated Video Ideas
             </h2>
@@ -348,7 +348,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, clientName, 
           ` : ''}
 
           <!-- Footer -->
-          <div style="margin-top: 28px; padding-top: 18px; border-top: 1px solid #e2e8f0; text-align: center;">
+          <div data-pdf-section style="margin-top: 28px; padding-top: 18px; border-top: 1px solid #e2e8f0; text-align: center;">
             <div style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 8px;">
               <span style="color: #64748b; font-size: 14px; font-weight: 500;">Generated by Full View Analytics</span>
               <span style="color: #cbd5e1; font-size: 14px;">•</span>
@@ -362,6 +362,27 @@ export default function PDFExport({ kpis, top, filtered, dateRange, clientName, 
 
       // Wait for any images to load
       await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Prevent page breaks from splitting sections
+      // Calculate effective page height based on container width and A4 aspect ratio
+      const pageHeightPx = (297 / 210) * container.offsetWidth;
+      const sections = container.querySelectorAll('[data-pdf-section]');
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop;
+        const sectionHeight = section.offsetHeight;
+        const sectionBottom = sectionTop + sectionHeight;
+
+        // Find which page boundary this section crosses
+        const startPage = Math.floor(sectionTop / pageHeightPx);
+        const endPage = Math.floor((sectionBottom - 1) / pageHeightPx);
+
+        // If section spans two pages and fits on a single page, push it to the next page
+        if (endPage > startPage && sectionHeight < pageHeightPx * 0.85) {
+          const nextPageStart = (startPage + 1) * pageHeightPx;
+          const spacer = nextPageStart - sectionTop + 20;
+          section.style.marginTop = `${spacer}px`;
+        }
+      });
 
       // Capture the content as canvas
       const canvas = await html2canvas(container, {
