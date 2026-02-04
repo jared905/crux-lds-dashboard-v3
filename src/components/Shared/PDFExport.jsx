@@ -65,6 +65,43 @@ export default function PDFExport({ kpis, top, filtered, dateRange }) {
       // Get AI content
       const aiContent = getAIContent();
 
+      // Fetch top comments from top 3 videos via server proxy (sorted by likes)
+      let topComments = [];
+      try {
+        const videosWithIds = top.filter(v => v.youtubeVideoId).slice(0, 3);
+        const titleMap = {};
+        videosWithIds.forEach(v => { titleMap[v.youtubeVideoId] = v.title || 'Untitled'; });
+
+        if (videosWithIds.length > 0) {
+          const videoIds = videosWithIds.map(v => v.youtubeVideoId);
+          const resp = await fetch('/api/youtube-comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ videoIds, maxPerVideo: 20 }),
+          });
+
+          if (resp.ok) {
+            const { results } = await resp.json();
+            const allComments = Object.entries(results)
+              .flatMap(([videoId, data]) =>
+                (data.comments || []).map(c => ({ ...c, videoId }))
+              );
+
+            topComments = allComments
+              .sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0))
+              .slice(0, 5)
+              .map(c => ({
+                text: c.text.length > 200 ? c.text.substring(0, 200) + '...' : c.text,
+                author: c.author,
+                likes: c.likeCount || 0,
+                videoTitle: titleMap[c.videoId] || 'Unknown Video'
+              }));
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch comments for PDF:', err);
+      }
+
       // Build the PDF content
       container.innerHTML = `
         <div style="max-width: 1080px; margin: 0 auto;">
@@ -149,6 +186,12 @@ export default function PDFExport({ kpis, top, filtered, dateRange }) {
             </div>
           </div>
 
+          <!-- Metric Definitions -->
+          <div style="display: flex; gap: 24px; margin-bottom: 32px; padding: 14px 20px; background: #f1f5f9; border-radius: 10px; border-left: 4px solid #94a3b8;">
+            <p style="margin: 0; font-size: 13px; color: #64748b; line-height: 1.5;"><strong style="color: #475569;">CTR (Click-Through Rate):</strong> The percentage of people who saw your thumbnail and clicked to watch.</p>
+            <p style="margin: 0; font-size: 13px; color: #64748b; line-height: 1.5;"><strong style="color: #475569;">Retention:</strong> The average percentage of your video that viewers watched before leaving.</p>
+          </div>
+
           <!-- Top Performers -->
           <div style="margin-bottom: 32px;">
             <h2 style="font-size: 30px; font-weight: 700; color: #1e293b; margin-bottom: 20px;">🏆 Top Performing Videos</h2>
@@ -184,6 +227,25 @@ export default function PDFExport({ kpis, top, filtered, dateRange }) {
               </table>
             </div>
           </div>
+
+          ${topComments.length > 0 ? `
+          <!-- Top Comments -->
+          <div style="margin-bottom: 32px;">
+            <h2 style="font-size: 30px; font-weight: 700; color: #1e293b; margin-bottom: 20px;">💬 Top Audience Comments</h2>
+            ${topComments.map(c => `
+              <div style="background: #f8fafc; padding: 18px 22px; border-radius: 12px; margin-bottom: 12px; border-left: 4px solid #2563eb;">
+                <div style="font-size: 15px; color: #1e293b; line-height: 1.6; margin-bottom: 10px;">"${c.text}"</div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 13px; color: #64748b; font-weight: 500;">— ${c.author}</span>
+                  <div style="display: flex; align-items: center; gap: 16px;">
+                    <span style="font-size: 12px; color: #94a3b8; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${c.videoTitle}</span>
+                    <span style="font-size: 13px; color: #2563eb; font-weight: 600;">👍 ${c.likes.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          ` : ''}
 
           <!-- Summary Stats -->
           <div style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 28px; border-radius: 14px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
