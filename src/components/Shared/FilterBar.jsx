@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function FilterBar({ dateRange, setDateRange, selectedChannel, setSelectedChannel, channelOpts, query, setQuery }) {
+export default function FilterBar({ dateRange, setDateRange, customDateRange, setCustomDateRange, selectedChannel, setSelectedChannel, channelOpts, query, setQuery }) {
   return (
     <div style={{ position: "sticky", top: "110px", zIndex: 99, background: "#121212", paddingTop: "20px", paddingBottom: "10px" }}>
       <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "0 24px" }}>
@@ -14,8 +14,45 @@ export default function FilterBar({ dateRange, setDateRange, selectedChannel, se
                 <option value="90d">90 Days</option>
                 <option value="28d">28 Days</option>
                 <option value="7d">7 Days</option>
+                <option value="custom">Custom</option>
               </select>
             </div>
+
+            {dateRange === "custom" && (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <input
+                  type="date"
+                  value={customDateRange.start}
+                  onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  style={{
+                    border: "1px solid #333",
+                    background: "#252525",
+                    borderRadius: "8px",
+                    padding: "8px 12px",
+                    color: "#E0E0E0",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    colorScheme: "dark"
+                  }}
+                />
+                <div style={{ fontSize: "12px", color: "#9E9E9E" }}>to</div>
+                <input
+                  type="date"
+                  value={customDateRange.end}
+                  onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  style={{
+                    border: "1px solid #333",
+                    background: "#252525",
+                    borderRadius: "8px",
+                    padding: "8px 12px",
+                    color: "#E0E0E0",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    colorScheme: "dark"
+                  }}
+                />
+              </div>
+            )}
 
             {channelOpts.length > 1 && (
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

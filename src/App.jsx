@@ -72,6 +72,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [dateRange, setDateRange] = useState("28d");
+  const [customDateRange, setCustomDateRange] = useState({ start: "", end: "" });
   const [selectedChannel, setSelectedChannel] = useState("all");
   const [query, setQuery] = useState("");
   const [chartMetric, setChartMetric] = useState("views");
@@ -346,7 +347,17 @@ export default function App() {
     // Always filter out Total rows from display data
     let result = rows.filter(r => !r.isTotal && r.views > 0);
 
-    if (dateRange !== "all") {
+    if (dateRange === "custom") {
+      if (customDateRange.start) {
+        const start = new Date(customDateRange.start);
+        result = result.filter(r => r.publishDate && new Date(r.publishDate) >= start);
+      }
+      if (customDateRange.end) {
+        const end = new Date(customDateRange.end);
+        end.setHours(23, 59, 59, 999);
+        result = result.filter(r => r.publishDate && new Date(r.publishDate) <= end);
+      }
+    } else if (dateRange !== "all") {
       const now = new Date();
       let startDate;
       if (dateRange === "ytd") {
@@ -372,7 +383,7 @@ export default function App() {
     }
 
     return result;
-  }, [rows, selectedChannel, query, dateRange]);
+  }, [rows, selectedChannel, query, dateRange, customDateRange]);
 
   const kpis = useMemo(() => {
     const views = filtered.reduce((s, r) => s + (r.views || 0), 0);
@@ -492,6 +503,20 @@ export default function App() {
 
     // Define current and previous periods based on dateRange filter
     switch(dateRange) {
+      case 'custom': {
+        if (customDateRange.start && customDateRange.end) {
+          currentStart = new Date(customDateRange.start);
+          const endDate = new Date(customDateRange.end);
+          endDate.setHours(23, 59, 59, 999);
+          const periodLength = endDate.getTime() - currentStart.getTime();
+          previousStart = new Date(currentStart.getTime() - periodLength);
+          previousEnd = currentStart;
+        } else {
+          // Not enough info for comparison, treat like "all"
+          currentStart = null;
+        }
+        break;
+      }
       case '7d':
         currentStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         previousStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
@@ -599,7 +624,7 @@ export default function App() {
     };
 
     return { views, watchHours, subs, avgCtr, avgRet, shortsMetrics, longsMetrics, shortsROI, longsROI };
-  }, [rows, dateRange, selectedChannel, query]);
+  }, [rows, dateRange, customDateRange, selectedChannel, query]);
 
   // Combine KPIs with period-over-period changes
   const kpisWithChanges = useMemo(() => {
@@ -743,6 +768,8 @@ export default function App() {
         <FilterBar
           dateRange={dateRange}
           setDateRange={setDateRange}
+          customDateRange={customDateRange}
+          setCustomDateRange={setCustomDateRange}
           selectedChannel={selectedChannel}
           setSelectedChannel={setSelectedChannel}
           channelOpts={channelOpts}
