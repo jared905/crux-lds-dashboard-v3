@@ -91,7 +91,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, clientName, 
               .sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0))
               .slice(0, 5)
               .map(c => ({
-                text: c.text.length > 200 ? c.text.substring(0, 200) + '...' : c.text,
+                text: c.text,
                 author: c.author,
                 likes: c.likeCount || 0,
                 videoTitle: titleMap[c.videoId] || 'Unknown Video'
