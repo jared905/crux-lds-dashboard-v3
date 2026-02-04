@@ -153,6 +153,28 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
             </div>
           </div>
 
+          <!-- Summary Stats -->
+          <div data-pdf-section style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 28px; border-radius: 14px; margin-bottom: 32px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: center;">
+              <div>
+                <div style="font-size: 16px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">TOTAL VIDEOS</div>
+                <div style="font-size: 38px; font-weight: 700; color: #ffffff;">${filtered.length}</div>
+              </div>
+              <div>
+                <div style="font-size: 16px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">AVG VIEWS/VIDEO</div>
+                <div style="font-size: 38px; font-weight: 700; color: #ffffff;">${filtered.length > 0 ? Math.round(kpis.views / filtered.length).toLocaleString() : '0'}</div>
+              </div>
+              <div>
+                <div style="font-size: 16px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">AVG CTR</div>
+                <div style="font-size: 38px; font-weight: 700; color: #ffffff;">${(kpis.avgCtr * 100).toFixed(1)}%</div>
+              </div>
+              <div>
+                <div style="font-size: 16px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">AVG RETENTION</div>
+                <div style="font-size: 38px; font-weight: 700; color: #ffffff;">${(kpis.avgRet * 100).toFixed(1)}%</div>
+              </div>
+            </div>
+          </div>
+
           <!-- Content Performance -->
           <div data-pdf-section style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px;">
             <div style="background: #fff7ed; padding: 24px; border-radius: 14px; border: 3px solid #f97316;">
@@ -262,28 +284,6 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
             `).join('')}
           </div>
           ` : ''}
-
-          <!-- Summary Stats -->
-          <div data-pdf-section style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 28px; border-radius: 14px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: center;">
-              <div>
-                <div style="font-size: 16px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">TOTAL VIDEOS</div>
-                <div style="font-size: 38px; font-weight: 700; color: #ffffff;">${filtered.length}</div>
-              </div>
-              <div>
-                <div style="font-size: 16px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">AVG VIEWS/VIDEO</div>
-                <div style="font-size: 38px; font-weight: 700; color: #ffffff;">${filtered.length > 0 ? Math.round(kpis.views / filtered.length).toLocaleString() : '0'}</div>
-              </div>
-              <div>
-                <div style="font-size: 16px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">AVG CTR</div>
-                <div style="font-size: 38px; font-weight: 700; color: #ffffff;">${(kpis.avgCtr * 100).toFixed(1)}%</div>
-              </div>
-              <div>
-                <div style="font-size: 16px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">AVG RETENTION</div>
-                <div style="font-size: 38px; font-weight: 700; color: #ffffff;">${(kpis.avgRet * 100).toFixed(1)}%</div>
-              </div>
-            </div>
-          </div>
 
           ${aiContent.summary ? `
           <!-- AI Executive Summary -->
