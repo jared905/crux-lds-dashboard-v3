@@ -312,11 +312,12 @@ export default function App() {
             setAllChannelStats({});
           } else {
             setAllChannelStats(statsMap);
-            const totalSubs = Object.values(statsMap).reduce(
-              (sum, s) => sum + (s.subscriberCount || 0), 0
-            );
+            const allStats = Object.values(statsMap);
+            const totalSubs = allStats.reduce((sum, s) => sum + (s.subscriberCount || 0), 0);
+            const totalViews = allStats.reduce((sum, s) => sum + (s.viewCount || 0), 0);
+            const totalVideos = allStats.reduce((sum, s) => sum + (s.videoCount || 0), 0);
             console.log('[SubFetch] Total subscriber sum:', totalSubs);
-            setChannelStats({ subscriberCount: totalSubs });
+            setChannelStats({ subscriberCount: totalSubs, viewCount: totalViews, videoCount: totalVideos });
           }
         }
       } catch (err) {
@@ -804,9 +805,6 @@ export default function App() {
                 chartMetric={chartMetric}
                 setChartMetric={setChartMetric}
                 channelStats={channelStats}
-                youtubeChannelUrl={activeClient?.youtubeChannelUrl}
-                channelUrlsMap={activeClient?.channelUrlsMap}
-                clientSupabaseId={activeClient?.supabaseId || activeClient?.id}
               />
             )}
 

@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Eye, Clock, Users, Target, BarChart3, TrendingUp, TrendingDown, Video, PlaySquare, Activity, ChevronDown, ChevronUp } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/formatters.js";
-import { youtubeAPI } from "../../services/youtubeAPI.js";
 import Chart from "./Chart.jsx";
 import TopVideos from "./TopVideos.jsx";
 import PublishingTimeline from "./PublishingTimeline.jsx";
@@ -92,94 +91,10 @@ function KpiCard({ icon: Icon, label, value, allTimeLabel, allTimeValue, color, 
   );
 }
 
-export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric, channelStats, youtubeChannelUrl, channelUrlsMap, clientSupabaseId }) {
-  // Self-contained YouTube API fetch for channel stats (subscribers, views, videoCount)
-  // Falls back to Supabase cache when YouTube API quota is exhausted (403)
-  const [localChannelStats, setLocalChannelStats] = useState(null);
-  const [localLoading, setLocalLoading] = useState(false);
-  const fetchedForRef = useRef(null);
-
-  useEffect(() => {
-    // Collect up to 10 unique video IDs (some may be deleted/private, so send a batch)
-    const videoIds = [...new Set(
-      rows.filter(r => r.youtubeVideoId && !r.isTotal)
-          .map(r => r.youtubeVideoId)
-    )].slice(0, 10);
-
-    // Build handles from channel URLs for fallback resolution
-    const handles = [];
-    if (youtubeChannelUrl) {
-      handles.push({ name: '_primary', url: youtubeChannelUrl });
-    }
-    if (channelUrlsMap) {
-      for (const [name, url] of Object.entries(channelUrlsMap)) {
-        if (url && !handles.some(h => h.url === url)) {
-          handles.push({ name, url });
-        }
-      }
-    }
-
-    // Build a stable key from sorted video IDs + channel URL to avoid redundant fetches
-    const fetchKey = [...videoIds].sort().join(',') + '|' + (youtubeChannelUrl || '');
-    if (!fetchKey || fetchKey === '|') return;
-    if (fetchedForRef.current === fetchKey) return;
-
-    const apiKey = youtubeAPI.apiKey || youtubeAPI.loadAPIKey();
-    if (!apiKey) return;
-
-    let cancelled = false;
-    setLocalLoading(true);
-
-    (async () => {
-      try {
-        const body = { apiKey, videoIds };
-        if (handles.length > 0) body.handles = handles;
-        if (clientSupabaseId) body.clientSupabaseId = clientSupabaseId;
-
-        const response = await fetch('/api/youtube-channel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-
-        if (!response.ok || cancelled) return;
-
-        const { videoResults = {}, channels = {}, handleResults = {} } = await response.json();
-        if (cancelled) return;
-
-        // Find channel stats: try video results first, then handle results, then any channel
-        let stats = null;
-        for (const vid of videoIds) {
-          const chId = videoResults[vid]?.channelId;
-          if (chId && channels[chId]) { stats = channels[chId]; break; }
-        }
-        if (!stats) {
-          for (const hr of Object.values(handleResults)) {
-            if (hr.channelId && channels[hr.channelId]) { stats = channels[hr.channelId]; break; }
-          }
-        }
-        if (!stats) {
-          const firstChannel = Object.values(channels)[0];
-          if (firstChannel) stats = firstChannel;
-        }
-
-        if (stats && !cancelled) {
-          fetchedForRef.current = fetchKey;
-          setLocalChannelStats(stats);
-        }
-      } catch (err) {
-        console.warn('[DashboardKPI] Fetch failed:', err);
-      } finally {
-        if (!cancelled) setLocalLoading(false);
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [rows, youtubeChannelUrl]);
-
-  // Use local fetch result, fall back to parent's channelStats
-  const resolvedStats = localChannelStats || channelStats;
-  const isLoading = localLoading && !resolvedStats;
+export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric, channelStats }) {
+  // Channel stats (subscribers, views, videoCount) are fetched by the parent (App.jsx)
+  // which correctly handles per-channel resolution and "all channels" aggregation.
+  const resolvedStats = channelStats;
 
   return (
     <>
