@@ -1,13 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
 import {
-  Mail,
-  Linkedin,
   FileText,
   Copy,
   Check,
   Eye,
   TrendingUp,
-  TrendingDown,
   Zap,
   HelpCircle,
   Sparkles,
@@ -20,27 +17,27 @@ import {
   ChevronUp,
   Plus,
   X,
+  ExternalLink,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 
 /**
  * OutreachBuilder - Creates personalized "Channel Notes" for cold outreach
- * Pulls insights from audit data but requires human curation and personal touch
+ * Generates natural, personal emails — not formatted reports
  */
 export default function OutreachBuilder({ audit, videoAnalysis }) {
   const snapshot = audit.channel_snapshot || {};
   const series = audit.series_summary || {};
   const benchmark = audit.benchmark_data || {};
   const videos = audit.videos || [];
-  const recommendations = audit.recommendations || {};
 
-  // Generate observation options from audit data
+  // Generate observation options from audit data (always 5+)
   const generatedObservations = useMemo(() => {
     return generateObservations(audit, videoAnalysis, videos);
   }, [audit, videoAnalysis, videos]);
 
-  // Generate quick wins from audit data
+  // Generate quick wins from audit data (always 5)
   const generatedQuickWins = useMemo(() => {
     return generateQuickWins(audit, videoAnalysis, videos);
   }, [audit, videoAnalysis, videos]);
@@ -76,7 +73,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
     observations: true,
     quickWin: true,
     teases: true,
-    videos: true,
+    videos: false,
   });
 
   // Initialize featured videos
@@ -199,46 +196,49 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
     };
   };
 
-  // Copy as email
+  // Copy as email - writes like a natural personal email
   const copyAsEmail = () => {
     const content = buildContent();
     let email = "";
 
+    // Start with personal note as opening
     if (content.personalNote) {
       email += `${content.personalNote}\n\n`;
     }
 
+    // Weave observations naturally into prose
     if (content.observations.length > 0) {
-      email += "What We Noticed:\n";
+      email += "I spent some time looking at your channel and a few things stood out:\n\n";
       content.observations.forEach(o => {
-        email += `• ${o.text}\n`;
+        // Include video link if observation has one
+        if (o.videoUrl) {
+          email += `${o.text}\n${o.videoUrl}\n\n`;
+        } else {
+          email += `${o.text}\n\n`;
+        }
       });
-      email += "\n";
     }
 
+    // Quick win as a gift
     if (content.quickWin) {
-      email += "Quick Win:\n";
-      email += `${content.quickWin.text}\n\n`;
+      email += `One thing you could try right away: ${content.quickWin.text}\n\n`;
     }
 
+    // Teases as curiosity hooks
     if (content.teases.length > 0) {
-      email += "What We'd Dig Into:\n";
+      email += "If you're curious, I'd love to dig into:\n";
       content.teases.forEach(t => {
-        email += `• ${t.text}\n`;
+        email += `- ${t.text}\n`;
       });
       email += "\n";
     }
 
-    if (content.videos.length > 0) {
-      email += "Videos That Stood Out:\n";
-      content.videos.forEach(v => {
-        email += `• "${v.title}" — ${v.caption}\n`;
-      });
-      email += "\n";
-    }
-
+    // Sign-off flows naturally
     email += `${content.signOff}\n\n`;
-    email += `— ${content.senderName}, ${content.senderCompany}`;
+    email += `${content.senderName}`;
+    if (content.senderCompany) {
+      email += `\n${content.senderCompany}`;
+    }
 
     navigator.clipboard.writeText(email);
     setCopied(true);
@@ -291,11 +291,11 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
           <MessageSquare size={24} style={{ color: "#8b5cf6" }} />
-          <div style={{ fontSize: "18px", fontWeight: "700" }}>Channel Notes for Outreach</div>
+          <div style={{ fontSize: "18px", fontWeight: "700" }}>Outreach Email Builder</div>
         </div>
         <div style={{ fontSize: "13px", color: "#9E9E9E", lineHeight: "1.6" }}>
-          Create a personalized, value-first message for <strong style={{ color: "#E0E0E0" }}>{snapshot.name}</strong>.
-          Select the insights that matter, add your personal touch, and export.
+          Craft a personal email to <strong style={{ color: "#E0E0E0" }}>{snapshot.name}</strong>.
+          The output reads like a real email, not a report.
         </div>
       </div>
 
@@ -303,16 +303,16 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
       <div style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
           <Sparkles size={18} style={{ color: "#f59e0b" }} />
-          <div style={{ fontSize: "14px", fontWeight: "700" }}>Personal Note</div>
+          <div style={{ fontSize: "14px", fontWeight: "700" }}>Opening Line</div>
           <span style={{ fontSize: "11px", color: "#ef4444", marginLeft: "4px" }}>Required</span>
         </div>
         <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "12px" }}>
-          Start with something specific about their work. This can't be auto-generated — it has to come from you.
+          Start with something specific. Reference a video you watched, a series you liked, or why you reached out.
         </div>
         <textarea
           value={personalNote}
           onChange={(e) => setPersonalNote(e.target.value)}
-          placeholder="I've been watching your content for a few months now, and your [specific series/video] really stood out to me because..."
+          placeholder="Hey! I came across your channel while researching [topic] and your video on [specific video] really stood out..."
           style={{
             width: "100%",
             minHeight: "100px",
@@ -328,7 +328,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
         />
       </div>
 
-      {/* Observations */}
+      {/* Observations - with video thumbnails */}
       <div style={cardStyle}>
         <button
           onClick={() => toggleSection("observations")}
@@ -336,7 +336,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Eye size={18} style={{ color: "#3b82f6" }} />
-            <div style={{ fontSize: "14px", fontWeight: "700" }}>What We Noticed</div>
+            <div style={{ fontSize: "14px", fontWeight: "700" }}>What I Noticed</div>
             <span style={{ fontSize: "11px", color: "#9E9E9E" }}>
               ({selectedObservations.length} selected)
             </span>
@@ -347,10 +347,10 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
         {expandedSections.observations && (
           <div style={{ marginTop: "12px" }}>
             <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "12px" }}>
-              Select 2-3 specific observations. Include at least one genuine compliment.
+              Pick 2-3 observations. Each includes a link to the specific video when relevant.
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {generatedObservations.map(obs => (
                 <ObservationItem
                   key={obs.id}
@@ -406,7 +406,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
         )}
       </div>
 
-      {/* Quick Win */}
+      {/* Quick Win - 5 options */}
       <div style={cardStyle}>
         <button
           onClick={() => toggleSection("quickWin")}
@@ -414,10 +414,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Zap size={18} style={{ color: "#22c55e" }} />
-            <div style={{ fontSize: "14px", fontWeight: "700" }}>Quick Win</div>
-            <span style={{ fontSize: "11px", color: "#9E9E9E" }}>
-              (1 selected)
-            </span>
+            <div style={{ fontSize: "14px", fontWeight: "700" }}>Quick Win (The Gift)</div>
           </div>
           {expandedSections.quickWin ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
@@ -425,7 +422,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
         {expandedSections.quickWin && (
           <div style={{ marginTop: "12px" }}>
             <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "12px" }}>
-              One actionable thing they can use today — no strings attached. This is the gift.
+              One actionable thing they can use today. This is what makes the email valuable even if they never reply.
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -452,7 +449,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
                   style={{ marginTop: "4px" }}
                 />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "6px" }}>Custom quick win:</div>
+                  <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "6px" }}>Write your own:</div>
                   <textarea
                     value={customQuickWin}
                     onChange={(e) => setCustomQuickWin(e.target.value)}
@@ -485,7 +482,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <HelpCircle size={18} style={{ color: "#8b5cf6" }} />
-            <div style={{ fontSize: "14px", fontWeight: "700" }}>What We'd Dig Into</div>
+            <div style={{ fontSize: "14px", fontWeight: "700" }}>What I'd Explore Further</div>
             <span style={{ fontSize: "11px", color: "#9E9E9E" }}>
               ({selectedTeases.length} selected)
             </span>
@@ -496,7 +493,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
         {expandedSections.teases && (
           <div style={{ marginTop: "12px" }}>
             <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "12px" }}>
-              2-3 things you <em>could</em> explore together. Creates curiosity without overpromising.
+              2-3 things you'd dig into if you worked together. Creates curiosity without overpromising.
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -555,7 +552,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
         )}
       </div>
 
-      {/* Featured Videos */}
+      {/* Featured Videos - collapsed by default */}
       <div style={cardStyle}>
         <button
           onClick={() => toggleSection("videos")}
@@ -563,10 +560,8 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Video size={18} style={{ color: "#ec4899" }} />
-            <div style={{ fontSize: "14px", fontWeight: "700" }}>Featured Videos</div>
-            <span style={{ fontSize: "11px", color: "#9E9E9E" }}>
-              ({featuredVideos.filter(v => v.included).length} included)
-            </span>
+            <div style={{ fontSize: "14px", fontWeight: "700" }}>Reference Videos</div>
+            <span style={{ fontSize: "11px", color: "#666" }}>(optional, for PDF only)</span>
           </div>
           {expandedSections.videos ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
@@ -574,7 +569,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
         {expandedSections.videos && (
           <div style={{ marginTop: "12px" }}>
             <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "12px" }}>
-              Their content, curated by you. Each video gets a personal caption.
+              These appear in the PDF attachment. The email itself references videos inline via the observations.
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -599,19 +594,6 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
                     />
                   )}
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                      <span style={{
-                        fontSize: "10px",
-                        fontWeight: "700",
-                        padding: "2px 6px",
-                        borderRadius: "4px",
-                        background: video.role === "win" ? "#22c55e20" : video.role === "opportunity" ? "#f59e0b20" : "#8b5cf620",
-                        color: video.role === "win" ? "#22c55e" : video.role === "opportunity" ? "#f59e0b" : "#8b5cf6",
-                        textTransform: "uppercase",
-                      }}>
-                        {video.roleLabel}
-                      </span>
-                    </div>
                     <div style={{ fontSize: "13px", fontWeight: "500", marginBottom: "6px", color: "#E0E0E0" }}>
                       {video.title}
                     </div>
@@ -619,7 +601,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
                       type="text"
                       value={video.caption}
                       onChange={(e) => updateVideoCaption(index, e.target.value)}
-                      placeholder="Your caption for this video..."
+                      placeholder="Your note about this video..."
                       style={{
                         width: "100%",
                         padding: "8px",
@@ -642,7 +624,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
       <div style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
           <MessageSquare size={18} style={{ color: "#6b7280" }} />
-          <div style={{ fontSize: "14px", fontWeight: "700" }}>Sign-off</div>
+          <div style={{ fontSize: "14px", fontWeight: "700" }}>Closing</div>
         </div>
         <textarea
           value={signOff}
@@ -672,7 +654,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
             />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Company</div>
+            <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Company (optional)</div>
             <input
               type="text"
               value={senderCompany}
@@ -698,7 +680,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
           }}
         >
           <Eye size={16} />
-          {showPreview ? "Hide Preview" : "Preview"}
+          {showPreview ? "Hide Preview" : "Preview Email"}
         </button>
 
         <button
@@ -706,13 +688,17 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
           disabled={!isValid}
           style={{
             display: "flex", alignItems: "center", gap: "6px",
-            padding: "10px 16px", background: "#252525", border: "1px solid #444",
-            borderRadius: "8px", color: "#E0E0E0", cursor: isValid ? "pointer" : "not-allowed",
-            fontSize: "13px", opacity: isValid ? 1 : 0.5,
+            padding: "10px 16px",
+            background: isValid ? "linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%)" : "#252525",
+            border: isValid ? "none" : "1px solid #444",
+            borderRadius: "8px", color: "#fff",
+            cursor: isValid ? "pointer" : "not-allowed",
+            fontSize: "13px", fontWeight: "600",
+            opacity: isValid ? 1 : 0.5,
           }}
         >
-          {copied ? <Check size={16} style={{ color: "#22c55e" }} /> : <Copy size={16} />}
-          {copied ? "Copied!" : "Copy as Email"}
+          {copied ? <Check size={16} /> : <Copy size={16} />}
+          {copied ? "Copied!" : "Copy Email"}
         </button>
 
         <button
@@ -720,10 +706,9 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
           disabled={!isValid || exporting}
           style={{
             display: "flex", alignItems: "center", gap: "6px",
-            padding: "10px 16px",
-            background: "linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%)",
-            border: "none", borderRadius: "8px", color: "#fff",
-            cursor: isValid ? "pointer" : "not-allowed", fontSize: "13px", fontWeight: "600",
+            padding: "10px 16px", background: "#252525", border: "1px solid #444",
+            borderRadius: "8px", color: "#E0E0E0",
+            cursor: isValid ? "pointer" : "not-allowed", fontSize: "13px",
             opacity: isValid ? 1 : 0.5,
           }}
         >
@@ -734,19 +719,23 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
 
       {!isValid && (
         <div style={{ fontSize: "12px", color: "#ef4444", textAlign: "right", marginTop: "-8px" }}>
-          Please add a personal note before exporting.
+          Add an opening line to enable export.
         </div>
       )}
 
-      {/* Preview */}
+      {/* Preview - shows as plain email */}
       {showPreview && (
         <div style={{
           background: "#fff",
           borderRadius: "12px",
           padding: "32px",
           color: "#333",
+          fontFamily: "system-ui, -apple-system, sans-serif",
+          fontSize: "14px",
+          lineHeight: "1.7",
+          whiteSpace: "pre-wrap",
         }}>
-          <ChannelNotesPreview content={buildContent()} />
+          <EmailPreview content={buildContent()} />
         </div>
       )}
     </div>
@@ -773,6 +762,31 @@ function ObservationItem({ observation, selected, onToggle }) {
         style={{ marginTop: "2px" }}
       />
       <div style={{ flex: 1 }}>
+        {/* Show thumbnail if observation has a linked video */}
+        {observation.thumbnail && (
+          <div style={{ marginBottom: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <img
+              src={observation.thumbnail}
+              alt=""
+              style={{ width: "80px", height: "45px", borderRadius: "4px", objectFit: "cover" }}
+            />
+            {observation.videoUrl && (
+              <a
+                href={observation.videoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  fontSize: "11px", color: "#60a5fa",
+                  display: "flex", alignItems: "center", gap: "4px",
+                }}
+              >
+                <ExternalLink size={12} />
+                View video
+              </a>
+            )}
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
           {observation.icon}
           <span style={{
@@ -850,124 +864,43 @@ function TeaseItem({ tease, selected, onToggle }) {
   );
 }
 
-function ChannelNotesPreview({ content }) {
-  return (
-    <div style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
-        {content.channelThumbnail && (
-          <img
-            src={content.channelThumbnail}
-            alt=""
-            style={{ width: "56px", height: "56px", borderRadius: "50%" }}
-          />
-        )}
-        <div>
-          <div style={{ fontSize: "11px", color: "#888", textTransform: "uppercase", letterSpacing: "1px" }}>
-            Channel Notes
-          </div>
-          <div style={{ fontSize: "22px", fontWeight: "700", color: "#1a1a2e" }}>
-            {content.channelName}
-          </div>
-        </div>
-      </div>
+function EmailPreview({ content }) {
+  let email = "";
 
-      {/* Personal Note */}
-      {content.personalNote && (
-        <div style={{ fontSize: "14px", color: "#333", lineHeight: "1.7", marginBottom: "24px" }}>
-          {content.personalNote}
-        </div>
-      )}
+  if (content.personalNote) {
+    email += content.personalNote + "\n\n";
+  }
 
-      {/* Observations */}
-      {content.observations.length > 0 && (
-        <div style={{ marginBottom: "24px" }}>
-          <div style={{ fontSize: "14px", fontWeight: "700", color: "#3b82f6", marginBottom: "12px" }}>
-            What We Noticed
-          </div>
-          {content.observations.map((obs, i) => (
-            <div key={i} style={{
-              padding: "12px", background: "#f5f5f5", borderRadius: "8px",
-              marginBottom: "8px", fontSize: "13px", lineHeight: "1.6",
-            }}>
-              {obs.text}
-            </div>
-          ))}
-        </div>
-      )}
+  if (content.observations.length > 0) {
+    email += "I spent some time looking at your channel and a few things stood out:\n\n";
+    content.observations.forEach(o => {
+      if (o.videoUrl) {
+        email += o.text + "\n" + o.videoUrl + "\n\n";
+      } else {
+        email += o.text + "\n\n";
+      }
+    });
+  }
 
-      {/* Quick Win */}
-      {content.quickWin && (
-        <div style={{ marginBottom: "24px" }}>
-          <div style={{ fontSize: "14px", fontWeight: "700", color: "#22c55e", marginBottom: "12px" }}>
-            Quick Win
-          </div>
-          <div style={{
-            padding: "12px", background: "#f0fdf4", borderRadius: "8px",
-            borderLeft: "3px solid #22c55e", fontSize: "13px", lineHeight: "1.6",
-          }}>
-            {content.quickWin.text}
-          </div>
-        </div>
-      )}
+  if (content.quickWin) {
+    email += "One thing you could try right away: " + content.quickWin.text + "\n\n";
+  }
 
-      {/* Teases */}
-      {content.teases.length > 0 && (
-        <div style={{ marginBottom: "24px" }}>
-          <div style={{ fontSize: "14px", fontWeight: "700", color: "#8b5cf6", marginBottom: "12px" }}>
-            What We'd Dig Into
-          </div>
-          {content.teases.map((tease, i) => (
-            <div key={i} style={{
-              padding: "10px 12px", background: "#faf5ff", borderRadius: "6px",
-              marginBottom: "6px", fontSize: "13px", color: "#6b21a8",
-            }}>
-              • {tease.text}
-            </div>
-          ))}
-        </div>
-      )}
+  if (content.teases.length > 0) {
+    email += "If you're curious, I'd love to dig into:\n";
+    content.teases.forEach(t => {
+      email += "- " + t.text + "\n";
+    });
+    email += "\n";
+  }
 
-      {/* Videos */}
-      {content.videos.length > 0 && (
-        <div style={{ marginBottom: "24px" }}>
-          <div style={{ fontSize: "14px", fontWeight: "700", color: "#ec4899", marginBottom: "12px" }}>
-            Videos That Stood Out
-          </div>
-          <div style={{ display: "flex", gap: "12px" }}>
-            {content.videos.map((video, i) => (
-              <div key={i} style={{ flex: 1, minWidth: 0 }}>
-                {video.thumbnail && (
-                  <img
-                    src={video.thumbnail}
-                    alt=""
-                    style={{ width: "100%", borderRadius: "8px", marginBottom: "8px" }}
-                  />
-                )}
-                <div style={{ fontSize: "12px", fontWeight: "600", marginBottom: "4px", color: "#1a1a2e" }}>
-                  {video.title?.slice(0, 50)}{video.title?.length > 50 ? "..." : ""}
-                </div>
-                <div style={{ fontSize: "11px", color: "#666", fontStyle: "italic" }}>
-                  "{video.caption}"
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+  email += content.signOff + "\n\n";
+  email += content.senderName;
+  if (content.senderCompany) {
+    email += "\n" + content.senderCompany;
+  }
 
-      {/* Sign-off */}
-      <div style={{
-        paddingTop: "16px", borderTop: "1px solid #eee",
-        fontSize: "14px", color: "#333", lineHeight: "1.7",
-      }}>
-        {content.signOff}
-        <div style={{ marginTop: "12px", fontWeight: "600" }}>
-          — {content.senderName}, {content.senderCompany}
-        </div>
-      </div>
-    </div>
-  );
+  return <div>{email}</div>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -980,306 +913,343 @@ function generateObservations(audit, videoAnalysis, videos) {
   const series = audit.series_summary || {};
   const benchmark = audit.benchmark_data || {};
 
-  // Series performance (compliment if top series exists)
-  if (series.series?.length > 0) {
-    const topSeries = series.series.sort((a, b) => (b.avgViews || 0) - (a.avgViews || 0))[0];
-    if (topSeries) {
-      const channelAvg = snapshot.avg_views_recent || 0;
-      const ratio = channelAvg > 0 ? (topSeries.avgViews / channelAvg).toFixed(1) : null;
-      if (ratio && ratio > 1.3) {
-        observations.push({
-          id: "series-performance",
-          type: "compliment",
-          icon: <TrendingUp size={14} style={{ color: "#22c55e" }} />,
-          text: `Your "${topSeries.name}" series consistently outperforms your other content by ${ratio}x — your audience is clearly resonating with it.`,
-        });
-      }
-    }
-  }
+  // Sort videos by views for reference
+  const sortedByViews = [...videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
+  const topVideo = sortedByViews[0];
 
-  // Shorts vs long-form opportunity
-  if (videos.length > 0) {
-    const shorts = videos.filter(v => v.is_short || (v.duration && v.duration < 62));
-    const longForm = videos.filter(v => !v.is_short && (!v.duration || v.duration >= 62));
-
-    if (shorts.length > 0 && longForm.length > 0) {
-      const shortsAvg = shorts.reduce((s, v) => s + (v.view_count || 0), 0) / shorts.length;
-      const longAvg = longForm.reduce((s, v) => s + (v.view_count || 0), 0) / longForm.length;
-      const shortsRatio = Math.round((shorts.length / videos.length) * 100);
-
-      if (shortsAvg > longAvg * 1.5 && shortsRatio < 30) {
-        observations.push({
-          id: "shorts-opportunity",
-          type: "opportunity",
-          icon: <Zap size={14} style={{ color: "#f59e0b" }} />,
-          text: `Your Shorts are getting ${(shortsAvg / longAvg).toFixed(1)}x the views of your long-form content, but only ${shortsRatio}% of your uploads are Shorts.`,
-        });
-      }
-    }
-  }
-
-  // Investigation candidates
-  if (videoAnalysis?.investigateVideos?.length > 0) {
+  // 1. Top performing video (always include with thumbnail)
+  if (topVideo) {
     observations.push({
-      id: "investigate-videos",
-      type: "insight",
-      icon: <HelpCircle size={14} style={{ color: "#3b82f6" }} />,
-      text: `We found ${videoAnalysis.investigateVideos.length} videos with unusually high reach but low engagement — worth understanding what drove that distribution.`,
+      id: "top-video",
+      type: "compliment",
+      icon: <TrendingUp size={14} style={{ color: "#22c55e" }} />,
+      text: `"${topVideo.title}" really stood out — ${(topVideo.view_count || 0).toLocaleString()} views tells me your audience responds to this kind of content.`,
+      thumbnail: topVideo.thumbnail_url,
+      videoUrl: topVideo.youtube_video_id ? `https://youtube.com/watch?v=${topVideo.youtube_video_id}` : null,
     });
   }
 
-  // High performer (compliment)
-  if (videoAnalysis?.highReachVideos?.length > 0) {
-    const topPerformer = videoAnalysis.highReachVideos.filter(v => !v.is_low_engagement)[0];
-    if (topPerformer) {
+  // 2. Series performance (with example video)
+  if (series.series?.length > 0) {
+    const topSeries = [...series.series].sort((a, b) => (b.avgViews || 0) - (a.avgViews || 0))[0];
+    if (topSeries && topSeries.videoCount >= 3) {
+      const seriesVideo = videos.find(v => v.title?.toLowerCase().includes(topSeries.name?.toLowerCase().slice(0, 10)));
       observations.push({
-        id: "top-performer",
+        id: "series-performance",
         type: "compliment",
         icon: <TrendingUp size={14} style={{ color: "#22c55e" }} />,
-        text: `"${topPerformer.title}" performed ${topPerformer.views_ratio}x above your baseline — that's the kind of content your audience wants more of.`,
+        text: `Your "${topSeries.name}" series is doing well — ${topSeries.videoCount} episodes averaging ${(topSeries.avgViews || 0).toLocaleString()} views. Consistency is paying off.`,
+        thumbnail: seriesVideo?.thumbnail_url || topSeries.thumbnail,
+        videoUrl: seriesVideo?.youtube_video_id ? `https://youtube.com/watch?v=${seriesVideo.youtube_video_id}` : null,
       });
     }
   }
 
-  // Benchmark comparison
-  if (benchmark.hasBenchmarks && benchmark.comparison?.overallScore) {
-    if (benchmark.comparison.overallScore >= 1.2) {
+  // 3. Investigation candidate (high reach, low engagement)
+  if (videoAnalysis?.investigateVideos?.length > 0) {
+    const investigateVideo = videoAnalysis.investigateVideos[0];
+    observations.push({
+      id: "investigate-video",
+      type: "insight",
+      icon: <HelpCircle size={14} style={{ color: "#3b82f6" }} />,
+      text: `I noticed "${investigateVideo.title}" got ${(investigateVideo.view_count || 0).toLocaleString()} views but engagement was lower than usual. Curious what drove the reach — algorithm, external traffic, or something else?`,
+      thumbnail: investigateVideo.thumbnail_url,
+      videoUrl: investigateVideo.youtube_video_id ? `https://youtube.com/watch?v=${investigateVideo.youtube_video_id}` : null,
+    });
+  }
+
+  // 4. Shorts opportunity (with example)
+  const shorts = videos.filter(v => v.is_short || (v.duration && v.duration < 62));
+  const longForm = videos.filter(v => !v.is_short && (!v.duration || v.duration >= 62));
+
+  if (shorts.length > 0 && longForm.length > 0) {
+    const shortsAvg = shorts.reduce((s, v) => s + (v.view_count || 0), 0) / shorts.length;
+    const longAvg = longForm.reduce((s, v) => s + (v.view_count || 0), 0) / longForm.length;
+    const topShort = [...shorts].sort((a, b) => (b.view_count || 0) - (a.view_count || 0))[0];
+
+    if (shortsAvg > longAvg * 1.3) {
       observations.push({
-        id: "benchmark-strong",
-        type: "compliment",
-        icon: <Target size={14} style={{ color: "#22c55e" }} />,
-        text: `You're outperforming ${benchmark.peer_count} peer channels in your tier by ${((benchmark.comparison.overallScore - 1) * 100).toFixed(0)}% on average — you're doing something right.`,
-      });
-    } else if (benchmark.comparison.overallScore < 0.8) {
-      observations.push({
-        id: "benchmark-opportunity",
+        id: "shorts-winning",
         type: "opportunity",
-        icon: <BarChart3 size={14} style={{ color: "#f59e0b" }} />,
-        text: `There's room to grow — channels in your tier are averaging ${Math.round((1 / benchmark.comparison.overallScore - 1) * 100)}% more views per video.`,
+        icon: <Zap size={14} style={{ color: "#f59e0b" }} />,
+        text: `Your Shorts are pulling ${(shortsAvg / longAvg).toFixed(1)}x the views of your long-form. Looks like there's untapped potential in short-form for your content.`,
+        thumbnail: topShort?.thumbnail_url,
+        videoUrl: topShort?.youtube_video_id ? `https://youtube.com/watch?v=${topShort.youtube_video_id}` : null,
       });
     }
   }
 
-  // Upload cadence
+  // 5. Recent momentum or drop
   const recentVideos = videos.filter(v => {
     if (!v.published_at) return false;
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - 1);
     return new Date(v.published_at) > cutoff;
-  });
-  const olderVideos = videos.filter(v => {
-    if (!v.published_at) return false;
-    const now = new Date();
-    const cutoff1 = new Date();
-    cutoff1.setMonth(cutoff1.getMonth() - 1);
-    const cutoff2 = new Date();
-    cutoff2.setMonth(cutoff2.getMonth() - 2);
-    return new Date(v.published_at) <= cutoff1 && new Date(v.published_at) > cutoff2;
-  });
+  }).sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
 
-  if (recentVideos.length < olderVideos.length * 0.6 && olderVideos.length > 2) {
+  if (recentVideos.length > 0) {
+    const recentTop = recentVideos[0];
+    const recentAvg = recentVideos.reduce((s, v) => s + (v.view_count || 0), 0) / recentVideos.length;
+    const overallAvg = videos.reduce((s, v) => s + (v.view_count || 0), 0) / videos.length;
+
+    if (recentAvg > overallAvg * 1.2) {
+      observations.push({
+        id: "recent-momentum",
+        type: "compliment",
+        icon: <TrendingUp size={14} style={{ color: "#22c55e" }} />,
+        text: `Your recent content is outperforming your historical average — something's working. "${recentTop.title}" is a good example.`,
+        thumbnail: recentTop.thumbnail_url,
+        videoUrl: recentTop.youtube_video_id ? `https://youtube.com/watch?v=${recentTop.youtube_video_id}` : null,
+      });
+    } else if (recentAvg < overallAvg * 0.7 && recentVideos.length >= 3) {
+      observations.push({
+        id: "recent-dip",
+        type: "insight",
+        icon: <Clock size={14} style={{ color: "#3b82f6" }} />,
+        text: `Your recent videos are coming in below your typical performance. Could be timing, topic, or packaging — worth diagnosing.`,
+        thumbnail: recentTop.thumbnail_url,
+        videoUrl: recentTop.youtube_video_id ? `https://youtube.com/watch?v=${recentTop.youtube_video_id}` : null,
+      });
+    }
+  }
+
+  // 6. Benchmark comparison
+  if (benchmark.hasBenchmarks && benchmark.comparison?.overallScore) {
+    if (benchmark.comparison.overallScore >= 1.3) {
+      observations.push({
+        id: "benchmark-strong",
+        type: "compliment",
+        icon: <Target size={14} style={{ color: "#22c55e" }} />,
+        text: `You're outperforming most channels your size by ${Math.round((benchmark.comparison.overallScore - 1) * 100)}%. That's not easy to do — whatever you're doing, it's working.`,
+      });
+    }
+  }
+
+  // 7. Engagement standout
+  if (videoAnalysis?.categorized) {
+    const highEngagement = videoAnalysis.categorized
+      .filter(v => v.engagement_ratio > 1.5 && !v.is_high_reach)
+      .sort((a, b) => b.engagement_ratio - a.engagement_ratio)[0];
+
+    if (highEngagement) {
+      observations.push({
+        id: "engagement-gem",
+        type: "insight",
+        icon: <Sparkles size={14} style={{ color: "#8b5cf6" }} />,
+        text: `"${highEngagement.title}" didn't get huge views but engagement was ${highEngagement.engagement_ratio}x your baseline. Your core audience really connected with that one.`,
+        thumbnail: highEngagement.thumbnail_url,
+        videoUrl: highEngagement.youtube_video_id ? `https://youtube.com/watch?v=${highEngagement.youtube_video_id}` : null,
+      });
+    }
+  }
+
+  // Ensure we have at least 5 observations
+  while (observations.length < 5) {
+    const remainingVideos = sortedByViews.filter(v =>
+      !observations.some(o => o.videoUrl?.includes(v.youtube_video_id))
+    );
+
+    if (remainingVideos.length === 0) break;
+
+    const video = remainingVideos[observations.length % remainingVideos.length];
     observations.push({
-      id: "cadence-drop",
-      type: "insight",
-      icon: <Clock size={14} style={{ color: "#3b82f6" }} />,
-      text: `Your upload cadence dropped from ${olderVideos.length} videos last month to ${recentVideos.length} this month — consistency compounds on YouTube.`,
+      id: `video-${observations.length}`,
+      type: "compliment",
+      icon: <Video size={14} style={{ color: "#ec4899" }} />,
+      text: `"${video.title}" caught my attention — ${(video.view_count || 0).toLocaleString()} views.`,
+      thumbnail: video.thumbnail_url,
+      videoUrl: video.youtube_video_id ? `https://youtube.com/watch?v=${video.youtube_video_id}` : null,
     });
   }
 
-  return observations;
+  return observations.slice(0, 7); // Max 7 options
 }
 
 function generateQuickWins(audit, videoAnalysis, videos) {
   const quickWins = [];
   const snapshot = audit.channel_snapshot || {};
 
-  // Title pattern analysis
-  if (videos.length >= 10) {
-    const sortedByViews = [...videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
-    const top20pct = sortedByViews.slice(0, Math.ceil(videos.length * 0.2));
+  // Sort for analysis
+  const sortedByViews = [...videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
+  const top20pct = sortedByViews.slice(0, Math.max(Math.ceil(videos.length * 0.2), 3));
 
-    // Check for numbers in titles
-    const topWithNumbers = top20pct.filter(v => /\d/.test(v.title || "")).length;
-    const topWithNumbersPct = Math.round((topWithNumbers / top20pct.length) * 100);
+  // 1. Title pattern - numbers
+  const topWithNumbers = top20pct.filter(v => /\d/.test(v.title || "")).length;
+  const recentWithoutNumbers = videos.slice(0, 5).filter(v => !/\d/.test(v.title || "")).length;
 
-    if (topWithNumbersPct > 60) {
-      quickWins.push({
-        id: "title-numbers",
-        category: "packaging",
-        icon: <Sparkles size={14} style={{ color: "#22c55e" }} />,
-        text: `${topWithNumbersPct}% of your top-performing videos use numbers in the title. Your recent uploads that don't use numbers might be missing easy clicks.`,
-      });
-    }
-
-    // Check for questions in titles
-    const topWithQuestions = top20pct.filter(v => /\?/.test(v.title || "")).length;
-    if (topWithQuestions >= 3) {
-      quickWins.push({
-        id: "title-questions",
-        category: "packaging",
-        icon: <Sparkles size={14} style={{ color: "#22c55e" }} />,
-        text: `Questions in titles are working for you — ${topWithQuestions} of your top performers use them. Try framing your next video as a question.`,
-      });
-    }
-  }
-
-  // Shorts recency
-  if (videos.length > 0) {
-    const shorts = videos.filter(v => v.is_short || (v.duration && v.duration < 62))
-      .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
-
-    if (shorts.length > 0) {
-      const lastShort = shorts[0];
-      const daysSinceShort = Math.floor((Date.now() - new Date(lastShort.published_at)) / (1000 * 60 * 60 * 24));
-
-      if (daysSinceShort > 14) {
-        const shortsAvg = shorts.reduce((s, v) => s + (v.view_count || 0), 0) / shorts.length;
-        const longForm = videos.filter(v => !v.is_short && (!v.duration || v.duration >= 62));
-        const longAvg = longForm.length > 0 ? longForm.reduce((s, v) => s + (v.view_count || 0), 0) / longForm.length : 0;
-
-        if (shortsAvg > longAvg) {
-          quickWins.push({
-            id: "shorts-recency",
-            category: "format",
-            icon: <Video size={14} style={{ color: "#22c55e" }} />,
-            text: `You haven't posted a Short in ${daysSinceShort} days. Your Shorts average ${Math.round(shortsAvg).toLocaleString()} views vs ${Math.round(longAvg).toLocaleString()} for long-form — might be worth revisiting.`,
-          });
-        }
-      }
-    }
-  }
-
-  // Topic concentration
-  if (videoAnalysis?.categorized && videos.length >= 10) {
-    // This is a simplified version - in practice you'd do topic analysis
+  if (topWithNumbers >= 2 && recentWithoutNumbers >= 2) {
     quickWins.push({
-      id: "topic-signal",
-      category: "content",
-      icon: <Target size={14} style={{ color: "#22c55e" }} />,
-      text: `Your audience engages most with [specific topic] — doubling down there could accelerate growth.`,
+      id: "title-numbers",
+      category: "packaging",
+      icon: <Sparkles size={14} style={{ color: "#22c55e" }} />,
+      text: `${topWithNumbers} of your top videos use numbers in the title (like "5 ways..." or "3 things..."). Your recent uploads don't. Easy test: add a number to your next title and see if CTR improves.`,
     });
   }
 
-  // Engagement optimization
-  if (snapshot.avg_engagement_recent && snapshot.avg_engagement_recent < 0.03) {
+  // 2. Title pattern - questions
+  const topWithQuestions = top20pct.filter(v => /\?/.test(v.title || "")).length;
+  if (topWithQuestions >= 2) {
+    quickWins.push({
+      id: "title-questions",
+      category: "packaging",
+      icon: <Sparkles size={14} style={{ color: "#22c55e" }} />,
+      text: `Questions in titles are working for you — ${topWithQuestions} of your top performers use them. Try leading with curiosity: "Why does X happen?" or "What if you tried Y?"`,
+    });
+  }
+
+  // 3. Shorts recency
+  const shorts = videos.filter(v => v.is_short || (v.duration && v.duration < 62))
+    .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+
+  if (shorts.length > 0) {
+    const lastShort = shorts[0];
+    const daysSinceShort = Math.floor((Date.now() - new Date(lastShort.published_at)) / (1000 * 60 * 60 * 24));
+
+    if (daysSinceShort > 14) {
+      quickWins.push({
+        id: "shorts-recency",
+        category: "format",
+        icon: <Video size={14} style={{ color: "#22c55e" }} />,
+        text: `It's been ${daysSinceShort} days since your last Short. Even repurposing a clip from a recent long-form video could bring in new viewers. Low effort, high optionality.`,
+      });
+    }
+  }
+
+  // 4. Upload consistency
+  const uploadDates = videos
+    .filter(v => v.published_at)
+    .map(v => new Date(v.published_at))
+    .sort((a, b) => b - a);
+
+  if (uploadDates.length >= 5) {
+    const gaps = [];
+    for (let i = 0; i < Math.min(uploadDates.length - 1, 10); i++) {
+      gaps.push((uploadDates[i] - uploadDates[i + 1]) / (1000 * 60 * 60 * 24));
+    }
+    const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+    const maxGap = Math.max(...gaps);
+
+    if (maxGap > avgGap * 2 && maxGap > 10) {
+      quickWins.push({
+        id: "consistency",
+        category: "cadence",
+        icon: <Clock size={14} style={{ color: "#22c55e" }} />,
+        text: `Your upload schedule has some gaps (up to ${Math.round(maxGap)} days between videos). YouTube rewards consistency. Even a simple "check-in" video during slow periods keeps the algorithm warm.`,
+      });
+    }
+  }
+
+  // 5. Engagement CTA
+  if (snapshot.avg_engagement_recent && snapshot.avg_engagement_recent < 0.04) {
     quickWins.push({
       id: "engagement-cta",
       category: "engagement",
       icon: <MessageSquare size={14} style={{ color: "#22c55e" }} />,
-      text: `Your engagement rate (${(snapshot.avg_engagement_recent * 100).toFixed(2)}%) has room to grow. A simple "What do you think?" at the end of videos can significantly boost comments.`,
+      text: `A simple "What do you think? Let me know in the comments" at the end of your videos can significantly boost engagement. Most creators skip this. Don't be most creators.`,
     });
   }
 
-  return quickWins;
+  // 6. Thumbnail consistency
+  quickWins.push({
+    id: "thumbnail-test",
+    category: "packaging",
+    icon: <Sparkles size={14} style={{ color: "#22c55e" }} />,
+    text: `Pick your lowest-CTR video from the last month and swap the thumbnail for something bolder — bigger text, more contrast, your face if you're not using it. YouTube lets you A/B test now.`,
+  });
+
+  // 7. Series format
+  quickWins.push({
+    id: "series-format",
+    category: "content",
+    icon: <Target size={14} style={{ color: "#22c55e" }} />,
+    text: `Take your best-performing video topic and turn it into a series. "Part 2" in a title instantly signals value to people who watched Part 1, and YouTube loves connecting them.`,
+  });
+
+  // Return exactly 5
+  return quickWins.slice(0, 5);
 }
 
 function generateTeases(audit, videoAnalysis, videos, benchmark) {
   const teases = [];
 
-  // Retention analysis
   teases.push({
     id: "retention-analysis",
-    text: "Why your retention drops at specific moments and what editing patterns could fix it",
+    text: "Where viewers drop off in your videos (and what editing tweaks could fix it)",
   });
 
-  // Competitor analysis
   if (benchmark.hasBenchmarks) {
     teases.push({
       id: "competitor-analysis",
-      text: `Which of your ${benchmark.peer_count} peer channels are growing fastest and what they're doing differently`,
+      text: `How you stack up against ${benchmark.peer_count} similar channels — and what the top performers are doing differently`,
     });
   }
 
-  // Investigation videos
   if (videoAnalysis?.investigateVideos?.length > 0) {
     teases.push({
       id: "investigate-deep-dive",
-      text: `The ${videoAnalysis.investigateVideos.length} videos that had reach but not resonance — what that pattern might mean`,
+      text: `Why ${videoAnalysis.investigateVideos.length} of your videos got reach but not engagement — and what that pattern means`,
     });
   }
 
-  // Content strategy
   teases.push({
-    id: "content-strategy",
-    text: "How to turn your best-performing content into a repeatable series format",
+    id: "content-pillars",
+    text: "Which content pillars are actually driving subscribers vs. just views",
   });
 
-  // Thumbnail/packaging
   teases.push({
-    id: "packaging-analysis",
-    text: "What your top CTR thumbnails have in common and how to apply it",
+    id: "packaging-formula",
+    text: "The title/thumbnail patterns that work for your audience (based on your own data)",
   });
 
-  // Growth modeling
   teases.push({
-    id: "growth-modeling",
-    text: "What your channel could look like in 12 months with optimized strategy",
+    id: "growth-roadmap",
+    text: "A 90-day content plan built around what's already working",
   });
 
-  return teases;
+  return teases.slice(0, 5);
 }
 
 function selectFeaturedVideos(videos, videoAnalysis) {
   const selected = [];
-
   if (!videos.length) return selected;
 
-  // The Win - highest performing with good engagement
+  // Best performer with good engagement
   if (videoAnalysis?.highReachVideos) {
     const win = videoAnalysis.highReachVideos.find(v => !v.is_low_engagement);
     if (win) {
       selected.push({
         ...win,
         role: "win",
-        roleLabel: "The Win",
-        defaultCaption: "This one connected. Let's figure out why.",
+        roleLabel: "Top Performer",
+        defaultCaption: "This one connected.",
       });
     }
   }
 
-  // The Opportunity - underperformer with potential
-  if (videoAnalysis?.categorized) {
-    const underperformers = videoAnalysis.categorized
-      .filter(v => !v.is_high_reach && v.view_count > 0)
-      .sort((a, b) => (a.views_ratio || 0) - (b.views_ratio || 0));
-
-    if (underperformers.length > 0) {
-      const opportunity = underperformers[0];
-      selected.push({
-        ...opportunity,
-        role: "opportunity",
-        roleLabel: "The Opportunity",
-        defaultCaption: "This had potential — packaging might've held it back.",
-      });
-    }
-  }
-
-  // The Question - investigate candidate
+  // Investigation candidate
   if (videoAnalysis?.investigateVideos?.length > 0) {
     const question = videoAnalysis.investigateVideos[0];
     selected.push({
       ...question,
       role: "question",
-      roleLabel: "The Question",
-      defaultCaption: "High reach, low engagement — what drove this?",
+      roleLabel: "Worth Exploring",
+      defaultCaption: "High reach, unusual engagement pattern.",
     });
   }
 
-  // Fill remaining slots with top performers if needed
-  if (selected.length < 3) {
-    const remaining = videos
-      .filter(v => !selected.find(s => s.id === v.id || s.youtube_video_id === v.youtube_video_id))
-      .sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
+  // Fill with top performers
+  const remaining = [...videos]
+    .sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
+    .filter(v => !selected.find(s => s.id === v.id || s.youtube_video_id === v.youtube_video_id));
 
-    for (const video of remaining) {
-      if (selected.length >= 3) break;
-      selected.push({
-        ...video,
-        role: "win",
-        roleLabel: "Strong Performer",
-        defaultCaption: "Solid performance worth noting.",
-      });
-    }
+  for (const video of remaining) {
+    if (selected.length >= 3) break;
+    selected.push({
+      ...video,
+      role: "highlight",
+      roleLabel: "Notable",
+      defaultCaption: "Solid performance.",
+    });
   }
 
   return selected.map(v => ({
@@ -1303,94 +1273,94 @@ function buildPDFElement(content) {
   el.style.width = "800px";
   el.style.backgroundColor = "#ffffff";
   el.style.padding = "48px";
-  el.style.fontFamily = "system-ui, -apple-system, sans-serif";
+  el.style.fontFamily = "Georgia, serif";
   el.style.color = "#333";
+  el.style.fontSize = "14px";
+  el.style.lineHeight = "1.8";
 
   const esc = (str) => {
     if (!str) return "";
     return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   };
 
-  el.innerHTML = `
-    <!-- Header -->
-    <div style="display:flex;align-items:center;gap:16px;margin-bottom:32px;padding-bottom:24px;border-bottom:1px solid #eee;">
-      ${content.channelThumbnail ? `<img src="${content.channelThumbnail}" style="width:64px;height:64px;border-radius:50%;" />` : ""}
-      <div>
-        <div style="font-size:12px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Channel Notes</div>
-        <div style="font-size:28px;font-weight:700;color:#1a1a2e;">${esc(content.channelName)}</div>
-      </div>
+  let html = "";
+
+  // Header - minimal
+  html += `
+    <div style="margin-bottom:32px;padding-bottom:20px;border-bottom:1px solid #eee;">
+      <div style="font-size:12px;color:#888;margin-bottom:4px;">Notes for</div>
+      <div style="font-size:24px;font-weight:600;color:#1a1a2e;">${esc(content.channelName)}</div>
     </div>
+  `;
 
-    <!-- Personal Note -->
-    ${content.personalNote ? `
-      <div style="font-size:15px;color:#333;line-height:1.8;margin-bottom:32px;">
-        ${esc(content.personalNote)}
+  // Personal note
+  if (content.personalNote) {
+    html += `<div style="margin-bottom:24px;">${esc(content.personalNote)}</div>`;
+  }
+
+  // Observations as prose
+  if (content.observations.length > 0) {
+    html += `<div style="margin-bottom:24px;">`;
+    html += `<div style="font-weight:600;margin-bottom:12px;">A few things I noticed:</div>`;
+    content.observations.forEach(o => {
+      html += `<div style="margin-bottom:12px;padding-left:16px;border-left:2px solid #e5e7eb;">`;
+      html += esc(o.text);
+      if (o.videoUrl) {
+        html += `<br/><span style="font-size:12px;color:#3b82f6;">${esc(o.videoUrl)}</span>`;
+      }
+      html += `</div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Quick win
+  if (content.quickWin) {
+    html += `
+      <div style="margin-bottom:24px;padding:16px;background:#f0fdf4;border-radius:8px;">
+        <div style="font-weight:600;margin-bottom:8px;">Something you could try:</div>
+        <div>${esc(content.quickWin.text)}</div>
       </div>
-    ` : ""}
+    `;
+  }
 
-    <!-- Observations -->
-    ${content.observations.length > 0 ? `
-      <div style="margin-bottom:28px;">
-        <div style="font-size:15px;font-weight:700;color:#3b82f6;margin-bottom:14px;">What We Noticed</div>
-        ${content.observations.map(obs => `
-          <div style="padding:14px 16px;background:#f8fafc;border-radius:8px;margin-bottom:10px;font-size:14px;line-height:1.7;">
-            ${esc(obs.text)}
-          </div>
-        `).join("")}
-      </div>
-    ` : ""}
+  // Teases
+  if (content.teases.length > 0) {
+    html += `<div style="margin-bottom:24px;">`;
+    html += `<div style="font-weight:600;margin-bottom:8px;">If you're curious, I'd love to explore:</div>`;
+    content.teases.forEach(t => {
+      html += `<div style="margin-bottom:4px;">• ${esc(t.text)}</div>`;
+    });
+    html += `</div>`;
+  }
 
-    <!-- Quick Win -->
-    ${content.quickWin ? `
-      <div style="margin-bottom:28px;">
-        <div style="font-size:15px;font-weight:700;color:#22c55e;margin-bottom:14px;">Quick Win</div>
-        <div style="padding:14px 16px;background:#f0fdf4;border-radius:8px;border-left:3px solid #22c55e;font-size:14px;line-height:1.7;">
-          ${esc(content.quickWin.text)}
-        </div>
-      </div>
-    ` : ""}
-
-    <!-- Teases -->
-    ${content.teases.length > 0 ? `
-      <div style="margin-bottom:28px;">
-        <div style="font-size:15px;font-weight:700;color:#8b5cf6;margin-bottom:14px;">What We'd Dig Into</div>
-        ${content.teases.map(t => `
-          <div style="padding:10px 14px;background:#faf5ff;border-radius:6px;margin-bottom:8px;font-size:14px;color:#6b21a8;">
-            • ${esc(t.text)}
-          </div>
-        `).join("")}
-      </div>
-    ` : ""}
-
-    <!-- Videos -->
-    ${content.videos.length > 0 ? `
-      <div style="margin-bottom:28px;">
-        <div style="font-size:15px;font-weight:700;color:#ec4899;margin-bottom:14px;">Videos That Stood Out</div>
+  // Videos - only if included
+  if (content.videos.length > 0) {
+    html += `
+      <div style="margin-bottom:24px;">
+        <div style="font-weight:600;margin-bottom:12px;">Videos that stood out:</div>
         <div style="display:flex;gap:16px;">
           ${content.videos.map(v => `
-            <div style="flex:1;min-width:0;">
-              ${v.thumbnail ? `<img src="${v.thumbnail}" style="width:100%;border-radius:8px;margin-bottom:10px;" />` : ""}
-              <div style="font-size:13px;font-weight:600;margin-bottom:4px;color:#1a1a2e;">
-                ${esc(v.title?.slice(0, 50))}${v.title?.length > 50 ? "..." : ""}
-              </div>
-              <div style="font-size:12px;color:#666;font-style:italic;">
-                "${esc(v.caption)}"
-              </div>
+            <div style="flex:1;">
+              ${v.thumbnail ? `<img src="${v.thumbnail}" style="width:100%;border-radius:6px;margin-bottom:8px;" />` : ""}
+              <div style="font-size:12px;font-weight:500;">${esc(v.title?.slice(0, 40))}${v.title?.length > 40 ? "..." : ""}</div>
+              <div style="font-size:11px;color:#666;font-style:italic;">${esc(v.caption)}</div>
             </div>
           `).join("")}
         </div>
       </div>
-    ` : ""}
+    `;
+  }
 
-    <!-- Sign-off -->
-    <div style="padding-top:24px;border-top:1px solid #eee;font-size:15px;color:#333;line-height:1.8;">
-      ${esc(content.signOff)}
-      <div style="margin-top:16px;font-weight:600;">
-        — ${esc(content.senderName)}, ${esc(content.senderCompany)}
-      </div>
+  // Sign-off
+  html += `
+    <div style="margin-top:32px;padding-top:20px;border-top:1px solid #eee;">
+      <div style="margin-bottom:16px;">${esc(content.signOff)}</div>
+      <div style="font-weight:600;">${esc(content.senderName)}</div>
+      ${content.senderCompany ? `<div style="color:#666;">${esc(content.senderCompany)}</div>` : ""}
     </div>
   `;
 
+  el.innerHTML = html;
   return el;
 }
 

@@ -97,8 +97,12 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
     // ── Steps 3-4: Competitor Matching + Benchmarking ──
     // These are handled together in runBenchmarking, which manages both
     // the competitor_matching and benchmarking audit sections.
+    // If categoryIds are specified, benchmarks will only compare against those categories.
     notify({ step: 'benchmarking', pct: 32, message: 'Finding peers and benchmarking...' });
-    const benchmarkData = await runBenchmarking(auditId, channel, sizeTier);
+    const benchmarkData = await runBenchmarking(auditId, channel, sizeTier, {
+      clientId: config.clientId,
+      categoryIds: config.categoryIds,
+    });
 
     await updateAudit(auditId, { benchmark_data: benchmarkData });
     notify({ step: 'benchmarking', pct: 55, message: 'Benchmarking complete' });
@@ -248,7 +252,10 @@ export async function resumeAudit(auditId, onProgress) {
         // These run together; skip competitor_matching, handle at benchmarking
         if (step === 'competitor_matching') continue;
         notify({ step, pct: 32, message: 'Resuming benchmarking...' });
-        benchmarkData = await runBenchmarking(auditId, channel, sizeTier);
+        benchmarkData = await runBenchmarking(auditId, channel, sizeTier, {
+          clientId: audit.config?.clientId,
+          categoryIds: audit.config?.categoryIds,
+        });
         await updateAudit(auditId, { benchmark_data: benchmarkData });
       }
 

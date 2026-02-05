@@ -146,12 +146,16 @@ export async function upsertChannel(channelData) {
     custom_url: channelData.custom_url,
     category: channelData.category,
     tags: channelData.tags,
-    is_competitor: channelData.is_competitor ?? true,
+    // is_competitor: true = competitor, false = client, null = audit-only (neither)
+    // Only default to true if not explicitly provided (undefined)
+    is_competitor: channelData.is_competitor === undefined ? true : channelData.is_competitor,
     client_id: channelData.client_id,
     subscriber_count: channelData.subscriber_count,
     total_view_count: channelData.total_view_count,
     video_count: channelData.video_count,
     last_synced_at: new Date().toISOString(),
+    // Enable sync by default so channels are included in benchmark peer matching
+    sync_enabled: channelData.sync_enabled ?? true,
   };
 
   // Optional metadata fields (tier, subcategory, notes)

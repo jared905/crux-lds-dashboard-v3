@@ -17,6 +17,9 @@ import {
   MessageCircle,
   ThumbsUp,
   Mail,
+  Info,
+  Calendar,
+  UserPlus,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -92,6 +95,20 @@ export default function AuditResults({ audit, onBack }) {
     if (!videoAnalysis?.categorized) return null;
     return getQuadrantBreakdown(videoAnalysis.categorized);
   }, [videoAnalysis]);
+
+  // Calculate date range from videos
+  const videoDateRange = useMemo(() => {
+    if (!videos.length) return null;
+    const dates = videos
+      .filter(v => v.published_at)
+      .map(v => new Date(v.published_at))
+      .sort((a, b) => a - b);
+    if (dates.length === 0) return null;
+    return {
+      oldest: dates[0],
+      newest: dates[dates.length - 1],
+    };
+  }, [videos]);
 
   // Card style helper
   const card = (extra = {}) => ({
@@ -243,6 +260,26 @@ export default function AuditResults({ audit, onBack }) {
             </div>
           </div>
 
+          {/* Data Range Info */}
+          {videoDateRange && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: "8px",
+              padding: "12px 16px", background: "rgba(59, 130, 246, 0.1)",
+              border: "1px solid rgba(59, 130, 246, 0.2)", borderRadius: "8px",
+            }}>
+              <Calendar size={16} style={{ color: COLORS.primary }} />
+              <span style={{ fontSize: "13px", color: "#9E9E9E" }}>
+                Analyzing <strong style={{ color: "#E0E0E0" }}>{videos.length} videos</strong> from{" "}
+                <strong style={{ color: "#E0E0E0" }}>
+                  {videoDateRange.oldest.toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                </strong>{" "}to{" "}
+                <strong style={{ color: "#E0E0E0" }}>
+                  {videoDateRange.newest.toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                </strong>
+              </span>
+            </div>
+          )}
+
           {/* Visual charts row */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
             {/* Content Mix Donut */}
@@ -265,9 +302,39 @@ export default function AuditResults({ audit, onBack }) {
                 </div>
               </div>
               <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
-                <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "6px" }}>Avg Engagement Rate</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", marginBottom: "6px" }}>
+                  <span style={{ fontSize: "11px", color: "#9E9E9E" }}>Avg Engagement Rate</span>
+                  <div style={{ position: "relative", display: "inline-block" }} className="engagement-tooltip">
+                    <Info size={12} style={{ color: "#666", cursor: "help" }} />
+                    <div className="tooltip-content" style={{
+                      position: "absolute", bottom: "100%", left: "50%", transform: "translateX(-50%)",
+                      background: "#1E1E1E", border: "1px solid #444", borderRadius: "8px",
+                      padding: "12px", width: "220px", fontSize: "11px", color: "#9E9E9E",
+                      lineHeight: "1.5", zIndex: 100, display: "none", marginBottom: "8px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                    }}>
+                      <strong style={{ color: "#E0E0E0" }}>Engagement Rate</strong><br/>
+                      (Likes + Comments) ÷ Views<br/><br/>
+                      Measures how actively viewers interact with content relative to how many saw it.
+                    </div>
+                  </div>
+                </div>
                 <div style={{ fontSize: "24px", fontWeight: "700", color: COLORS.warning }}>{fmtPct(snapshot.avg_engagement_recent)}</div>
               </div>
+            </div>
+          </div>
+
+          {/* Engagement Definition Note */}
+          <div style={{
+            display: "flex", alignItems: "flex-start", gap: "10px",
+            padding: "14px 16px", background: "#252525", borderRadius: "8px",
+            fontSize: "12px", color: "#9E9E9E", lineHeight: "1.6",
+          }}>
+            <Info size={16} style={{ color: "#666", flexShrink: 0, marginTop: "1px" }} />
+            <div>
+              <strong style={{ color: "#E0E0E0" }}>How we calculate Engagement Rate:</strong>{" "}
+              (Likes + Comments) ÷ Views. This measures how actively viewers interact with content.
+              A higher rate suggests content resonates strongly with the audience.
             </div>
           </div>
 
@@ -516,11 +583,94 @@ export default function AuditResults({ audit, onBack }) {
       {activeTab === "benchmarks" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {!benchmark.hasBenchmarks ? (
-            <div style={{ ...card(), color: "#9E9E9E", textAlign: "center", padding: "40px" }}>
-              <Users size={32} style={{ color: "#444", marginBottom: "12px" }} />
-              <div style={{ fontSize: "14px" }}>
-                {benchmark.reason || "No peer benchmarks available. Add competitors to enable benchmarking."}
+            <div style={card()}>
+              <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                <Users size={48} style={{ color: "#444", marginBottom: "16px" }} />
+                <div style={{ fontSize: "18px", fontWeight: "600", marginBottom: "8px", color: "#E0E0E0" }}>
+                  No Peer Benchmarks Available
+                </div>
+                <div style={{ fontSize: "14px", color: "#9E9E9E", maxWidth: "500px", margin: "0 auto", lineHeight: "1.6" }}>
+                  {benchmark.reason || "Benchmarking compares this channel against similar channels in your competitor database."}
+                </div>
               </div>
+
+              {/* How Benchmarking Works */}
+              <div style={{
+                marginTop: "20px", padding: "20px",
+                background: "rgba(59, 130, 246, 0.05)",
+                border: "1px solid rgba(59, 130, 246, 0.15)",
+                borderRadius: "12px",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+                  <Info size={18} style={{ color: COLORS.primary }} />
+                  <span style={{ fontSize: "14px", fontWeight: "600", color: "#E0E0E0" }}>How Benchmarking Works</span>
+                </div>
+                <div style={{ fontSize: "13px", color: "#9E9E9E", lineHeight: "1.7" }}>
+                  <p style={{ margin: "0 0 12px 0" }}>
+                    The benchmark system automatically finds <strong style={{ color: "#E0E0E0" }}>peer channels</strong> in
+                    the same subscriber tier (±1 tier) from your competitor database, then compares key metrics:
+                  </p>
+                  <ul style={{ margin: "0 0 12px 0", paddingLeft: "20px" }}>
+                    <li>Average views per video (90-day)</li>
+                    <li>Engagement rate</li>
+                    <li>Upload frequency</li>
+                    <li>Content mix (Shorts vs Long-form)</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* How to Enable Benchmarks */}
+              <div style={{
+                marginTop: "16px", padding: "20px",
+                background: "rgba(34, 197, 94, 0.05)",
+                border: "1px solid rgba(34, 197, 94, 0.15)",
+                borderRadius: "12px",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+                  <UserPlus size={18} style={{ color: COLORS.success }} />
+                  <span style={{ fontSize: "14px", fontWeight: "600", color: "#E0E0E0" }}>How to Enable Benchmarks</span>
+                </div>
+                <div style={{ fontSize: "13px", color: "#9E9E9E", lineHeight: "1.7" }}>
+                  <ol style={{ margin: 0, paddingLeft: "20px" }}>
+                    <li style={{ marginBottom: "8px" }}>
+                      Go to <strong style={{ color: "#E0E0E0" }}>Research → Competitor Analysis</strong>
+                    </li>
+                    <li style={{ marginBottom: "8px" }}>
+                      Add competitor channels that are similar in size/niche to this channel
+                    </li>
+                    <li style={{ marginBottom: "8px" }}>
+                      Enable <strong style={{ color: "#E0E0E0" }}>sync</strong> on those channels to track their videos
+                    </li>
+                    <li>
+                      Re-run the audit — the system will automatically find matching peers
+                    </li>
+                  </ol>
+                </div>
+              </div>
+
+              {/* Current Tier Info */}
+              {snapshot.size_tier && (
+                <div style={{
+                  marginTop: "16px", padding: "16px",
+                  background: "#252525", borderRadius: "8px",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                }}>
+                  <div>
+                    <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>This channel's tier</div>
+                    <div style={{ fontSize: "15px", fontWeight: "600", color: getTierColor(snapshot.size_tier), textTransform: "capitalize" }}>
+                      {snapshot.size_tier}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>Subscribers</div>
+                    <div style={{ fontSize: "15px", fontWeight: "600" }}>{fmtNum(snapshot.subscriber_count)}</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>Peers needed</div>
+                    <div style={{ fontSize: "15px", fontWeight: "600", color: COLORS.warning }}>Add to Research tab</div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -652,8 +802,31 @@ export default function AuditResults({ audit, onBack }) {
       {/* ── Recommendations Tab ── */}
       {activeTab === "recommendations" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {/* Impact Overview */}
-          <RecommendationsOverview recommendations={recommendations} />
+          {/* Check if recommendations are completely empty */}
+          {(!recommendations.stop?.length && !recommendations.start?.length && !recommendations.optimize?.length) ? (
+            <div style={card()}>
+              <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                <Target size={48} style={{ color: "#444", marginBottom: "16px" }} />
+                <div style={{ fontSize: "18px", fontWeight: "600", marginBottom: "8px", color: "#E0E0E0" }}>
+                  No Recommendations Generated
+                </div>
+                <div style={{ fontSize: "14px", color: "#9E9E9E", maxWidth: "500px", margin: "0 auto", lineHeight: "1.6" }}>
+                  The AI analysis didn't produce recommendations for this audit. This can happen if:
+                </div>
+                <ul style={{ textAlign: "left", maxWidth: "400px", margin: "16px auto", fontSize: "13px", color: "#9E9E9E", lineHeight: "1.7" }}>
+                  <li>The channel has very few videos to analyze</li>
+                  <li>There was an error during the AI analysis step</li>
+                  <li>The audit was interrupted before completing</li>
+                </ul>
+                <div style={{ fontSize: "13px", color: "#666", marginTop: "16px" }}>
+                  Try running a new audit to generate fresh recommendations.
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Impact Overview */}
+              <RecommendationsOverview recommendations={recommendations} />
 
           {/* Stop/Start/Optimize Grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px" }}>
@@ -684,6 +857,8 @@ export default function AuditResults({ audit, onBack }) {
               description="Improve existing processes"
             />
           </div>
+            </>
+          )}
         </div>
       )}
 

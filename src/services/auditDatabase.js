@@ -52,6 +52,29 @@ export async function getAudit(auditId) {
   return data;
 }
 
+/**
+ * Get audit with channel videos included.
+ * Use this when displaying full audit results.
+ */
+export async function getAuditWithVideos(auditId) {
+  const audit = await getAudit(auditId);
+  if (!audit?.channel?.id) return audit;
+
+  // Fetch videos for the channel
+  const { data: videos, error } = await supabase
+    .from('videos')
+    .select('*')
+    .eq('channel_id', audit.channel.id)
+    .order('published_at', { ascending: false });
+
+  if (error) {
+    console.warn('Failed to fetch videos for audit:', error.message);
+    return { ...audit, videos: [] };
+  }
+
+  return { ...audit, videos: videos || [] };
+}
+
 export async function listAudits({ channel_id, audit_type, status, limit = 50 } = {}) {
   let query = supabase
     .from('audits')

@@ -72,8 +72,8 @@ const SECTIONS = [
     ],
   },
   {
-    id: "sales",
-    label: "Sales",
+    id: "onboarding",
+    label: "Onboarding",
     icon: Briefcase,
     tabs: [
       { id: "audits", label: "Audits", icon: ClipboardCheck },

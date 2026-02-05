@@ -109,11 +109,13 @@ export async function ingestChannelData(auditId, channelInput, opts = {}) {
       apiCallsUsed += Math.ceil(ytVideos.length / 50) * 2;
 
       // Upsert channel to database
+      // For new audit channels, set is_competitor to null (audit-only, not a client)
+      // Preserve existing status for channels that were already in the system
       channel = await upsertChannel({
         ...channelDetails,
         size_tier: sizeTier,
         created_via: existingChannel ? existingChannel.created_via : 'audit',
-        is_competitor: existingChannel?.is_competitor || false,
+        is_competitor: existingChannel ? existingChannel.is_competitor : null,
       });
 
       // Upsert videos

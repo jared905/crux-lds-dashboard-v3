@@ -29,8 +29,16 @@ function getAdjacentTiers(tier) {
 
 /**
  * Find peer channels in the same or adjacent size tier.
+ *
+ * @param {string} channelId - Channel ID to exclude from results
+ * @param {string} sizeTier - Size tier for subscriber range filtering
+ * @param {Object} options
+ * @param {string} [options.category] - Filter by single category (legacy)
+ * @param {string[]} [options.categoryIds] - Filter by multiple category IDs (preferred)
+ * @param {string} [options.clientId] - Filter to only competitors from this client's database
+ * @param {number} [options.limit=20] - Max channels to return
  */
-export async function findPeerChannels(channelId, sizeTier, { category, limit = 20 } = {}) {
+export async function findPeerChannels(channelId, sizeTier, { category, categoryIds, clientId, limit = 20 } = {}) {
   const boundaries = TIER_BOUNDARIES[sizeTier];
   if (!boundaries) return [];
 
@@ -41,16 +49,67 @@ export async function findPeerChannels(channelId, sizeTier, { category, limit = 
     ? 100000000  // 100M upper bound for elite
     : TIER_BOUNDARIES[adjacentTiers[0]]?.max || 10000000;
 
+  // If categoryIds are specified, query through the channel_categories join table
+  if (categoryIds && categoryIds.length > 0) {
+    // First get channel IDs that belong to the selected categories
+    const { data: channelCats, error: catError } = await supabase
+      .from('channel_categories')
+      .select('channel_id')
+      .in('category_id', categoryIds);
+
+    if (catError) {
+      console.warn('Failed to query channel_categories:', catError.message);
+      return [];
+    }
+
+    const categoryChannelIds = [...new Set(channelCats?.map(cc => cc.channel_id) || [])];
+    if (categoryChannelIds.length === 0) {
+      return [];  // No channels in selected categories
+    }
+
+    // Now query channels with the category filter
+    let query = supabase
+      .from('channels')
+      .select('*')
+      .neq('id', channelId)
+      .in('id', categoryChannelIds)
+      .gte('subscriber_count', minSub)
+      .lte('subscriber_count', maxSub)
+      .or('sync_enabled.eq.true,sync_enabled.is.null')
+      .order('subscriber_count', { ascending: false })
+      .limit(limit);
+
+    if (clientId) {
+      query = query.eq('client_id', clientId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn('Failed to find peer channels:', error.message);
+      return [];
+    }
+
+    return data || [];
+  }
+
+  // Fallback: standard query without category filtering via join table
   let query = supabase
     .from('channels')
     .select('*')
     .neq('id', channelId)
     .gte('subscriber_count', minSub)
     .lte('subscriber_count', maxSub)
-    .eq('sync_enabled', true)
+    // Include channels where sync_enabled is true OR not explicitly set to false
+    .or('sync_enabled.eq.true,sync_enabled.is.null')
     .order('subscriber_count', { ascending: false })
     .limit(limit);
 
+  // Client-scoped benchmarking: only include competitors from the specified client
+  if (clientId) {
+    query = query.eq('client_id', clientId);
+  }
+
+  // Legacy single category filter (uses category column on channels table)
   if (category) {
     query = query.eq('category', category);
   }
@@ -220,14 +279,26 @@ export function compareAgainstBenchmarks(channelMetrics, benchmarks) {
 
 /**
  * Full benchmark pipeline for an audit.
+ *
+ * @param {string} auditId - Audit UUID
+ * @param {Object} channel - Channel being audited
+ * @param {string} sizeTier - Size tier for peer matching
+ * @param {Object} [options]
+ * @param {string} [options.clientId] - Limit benchmarks to competitors from this client only
+ * @param {string[]} [options.categoryIds] - Limit benchmarks to competitors in these categories
  */
-export async function runBenchmarking(auditId, channel, sizeTier) {
+export async function runBenchmarking(auditId, channel, sizeTier, { clientId, categoryIds } = {}) {
   await updateAuditSection(auditId, 'competitor_matching', { status: 'running' });
   await updateAuditProgress(auditId, { step: 'competitor_matching', pct: 32, message: 'Finding peer channels...' });
 
   try {
-    // Find peers
-    const peers = await findPeerChannels(channel.id, sizeTier, { category: channel.category });
+    // Find peers - optionally scoped by category or client
+    // Priority: explicit categoryIds > explicit clientId > channel's own client
+    const peers = await findPeerChannels(channel.id, sizeTier, {
+      category: !categoryIds?.length ? channel.category : undefined,  // Only use legacy category if no categoryIds
+      categoryIds: categoryIds?.length > 0 ? categoryIds : undefined,
+      clientId: !categoryIds?.length ? (clientId || channel.client_id) : undefined,  // Only use clientId if no categoryIds
+    });
 
     await updateAuditSection(auditId, 'competitor_matching', {
       status: 'completed',

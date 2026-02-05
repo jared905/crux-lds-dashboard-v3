@@ -8,7 +8,7 @@ import {
   RefreshCw,
   AlertCircle,
 } from "lucide-react";
-import { listAudits, deleteAudit } from "../../services/auditDatabase";
+import { listAudits, deleteAudit, getAuditWithVideos } from "../../services/auditDatabase";
 import AuditCreateFlow from "./AuditCreateFlow";
 import AuditProgress from "./AuditProgress";
 import AuditResults from "./AuditResults";
@@ -59,8 +59,15 @@ export default function AuditPage({ activeClient }) {
     setView("progress");
   };
 
-  const handleAuditComplete = (audit) => {
-    setSelectedAudit(audit);
+  const handleAuditComplete = async (audit) => {
+    // Load full audit with videos
+    try {
+      const fullAudit = await getAuditWithVideos(audit.id);
+      setSelectedAudit(fullAudit);
+    } catch (err) {
+      // Fallback to audit without videos
+      setSelectedAudit(audit);
+    }
     setView("results");
     fetchAudits();
   };
@@ -70,12 +77,22 @@ export default function AuditPage({ activeClient }) {
     setView("list");
   };
 
-  const handleViewAudit = (audit) => {
-    setSelectedAudit(audit);
+  const handleViewAudit = async (audit) => {
     if (audit.status === "running") {
+      setSelectedAudit(audit);
       setView("progress");
     } else if (audit.status === "completed") {
-      setView("results");
+      // Load full audit with videos for results view
+      setLoading(true);
+      try {
+        const fullAudit = await getAuditWithVideos(audit.id);
+        setSelectedAudit(fullAudit);
+        setView("results");
+      } catch (err) {
+        setError("Failed to load audit: " + err.message);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
