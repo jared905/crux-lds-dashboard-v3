@@ -251,12 +251,21 @@ export default function CategoryBrowser({
   channels = [],
   loading = false,
 }) {
-  const [expandedIds, setExpandedIds] = useState(() => {
-    // Expand root categories by default
-    const initial = new Set();
-    categoryTree.forEach(cat => initial.add(cat.id));
-    return initial;
-  });
+  // Start with all folders collapsed
+  const [expandedIds, setExpandedIds] = useState(new Set());
+
+  // Sort categories alphabetically (recursive)
+  const sortedCategoryTree = useMemo(() => {
+    const sortTree = (categories) => {
+      return [...categories]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(cat => ({
+          ...cat,
+          children: cat.children ? sortTree(cat.children) : [],
+        }));
+    };
+    return sortTree(categoryTree);
+  }, [categoryTree]);
 
   // Build channel count map from channels data
   const channelCounts = useMemo(() => {
@@ -426,7 +435,7 @@ export default function CategoryBrowser({
 
       {/* Tree */}
       <div style={styles.tree}>
-        {categoryTree.map((category) => (
+        {sortedCategoryTree.map((category) => (
           <CategoryRow
             key={category.id}
             category={category}
