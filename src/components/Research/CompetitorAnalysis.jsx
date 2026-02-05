@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useEffect, useCallback, lazy, Suspense } from "react";
-import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, Upload, Download, RefreshCw, X, Check, Zap, Loader, MoreVertical, Table2, LayoutGrid, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Crown, Target, Activity, Layers } from "lucide-react";
+import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, Upload, Download, RefreshCw, X, Check, Zap, Loader, MoreVertical, Table2, LayoutGrid, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Crown, Target, Activity, Layers, Folder } from "lucide-react";
 import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../../lib/competitorAnalysis";
 import { getOutlierVideos, analyzeCompetitorVideo } from '../../services/competitorInsightsService';
 import { importCompetitorDatabase } from '../../services/competitorImport';
+import CategoryBrowser from './CategoryBrowser';
+import { ChannelClientAssignment } from './ChannelClientAssignment';
 
 const CompetitorTrends = lazy(() => import('./CompetitorTrends'));
 
@@ -15,7 +17,8 @@ const fmtDuration = (seconds) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-const CATEGORY_CONFIG = {
+// Fallback category config - used when dynamic categories fail to load
+const CATEGORY_CONFIG_FALLBACK = {
   'lds-official':   { label: 'LDS Official',            color: '#3b82f6', icon: '\u{1F3DB}',  order: 0, description: 'Institutional church channels' },
   'lds-faithful':   { label: 'LDS Faithful Creators',   color: '#10b981', icon: '\u{1F64F}',  order: 1, description: 'Apologetics, scholarship, lifestyle' },
   'ex-mormon':      { label: 'Ex-Mormon',               color: '#ef4444', icon: '\u{1F6AA}',  order: 2, description: 'Personal stories, research, expose' },
@@ -26,6 +29,15 @@ const CATEGORY_CONFIG = {
   'jewish':         { label: 'Jewish',                   color: '#6366f1', icon: '\u{2721}\uFE0F', order: 7, description: 'Jewish educational content' },
   'deconstruction': { label: 'Deconstruction',           color: '#ec4899', icon: '\u{1F513}',  order: 8, description: 'Multi-faith and LDS-specific deconstruction' },
 };
+
+// Industry filters for master view
+const INDUSTRY_FILTERS = [
+  { id: null, label: 'All', color: '#9E9E9E' },
+  { id: 'religious', label: 'Religious', color: '#8B5CF6' },
+  { id: 'cpg', label: 'CPG', color: '#06b6d4' },
+  { id: 'gaming', label: 'Gaming', color: '#8b5cf6' },
+  { id: 'tech', label: 'Tech', color: '#10b981' },
+];
 
 export default function CompetitorAnalysis({ rows, activeClient }) {
   const [apiKey, setApiKey] = useState(localStorage.getItem('yt_api_key') || "");
@@ -88,12 +100,59 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   const [snapshotData, setSnapshotData] = useState({});
   const [snapshotLoading, setSnapshotLoading] = useState(false);
 
+  // Dynamic category state (loaded from Supabase)
+  const [categoryTree, setCategoryTree] = useState([]);
+  const [categoryConfig, setCategoryConfig] = useState(CATEGORY_CONFIG_FALLBACK);
+  const [categoryLoading, setCategoryLoading] = useState(false);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
+
+  // Industry filter for master view
+  const [industryFilter, setIndustryFilter] = useState(null);
+
   // Sync competitors state to localStorage for enriched data persistence
   useEffect(() => {
     if (competitors.length > 0) {
       localStorage.setItem('competitors', JSON.stringify(competitors));
     }
   }, [competitors]);
+
+  // Load category tree from Supabase on mount
+  useEffect(() => {
+    const loadCategories = async () => {
+      setCategoryLoading(true);
+      try {
+        const { getCategoryTree } = await import('../../services/categoryService');
+        const tree = await getCategoryTree();
+        setCategoryTree(tree || []);
+
+        // Build config object from tree for backwards compatibility
+        const config = { ...CATEGORY_CONFIG_FALLBACK };
+        const flattenTree = (nodes) => {
+          nodes.forEach(node => {
+            config[node.slug] = {
+              id: node.id,
+              label: node.name,
+              color: node.color || '#666',
+              icon: node.icon || 'folder',
+              order: node.sort_order || 0,
+              description: node.description || '',
+              parentId: node.parent_id,
+            };
+            if (node.children) flattenTree(node.children);
+          });
+        };
+        flattenTree(tree || []);
+        setCategoryConfig(config);
+      } catch (err) {
+        console.error('[Categories] Failed to load from Supabase:', err);
+        // Keep using fallback config
+      } finally {
+        setCategoryLoading(false);
+      }
+    };
+
+    loadCategories();
+  }, []);
 
   // Load competitors from Supabase when activeClient or masterView changes
   useEffect(() => {
@@ -166,7 +225,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
   const toggleAllCategories = useCallback((expand) => {
     const all = {};
-    Object.keys(CATEGORY_CONFIG).forEach(key => { all[key] = expand; });
+    Object.keys(categoryConfig).forEach(key => { all[key] = expand; });
     setExpandedCategories(all);
   }, []);
 
@@ -847,8 +906,10 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   // Derive the active competitor list based on view mode
   // In master view: use Supabase data (all clients). In client view: prefer Supabase, fallback to localStorage
   const activeCompetitors = useMemo(() => {
+    let result = [];
+
     if (supabaseCompetitors.length > 0) {
-      return supabaseCompetitors.map(ch => {
+      result = supabaseCompetitors.map(ch => {
         // Base defaults for fields not stored in Supabase
         const defaults = {
           uploadsLast30Days: 0,
@@ -887,11 +948,47 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           notes: ch.notes || null,
           client_id: ch.client_id,
           supabaseId: ch.id,
+          industry: ch.industry || null,
         };
       });
+    } else {
+      result = competitors;
     }
-    return competitors;
-  }, [supabaseCompetitors, competitors]);
+
+    // Apply industry filter in master view
+    if (masterView && industryFilter) {
+      result = result.filter(c => c.industry === industryFilter);
+    }
+
+    // Apply category filter if categories are selected
+    if (selectedCategoryIds.length > 0) {
+      // Get all category slugs for selected IDs
+      const selectedSlugs = new Set();
+      const addCategorySlugs = (tree) => {
+        tree.forEach(cat => {
+          if (selectedCategoryIds.includes(cat.id)) {
+            selectedSlugs.add(cat.slug);
+            // Also add all children's slugs
+            const addChildSlugs = (children) => {
+              children.forEach(child => {
+                selectedSlugs.add(child.slug);
+                if (child.children) addChildSlugs(child.children);
+              });
+            };
+            if (cat.children) addChildSlugs(cat.children);
+          }
+          if (cat.children) addCategorySlugs(cat.children);
+        });
+      };
+      addCategorySlugs(categoryTree);
+
+      if (selectedSlugs.size > 0) {
+        result = result.filter(c => selectedSlugs.has(c.category));
+      }
+    }
+
+    return result;
+  }, [supabaseCompetitors, competitors, masterView, industryFilter, selectedCategoryIds, categoryTree]);
 
   // Fetch bulk snapshots when trends view is active
   useEffect(() => {
@@ -924,7 +1021,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     const groups = {};
 
     // Initialize groups from config
-    Object.entries(CATEGORY_CONFIG).forEach(([key, config]) => {
+    Object.entries(categoryConfig).forEach(([key, config]) => {
       groups[key] = {
         key,
         config,
@@ -1180,6 +1277,30 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               <Eye size={14} />
               {masterView ? "Master" : "Client"}
             </button>
+
+            {/* Industry Filter (only in master view) */}
+            {masterView && (
+              <div style={{ display: "flex", gap: "4px", marginLeft: "8px" }}>
+                {INDUSTRY_FILTERS.map(ind => (
+                  <button
+                    key={ind.id || 'all'}
+                    onClick={() => setIndustryFilter(ind.id)}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: "12px",
+                      fontSize: "11px",
+                      fontWeight: "500",
+                      background: industryFilter === ind.id ? ind.color + '20' : "transparent",
+                      border: `1px solid ${industryFilter === ind.id ? ind.color : '#444'}`,
+                      color: industryFilter === ind.id ? ind.color : "#888",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {ind.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Import Database (only when empty) */}
             {activeClient?.id && activeCompetitors.length === 0 && !importing && (
@@ -1479,8 +1600,21 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         </div>
       )}
 
-      {/* ── COMPETITIVE INTELLIGENCE PANEL ── */}
-      {activeCompetitors.length > 0 && (
+      {/* ── CATEGORY BROWSER (Master View) or COMPETITIVE INTELLIGENCE (Client View) ── */}
+      {activeCompetitors.length > 0 && masterView && (
+        <div style={{ marginBottom: "16px" }}>
+          <CategoryBrowser
+            categoryTree={categoryTree}
+            selectedCategoryIds={selectedCategoryIds}
+            onCategorySelect={setSelectedCategoryIds}
+            channels={activeCompetitors}
+            loading={categoryLoading}
+          />
+        </div>
+      )}
+
+      {/* ── COMPETITIVE INTELLIGENCE PANEL (Client View Only) ── */}
+      {activeCompetitors.length > 0 && !masterView && (
         <div style={{
           background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
           overflow: "hidden", marginBottom: "16px",
@@ -1561,7 +1695,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                               <span style={{ fontSize: "11px", color: "#888" }}>{video.channel?.name || "Unknown"}</span>
                               {(() => {
                                 const comp = activeCompetitors.find(c => c.supabaseId === video.channel_id);
-                                const cat = comp ? CATEGORY_CONFIG[comp.category] : null;
+                                const cat = comp ? categoryConfig[comp.category] : null;
                                 return cat ? (
                                   <span style={{ fontSize: "9px", fontWeight: "600", color: cat.color, background: `${cat.color}15`, padding: "1px 6px", borderRadius: "8px" }}>
                                     {cat.label}
@@ -1653,7 +1787,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             >
               All ({activeCompetitors.length})
             </button>
-            {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => {
+            {Object.entries(categoryConfig).map(([key, cfg]) => {
               const count = activeCompetitors.filter(c => c.category === key).length;
               if (count === 0) return null;
               const isActive = viewMode === 'hubs' ? expandedHubCategory === key : selectedCategory === key;
@@ -1763,7 +1897,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           <CompetitorTrends
             activeCompetitors={activeCompetitors}
             selectedCategory={selectedCategory}
-            CATEGORY_CONFIG={CATEGORY_CONFIG}
+            categoryConfig={categoryConfig}
             timeRange={trendsTimeRange}
             onTimeRangeChange={setTrendsTimeRange}
             snapshotData={snapshotData}
@@ -1878,7 +2012,7 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
   const scheduleAnalysis = useMemo(() => drawerTab === 'schedule' ? analyzeUploadSchedule(channel.videos, userTimezone) : null, [channel.videos, userTimezone, drawerTab]);
   const formatAnalysis = useMemo(() => drawerTab === 'content' ? categorizeContentFormats(channel.videos) : null, [channel.videos, drawerTab]);
 
-  const catCfg = CATEGORY_CONFIG[channel.category] || CATEGORY_CONFIG['lds-faithful'];
+  const catCfg = categoryConfig[channel.category] || categoryConfig['lds-faithful'];
 
   const growth = useMemo(() => {
     if (!channel.history || channel.history.length === 0) return null;
@@ -1919,7 +2053,7 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
                   cursor: "pointer", appearance: "auto",
                 }}
               >
-                {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
+                {Object.entries(categoryConfig).map(([key, cfg]) => (
                   <option key={key} value={key} style={{ background: "#1a1a1a", color: "#fff" }}>
                     {cfg.icon} {cfg.label}
                   </option>

@@ -208,6 +208,35 @@ export async function getChannelCategories(channelId) {
 }
 
 /**
+ * Get categories for multiple channels in a single query (batch)
+ * Returns { [channelId]: category[] }
+ */
+export async function getBulkChannelCategories(channelIds) {
+  if (!supabase) throw new Error('Supabase not configured');
+  if (!channelIds?.length) return {};
+
+  const { data, error } = await supabase
+    .from('channel_categories')
+    .select('channel_id, category_id, categories(*)')
+    .in('channel_id', channelIds);
+
+  if (error) throw error;
+
+  // Group by channel_id
+  const result = {};
+  (data || []).forEach(row => {
+    if (!result[row.channel_id]) {
+      result[row.channel_id] = [];
+    }
+    if (row.categories) {
+      result[row.channel_id].push(row.categories);
+    }
+  });
+
+  return result;
+}
+
+/**
  * Get channels in a category
  */
 export async function getChannelsInCategory(categoryId, { includeSubcategories = true } = {}) {
@@ -540,6 +569,7 @@ export default {
 
   // Channel-Category
   getChannelCategories,
+  getBulkChannelCategories,
   getChannelsInCategory,
   getCategoryDescendants,
   assignChannelToCategory,
