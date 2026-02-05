@@ -313,6 +313,213 @@ function extractChannelHandle(url) {
 }
 
 // ============================================
+// CSV IMPORT
+// ============================================
+
+/**
+ * Category mapping from CSV category names to database slugs
+ */
+const CSV_CATEGORY_MAP = {
+  // CPG / Audio categories
+  'Direct_Lifestyle_Audio': 'lifestyle-audio-brands',
+  'Budget_ECommerce_Audio': 'budget-value-audio',
+  // Action Sports categories
+  'Action_Sports_Culture': 'action-sports-culture',
+  // Gaming categories
+  'Gaming_Audio_Gear': 'gaming-peripherals',
+  // Tech categories
+  'Tech_Influence_Reviewers': 'hardware-reviewers',
+};
+
+/**
+ * Industry mapping from CSV categories
+ */
+const CSV_INDUSTRY_MAP = {
+  'Direct_Lifestyle_Audio': 'cpg',
+  'Budget_ECommerce_Audio': 'cpg',
+  'Action_Sports_Culture': 'cpg',
+  'Gaming_Audio_Gear': 'gaming',
+  'Tech_Influence_Reviewers': 'tech',
+};
+
+/**
+ * Parse CSV string into array of objects
+ */
+export function parseCSV(csvString) {
+  const lines = csvString.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim());
+
+  return lines.slice(1).map(line => {
+    const values = line.split(',').map(v => v.trim());
+    const obj = {};
+    headers.forEach((header, i) => {
+      obj[header] = values[i] || '';
+    });
+    return obj;
+  });
+}
+
+/**
+ * Import channels from CSV data
+ *
+ * Expected CSV format:
+ * Category,Brand_Name,YouTube_URL,Overlap_Type
+ *
+ * @param {string} csvData - Raw CSV string
+ * @param {string} clientId - Optional client ID to assign channels to
+ * @param {Object} options
+ * @param {function} options.onProgress - Called with (current, total, channelName)
+ * @param {boolean} options.dryRun - If true, logs but doesn't write
+ * @returns {Object} { imported, skipped, errors }
+ */
+export async function importFromCSV(csvData, clientId = null, options = {}) {
+  const { onProgress, dryRun = false } = options;
+
+  const rows = parseCSV(csvData);
+  const results = { imported: 0, skipped: 0, errors: [], channels: [] };
+  const total = rows.length;
+
+  console.log('========================================');
+  console.log('CSV Import');
+  console.log(`Total rows: ${total}`);
+  console.log(`Client ID: ${clientId || '(master only)'}`);
+  console.log(`Mode: ${dryRun ? 'DRY RUN' : 'LIVE'}`);
+  console.log('========================================\n');
+
+  for (let i = 0; i < total; i++) {
+    const row = rows[i];
+    const channelName = row.Brand_Name || row.name || 'Unknown';
+
+    if (onProgress) {
+      onProgress(i + 1, total, channelName);
+    }
+
+    console.log(`[${i + 1}/${total}] Processing: ${channelName}`);
+
+    if (dryRun) {
+      const category = CSV_CATEGORY_MAP[row.Category] || row.Category;
+      const industry = CSV_INDUSTRY_MAP[row.Category] || 'cpg';
+      console.log(`  [DRY RUN] Would import: category=${category}, industry=${industry}`);
+      results.imported++;
+      continue;
+    }
+
+    try {
+      const channel = await importCSVRow(row, clientId);
+      console.log(`  Imported: ${channel?.name || channelName}`);
+      results.imported++;
+      results.channels.push(channel);
+    } catch (err) {
+      console.error(`  Error: ${err.message}`);
+      results.errors.push({ channel: channelName, error: err.message });
+    }
+  }
+
+  // Summary
+  console.log('\n========================================');
+  console.log('CSV IMPORT SUMMARY');
+  console.log('========================================');
+  console.log(`Imported: ${results.imported}`);
+  console.log(`Skipped:  ${results.skipped}`);
+  console.log(`Errors:   ${results.errors.length}`);
+
+  if (results.errors.length > 0) {
+    console.log('\nErrors:');
+    results.errors.forEach(e => console.log(`  - ${e.channel}: ${e.error}`));
+  }
+
+  return results;
+}
+
+/**
+ * Import a single CSV row
+ */
+async function importCSVRow(row, clientId) {
+  const url = row.YouTube_URL || row.url;
+  const name = row.Brand_Name || row.name;
+  const csvCategory = row.Category || row.category;
+  const overlapType = row.Overlap_Type || row.overlap_type;
+
+  // Map category to slug
+  const categorySlug = CSV_CATEGORY_MAP[csvCategory] || csvCategory?.toLowerCase().replace(/_/g, '-');
+  const industry = CSV_INDUSTRY_MAP[csvCategory] || 'cpg';
+
+  // Extract handle from URL
+  const handle = extractHandle(url);
+  const youtubeChannelId = extractChannelHandle(url);
+
+  // Check if channel already exists
+  const { data: existing } = await supabase
+    .from('channels')
+    .select('id, name')
+    .eq('youtube_channel_id', youtubeChannelId)
+    .single();
+
+  let channel;
+
+  if (existing) {
+    // Update existing channel
+    const { data: updated, error } = await supabase
+      .from('channels')
+      .update({
+        industry,
+        category: categorySlug,
+        tags: overlapType ? [overlapType] : [],
+        sync_enabled: true,
+      })
+      .eq('id', existing.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    channel = updated;
+    console.log(`  Updated existing: ${existing.name}`);
+  } else {
+    // Try to resolve channel details from YouTube API
+    let channelDetails = null;
+    let resolvedId = youtubeChannelId;
+
+    if (youtubeChannelId.startsWith('handle_')) {
+      try {
+        resolvedId = await youtubeAPI.resolveChannelId(url);
+        channelDetails = await youtubeAPI.fetchChannelDetails(resolvedId);
+      } catch (err) {
+        console.warn(`  Could not resolve handle: ${err.message}`);
+      }
+    }
+
+    // Create new channel
+    channel = await upsertChannel({
+      youtube_channel_id: resolvedId,
+      name: channelDetails?.name || name,
+      description: channelDetails?.description || null,
+      thumbnail_url: channelDetails?.thumbnail_url || null,
+      custom_url: handle,
+      category: categorySlug,
+      tags: overlapType ? [overlapType] : [],
+      tier: 'secondary',
+      notes: overlapType ? `Overlap: ${overlapType}` : null,
+      industry,
+      is_competitor: true,
+      client_id: clientId,
+      subscriber_count: channelDetails?.subscriber_count || 0,
+      total_view_count: channelDetails?.total_view_count || 0,
+      video_count: channelDetails?.video_count || 0,
+    });
+  }
+
+  // Assign to hierarchical category
+  if (channel?.id && categorySlug) {
+    const category = await getCategoryBySlug(categorySlug);
+    if (category) {
+      await assignChannelToCategory(channel.id, category.id);
+    }
+  }
+
+  return channel;
+}
+
+// ============================================
 // EXPORTS
 // ============================================
 
@@ -320,4 +527,6 @@ export default {
   getAvailableDatasets,
   getDatasetPreview,
   importDataset,
+  importFromCSV,
+  parseCSV,
 };

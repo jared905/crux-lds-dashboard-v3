@@ -82,6 +82,10 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
 
+  // CSV import state
+  const [showCSVImport, setShowCSVImport] = useState(false);
+  const [csvText, setCSVText] = useState('');
+
   // Restructured UI state
   const [selectedChannelId, setSelectedChannelId] = useState(null);
   const [drawerTab, setDrawerTab] = useState('overview');
@@ -217,6 +221,35 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       setImporting(false);
     }
   }, [activeClient?.id, reloadSupabaseCompetitors]);
+
+  // Import from CSV data
+  const handleCSVImport = useCallback(async () => {
+    if (!csvText.trim()) {
+      setError('Please paste CSV data');
+      return;
+    }
+    setImporting(true);
+    setShowCSVImport(false);
+    try {
+      const { importFromCSV } = await import('../../services/unifiedCompetitorImport');
+      const results = await importFromCSV(csvText, null, {
+        onProgress: (current, total, name) => {
+          setImportProgress({ current, total, name });
+        },
+      });
+      setImportProgress(null);
+      setCSVText('');
+      await reloadSupabaseCompetitors();
+      if (results.errors.length > 0) {
+        setError(`Imported ${results.imported} channels with ${results.errors.length} errors. Check console.`);
+      }
+    } catch (err) {
+      console.error('[CSV Import] Failed:', err);
+      setError(`CSV Import failed: ${err.message}`);
+    } finally {
+      setImporting(false);
+    }
+  }, [csvText, reloadSupabaseCompetitors]);
 
   // Category expand/collapse handlers
   const toggleCategory = useCallback((categoryKey) => {
@@ -1396,6 +1429,22 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                     <Settings size={14} />
                     {apiKey ? "API Key Set" : "Set API Key"}
                   </button>
+                  {masterView && (
+                    <button
+                      onClick={() => { setShowCSVImport(true); setShowSettingsMenu(false); }}
+                      style={{
+                        width: "100%", background: "transparent", border: "none",
+                        padding: "8px 12px", color: "#a78bfa", fontSize: "12px",
+                        cursor: "pointer", textAlign: "left", borderRadius: "4px",
+                        display: "flex", alignItems: "center", gap: "8px",
+                      }}
+                      onMouseOver={e => e.currentTarget.style.background = "#333"}
+                      onMouseOut={e => e.currentTarget.style.background = "transparent"}
+                    >
+                      <Upload size={14} />
+                      Import CSV
+                    </button>
+                  )}
                   <div style={{ padding: "4px 12px" }}>
                     <div style={{ fontSize: "10px", color: "#666", marginBottom: "4px" }}>Timezone</div>
                     <select
@@ -1995,6 +2044,65 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               </div>
             </div>
           ) : null}
+        </div>
+      )}
+
+      {/* CSV Import Modal */}
+      {showCSVImport && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)", zIndex: 2000,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <div style={{
+            background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
+            width: "600px", maxHeight: "80vh", overflow: "hidden",
+          }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #333", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>Import CSV</div>
+              <button onClick={() => setShowCSVImport(false)} style={{ background: "transparent", border: "none", color: "#888", cursor: "pointer" }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: "20px" }}>
+              <div style={{ fontSize: "12px", color: "#888", marginBottom: "12px" }}>
+                Paste CSV with columns: <code style={{ background: "#333", padding: "2px 6px", borderRadius: "4px" }}>Category, Brand_Name, YouTube_URL, Overlap_Type</code>
+              </div>
+              <textarea
+                value={csvText}
+                onChange={(e) => setCSVText(e.target.value)}
+                placeholder="Category,Brand_Name,YouTube_URL,Overlap_Type
+Direct_Lifestyle_Audio,Beats by Dre,https://www.youtube.com/@beatsbydre,Brand_Aesthetic"
+                style={{
+                  width: "100%", height: "300px", background: "#252525", border: "1px solid #444",
+                  borderRadius: "8px", padding: "12px", color: "#fff", fontSize: "12px",
+                  fontFamily: "monospace", resize: "vertical",
+                }}
+              />
+              <div style={{ display: "flex", gap: "12px", marginTop: "16px", justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setShowCSVImport(false)}
+                  style={{
+                    padding: "8px 16px", background: "transparent", border: "1px solid #444",
+                    borderRadius: "6px", color: "#888", fontSize: "13px", cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCSVImport}
+                  disabled={!csvText.trim()}
+                  style={{
+                    padding: "8px 20px", background: csvText.trim() ? "#8b5cf6" : "#333",
+                    border: "none", borderRadius: "6px", color: "#fff", fontSize: "13px",
+                    fontWeight: "600", cursor: csvText.trim() ? "pointer" : "not-allowed",
+                  }}
+                >
+                  Import
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
