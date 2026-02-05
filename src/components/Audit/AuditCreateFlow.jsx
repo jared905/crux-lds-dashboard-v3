@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   ArrowLeft,
   Search,
@@ -8,13 +8,12 @@ import {
   Play,
   AlertCircle,
   Tag,
-  Check,
 } from "lucide-react";
 import { youtubeAPI } from "../../services/youtubeAPI";
 import { claudeAPI } from "../../services/claudeAPI";
 import { classifySizeTier, getTierConfig } from "../../services/auditIngestion";
 import { runAudit } from "../../services/auditOrchestrator";
-import { getAllCategories } from "../../services/categoryService";
+import CategorySelector from "../Research/CategorySelector";
 
 const TIER_LABELS = {
   emerging: "Emerging (0 – 10K subs)",
@@ -47,37 +46,11 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
   const [auditType, setAuditType] = useState("prospect");
   const [forceRefresh, setForceRefresh] = useState(false);
 
-  // Category selection for scoped benchmarking
-  const [categories, setCategories] = useState([]);
+  // Category selection for scoped benchmarking (hierarchical)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
 
   // Running
   const [launching, setLaunching] = useState(false);
-
-  // Load available categories for benchmark scoping
-  useEffect(() => {
-    async function loadCategories() {
-      try {
-        const data = await getAllCategories();
-        setCategories(data || []);
-      } catch (err) {
-        console.warn("Failed to load categories for benchmark scoping:", err);
-      } finally {
-        setLoadingCategories(false);
-      }
-    }
-    loadCategories();
-  }, []);
-
-  // Toggle category selection
-  const toggleCategory = (categoryId) => {
-    setSelectedCategoryIds(prev =>
-      prev.includes(categoryId)
-        ? prev.filter(id => id !== categoryId)
-        : [...prev, categoryId]
-    );
-  };
 
   // ── Step 1: Resolve channel ──
   const handleResolve = async () => {
@@ -380,63 +353,21 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
               </div>
             </div>
 
-            {/* Benchmark Scope - Category Selection */}
+            {/* Benchmark Scope - Category Selection (Hierarchical) */}
             <div style={{ marginBottom: "24px" }}>
               <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "8px" }}>
                 <Tag size={14} style={{ display: "inline", verticalAlign: "middle", marginRight: "6px" }} />
                 Benchmark Categories
               </div>
               <div style={{ fontSize: "12px", color: "#666", marginBottom: "12px" }}>
-                Select categories to compare against (e.g., CPG, Technology, Extreme Sports).
+                Select categories to compare against. Expand parent categories to select specific subcategories.
                 Leave empty to compare against all competitors.
               </div>
-              {loadingCategories ? (
-                <div style={{ padding: "12px", color: "#666", fontSize: "13px" }}>
-                  Loading categories...
-                </div>
-              ) : categories.length === 0 ? (
-                <div style={{
-                  padding: "16px", background: "#252525", borderRadius: "8px",
-                  fontSize: "13px", color: "#9E9E9E", textAlign: "center",
-                }}>
-                  No categories available. Add categories in Research → Category Manager.
-                </div>
-              ) : (
-                <div style={{
-                  display: "flex", flexWrap: "wrap", gap: "8px",
-                  padding: "12px", background: "#252525", borderRadius: "8px",
-                  maxHeight: "180px", overflowY: "auto",
-                }}>
-                  {categories.map((cat) => {
-                    const isSelected = selectedCategoryIds.includes(cat.id);
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => toggleCategory(cat.id)}
-                        style={{
-                          display: "flex", alignItems: "center", gap: "6px",
-                          padding: "6px 12px",
-                          background: isSelected ? "rgba(41, 98, 255, 0.2)" : "#333",
-                          border: `1px solid ${isSelected ? "#2962FF" : "#444"}`,
-                          borderRadius: "6px",
-                          color: isSelected ? "#60a5fa" : "#9E9E9E",
-                          fontSize: "12px",
-                          cursor: "pointer",
-                          transition: "all 0.15s ease",
-                        }}
-                      >
-                        {isSelected && <Check size={12} />}
-                        <span style={{
-                          width: "8px", height: "8px", borderRadius: "50%",
-                          background: cat.color || "#666",
-                        }} />
-                        {cat.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <CategorySelector
+                selectedIds={selectedCategoryIds}
+                onChange={setSelectedCategoryIds}
+                placeholder="Select benchmark categories..."
+              />
               {selectedCategoryIds.length > 0 && (
                 <div style={{ fontSize: "12px", color: "#60a5fa", marginTop: "8px" }}>
                   {selectedCategoryIds.length} categor{selectedCategoryIds.length === 1 ? "y" : "ies"} selected
@@ -484,11 +415,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
                   Tier-stratified peer benchmarking
                   {selectedCategoryIds.length > 0 && (
                     <span style={{ color: "#60a5fa" }}>
-                      {" "}(scoped to: {selectedCategoryIds
-                        .map(id => categories.find(c => c.id === id)?.name)
-                        .filter(Boolean)
-                        .join(", ")
-                      })
+                      {" "}(scoped to {selectedCategoryIds.length} selected categor{selectedCategoryIds.length === 1 ? "y" : "ies"})
                     </span>
                   )}
                 </li>
