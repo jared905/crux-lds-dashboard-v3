@@ -21,6 +21,7 @@ import {
 import { supabase, checkConnection } from '../../services/supabaseClient';
 import { getChannels, getSyncLogs, migrateFromLocalStorage } from '../../services/competitorDatabase';
 import { syncAllChannels } from '../../services/competitorSync';
+import { importCompetitorChannels, getImportPreview } from '../../services/competitorImportService';
 
 const s = {
   panel: {
@@ -187,6 +188,8 @@ export default function CompetitorDatabasePanel() {
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState(null);
   const [migrating, setMigrating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(null);
 
   // Check connection on mount
   useEffect(() => {
@@ -267,6 +270,36 @@ export default function CompetitorDatabasePanel() {
       alert('Migration failed: ' + err.message);
     } finally {
       setMigrating(false);
+    }
+  };
+
+  const handleBulkImport = async () => {
+    const preview = getImportPreview();
+    const confirmed = window.confirm(
+      `This will import ${preview.totalChannels} competitor channels across ${preview.categories.length} categories.\n\n` +
+      `Categories:\n${preview.categories.map(c => `  • ${c.name} (${c.children?.length || 0} subcategories)`).join('\n')}\n\n` +
+      `This uses YouTube API quota. Continue?`
+    );
+
+    if (!confirmed) return;
+
+    setImporting(true);
+    setImportProgress({ current: 0, total: preview.totalChannels });
+
+    try {
+      const results = await importCompetitorChannels();
+      alert(
+        `Import complete!\n\n` +
+        `✅ Successful: ${results.success.length}\n` +
+        `❌ Failed: ${results.failed.length}` +
+        (results.failed.length > 0 ? `\n\nFailed:\n${results.failed.map(f => `• ${f.name}: ${f.error}`).join('\n')}` : '')
+      );
+      await loadStats();
+    } catch (err) {
+      alert('Import failed: ' + err.message);
+    } finally {
+      setImporting(false);
+      setImportProgress(null);
     }
   };
 
@@ -421,6 +454,24 @@ export default function CompetitorDatabasePanel() {
             </>
           )}
         </button>
+
+        <button
+          style={{ ...s.button, backgroundColor: '#10b981' }}
+          onClick={handleBulkImport}
+          disabled={importing}
+        >
+          {importing ? (
+            <>
+              <Loader2 size={16} style={s.spinner} />
+              Importing...
+            </>
+          ) : (
+            <>
+              <TrendingUp size={16} />
+              Import 50 Channels
+            </>
+          )}
+        </button>
       </div>
 
       {/* Sync Progress */}
@@ -429,6 +480,16 @@ export default function CompetitorDatabasePanel() {
           <Loader2 size={20} color="#2962FF" style={s.spinner} />
           <div style={s.progressText}>
             Syncing {syncProgress.current} of {syncProgress.total}: <strong>{syncProgress.channel}</strong>
+          </div>
+        </div>
+      )}
+
+      {/* Import Progress */}
+      {importing && (
+        <div style={{ ...s.progress, backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+          <Loader2 size={20} color="#10b981" style={s.spinner} />
+          <div style={s.progressText}>
+            Importing channels... Check browser console for detailed progress.
           </div>
         </div>
       )}
