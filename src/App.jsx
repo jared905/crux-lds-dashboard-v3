@@ -623,7 +623,7 @@ export default function App() {
       watchHoursPerHour: longsMetrics.productionHours > 0 ? longsMetrics.watchHours / longsMetrics.productionHours : 0
     };
 
-    return { views, watchHours, subs, avgCtr, avgRet, shortsMetrics, longsMetrics, shortsROI, longsROI };
+    return { views, watchHours, subs, avgCtr, avgRet, count: previousFiltered.length, shortsMetrics, longsMetrics, shortsROI, longsROI };
   }, [rows, dateRange, customDateRange, selectedChannel, query]);
 
   // Combine KPIs with period-over-period changes
@@ -633,13 +633,20 @@ export default function App() {
       return ((current - previous) / previous) * 100;
     };
 
+    const currentCount = filtered.length;
+    const previousCount = previousKpis.count || 0;
+    const currentAvgViews = currentCount > 0 ? kpis.views / currentCount : 0;
+    const previousAvgViews = previousCount > 0 ? previousKpis.views / previousCount : 0;
+
     return {
       ...kpis,
       viewsChange: calculateChange(kpis.views, previousKpis.views),
       watchHoursChange: calculateChange(kpis.watchHours, previousKpis.watchHours),
       subsChange: calculateChange(kpis.subs, previousKpis.subs),
+      countChange: calculateChange(currentCount, previousCount),
+      avgViewsPerVideoChange: calculateChange(currentAvgViews, previousAvgViews),
     };
-  }, [kpis, previousKpis]);
+  }, [kpis, previousKpis, filtered.length]);
 
   const top = useMemo(() => [...filtered].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 10), [filtered]);
 

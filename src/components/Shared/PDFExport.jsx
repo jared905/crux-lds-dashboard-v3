@@ -168,10 +168,12 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
               <div>
                 <div style="font-size: 14px; color: #93c5fd; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px;">TOTAL VIDEOS</div>
                 <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${filtered.length}</div>
+                ${kpis.countChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.countChange >= 0 ? '#86efac' : '#fca5a5'}; margin-top: 4px; font-weight: 600;">${kpis.countChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.countChange).toFixed(1)}%</div>` : ''}
               </div>
               <div>
                 <div style="font-size: 14px; color: #93c5fd; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px;">AVG VIEWS/VIDEO</div>
                 <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${filtered.length > 0 ? Math.round(kpis.views / filtered.length).toLocaleString() : '0'}</div>
+                ${kpis.avgViewsPerVideoChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.avgViewsPerVideoChange >= 0 ? '#86efac' : '#fca5a5'}; margin-top: 4px; font-weight: 600;">${kpis.avgViewsPerVideoChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.avgViewsPerVideoChange).toFixed(1)}%</div>` : ''}
               </div>
               <div>
                 <div style="font-size: 14px; color: #93c5fd; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px;">AVG CTR</div>
