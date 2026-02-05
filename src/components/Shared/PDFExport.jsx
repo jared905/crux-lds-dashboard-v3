@@ -39,7 +39,8 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
       case 'all': return 'All Time';
       case 'custom': {
         if (customDateRange?.start && customDateRange?.end) {
-          const fmt = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          // Parse date string as local time by appending T00:00:00 (avoids UTC interpretation)
+          const fmt = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
           return `${fmt(customDateRange.start)} – ${fmt(customDateRange.end)}`;
         }
         return 'Custom Range';
