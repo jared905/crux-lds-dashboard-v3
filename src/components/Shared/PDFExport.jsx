@@ -255,9 +255,14 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
                 <tbody>
                   ${top.slice(0, 10).map((video, idx) => `
                     <tr style="border-bottom: 1px solid #e2e8f0;">
-                      <td style="padding: 14px; font-size: 14px; color: #1e293b; max-width: 380px; font-weight: 500;">
-                        <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${video.title || 'Untitled'}</div>
-                        ${video.channel ? `<div style="font-size: 12px; color: #94a3b8; font-weight: 400; margin-top: 2px;">${video.channel}</div>` : ''}
+                      <td style="padding: 10px 14px; font-size: 14px; color: #1e293b; max-width: 420px; font-weight: 500;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                          ${video.thumbnailUrl || video.youtubeVideoId ? `<img src="${video.thumbnailUrl || `https://img.youtube.com/vi/${video.youtubeVideoId}/mqdefault.jpg`}" style="width: 64px; height: 36px; object-fit: cover; border-radius: 4px; flex-shrink: 0;" crossorigin="anonymous" />` : ''}
+                          <div style="min-width: 0;">
+                            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${video.title || 'Untitled'}</div>
+                            ${video.channel ? `<div style="font-size: 12px; color: #94a3b8; font-weight: 400; margin-top: 2px;">${video.channel}</div>` : ''}
+                          </div>
+                        </div>
                       </td>
                       <td style="padding: 14px; text-align: center;">
                         <span style="display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; background: ${video.type === 'short' ? '#fff7ed' : '#eff6ff'}; color: ${video.type === 'short' ? '#f97316' : '#0ea5e9'};">
