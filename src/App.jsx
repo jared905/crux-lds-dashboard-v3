@@ -8,7 +8,7 @@ import SignupPage from "./components/Auth/SignupPage.jsx";
 
 // Services
 import { youtubeAPI } from "./services/youtubeAPI.js";
-import { getClientsFromSupabase, checkSupabaseConnection } from "./services/clientDataService.js";
+import { getClientsFromSupabase, checkSupabaseConnection, getReportPeriod, setActivePeriod, periodVideoDataToRows } from "./services/clientDataService.js";
 import { normalizeData } from "./lib/normalizeData.js";
 
 // Layout
@@ -339,6 +339,48 @@ export default function App() {
   
   const handleClientChange = (client) => {
     setActiveClient(client);
+  };
+
+  const handlePeriodChange = async (periodId) => {
+    if (!activeClient || !periodId) return;
+
+    try {
+      // Load the period's full data
+      const fullPeriod = await getReportPeriod(periodId);
+      if (!fullPeriod) return;
+
+      // Update active period in database
+      await setActivePeriod(activeClient.id, periodId);
+
+      // Update client with period data
+      const updatedClient = {
+        ...activeClient,
+        rows: periodVideoDataToRows(fullPeriod.video_data || []),
+        activePeriod: {
+          id: fullPeriod.id,
+          name: fullPeriod.name,
+          periodType: fullPeriod.period_type,
+          startDate: fullPeriod.start_date,
+          endDate: fullPeriod.end_date,
+          isBaseline: fullPeriod.is_baseline,
+        },
+        activePeriodId: fullPeriod.id,
+      };
+
+      // Update clients list
+      const updatedClients = clients.map(c =>
+        c.id === activeClient.id ? updatedClient : c
+      );
+
+      setClients(updatedClients);
+      setActiveClient(updatedClient);
+
+      // Re-normalize the rows
+      const { rows: clean } = normalizeData(updatedClient.rows);
+      setRows(clean);
+    } catch (error) {
+      console.error('Error switching period:', error);
+    }
   };
 
   const channelOpts = useMemo(() => [...new Set(rows.map(r => r.channel).filter(Boolean))].sort(), [rows]);
@@ -785,6 +827,10 @@ export default function App() {
           channelOpts={channelOpts}
           query={query}
           setQuery={setQuery}
+          // Report period props
+          activePeriod={activeClient.activePeriod}
+          reportPeriods={activeClient.reportPeriods}
+          onPeriodChange={handlePeriodChange}
         />
       )}
 

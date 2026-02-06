@@ -1,20 +1,100 @@
 import React from "react";
+import { CalendarDays } from "lucide-react";
 
-export default function FilterBar({ dateRange, setDateRange, customDateRange, setCustomDateRange, selectedChannel, setSelectedChannel, channelOpts, query, setQuery }) {
+export default function FilterBar({
+  dateRange,
+  setDateRange,
+  customDateRange,
+  setCustomDateRange,
+  selectedChannel,
+  setSelectedChannel,
+  channelOpts,
+  query,
+  setQuery,
+  // New period props
+  activePeriod,
+  reportPeriods,
+  onPeriodChange
+}) {
+  const hasPeriods = reportPeriods && reportPeriods.length > 0;
+
   return (
     <div style={{ position: "sticky", top: "110px", zIndex: 99, background: "#121212", paddingTop: "20px", paddingBottom: "10px" }}>
       <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "0 24px" }}>
         <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px", padding: "20px" }}>
           <div style={{ display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
+
+            {/* Report Period Selector - shows when periods exist */}
+            {hasPeriods && (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ fontSize: "11px", color: "#10b981", fontWeight: "600", textTransform: "uppercase", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <CalendarDays size={12} />
+                  Period:
+                </div>
+                <select
+                  value={activePeriod?.id || ""}
+                  onChange={(e) => onPeriodChange && onPeriodChange(e.target.value)}
+                  style={{
+                    border: "1px solid #10b981",
+                    background: "#10b98115",
+                    borderRadius: "8px",
+                    padding: "8px 12px",
+                    color: "#10b981",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    fontWeight: "600",
+                    minWidth: "160px"
+                  }}
+                >
+                  {reportPeriods.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.video_count} videos)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Active Period Info Badge - when viewing period-specific data */}
+            {activePeriod && !hasPeriods && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 12px",
+                background: "#10b98115",
+                border: "1px solid #10b98140",
+                borderRadius: "8px",
+                fontSize: "12px",
+                color: "#10b981",
+                fontWeight: "600"
+              }}>
+                <CalendarDays size={12} />
+                {activePeriod.name}
+                {activePeriod.startDate && activePeriod.endDate && (
+                  <span style={{ color: "#10b98180", fontWeight: "400" }}>
+                    ({new Date(activePeriod.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(activePeriod.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Separator when periods exist */}
+            {hasPeriods && (
+              <div style={{ width: "1px", height: "24px", background: "#333" }} />
+            )}
+
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase" }}>Date:</div>
+              <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase" }}>
+                {hasPeriods ? "Filter:" : "Date:"}
+              </div>
               <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} style={{ border: "1px solid #333", background: "#252525", borderRadius: "8px", padding: "8px 12px", color: "#E0E0E0", fontSize: "13px", cursor: "pointer" }}>
-                <option value="all">All Time</option>
-                <option value="ytd">YTD</option>
-                <option value="90d">90 Days</option>
-                <option value="28d">28 Days</option>
-                <option value="7d">7 Days</option>
-                <option value="custom">Custom</option>
+                <option value="all">All Videos</option>
+                <option value="ytd">YTD Published</option>
+                <option value="90d">Last 90 Days Published</option>
+                <option value="28d">Last 28 Days Published</option>
+                <option value="7d">Last 7 Days Published</option>
+                <option value="custom">Custom Range</option>
               </select>
             </div>
 
