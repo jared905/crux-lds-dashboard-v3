@@ -378,6 +378,9 @@ export default function App() {
       // Re-normalize the rows
       const { rows: clean } = normalizeData(updatedClient.rows);
       setRows(clean);
+
+      // Reset date filter to show all videos when switching periods
+      setDateRange("all");
     } catch (error) {
       console.error('Error switching period:', error);
     }

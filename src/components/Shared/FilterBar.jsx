@@ -84,54 +84,74 @@ export default function FilterBar({
               <div style={{ width: "1px", height: "24px", background: "#333" }} />
             )}
 
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase" }}>
-                {hasPeriods ? "Filter:" : "Date:"}
+            {/* Period data note - explains that all videos are shown for the period */}
+            {activePeriod && (
+              <div style={{
+                fontSize: "11px",
+                color: "#9E9E9E",
+                fontStyle: "italic",
+                padding: "6px 10px",
+                background: "#1a1a1a",
+                borderRadius: "6px",
+                border: "1px solid #333"
+              }}>
+                Showing stats for all videos active during {activePeriod.name}
               </div>
-              <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} style={{ border: "1px solid #333", background: "#252525", borderRadius: "8px", padding: "8px 12px", color: "#E0E0E0", fontSize: "13px", cursor: "pointer" }}>
-                <option value="all">All Videos</option>
-                <option value="ytd">YTD Published</option>
-                <option value="90d">Last 90 Days Published</option>
-                <option value="28d">Last 28 Days Published</option>
-                <option value="7d">Last 7 Days Published</option>
-                <option value="custom">Custom Range</option>
-              </select>
-            </div>
+            )}
 
-            {dateRange === "custom" && (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <input
-                  type="date"
-                  value={customDateRange.start}
-                  onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
-                  style={{
-                    border: "1px solid #333",
-                    background: "#252525",
-                    borderRadius: "8px",
-                    padding: "8px 12px",
-                    color: "#E0E0E0",
-                    fontSize: "13px",
-                    cursor: "pointer",
-                    colorScheme: "dark"
-                  }}
-                />
-                <div style={{ fontSize: "12px", color: "#9E9E9E" }}>to</div>
-                <input
-                  type="date"
-                  value={customDateRange.end}
-                  onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
-                  style={{
-                    border: "1px solid #333",
-                    background: "#252525",
-                    borderRadius: "8px",
-                    padding: "8px 12px",
-                    color: "#E0E0E0",
-                    fontSize: "13px",
-                    cursor: "pointer",
-                    colorScheme: "dark"
-                  }}
-                />
-              </div>
+            {/* Date filter - only show when NOT viewing period data */}
+            {!activePeriod && (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase" }}>
+                    Date:
+                  </div>
+                  <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} style={{ border: "1px solid #333", background: "#252525", borderRadius: "8px", padding: "8px 12px", color: "#E0E0E0", fontSize: "13px", cursor: "pointer" }}>
+                    <option value="all">All Videos</option>
+                    <option value="ytd">YTD Published</option>
+                    <option value="90d">Last 90 Days Published</option>
+                    <option value="28d">Last 28 Days Published</option>
+                    <option value="7d">Last 7 Days Published</option>
+                    <option value="custom">Custom Range</option>
+                  </select>
+                </div>
+
+                {dateRange === "custom" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <input
+                      type="date"
+                      value={customDateRange.start}
+                      onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
+                      style={{
+                        border: "1px solid #333",
+                        background: "#252525",
+                        borderRadius: "8px",
+                        padding: "8px 12px",
+                        color: "#E0E0E0",
+                        fontSize: "13px",
+                        cursor: "pointer",
+                        colorScheme: "dark"
+                      }}
+                    />
+                    <div style={{ fontSize: "12px", color: "#9E9E9E" }}>to</div>
+                    <input
+                      type="date"
+                      value={customDateRange.end}
+                      onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
+                      style={{
+                        border: "1px solid #333",
+                        background: "#252525",
+                        borderRadius: "8px",
+                        padding: "8px 12px",
+                        color: "#E0E0E0",
+                        fontSize: "13px",
+                        cursor: "pointer",
+                        colorScheme: "dark"
+                      }}
+                    />
+                  </div>
+                )}
+              </>
             )}
 
             {channelOpts.length > 1 && (
