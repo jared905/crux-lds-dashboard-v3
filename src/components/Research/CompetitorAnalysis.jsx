@@ -120,43 +120,44 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     }
   }, [competitors]);
 
-  // Load category tree from Supabase on mount
-  useEffect(() => {
-    const loadCategories = async () => {
-      setCategoryLoading(true);
-      try {
-        const { getCategoryTree } = await import('../../services/categoryService');
-        const tree = await getCategoryTree();
-        setCategoryTree(tree || []);
+  // Load category tree from Supabase (extracted as callback for reuse)
+  const loadCategories = useCallback(async () => {
+    setCategoryLoading(true);
+    try {
+      const { getCategoryTree } = await import('../../services/categoryService');
+      const tree = await getCategoryTree();
+      setCategoryTree(tree || []);
 
-        // Build config object from tree for backwards compatibility
-        const config = { ...CATEGORY_CONFIG_FALLBACK };
-        const flattenTree = (nodes) => {
-          nodes.forEach(node => {
-            config[node.slug] = {
-              id: node.id,
-              label: node.name,
-              color: node.color || '#666',
-              icon: node.icon || 'folder',
-              order: node.sort_order || 0,
-              description: node.description || '',
-              parentId: node.parent_id,
-            };
-            if (node.children) flattenTree(node.children);
-          });
-        };
-        flattenTree(tree || []);
-        setCategoryConfig(config);
-      } catch (err) {
-        console.error('[Categories] Failed to load from Supabase:', err);
-        // Keep using fallback config
-      } finally {
-        setCategoryLoading(false);
-      }
-    };
-
-    loadCategories();
+      // Build config object from tree for backwards compatibility
+      const config = { ...CATEGORY_CONFIG_FALLBACK };
+      const flattenTree = (nodes) => {
+        nodes.forEach(node => {
+          config[node.slug] = {
+            id: node.id,
+            label: node.name,
+            color: node.color || '#666',
+            icon: node.icon || 'folder',
+            order: node.sort_order || 0,
+            description: node.description || '',
+            parentId: node.parent_id,
+          };
+          if (node.children) flattenTree(node.children);
+        });
+      };
+      flattenTree(tree || []);
+      setCategoryConfig(config);
+    } catch (err) {
+      console.error('[Categories] Failed to load from Supabase:', err);
+      // Keep using fallback config
+    } finally {
+      setCategoryLoading(false);
+    }
   }, []);
+
+  // Load category tree on mount
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
 
   // Load competitors from Supabase when activeClient or masterView changes
   useEffect(() => {
@@ -1658,6 +1659,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             onCategorySelect={setSelectedCategoryIds}
             channels={activeCompetitors}
             loading={categoryLoading}
+            onCategoryChange={loadCategories}
           />
         </div>
       )}

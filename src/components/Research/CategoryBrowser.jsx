@@ -4,18 +4,18 @@
  *
  * Replaces the Outliers/Intelligence panel when in master view.
  * Shows expandable tree of categories with channel counts.
+ * Supports adding and deleting categories.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   ChevronRight,
   ChevronDown,
   Folder,
-  FolderOpen,
-  Hash,
-  Users,
-  Filter,
+  Plus,
+  Trash2,
   X,
+  Loader2,
 } from 'lucide-react';
 
 const styles = {
@@ -40,6 +40,23 @@ const styles = {
     alignItems: 'center',
     gap: '8px',
   },
+  headerActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  addButton: {
+    padding: '4px 10px',
+    backgroundColor: 'rgba(41, 98, 255, 0.15)',
+    border: '1px solid #2962FF',
+    borderRadius: '4px',
+    color: '#60a5fa',
+    fontSize: '11px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+  },
   clearButton: {
     padding: '4px 10px',
     backgroundColor: 'transparent',
@@ -63,9 +80,7 @@ const styles = {
     padding: '8px 16px',
     cursor: 'pointer',
     transition: 'background-color 0.15s',
-  },
-  categoryRowHover: {
-    backgroundColor: '#252525',
+    position: 'relative',
   },
   categoryRowSelected: {
     backgroundColor: 'rgba(41, 98, 255, 0.15)',
@@ -96,10 +111,32 @@ const styles = {
     backgroundColor: '#2a2a2a',
     padding: '2px 8px',
     borderRadius: '10px',
+    marginRight: '8px',
   },
   selectedCount: {
     backgroundColor: 'rgba(41, 98, 255, 0.3)',
     color: '#60a5fa',
+  },
+  rowActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    opacity: 0,
+    transition: 'opacity 0.15s',
+  },
+  rowActionsVisible: {
+    opacity: 1,
+  },
+  iconButton: {
+    padding: '4px',
+    backgroundColor: 'transparent',
+    border: 'none',
+    borderRadius: '4px',
+    color: '#666',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   childrenContainer: {
     marginLeft: '20px',
@@ -127,7 +164,122 @@ const styles = {
     fontWeight: '600',
     color: '#2962FF',
   },
+  // Modal styles
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    zIndex: 2000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modal: {
+    backgroundColor: '#1E1E1E',
+    border: '1px solid #333',
+    borderRadius: '12px',
+    width: '400px',
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    padding: '16px 20px',
+    borderBottom: '1px solid #333',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#fff',
+  },
+  modalBody: {
+    padding: '20px',
+  },
+  formGroup: {
+    marginBottom: '16px',
+  },
+  label: {
+    display: 'block',
+    fontSize: '12px',
+    color: '#888',
+    marginBottom: '6px',
+  },
+  input: {
+    width: '100%',
+    padding: '10px 12px',
+    backgroundColor: '#252525',
+    border: '1px solid #444',
+    borderRadius: '6px',
+    color: '#fff',
+    fontSize: '13px',
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  select: {
+    width: '100%',
+    padding: '10px 12px',
+    backgroundColor: '#252525',
+    border: '1px solid #444',
+    borderRadius: '6px',
+    color: '#fff',
+    fontSize: '13px',
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  colorPicker: {
+    display: 'flex',
+    gap: '8px',
+    flexWrap: 'wrap',
+  },
+  colorOption: {
+    width: '28px',
+    height: '28px',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    border: '2px solid transparent',
+  },
+  colorOptionSelected: {
+    border: '2px solid #fff',
+  },
+  modalFooter: {
+    padding: '16px 20px',
+    borderTop: '1px solid #333',
+    display: 'flex',
+    gap: '12px',
+    justifyContent: 'flex-end',
+  },
+  button: {
+    padding: '8px 16px',
+    borderRadius: '6px',
+    fontSize: '13px',
+    fontWeight: '500',
+    cursor: 'pointer',
+  },
+  buttonSecondary: {
+    backgroundColor: 'transparent',
+    border: '1px solid #444',
+    color: '#888',
+  },
+  buttonPrimary: {
+    backgroundColor: '#2962FF',
+    border: 'none',
+    color: '#fff',
+  },
+  buttonDanger: {
+    backgroundColor: '#ef4444',
+    border: 'none',
+    color: '#fff',
+  },
 };
+
+const COLORS = [
+  '#3b82f6', '#10b981', '#ef4444', '#f97316', '#8b5cf6',
+  '#ec4899', '#06b6d4', '#f59e0b', '#6366f1', '#14b8a6',
+];
 
 /**
  * CategoryRow - Single category item with expand/collapse
@@ -140,7 +292,10 @@ function CategoryRow({
   selectedIds,
   onSelectCategory,
   channelCounts,
+  onAddChild,
+  onDelete,
 }) {
+  const [hovered, setHovered] = useState(false);
   const isExpanded = expandedIds.has(category.id);
   const isSelected = selectedIds.has(category.id);
   const hasChildren = category.children && category.children.length > 0;
@@ -167,6 +322,16 @@ function CategoryRow({
     onToggleExpand(category.id);
   };
 
+  const handleAddChild = (e) => {
+    e.stopPropagation();
+    onAddChild(category);
+  };
+
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    onDelete(category);
+  };
+
   return (
     <>
       <div
@@ -174,14 +339,11 @@ function CategoryRow({
           ...styles.categoryRow,
           paddingLeft: 16 + depth * 20,
           ...(isSelected ? styles.categoryRowSelected : {}),
+          backgroundColor: hovered && !isSelected ? '#252525' : (isSelected ? 'rgba(41, 98, 255, 0.15)' : 'transparent'),
         }}
         onClick={handleClick}
-        onMouseEnter={(e) => {
-          if (!isSelected) e.currentTarget.style.backgroundColor = '#252525';
-        }}
-        onMouseLeave={(e) => {
-          if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
-        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
       >
         {/* Expand/Collapse Icon */}
         <div style={styles.expandIcon} onClick={hasChildren ? handleExpand : undefined}>
@@ -218,6 +380,24 @@ function CategoryRow({
             {totalCount}
           </span>
         )}
+
+        {/* Row Actions (visible on hover) */}
+        <div style={{ ...styles.rowActions, ...(hovered ? styles.rowActionsVisible : {}) }}>
+          <button
+            style={{ ...styles.iconButton, color: '#60a5fa' }}
+            onClick={handleAddChild}
+            title="Add subcategory"
+          >
+            <Plus size={14} />
+          </button>
+          <button
+            style={{ ...styles.iconButton, color: '#ef4444' }}
+            onClick={handleDelete}
+            title="Delete category"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Children */}
@@ -233,11 +413,176 @@ function CategoryRow({
               selectedIds={selectedIds}
               onSelectCategory={onSelectCategory}
               channelCounts={channelCounts}
+              onAddChild={onAddChild}
+              onDelete={onDelete}
             />
           ))}
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Add Category Modal
+ */
+function AddCategoryModal({ isOpen, onClose, onSave, parentCategory, allCategories, saving }) {
+  const [name, setName] = useState('');
+  const [parentId, setParentId] = useState(parentCategory?.id || '');
+  const [color, setColor] = useState(COLORS[0]);
+
+  // Reset form when parent changes
+  React.useEffect(() => {
+    setParentId(parentCategory?.id || '');
+  }, [parentCategory]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSave({
+      name: name.trim(),
+      parentId: parentId || null,
+      color,
+    });
+  };
+
+  // Flatten categories for the parent dropdown
+  const flatCategories = useMemo(() => {
+    const flat = [];
+    const flatten = (cats, depth = 0) => {
+      cats.forEach(cat => {
+        flat.push({ ...cat, depth });
+        if (cat.children) flatten(cat.children, depth + 1);
+      });
+    };
+    flatten(allCategories);
+    return flat;
+  }, [allCategories]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div style={styles.modalOverlay} onClick={onClose}>
+      <div style={styles.modal} onClick={e => e.stopPropagation()}>
+        <div style={styles.modalHeader}>
+          <span style={styles.modalTitle}>
+            {parentCategory ? `Add Subcategory to ${parentCategory.name}` : 'Add Category'}
+          </span>
+          <button style={{ ...styles.iconButton, color: '#888' }} onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div style={styles.modalBody}>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Name</label>
+              <input
+                style={styles.input}
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Category name"
+                autoFocus
+              />
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Parent Category</label>
+              <select
+                style={styles.select}
+                value={parentId}
+                onChange={e => setParentId(e.target.value)}
+              >
+                <option value="">None (Top Level)</option>
+                {flatCategories.map(cat => (
+                  <option key={cat.id} value={cat.id}>
+                    {'—'.repeat(cat.depth)} {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Color</label>
+              <div style={styles.colorPicker}>
+                {COLORS.map(c => (
+                  <div
+                    key={c}
+                    style={{
+                      ...styles.colorOption,
+                      backgroundColor: c,
+                      ...(color === c ? styles.colorOptionSelected : {}),
+                    }}
+                    onClick={() => setColor(c)}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          <div style={styles.modalFooter}>
+            <button
+              type="button"
+              style={{ ...styles.button, ...styles.buttonSecondary }}
+              onClick={onClose}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              style={{ ...styles.button, ...styles.buttonPrimary, opacity: saving || !name.trim() ? 0.5 : 1 }}
+              disabled={saving || !name.trim()}
+            >
+              {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : 'Add Category'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Delete Confirmation Modal
+ */
+function DeleteCategoryModal({ isOpen, onClose, onConfirm, category, saving }) {
+  if (!isOpen || !category) return null;
+
+  return (
+    <div style={styles.modalOverlay} onClick={onClose}>
+      <div style={styles.modal} onClick={e => e.stopPropagation()}>
+        <div style={styles.modalHeader}>
+          <span style={styles.modalTitle}>Delete Category</span>
+          <button style={{ ...styles.iconButton, color: '#888' }} onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+        <div style={styles.modalBody}>
+          <p style={{ color: '#E0E0E0', fontSize: '14px', margin: 0 }}>
+            Are you sure you want to delete <strong>{category.name}</strong>?
+          </p>
+          {category.children?.length > 0 && (
+            <p style={{ color: '#f59e0b', fontSize: '12px', marginTop: '12px' }}>
+              Warning: This will also delete {category.children.length} subcategories.
+            </p>
+          )}
+        </div>
+        <div style={styles.modalFooter}>
+          <button
+            style={{ ...styles.button, ...styles.buttonSecondary }}
+            onClick={onClose}
+            disabled={saving}
+          >
+            Cancel
+          </button>
+          <button
+            style={{ ...styles.button, ...styles.buttonDanger, opacity: saving ? 0.5 : 1 }}
+            onClick={() => onConfirm(category)}
+            disabled={saving}
+          >
+            {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : 'Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -250,9 +595,17 @@ export default function CategoryBrowser({
   onCategorySelect,
   channels = [],
   loading = false,
+  onCategoryChange, // Callback to refresh category tree after add/delete
 }) {
   // Start with all folders collapsed
   const [expandedIds, setExpandedIds] = useState(new Set());
+
+  // Modal state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedParent, setSelectedParent] = useState(null);
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   // Sort categories alphabetically (recursive)
   const sortedCategoryTree = useMemo(() => {
@@ -329,6 +682,54 @@ export default function CategoryBrowser({
       onCategorySelect([]);
     }
   };
+
+  // Add category handlers
+  const handleAddClick = useCallback(() => {
+    setSelectedParent(null);
+    setShowAddModal(true);
+  }, []);
+
+  const handleAddChild = useCallback((parent) => {
+    setSelectedParent(parent);
+    setShowAddModal(true);
+  }, []);
+
+  const handleSaveCategory = useCallback(async ({ name, parentId, color }) => {
+    setSaving(true);
+    try {
+      const { createCategory } = await import('../../services/categoryService');
+      await createCategory({ name, parentId, color });
+      setShowAddModal(false);
+      if (onCategoryChange) onCategoryChange();
+    } catch (err) {
+      console.error('Failed to create category:', err);
+      alert('Failed to create category: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  }, [onCategoryChange]);
+
+  // Delete category handlers
+  const handleDeleteClick = useCallback((category) => {
+    setCategoryToDelete(category);
+    setShowDeleteModal(true);
+  }, []);
+
+  const handleConfirmDelete = useCallback(async (category) => {
+    setSaving(true);
+    try {
+      const { deleteCategory } = await import('../../services/categoryService');
+      await deleteCategory(category.id);
+      setShowDeleteModal(false);
+      setCategoryToDelete(null);
+      if (onCategoryChange) onCategoryChange();
+    } catch (err) {
+      console.error('Failed to delete category:', err);
+      alert('Failed to delete category: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  }, [onCategoryChange]);
 
   // Calculate total selected channels
   const selectedChannelCount = useMemo(() => {
@@ -409,10 +810,24 @@ export default function CategoryBrowser({
             <Folder size={16} />
             Category Browser
           </div>
+          <button style={styles.addButton} onClick={handleAddClick}>
+            <Plus size={12} />
+            Add
+          </button>
         </div>
         <div style={styles.emptyState}>
-          No categories found. Run database migrations to set up the category hierarchy.
+          No categories found. Click "Add" to create your first category.
         </div>
+
+        {/* Add Modal */}
+        <AddCategoryModal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          onSave={handleSaveCategory}
+          parentCategory={selectedParent}
+          allCategories={categoryTree}
+          saving={saving}
+        />
       </div>
     );
   }
@@ -425,12 +840,18 @@ export default function CategoryBrowser({
           <Folder size={16} />
           Category Browser
         </div>
-        {selectedCategoryIds.length > 0 && (
-          <button style={styles.clearButton} onClick={handleClearSelection}>
-            <X size={12} />
-            Clear ({selectedCategoryIds.length})
+        <div style={styles.headerActions}>
+          <button style={styles.addButton} onClick={handleAddClick}>
+            <Plus size={12} />
+            Add
           </button>
-        )}
+          {selectedCategoryIds.length > 0 && (
+            <button style={styles.clearButton} onClick={handleClearSelection}>
+              <X size={12} />
+              Clear ({selectedCategoryIds.length})
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tree */}
@@ -445,6 +866,8 @@ export default function CategoryBrowser({
             selectedIds={selectedSet}
             onSelectCategory={handleSelectCategory}
             channelCounts={channelCounts}
+            onAddChild={handleAddChild}
+            onDelete={handleDeleteClick}
           />
         ))}
       </div>
@@ -460,6 +883,31 @@ export default function CategoryBrowser({
           {selectedChannelCount} channels
         </span>
       </div>
+
+      {/* Modals */}
+      <AddCategoryModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSave={handleSaveCategory}
+        parentCategory={selectedParent}
+        allCategories={categoryTree}
+        saving={saving}
+      />
+
+      <DeleteCategoryModal
+        isOpen={showDeleteModal}
+        onClose={() => { setShowDeleteModal(false); setCategoryToDelete(null); }}
+        onConfirm={handleConfirmDelete}
+        category={categoryToDelete}
+        saving={saving}
+      />
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
