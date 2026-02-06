@@ -466,6 +466,7 @@ async function importCSVRow(row, clientId) {
         category: categorySlug,
         tags: overlapType ? [overlapType] : [],
         sync_enabled: true,
+        is_competitor: true,
       })
       .eq('id', existing.id)
       .select()
