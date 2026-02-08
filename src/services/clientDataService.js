@@ -64,9 +64,10 @@ function extractOrGenerateChannelId(youtubeChannelUrl, clientName) {
  * @param {number} subscriberCount - Total subscriber count from CSV
  * @param {Array} rawRows - Original raw CSV data for storage
  * @param {Object} channelUrlsMap - Optional per-channel YouTube URL mapping
+ * @param {string} backgroundImageUrl - Optional background image URL for branding
  * @returns {Object} - The saved client object in ClientManager format
  */
-export async function saveClientToSupabase(clientName, normalizedRows, youtubeChannelUrl, subscriberCount, rawRows, channelUrlsMap = {}) {
+export async function saveClientToSupabase(clientName, normalizedRows, youtubeChannelUrl, subscriberCount, rawRows, channelUrlsMap = {}, backgroundImageUrl = null) {
   if (!supabase) throw new Error('Supabase not configured');
 
   const youtubeChannelId = extractOrGenerateChannelId(youtubeChannelUrl, clientName);
@@ -84,6 +85,7 @@ export async function saveClientToSupabase(clientName, normalizedRows, youtubeCh
         subscriber_count: subscriberCount || 0,
         video_count: normalizedRows.length,
         channel_urls_map: channelUrlsMap && Object.keys(channelUrlsMap).length > 0 ? channelUrlsMap : {},
+        background_image_url: backgroundImageUrl || null,
         last_synced_at: new Date().toISOString(),
       },
       { onConflict: 'youtube_channel_id' }
@@ -168,6 +170,7 @@ export async function saveClientToSupabase(clientName, normalizedRows, youtubeCh
     channels: [...new Set(normalizedRows.map(r => r.channel).filter(Boolean))],
     youtubeChannelUrl: youtubeChannelUrl || '',
     channelUrlsMap: channelUrlsMap || {},
+    backgroundImageUrl: backgroundImageUrl || null,
     syncedToSupabase: true,
   };
 }
@@ -341,6 +344,7 @@ export async function getClientsFromSupabase() {
         channels: uniqueChannels.length > 0 ? uniqueChannels : [channel.name],
         youtubeChannelUrl: channel.custom_url || '',
         channelUrlsMap: channel.channel_urls_map || {},
+        backgroundImageUrl: channel.background_image_url || null,
         syncedToSupabase: true,
         // New period-related fields
         reportPeriods: reportPeriods,

@@ -490,6 +490,7 @@ async function importCSVRow(row, clientId) {
     }
 
     // Create new channel
+    // Note: tier/notes/subcategory columns may not exist in DB - use tags instead
     channel = await upsertChannel({
       youtube_channel_id: resolvedId,
       name: channelDetails?.name || name,
@@ -497,9 +498,7 @@ async function importCSVRow(row, clientId) {
       thumbnail_url: channelDetails?.thumbnail_url || null,
       custom_url: handle,
       category: categorySlug,
-      tags: overlapType ? [overlapType] : [],
-      tier: 'secondary',
-      notes: overlapType ? `Overlap: ${overlapType}` : null,
+      tags: overlapType ? [overlapType, 'tier:secondary'] : ['tier:secondary'],
       industry,
       is_competitor: true,
       client_id: clientId,

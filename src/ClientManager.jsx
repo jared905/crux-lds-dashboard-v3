@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Upload, Download, Trash2, Edit2, Plus, X, Calendar, Database, Youtube, Link, Cloud, Loader2, Clock, CalendarDays, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, Download, Trash2, Edit2, Plus, X, Calendar, Database, Youtube, Link, Cloud, Loader2, Clock, CalendarDays, ChevronDown, ChevronUp, Image } from "lucide-react";
 import Papa from "papaparse";
 import { saveClientToSupabase, deleteClientFromSupabase, saveReportPeriod, getReportPeriod, deleteReportPeriod, setActivePeriod, PERIOD_TYPES, calculatePeriodDates, periodVideoDataToRows } from "./services/clientDataService";
 import { normalizeData } from "./lib/normalizeData.js";
@@ -12,6 +12,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
   const [uploadedFile, setUploadedFile] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [youtubeChannelUrl, setYoutubeChannelUrl] = useState("");
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [parsedRows, setParsedRows] = useState(null);
@@ -135,7 +136,8 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
           channelUrl,
           channelTotalSubscribers,
           rawData,
-          mergedChannelUrlsMap
+          mergedChannelUrlsMap,
+          backgroundImageUrl.trim() || (isUpdate ? editingClient.backgroundImageUrl : null)
         ),
         timeoutPromise
       ]);
@@ -185,6 +187,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
         channels: [...new Set(editedRows.map(r => r['Channel'] || r['Channel name'] || r.channel).filter(Boolean))],
         youtubeChannelUrl: (Object.values(channelUrls).find(u => u && u.trim()) || "").trim() || youtubeChannelUrl.trim() || (isUpdate ? editingClient.youtubeChannelUrl : ""),
         channelUrlsMap: { ...(isUpdate ? editingClient.channelUrlsMap : {}), ...localCleanUrls },
+        backgroundImageUrl: backgroundImageUrl.trim() || (isUpdate ? editingClient.backgroundImageUrl : null),
         syncedToSupabase: false,
       };
 
@@ -215,17 +218,59 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
     processCSV(uploadedFile, clientName);
   };
 
-  const handleUpdateClient = () => {
-    if (!uploadedFile) {
-      alert("Please upload a CSV file");
+  const handleUpdateClient = async () => {
+    // If CSV uploaded, process it with full update
+    if (uploadedFile) {
+      const emptyChannels = Object.entries(channelEdits).filter(([, name]) => !name.trim());
+      if (emptyChannels.length > 0) {
+        alert("Please provide a name for all detected channels");
+        return;
+      }
+      processCSV(uploadedFile, editingClient.name, true);
       return;
     }
-    const emptyChannels = Object.entries(channelEdits).filter(([, name]) => !name.trim());
-    if (emptyChannels.length > 0) {
-      alert("Please provide a name for all detected channels");
-      return;
+
+    // No CSV - just update metadata (background image, YouTube URL, etc.)
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      const updatedClient = {
+        ...editingClient,
+        youtubeChannelUrl: youtubeChannelUrl.trim() || editingClient.youtubeChannelUrl,
+        backgroundImageUrl: backgroundImageUrl.trim() || null,
+      };
+
+      // Update in Supabase if synced
+      if (editingClient.syncedToSupabase && editingClient.supabaseId) {
+        const { supabase } = await import('./services/supabaseClient');
+        if (supabase) {
+          await supabase
+            .from('channels')
+            .update({
+              custom_url: updatedClient.youtubeChannelUrl || null,
+              background_image_url: updatedClient.backgroundImageUrl || null,
+            })
+            .eq('id', editingClient.supabaseId);
+        }
+      }
+
+      // Update local state
+      const updatedClients = clients.map(c =>
+        c.id === editingClient.id ? updatedClient : c
+      );
+
+      onClientsUpdate(updatedClients);
+      onClientChange(updatedClient);
+
+      setShowModal(false);
+      resetModalState();
+    } catch (error) {
+      console.error('Error updating client metadata:', error);
+      setSaveError(error.message || 'Failed to update');
+    } finally {
+      setIsSaving(false);
     }
-    processCSV(uploadedFile, editingClient.name, true);
   };
 
   const handleDeleteClient = async (clientId) => {
@@ -309,6 +354,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
     setUploadedFile(null);
     setEditingClient(null);
     setYoutubeChannelUrl("");
+    setBackgroundImageUrl("");
     setParsedRows(null);
     setDetectedChannels([]);
     setChannelEdits({});
@@ -322,6 +368,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
     setEditingClient(client);
     setUploadedFile(null);
     setYoutubeChannelUrl(client.youtubeChannelUrl || "");
+    setBackgroundImageUrl(client.backgroundImageUrl || "");
     setParsedRows(null);
     setDetectedChannels([]);
     setChannelEdits({});
@@ -521,6 +568,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
     setClientName("");
     setUploadedFile(null);
     setYoutubeChannelUrl("");
+    setBackgroundImageUrl("");
     setParsedRows(null);
     setDetectedChannels([]);
     setChannelEdits({});
@@ -1079,6 +1127,44 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                   </div>
                 )}
 
+                {/* Background Image URL */}
+                <div style={{ marginBottom: "16px" }}>
+                  <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <Image size={14} style={{ color: "#8b5cf6" }} />
+                      Background Image URL (Optional)
+                    </span>
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type="text"
+                      value={backgroundImageUrl}
+                      onChange={(e) => setBackgroundImageUrl(e.target.value)}
+                      placeholder="https://example.com/hero-image.jpg"
+                      style={{
+                        width: "100%",
+                        background: "#1E1E1E",
+                        border: "1px solid #333",
+                        borderRadius: "8px",
+                        padding: "12px",
+                        paddingLeft: "40px",
+                        color: "#E0E0E0",
+                        fontSize: "14px"
+                      }}
+                    />
+                    <Image size={16} style={{
+                      position: "absolute",
+                      left: "12px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#666"
+                    }} />
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#666", marginTop: "6px" }}>
+                    Add a hero image URL to personalize the dashboard header for this client
+                  </div>
+                </div>
+
                 {saveError && (
                   <div style={{
                     background: "#ef444420",
@@ -1122,6 +1208,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                       setClientName("");
                       setUploadedFile(null);
                       setYoutubeChannelUrl("");
+                      setBackgroundImageUrl("");
                       setParsedRows(null);
                       setDetectedChannels([]);
                       setChannelEdits({});

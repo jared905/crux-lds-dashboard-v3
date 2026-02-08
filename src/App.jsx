@@ -16,6 +16,7 @@ import Sidebar from "./components/Shared/Sidebar.jsx";
 import FilterBar from "./components/Shared/FilterBar.jsx";
 import PDFExport from "./components/Shared/PDFExport.jsx";
 import ClientManager from "./ClientManager.jsx";
+import ClientBackground from "./components/Shared/ClientBackground.jsx";
 
 // Tab content
 import DashboardPage from "./components/Performance/DashboardPage.jsx";
@@ -722,7 +723,10 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#121212", color: "#E0E0E0" }}>
+    <div style={{ minHeight: "100vh", background: "#121212", color: "#E0E0E0", position: "relative" }}>
+      {/* Client-specific background image with dissolve effect */}
+      <ClientBackground imageUrl={activeClient?.backgroundImageUrl || null} />
+
       <Sidebar
         open={sidebar}
         onClose={() => setSidebar(false)}
@@ -838,7 +842,7 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "20px 24px 40px" }}>
+      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "80px 24px 40px" }}>
         {/* Welcome Screen - No Clients */}
         {!activeClient && (
           <div style={{
