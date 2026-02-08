@@ -103,6 +103,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   const [masterView, setMasterView] = useState(false);
   const [supabaseCompetitors, setSupabaseCompetitors] = useState([]);
   const [supabaseLoading, setSupabaseLoading] = useState(false);
+  const [allClients, setAllClients] = useState([]); // For client assignment in master view
 
   // Database import state
   const [importing, setImporting] = useState(false);
@@ -211,6 +212,23 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     loadFromSupabase();
   }, [activeClient?.id, masterView]);
 
+  // Load all clients for assignment feature (master view only)
+  useEffect(() => {
+    if (!masterView) return;
+
+    const loadClients = async () => {
+      try {
+        const { getClientsFromSupabase } = await import('../../services/clientDataService');
+        const clients = await getClientsFromSupabase();
+        setAllClients(clients || []);
+      } catch (err) {
+        console.error('[Clients] Failed to load:', err);
+      }
+    };
+
+    loadClients();
+  }, [masterView]);
+
   // Helper to reload Supabase competitors after mutations
   const reloadSupabaseCompetitors = useCallback(async () => {
     try {
@@ -224,6 +242,16 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       console.error('[Competitors] Failed to reload from Supabase:', err);
     }
   }, [activeClient?.id, masterView]);
+
+  // Handle client assignment update - reload competitors to reflect the change
+  const handleClientAssignmentUpdate = useCallback(async (channelYoutubeId, newClientId) => {
+    // Reload competitors to reflect the updated assignment
+    await reloadSupabaseCompetitors();
+    // Close the drawer since the channel may no longer be visible in current view
+    if (!masterView && newClientId !== activeClient?.id) {
+      setSelectedChannelId(null);
+    }
+  }, [reloadSupabaseCompetitors, masterView, activeClient?.id]);
 
   // Import competitor database from curated channel list
   const handleImportDatabase = useCallback(async () => {
@@ -971,6 +999,13 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   const activeCompetitors = useMemo(() => {
     let result = [];
 
+    // In client-specific view (not master), only show Supabase competitors
+    // that are explicitly assigned to this client. Don't fall back to localStorage.
+    if (!masterView && supabaseCompetitors.length === 0) {
+      // No competitors assigned to this client - return empty
+      return [];
+    }
+
     if (supabaseCompetitors.length > 0) {
       result = supabaseCompetitors.map(ch => {
         // Base defaults for fields not stored in Supabase
@@ -1014,9 +1049,11 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           industry: ch.industry || null,
         };
       });
-    } else {
+    } else if (masterView) {
+      // Only use localStorage competitors in master view as fallback
       result = competitors;
     }
+    // Note: in client-specific view with no Supabase competitors, result stays empty
 
     // Apply industry filter in master view
     if (masterView && industryFilter) {
@@ -2012,6 +2049,9 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           isRefreshing={refreshingId === selectedChannel.id}
           refreshError={refreshError[selectedChannel.id] || null}
           userTimezone={userTimezone}
+          clients={allClients}
+          masterView={masterView}
+          onClientAssignmentUpdate={handleClientAssignmentUpdate}
         />
       )}
 
@@ -2146,7 +2186,7 @@ Direct_Lifestyle_Audio,Beats by Dre,https://www.youtube.com/@beatsbydre,Brand_Ae
    ═══════════════════════════════════════════════════ */
 
 // Channel Detail Drawer — right-side slide-out panel
-function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefresh, onRemove, onCategoryChange, isRefreshing, refreshError, userTimezone }) {
+function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefresh, onRemove, onCategoryChange, isRefreshing, refreshError, userTimezone, clients, masterView, onClientAssignmentUpdate }) {
   const titleAnalysis = useMemo(() => drawerTab === 'content' ? analyzeTitlePatterns(channel.videos) : null, [channel.videos, drawerTab]);
   const scheduleAnalysis = useMemo(() => drawerTab === 'schedule' ? analyzeUploadSchedule(channel.videos, userTimezone) : null, [channel.videos, userTimezone, drawerTab]);
   const formatAnalysis = useMemo(() => drawerTab === 'content' ? categorizeContentFormats(channel.videos) : null, [channel.videos, drawerTab]);
@@ -2331,6 +2371,21 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
                     <div style={{ fontSize: "14px", fontWeight: "700", color: idx === 0 ? "#fcd34d" : idx === 1 ? "#e5e7eb" : "#666", flexShrink: 0 }}>#{idx + 1}</div>
                   </a>
                 ))}
+              </div>
+            )}
+
+            {/* Client Assignment - only in master view */}
+            {masterView && clients && clients.length > 0 && (
+              <div style={{ marginTop: "20px" }}>
+                <ChannelClientAssignment
+                  channel={{ id: channel.supabaseId, client_id: channel.client_id }}
+                  clients={clients}
+                  onUpdate={(updatedChannel) => {
+                    if (onClientAssignmentUpdate) {
+                      onClientAssignmentUpdate(channel.id, updatedChannel.client_id);
+                    }
+                  }}
+                />
               </div>
             )}
           </>
