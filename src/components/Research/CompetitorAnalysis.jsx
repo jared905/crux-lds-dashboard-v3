@@ -140,6 +140,10 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   // Industry filter for master view
   const [industryFilter, setIndustryFilter] = useState(null);
 
+  // Bulk assignment modal state
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+  const [bulkAssignLoading, setBulkAssignLoading] = useState(false);
+
   // Sync competitors state to localStorage for enriched data persistence
   useEffect(() => {
     if (competitors.length > 0) {
@@ -256,6 +260,51 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       setSelectedChannelId(null);
     }
   }, [reloadSupabaseCompetitors, masterView, activeClient?.id]);
+
+  // Bulk assign categories to a client
+  const handleBulkCategoryAssign = useCallback(async (categorySlugs, targetClientId) => {
+    if (!categorySlugs.length) return { success: 0, failed: 0 };
+
+    setBulkAssignLoading(true);
+    try {
+      const { supabase } = await import('../../services/supabaseClient');
+
+      // Find all competitors matching the selected categories
+      const competitorsToUpdate = activeCompetitors.filter(c =>
+        categorySlugs.includes(c.category)
+      );
+
+      if (competitorsToUpdate.length === 0) {
+        return { success: 0, failed: 0 };
+      }
+
+      // Get Supabase IDs
+      const supabaseIds = competitorsToUpdate
+        .map(c => c.supabaseId)
+        .filter(Boolean);
+
+      if (supabaseIds.length === 0) {
+        return { success: 0, failed: 0 };
+      }
+
+      // Update all matching channels
+      const { error } = await supabase
+        .from('channels')
+        .update({ client_id: targetClientId })
+        .in('id', supabaseIds);
+
+      if (error) throw error;
+
+      await reloadSupabaseCompetitors();
+
+      return { success: supabaseIds.length, failed: 0 };
+    } catch (err) {
+      console.error('[Bulk Assign] Failed:', err);
+      return { success: 0, failed: 1, error: err.message };
+    } finally {
+      setBulkAssignLoading(false);
+    }
+  }, [activeCompetitors, reloadSupabaseCompetitors]);
 
   // Import competitor database from curated channel list
   const handleImportDatabase = useCallback(async () => {
@@ -1406,6 +1455,25 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               </div>
             )}
 
+            {/* Bulk Assign Button (only in master view) */}
+            {masterView && allClients.length > 0 && (
+              <button
+                onClick={() => setShowBulkAssignModal(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  padding: "6px 12px", marginLeft: "8px",
+                  background: "rgba(16, 185, 129, 0.15)",
+                  border: "1px solid #10b981",
+                  borderRadius: "6px",
+                  color: "#10b981",
+                  fontSize: "12px", fontWeight: "600", cursor: "pointer",
+                }}
+              >
+                <Layers size={14} />
+                Bulk Assign
+              </button>
+            )}
+
             {/* Import Database (only when empty) */}
             {activeClient?.id && activeCompetitors.length === 0 && !importing && (
               <button
@@ -2180,6 +2248,18 @@ Direct_Lifestyle_Audio,Beats by Dre,https://www.youtube.com/@beatsbydre,Brand_Ae
           </div>
         </div>
       )}
+
+      {/* Bulk Assign Categories to Client Modal */}
+      {showBulkAssignModal && (
+        <BulkAssignModal
+          categoryConfig={categoryConfig}
+          activeCompetitors={activeCompetitors}
+          clients={allClients}
+          loading={bulkAssignLoading}
+          onAssign={handleBulkCategoryAssign}
+          onClose={() => setShowBulkAssignModal(false)}
+        />
+      )}
     </div>
   );
 }
@@ -2188,6 +2268,224 @@ Direct_Lifestyle_Audio,Beats by Dre,https://www.youtube.com/@beatsbydre,Brand_Ae
 /* ═══════════════════════════════════════════════════
     EXTRACTED INLINE COMPONENTS
    ═══════════════════════════════════════════════════ */
+
+// Bulk Assign Modal — assign categories to a client
+function BulkAssignModal({ categoryConfig, activeCompetitors, clients, loading, onAssign, onClose }) {
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [targetClientId, setTargetClientId] = useState('');
+  const [result, setResult] = useState(null);
+
+  // Get unique categories from active competitors
+  const availableCategories = useMemo(() => {
+    const catCounts = {};
+    activeCompetitors.forEach(c => {
+      if (c.category) {
+        catCounts[c.category] = (catCounts[c.category] || 0) + 1;
+      }
+    });
+    return Object.entries(catCounts).map(([slug, count]) => ({
+      slug,
+      label: categoryConfig[slug]?.label || slug,
+      icon: categoryConfig[slug]?.icon || '📁',
+      color: categoryConfig[slug]?.color || '#666',
+      count,
+    })).sort((a, b) => b.count - a.count);
+  }, [activeCompetitors, categoryConfig]);
+
+  // Count competitors that will be affected
+  const affectedCount = useMemo(() => {
+    return activeCompetitors.filter(c => selectedCategories.includes(c.category)).length;
+  }, [activeCompetitors, selectedCategories]);
+
+  const toggleCategory = (slug) => {
+    setSelectedCategories(prev =>
+      prev.includes(slug) ? prev.filter(s => s !== slug) : [...prev, slug]
+    );
+  };
+
+  const selectAll = () => {
+    setSelectedCategories(availableCategories.map(c => c.slug));
+  };
+
+  const selectNone = () => {
+    setSelectedCategories([]);
+  };
+
+  const handleAssign = async () => {
+    if (!targetClientId || selectedCategories.length === 0) return;
+    const res = await onAssign(selectedCategories, targetClientId);
+    setResult(res);
+    if (res.success > 0) {
+      // Auto-close after short delay on success
+      setTimeout(() => onClose(), 1500);
+    }
+  };
+
+  const targetClient = clients.find(c => c.id === targetClientId);
+
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+      background: "rgba(0,0,0,0.7)", zIndex: 2000,
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      <div style={{
+        background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
+        width: "550px", maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column",
+      }}>
+        {/* Header */}
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #333", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>Bulk Assign to Client</div>
+            <div style={{ fontSize: "12px", color: "#888", marginTop: "4px" }}>Select categories to assign all their competitors to a client</div>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#888", cursor: "pointer" }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div style={{ padding: "20px", flex: 1, overflowY: "auto" }}>
+          {/* Target Client Selector */}
+          <div style={{ marginBottom: "20px" }}>
+            <label style={{ fontSize: "12px", fontWeight: "600", color: "#888", display: "block", marginBottom: "8px" }}>
+              Assign to Client
+            </label>
+            <select
+              value={targetClientId}
+              onChange={(e) => setTargetClientId(e.target.value)}
+              style={{
+                width: "100%", padding: "10px 12px", background: "#252525", border: "1px solid #444",
+                borderRadius: "6px", color: "#fff", fontSize: "13px", cursor: "pointer",
+              }}
+            >
+              <option value="">Select a client...</option>
+              {clients.map(client => (
+                <option key={client.id} value={client.id}>{client.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Category Selection */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <label style={{ fontSize: "12px", fontWeight: "600", color: "#888" }}>
+                Select Categories ({selectedCategories.length} selected)
+              </label>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button onClick={selectAll} style={{ fontSize: "11px", color: "#10b981", background: "transparent", border: "none", cursor: "pointer" }}>
+                  Select All
+                </button>
+                <span style={{ color: "#444" }}>|</span>
+                <button onClick={selectNone} style={{ fontSize: "11px", color: "#888", background: "transparent", border: "none", cursor: "pointer" }}>
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "250px", overflowY: "auto" }}>
+              {availableCategories.map(cat => (
+                <label
+                  key={cat.slug}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "12px",
+                    padding: "10px 12px", background: selectedCategories.includes(cat.slug) ? "rgba(16, 185, 129, 0.1)" : "#252525",
+                    border: `1px solid ${selectedCategories.includes(cat.slug) ? "#10b981" : "#333"}`,
+                    borderRadius: "8px", cursor: "pointer", transition: "all 0.15s",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(cat.slug)}
+                    onChange={() => toggleCategory(cat.slug)}
+                    style={{ width: "16px", height: "16px", accentColor: "#10b981" }}
+                  />
+                  <span style={{ fontSize: "16px" }}>{cat.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "13px", fontWeight: "500", color: "#fff" }}>{cat.label}</div>
+                    <div style={{ fontSize: "11px", color: "#888" }}>{cat.count} competitor{cat.count !== 1 ? 's' : ''}</div>
+                  </div>
+                  <div style={{
+                    width: "8px", height: "8px", borderRadius: "50%",
+                    background: cat.color,
+                  }} />
+                </label>
+              ))}
+
+              {availableCategories.length === 0 && (
+                <div style={{ padding: "20px", textAlign: "center", color: "#666" }}>
+                  No categories with competitors found
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "16px 20px", borderTop: "1px solid #333", background: "#1a1a1a" }}>
+          {/* Preview */}
+          {affectedCount > 0 && targetClientId && (
+            <div style={{
+              padding: "10px 12px", background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.3)",
+              borderRadius: "6px", marginBottom: "12px", fontSize: "12px", color: "#10b981",
+            }}>
+              {affectedCount} competitor{affectedCount !== 1 ? 's' : ''} will be assigned to <strong>{targetClient?.name}</strong>
+            </div>
+          )}
+
+          {/* Result message */}
+          {result && (
+            <div style={{
+              padding: "10px 12px",
+              background: result.success > 0 ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)",
+              border: `1px solid ${result.success > 0 ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
+              borderRadius: "6px", marginBottom: "12px", fontSize: "12px",
+              color: result.success > 0 ? "#10b981" : "#ef4444",
+            }}>
+              {result.success > 0 ? `Successfully assigned ${result.success} competitors` : `Failed: ${result.error || 'Unknown error'}`}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+            <button
+              onClick={onClose}
+              style={{
+                padding: "8px 16px", background: "transparent", border: "1px solid #444",
+                borderRadius: "6px", color: "#888", fontSize: "13px", cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAssign}
+              disabled={!targetClientId || selectedCategories.length === 0 || loading}
+              style={{
+                padding: "8px 20px",
+                background: (targetClientId && selectedCategories.length > 0 && !loading) ? "#10b981" : "#333",
+                border: "none", borderRadius: "6px", color: "#fff", fontSize: "13px",
+                fontWeight: "600",
+                cursor: (targetClientId && selectedCategories.length > 0 && !loading) ? "pointer" : "not-allowed",
+                display: "flex", alignItems: "center", gap: "6px",
+              }}
+            >
+              {loading ? (
+                <>
+                  <Loader size={14} style={{ animation: "spin 1s linear infinite" }} />
+                  Assigning...
+                </>
+              ) : (
+                <>
+                  <Check size={14} />
+                  Assign {affectedCount > 0 ? `${affectedCount} Competitors` : ''}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Channel Detail Drawer — right-side slide-out panel
 function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefresh, onRemove, onCategoryChange, isRefreshing, refreshError, userTimezone, clients, masterView, onClientAssignmentUpdate }) {
