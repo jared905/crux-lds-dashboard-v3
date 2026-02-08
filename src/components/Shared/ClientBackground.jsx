@@ -23,7 +23,7 @@ export default function ClientBackground({ imageUrl }) {
         // Background image
         backgroundImage: `url(${imageUrl})`,
         backgroundSize: "cover",
-        backgroundPosition: "center top",
+        backgroundPosition: "center center",
         backgroundRepeat: "no-repeat",
 
         // Dissolve effect - stays solid longer, fades near the bottom
