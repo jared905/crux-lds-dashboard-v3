@@ -2124,6 +2124,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           clients={allClients}
           masterView={masterView}
           onClientAssignmentUpdate={handleClientAssignmentUpdate}
+          categoryConfig={categoryConfig}
         />
       )}
 
@@ -2488,7 +2489,7 @@ function BulkAssignModal({ categoryConfig, activeCompetitors, clients, loading, 
 }
 
 // Channel Detail Drawer — right-side slide-out panel
-function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefresh, onRemove, onCategoryChange, isRefreshing, refreshError, userTimezone, clients, masterView, onClientAssignmentUpdate }) {
+function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefresh, onRemove, onCategoryChange, isRefreshing, refreshError, userTimezone, clients, masterView, onClientAssignmentUpdate, categoryConfig }) {
   const titleAnalysis = useMemo(() => drawerTab === 'content' ? analyzeTitlePatterns(channel.videos) : null, [channel.videos, drawerTab]);
   const scheduleAnalysis = useMemo(() => drawerTab === 'schedule' ? analyzeUploadSchedule(channel.videos, userTimezone) : null, [channel.videos, userTimezone, drawerTab]);
   const formatAnalysis = useMemo(() => drawerTab === 'content' ? categorizeContentFormats(channel.videos) : null, [channel.videos, drawerTab]);
