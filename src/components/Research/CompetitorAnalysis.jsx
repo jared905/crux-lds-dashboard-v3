@@ -191,6 +191,10 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
   // Load competitors from Supabase when activeClient or masterView changes
   useEffect(() => {
+    // Clear previous data immediately to prevent showing wrong client's competitors
+    setSupabaseCompetitors([]);
+    setSelectedChannelId(null);
+
     if (!activeClient?.id && !masterView) return;
 
     const loadFromSupabase = async () => {
