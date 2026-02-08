@@ -17,17 +17,43 @@ const fmtDuration = (seconds) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
+// Map Lucide icon names to emoji equivalents
+const ICON_NAME_TO_EMOJI = {
+  'building': '🏛️',
+  'church': '🏛️',
+  'heart': '🙏',
+  'log-out': '🚪',
+  'alert-circle': '⛪',
+  'mic': '🎤',
+  'unlock': '🔓',
+  'folder': '📁',
+  'shopping-bag': '🛍️',
+  'headphones': '🎧',
+  'music': '🎵',
+  'dollar-sign': '💵',
+  'zap': '⚡',
+  'flame': '🔥',
+  'activity': '🛹',
+  'shirt': '👕',
+  'gamepad-2': '🎮',
+  'mouse': '🖱️',
+  'cpu': '💻',
+  'tv': '📺',
+  'monitor': '🖥️',
+  'box': '📦',
+};
+
 // Fallback category config - used when dynamic categories fail to load
 const CATEGORY_CONFIG_FALLBACK = {
-  'lds-official':   { label: 'LDS Official',            color: '#3b82f6', icon: '\u{1F3DB}',  order: 0, description: 'Institutional church channels' },
-  'lds-faithful':   { label: 'LDS Faithful Creators',   color: '#10b981', icon: '\u{1F64F}',  order: 1, description: 'Apologetics, scholarship, lifestyle' },
-  'ex-mormon':      { label: 'Ex-Mormon',               color: '#ef4444', icon: '\u{1F6AA}',  order: 2, description: 'Personal stories, research, expose' },
-  'counter-cult':   { label: 'Counter-Cult Evangelical', color: '#f97316', icon: '\u{26EA}',   order: 3, description: 'Evangelical critique channels' },
-  'megachurch':     { label: 'Megachurch',               color: '#8b5cf6', icon: '\u{1F3A4}',  order: 4, description: 'High-production contemporary churches' },
-  'catholic':       { label: 'Catholic',                 color: '#f59e0b', icon: '\u{271D}\uFE0F', order: 5, description: 'Catholic media and apologetics' },
-  'muslim':         { label: 'Muslim',                   color: '#06b6d4', icon: '\u{262A}\uFE0F', order: 6, description: 'Islamic dawah and debate' },
-  'jewish':         { label: 'Jewish',                   color: '#6366f1', icon: '\u{2721}\uFE0F', order: 7, description: 'Jewish educational content' },
-  'deconstruction': { label: 'Deconstruction',           color: '#ec4899', icon: '\u{1F513}',  order: 8, description: 'Multi-faith and LDS-specific deconstruction' },
+  'lds-official':   { label: 'LDS Official',            color: '#3b82f6', icon: '🏛️',  order: 0, description: 'Institutional church channels' },
+  'lds-faithful':   { label: 'LDS Faithful Creators',   color: '#10b981', icon: '🙏',  order: 1, description: 'Apologetics, scholarship, lifestyle' },
+  'ex-mormon':      { label: 'Ex-Mormon',               color: '#ef4444', icon: '🚪',  order: 2, description: 'Personal stories, research, expose' },
+  'counter-cult':   { label: 'Counter-Cult Evangelical', color: '#f97316', icon: '⛪',   order: 3, description: 'Evangelical critique channels' },
+  'megachurch':     { label: 'Megachurch',               color: '#8b5cf6', icon: '🎤',  order: 4, description: 'High-production contemporary churches' },
+  'catholic':       { label: 'Catholic',                 color: '#f59e0b', icon: '✝️', order: 5, description: 'Catholic media and apologetics' },
+  'muslim':         { label: 'Muslim',                   color: '#06b6d4', icon: '☪️', order: 6, description: 'Islamic dawah and debate' },
+  'jewish':         { label: 'Jewish',                   color: '#6366f1', icon: '✡️', order: 7, description: 'Jewish educational content' },
+  'deconstruction': { label: 'Deconstruction',           color: '#ec4899', icon: '🔓',  order: 8, description: 'Multi-faith and LDS-specific deconstruction' },
 };
 
 // Industry filters for master view
@@ -132,11 +158,14 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       const config = { ...CATEGORY_CONFIG_FALLBACK };
       const flattenTree = (nodes) => {
         nodes.forEach(node => {
+          // Convert Lucide icon name to emoji, or use fallback emoji
+          const iconName = node.icon || 'folder';
+          const emoji = ICON_NAME_TO_EMOJI[iconName] || CATEGORY_CONFIG_FALLBACK[node.slug]?.icon || '📁';
           config[node.slug] = {
             id: node.id,
             label: node.name,
             color: node.color || '#666',
-            icon: node.icon || 'folder',
+            icon: emoji,
             order: node.sort_order || 0,
             description: node.description || '',
             parentId: node.parent_id,
