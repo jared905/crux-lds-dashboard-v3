@@ -261,51 +261,6 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     }
   }, [reloadSupabaseCompetitors, masterView, activeClient?.id]);
 
-  // Bulk assign categories to a client
-  const handleBulkCategoryAssign = useCallback(async (categorySlugs, targetClientId) => {
-    if (!categorySlugs.length) return { success: 0, failed: 0 };
-
-    setBulkAssignLoading(true);
-    try {
-      const { supabase } = await import('../../services/supabaseClient');
-
-      // Find all competitors matching the selected categories
-      const competitorsToUpdate = activeCompetitors.filter(c =>
-        categorySlugs.includes(c.category)
-      );
-
-      if (competitorsToUpdate.length === 0) {
-        return { success: 0, failed: 0 };
-      }
-
-      // Get Supabase IDs
-      const supabaseIds = competitorsToUpdate
-        .map(c => c.supabaseId)
-        .filter(Boolean);
-
-      if (supabaseIds.length === 0) {
-        return { success: 0, failed: 0 };
-      }
-
-      // Update all matching channels
-      const { error } = await supabase
-        .from('channels')
-        .update({ client_id: targetClientId })
-        .in('id', supabaseIds);
-
-      if (error) throw error;
-
-      await reloadSupabaseCompetitors();
-
-      return { success: supabaseIds.length, failed: 0 };
-    } catch (err) {
-      console.error('[Bulk Assign] Failed:', err);
-      return { success: 0, failed: 1, error: err.message };
-    } finally {
-      setBulkAssignLoading(false);
-    }
-  }, [activeCompetitors, reloadSupabaseCompetitors]);
-
   // Import competitor database from curated channel list
   const handleImportDatabase = useCallback(async () => {
     if (!activeClient?.id) {
@@ -1142,6 +1097,51 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
     return result;
   }, [supabaseCompetitors, competitors, masterView, industryFilter, selectedCategoryIds, categoryTree]);
+
+  // Bulk assign categories to a client
+  const handleBulkCategoryAssign = useCallback(async (categorySlugs, targetClientId) => {
+    if (!categorySlugs.length) return { success: 0, failed: 0 };
+
+    setBulkAssignLoading(true);
+    try {
+      const { supabase } = await import('../../services/supabaseClient');
+
+      // Find all competitors matching the selected categories
+      const competitorsToUpdate = activeCompetitors.filter(c =>
+        categorySlugs.includes(c.category)
+      );
+
+      if (competitorsToUpdate.length === 0) {
+        return { success: 0, failed: 0 };
+      }
+
+      // Get Supabase IDs
+      const supabaseIds = competitorsToUpdate
+        .map(c => c.supabaseId)
+        .filter(Boolean);
+
+      if (supabaseIds.length === 0) {
+        return { success: 0, failed: 0 };
+      }
+
+      // Update all matching channels
+      const { error } = await supabase
+        .from('channels')
+        .update({ client_id: targetClientId })
+        .in('id', supabaseIds);
+
+      if (error) throw error;
+
+      await reloadSupabaseCompetitors();
+
+      return { success: supabaseIds.length, failed: 0 };
+    } catch (err) {
+      console.error('[Bulk Assign] Failed:', err);
+      return { success: 0, failed: 1, error: err.message };
+    } finally {
+      setBulkAssignLoading(false);
+    }
+  }, [activeCompetitors, reloadSupabaseCompetitors]);
 
   // Fetch bulk snapshots when trends view is active
   useEffect(() => {
