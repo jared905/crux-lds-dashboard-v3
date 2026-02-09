@@ -149,6 +149,8 @@ export async function upsertChannel(channelData) {
     // is_competitor: true = competitor, false = client, null = audit-only (neither)
     // Only default to true if not explicitly provided (undefined)
     is_competitor: channelData.is_competitor === undefined ? true : channelData.is_competitor,
+    // is_client: explicitly false for competitors/audits (clients are set via clientDataService)
+    is_client: channelData.is_client ?? false,
     client_id: channelData.client_id,
     subscriber_count: channelData.subscriber_count,
     total_view_count: channelData.total_view_count,
@@ -158,10 +160,12 @@ export async function upsertChannel(channelData) {
     sync_enabled: channelData.sync_enabled ?? true,
   };
 
-  // Optional metadata fields (tier, subcategory, notes)
+  // Optional metadata fields (tier, subcategory, notes, created_via, size_tier)
   if (channelData.tier !== undefined) record.tier = channelData.tier;
   if (channelData.subcategory !== undefined) record.subcategory = channelData.subcategory;
   if (channelData.notes !== undefined) record.notes = channelData.notes;
+  if (channelData.created_via !== undefined) record.created_via = channelData.created_via;
+  if (channelData.size_tier !== undefined) record.size_tier = channelData.size_tier;
 
   const { data, error } = await supabase
     .from('channels')

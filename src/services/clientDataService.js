@@ -81,11 +81,13 @@ export async function saveClientToSupabase(clientName, normalizedRows, youtubeCh
         name: clientName,
         custom_url: youtubeChannelUrl || null,
         is_competitor: false,
+        is_client: true, // Explicitly mark as client (separates from audit-only channels)
         client_id: youtubeChannelId, // Use channel ID as client_id for grouping
         subscriber_count: subscriberCount || 0,
         video_count: normalizedRows.length,
         channel_urls_map: channelUrlsMap && Object.keys(channelUrlsMap).length > 0 ? channelUrlsMap : {},
         background_image_url: backgroundImageUrl || null,
+        created_via: 'csv_upload',
         last_synced_at: new Date().toISOString(),
       },
       { onConflict: 'youtube_channel_id' }
@@ -185,11 +187,12 @@ export async function saveClientToSupabase(clientName, normalizedRows, youtubeCh
 export async function getClientsFromSupabase() {
   if (!supabase) throw new Error('Supabase not configured');
 
-  // Fetch all non-competitor channels (these are clients)
+  // Fetch all client channels (explicitly marked as is_client = true)
+  // This excludes audit-only channels which have is_client = false/null
   const { data: channels, error: channelsError } = await supabase
     .from('channels')
     .select('*')
-    .eq('is_competitor', false)
+    .eq('is_client', true)
     .order('name');
 
   if (channelsError) {
