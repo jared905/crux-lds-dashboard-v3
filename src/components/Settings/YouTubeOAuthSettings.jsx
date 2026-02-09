@@ -202,7 +202,6 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
           client_id: pendingClientInfo.channelId,
           subscriber_count: 0,
           video_count: 0,
-          created_via: 'oauth',
           last_synced_at: new Date().toISOString()
         }, { onConflict: 'youtube_channel_id' })
         .select()
@@ -319,7 +318,6 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
             client_id: connection.youtube_channel_id,
             subscriber_count: 0,
             video_count: 0,
-            created_via: 'oauth',
             last_synced_at: new Date().toISOString()
           }, { onConflict: 'youtube_channel_id' })
           .select()
