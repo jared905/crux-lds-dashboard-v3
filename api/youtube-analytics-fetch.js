@@ -161,6 +161,10 @@ export default async function handler(req, res) {
     let impressionsData = null;
     if (impressionsResponse.ok) {
       impressionsData = await impressionsResponse.json();
+      console.log(`[Analytics] Impressions data: ${impressionsData.rows?.length || 0} videos`);
+    } else {
+      const errorData = await impressionsResponse.json();
+      console.log('[Analytics] Impressions API failed:', errorData.error?.message || 'Unknown error');
     }
 
     // Combine the data by video ID
@@ -174,11 +178,11 @@ export default async function handler(req, res) {
       for (const row of analyticsData.rows) {
         const videoId = row[0];
         videoAnalytics[videoId] = {
-          views: row[1] || 0,
-          watchMinutes: row[2] || 0,
-          watchHours: (row[2] || 0) / 60,
-          avgViewPercentage: row[3] || 0,
-          subscribersGained: row[4] || 0
+          views: row[1] ?? 0,
+          watchMinutes: row[2] ?? 0,
+          watchHours: (row[2] ?? 0) / 60,
+          avgViewPercentage: row[3] ?? 0,
+          subscribersGained: row[4] ?? 0
         };
       }
     }
@@ -190,8 +194,8 @@ export default async function handler(req, res) {
         if (!videoAnalytics[videoId]) {
           videoAnalytics[videoId] = {};
         }
-        videoAnalytics[videoId].impressions = row[2] || 0;
-        videoAnalytics[videoId].ctr = row[3] || 0; // Already as decimal (0.05 = 5%)
+        videoAnalytics[videoId].impressions = row[2] ?? 0;
+        videoAnalytics[videoId].ctr = row[3] ?? 0; // Already as decimal (0.05 = 5%)
       }
     }
 
@@ -224,11 +228,11 @@ export default async function handler(req, res) {
             const { error: updateError } = await supabase
               .from('videos')
               .update({
-                impressions: analytics.impressions || null,
-                ctr: analytics.ctr || null,
-                avg_view_percentage: analytics.avgViewPercentage ? analytics.avgViewPercentage / 100 : null,
-                watch_hours: analytics.watchHours || null,
-                subscribers_gained: analytics.subscribersGained || null,
+                impressions: analytics.impressions != null ? analytics.impressions : null,
+                ctr: analytics.ctr != null ? analytics.ctr : null,
+                avg_view_percentage: analytics.avgViewPercentage != null ? analytics.avgViewPercentage / 100 : null,
+                watch_hours: analytics.watchHours != null ? analytics.watchHours : null,
+                subscribers_gained: analytics.subscribersGained != null ? analytics.subscribersGained : null,
                 last_synced_at: new Date().toISOString()
               })
               .eq('id', existingVideo.id);
