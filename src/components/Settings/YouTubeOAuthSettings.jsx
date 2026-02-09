@@ -19,11 +19,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Shield,
-  Clock,
   ExternalLink,
   Loader2,
-  Plus,
-  Building
+  Plus
 } from 'lucide-react';
 import youtubeOAuthService from '../../services/youtubeOAuthService';
 import { supabase } from '../../services/supabaseClient';
@@ -170,13 +168,6 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
     }
   };
 
-  const formatExpiresAt = (expiresInSeconds) => {
-    if (expiresInSeconds < 0) return 'Expired';
-    if (expiresInSeconds < 60) return 'Expires in < 1 min';
-    if (expiresInSeconds < 3600) return `Expires in ${Math.floor(expiresInSeconds / 60)} min`;
-    return `Expires in ${Math.floor(expiresInSeconds / 3600)} hours`;
-  };
-
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -212,9 +203,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
       setShowAddClientPrompt(false);
       setPendingClientInfo(null);
 
-      // Notify parent to refresh clients list if callback provided
+      // Notify parent to refresh clients list and select new client
       if (onClientsUpdate) {
-        onClientsUpdate();
+        onClientsUpdate(pendingClientInfo.channelName);
       }
     } catch (err) {
       console.error('Failed to add client:', err);
@@ -316,27 +307,22 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                   {conn.youtube_email}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "11px" }}>
-                  {/* Expiration status */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    <Clock size={12} style={{ color: conn.isExpired ? "#ef4444" : conn.needsRefresh ? "#f59e0b" : "#9E9E9E" }} />
-                    <span style={{ color: conn.isExpired ? "#ef4444" : conn.needsRefresh ? "#f59e0b" : "#9E9E9E" }}>
-                      {formatExpiresAt(conn.expiresInSeconds)}
-                    </span>
-                  </div>
-
-                  {/* Connection error */}
-                  {conn.connection_error && (
+                  {/* Connection status */}
+                  {conn.connection_error ? (
                     <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#ef4444" }}>
                       <AlertCircle size={12} />
                       <span>{conn.connection_error}</span>
                     </div>
-                  )}
-
-                  {/* Connected date */}
-                  {!conn.connection_error && (
-                    <span style={{ color: "#666" }}>
-                      Connected {formatDate(conn.created_at)}
-                    </span>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#22c55e" }}>
+                        <CheckCircle2 size={12} />
+                        <span>Connected</span>
+                      </div>
+                      <span style={{ color: "#666" }}>
+                        Since {formatDate(conn.created_at)}
+                      </span>
+                    </>
                   )}
                 </div>
               </div>

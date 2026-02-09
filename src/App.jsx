@@ -970,7 +970,28 @@ export default function App() {
 
         {/* API Keys */}
         {tab === "api-keys" && (
-          <APISettings onNavigateToSecurity={() => setTab("security")} />
+          <APISettings
+            onNavigateToSecurity={() => setTab("security")}
+            onClientsUpdate={async (newClientName) => {
+              // Refresh clients from Supabase after OAuth adds a new client
+              const supabaseClients = await getClientsFromSupabase();
+              if (supabaseClients.length > 0) {
+                setClients(supabaseClients);
+                // If a specific client was just added, select it
+                if (newClientName) {
+                  const newClient = supabaseClients.find(c => c.name === newClientName);
+                  if (newClient) {
+                    setActiveClient(newClient);
+                    return;
+                  }
+                }
+                // Otherwise, if no active client, set the first one
+                if (!activeClient && supabaseClients.length > 0) {
+                  setActiveClient(supabaseClients[0]);
+                }
+              }
+            }}
+          />
         )}
 
         {/* Security Documentation */}

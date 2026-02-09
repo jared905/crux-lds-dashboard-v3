@@ -41,7 +41,7 @@ const statBox = {
   textAlign: "center",
 };
 
-export default function APISettings({ onNavigateToSecurity }) {
+export default function APISettings({ onNavigateToSecurity, onClientsUpdate }) {
   const [claudeKey, setClaudeKey] = useState('');
   const [youtubeKey, setYoutubeKey] = useState('');
   const [monthlyBudget, setMonthlyBudget] = useState(20);
@@ -196,7 +196,7 @@ export default function APISettings({ onNavigateToSecurity }) {
       </div>
 
       {/* YouTube OAuth Connection */}
-      <YouTubeOAuthSettings onNavigateToSecurity={onNavigateToSecurity} />
+      <YouTubeOAuthSettings onNavigateToSecurity={onNavigateToSecurity} onClientsUpdate={onClientsUpdate} />
 
       {/* Usage Statistics */}
       {usageStats && (
