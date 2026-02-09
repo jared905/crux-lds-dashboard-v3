@@ -415,7 +415,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
       let updatedCount = 0;
       let matchedCount = 0;
 
-      console.log(`[Analytics Sync] Received analytics for ${Object.keys(analyticsMap).length} videos`);
+      const analyticsVideoIds = Object.keys(analyticsMap);
+      console.log(`[Analytics Sync] Received analytics for ${analyticsVideoIds.length} videos`);
+      console.log(`[Analytics Sync] Sample video IDs from Analytics API:`, analyticsVideoIds.slice(0, 5));
 
       for (const [videoId, analytics] of Object.entries(analyticsMap)) {
         // First check if the video exists
@@ -448,7 +450,25 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
       console.log(`[Analytics Sync] Matched ${matchedCount} videos, updated ${updatedCount}`);
 
       if (matchedCount === 0) {
-        setError(`Analytics fetched for ${Object.keys(analyticsMap).length} videos, but none matched videos in your database. Try "Sync Videos" first.`);
+        // Check what video IDs exist in the database for this channel
+        const { data: dbChannel } = await supabase
+          .from('channels')
+          .select('id')
+          .eq('youtube_channel_id', connection.youtube_channel_id)
+          .single();
+
+        if (dbChannel) {
+          const { data: dbVideos } = await supabase
+            .from('videos')
+            .select('youtube_video_id')
+            .eq('channel_id', dbChannel.id)
+            .limit(5);
+
+          console.log(`[Analytics Sync] Sample video IDs in database:`, dbVideos?.map(v => v.youtube_video_id));
+          console.log(`[Analytics Sync] DB videos start with 'csv_':`, dbVideos?.some(v => v.youtube_video_id?.startsWith('csv_')));
+        }
+
+        setError(`Analytics fetched for ${analyticsVideoIds.length} videos, but none matched videos in your database. Click "Sync Videos" first to fetch videos with proper YouTube IDs.`);
       } else {
         setSuccess(`Updated analytics for ${updatedCount} of ${matchedCount} matched videos!`);
       }
