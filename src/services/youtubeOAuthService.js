@@ -64,7 +64,10 @@ class YouTubeOAuthService {
    */
   async getConnections() {
     const token = await this.getAuthToken();
+    console.log('[YouTubeOAuth] getConnections - token exists:', !!token);
+
     if (!token) {
+      console.log('[YouTubeOAuth] No auth token, returning empty connections');
       this.connections = [];
       this.notifyListeners();
       return [];
@@ -77,13 +80,19 @@ class YouTubeOAuthService {
         }
       });
 
+      console.log('[YouTubeOAuth] Status response:', response.status, response.statusText);
+
       if (!response.ok) {
-        console.warn('Failed to fetch OAuth connections');
+        console.warn('[YouTubeOAuth] Failed to fetch OAuth connections:', response.status);
         return this.connections;
       }
 
-      const { connections } = await response.json();
+      const data = await response.json();
+      console.log('[YouTubeOAuth] Response data:', data);
+
+      const connections = data.connections;
       this.connections = connections || [];
+      console.log('[YouTubeOAuth] Connections loaded:', this.connections.length);
       this.notifyListeners();
 
       // Schedule auto-refresh for expiring tokens
@@ -91,7 +100,7 @@ class YouTubeOAuthService {
 
       return this.connections;
     } catch (error) {
-      console.error('Error fetching OAuth connections:', error);
+      console.error('[YouTubeOAuth] Error fetching OAuth connections:', error);
       return this.connections;
     }
   }

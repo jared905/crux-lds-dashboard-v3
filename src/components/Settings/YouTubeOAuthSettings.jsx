@@ -89,17 +89,23 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity }) {
     }
 
     // Subscribe to connection changes
-    const unsubscribe = youtubeOAuthService.subscribe(setConnections);
+    const unsubscribe = youtubeOAuthService.subscribe((conns) => {
+      console.log('[YouTubeOAuthSettings] Received connections update:', conns);
+      setConnections(conns);
+    });
     return () => unsubscribe();
   }, []);
 
   const loadConnections = async () => {
+    console.log('[YouTubeOAuthSettings] loadConnections starting');
     setLoading(true);
     try {
-      await youtubeOAuthService.getConnections();
+      const result = await youtubeOAuthService.getConnections();
+      console.log('[YouTubeOAuthSettings] loadConnections result:', result);
     } catch (err) {
-      console.error('Failed to load connections:', err);
+      console.error('[YouTubeOAuthSettings] Failed to load connections:', err);
     } finally {
+      console.log('[YouTubeOAuthSettings] loadConnections done, setting loading=false');
       setLoading(false);
     }
   };
