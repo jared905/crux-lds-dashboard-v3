@@ -159,12 +159,20 @@ export default async function handler(req, res) {
     });
 
     let impressionsData = null;
+    let impressionsError = null;
     if (impressionsResponse.ok) {
       impressionsData = await impressionsResponse.json();
       console.log(`[Analytics] Impressions data: ${impressionsData.rows?.length || 0} videos`);
+      if (impressionsData.rows?.length > 0) {
+        // Log sample CTR value to debug format
+        const sampleRow = impressionsData.rows[0];
+        console.log(`[Analytics] Sample impressions row: videoId=${sampleRow[0]}, impressions=${sampleRow[2]}, ctr=${sampleRow[3]}`);
+      }
     } else {
       const errorData = await impressionsResponse.json();
-      console.log('[Analytics] Impressions API failed:', errorData.error?.message || 'Unknown error');
+      impressionsError = errorData.error?.message || 'Unknown error';
+      console.log('[Analytics] Impressions API failed:', impressionsError);
+      console.log('[Analytics] Impressions API error details:', JSON.stringify(errorData.error || errorData));
     }
 
     // Combine the data by video ID
@@ -254,7 +262,9 @@ export default async function handler(req, res) {
       videoCount: Object.keys(videoAnalytics).length,
       analytics: videoAnalytics,
       updatedCount,
-      matchedCount
+      matchedCount,
+      impressionsAvailable: impressionsData?.rows?.length > 0,
+      impressionsError: impressionsError || null
     });
 
   } catch (error) {
