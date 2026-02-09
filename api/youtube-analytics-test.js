@@ -11,21 +11,28 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Encryption key for token storage
-const ENCRYPTION_KEY = process.env.OAUTH_ENCRYPTION_KEY;
+// Get encryption key from environment (must match youtube-oauth-callback.js)
+function getEncryptionKey() {
+  const keyBase64 = process.env.TOKEN_ENCRYPTION_KEY;
+  if (!keyBase64) {
+    throw new Error('TOKEN_ENCRYPTION_KEY not configured');
+  }
+  return Buffer.from(keyBase64, 'base64');
+}
 
-function decrypt(encryptedData) {
-  if (!ENCRYPTION_KEY) throw new Error('Encryption key not configured');
+// AES-256-GCM decryption (matches youtube-oauth-callback.js format)
+function decryptToken(encrypted) {
+  const key = getEncryptionKey();
+  const [ivB64, dataB64, tagB64] = encrypted.split(':');
 
-  const [ivHex, authTagHex, encrypted] = encryptedData.split(':');
-  const iv = Buffer.from(ivHex, 'hex');
-  const authTag = Buffer.from(authTagHex, 'hex');
-  const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+  const iv = Buffer.from(ivB64, 'base64');
+  const data = Buffer.from(dataB64, 'base64');
+  const authTag = Buffer.from(tagB64, 'base64');
 
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
   decipher.setAuthTag(authTag);
 
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  let decrypted = decipher.update(data, null, 'utf8');
   decrypted += decipher.final('utf8');
 
   return decrypted;
@@ -81,8 +88,9 @@ export default async function handler(req, res) {
     // Decrypt access token
     let accessToken;
     try {
-      accessToken = decrypt(connection.access_token_encrypted);
+      accessToken = decryptToken(connection.encrypted_access_token);
     } catch (e) {
+      console.error('Token decryption failed:', e.message);
       return res.status(500).json({ error: 'Failed to decrypt token' });
     }
 
