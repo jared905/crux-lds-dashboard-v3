@@ -23,12 +23,44 @@ class YouTubeOAuthService {
 
   /**
    * Get current auth token for API calls
+   * Refreshes the session if needed
    * @returns {Promise<string|null>}
    */
   async getAuthToken() {
     if (!supabase) return null;
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || null;
+
+    // First try to get existing session
+    const { data: { session }, error } = await supabase.auth.getSession();
+
+    if (error) {
+      console.warn('Error getting session:', error);
+      return null;
+    }
+
+    // If no session, user needs to log in
+    if (!session) {
+      return null;
+    }
+
+    // Check if token is about to expire (within 5 minutes)
+    const expiresAt = session.expires_at;
+    const now = Math.floor(Date.now() / 1000);
+    const expiresIn = expiresAt - now;
+
+    if (expiresIn < 300) {
+      // Token expires soon, try to refresh
+      console.log('[YouTubeOAuth] Session expiring soon, refreshing...');
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+      if (refreshError) {
+        console.warn('Failed to refresh session:', refreshError);
+        return null;
+      }
+
+      return refreshData?.session?.access_token || null;
+    }
+
+    return session.access_token;
   }
 
   /**
@@ -38,7 +70,7 @@ class YouTubeOAuthService {
   async initiateOAuth() {
     const token = await this.getAuthToken();
     if (!token) {
-      throw new Error('You must be logged in to connect YouTube');
+      throw new Error('Your session has expired. Please refresh the page and log in again.');
     }
 
     const response = await fetch('/api/youtube-oauth-init', {
@@ -51,6 +83,10 @@ class YouTubeOAuthService {
 
     if (!response.ok) {
       const error = await response.json();
+      // Provide more helpful error message for auth issues
+      if (response.status === 401) {
+        throw new Error('Your session has expired. Please refresh the page and log in again.');
+      }
       throw new Error(error.error || 'Failed to initiate OAuth flow');
     }
 
