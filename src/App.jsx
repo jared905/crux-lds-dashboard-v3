@@ -186,7 +186,7 @@ export default function App() {
     } else {
       setRows([]);
     }
-  }, [activeClient?.id]);
+  }, [activeClient?.id, activeClient?.rows]);
 
   // Fetch channel stats via server-side proxy (bypasses API key referrer restrictions)
   // Use a ref to track the last successful fetch key so we don't re-fetch for the same data
