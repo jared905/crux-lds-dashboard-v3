@@ -35,15 +35,21 @@ export default async function handler(req, res) {
     // Verify user authentication
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
+      console.log('[OAuth Status] Missing auth header');
       return res.status(401).json({ error: 'Authorization header required' });
     }
 
     const token = authHeader.slice(7);
+    console.log('[OAuth Status] Verifying user token...');
+
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
+      console.log('[OAuth Status] Auth error:', authError?.message || 'No user');
       return res.status(401).json({ error: 'Invalid or expired session' });
     }
+
+    console.log('[OAuth Status] User verified:', user.id);
 
     // Get connections for this user (WITHOUT token fields)
     const { data: connections, error } = await supabase
@@ -67,9 +73,11 @@ export default async function handler(req, res) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Failed to fetch connections:', error);
+      console.error('[OAuth Status] Failed to fetch connections:', error);
       return res.status(500).json({ error: 'Failed to fetch connections' });
     }
+
+    console.log('[OAuth Status] Found', connections?.length || 0, 'connections');
 
     // Add computed fields for UI convenience
     const now = new Date();
@@ -88,13 +96,15 @@ export default async function handler(req, res) {
       };
     });
 
+    console.log('[OAuth Status] Returning', enrichedConnections.length, 'connections');
+
     return res.status(200).json({
       connections: enrichedConnections,
       count: enrichedConnections.length
     });
 
   } catch (error) {
-    console.error('Status check error:', error);
+    console.error('[OAuth Status] Unexpected error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
