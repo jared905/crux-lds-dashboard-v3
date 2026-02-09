@@ -21,9 +21,12 @@ import {
   Shield,
   Clock,
   ExternalLink,
-  Loader2
+  Loader2,
+  Plus,
+  Building
 } from 'lucide-react';
 import youtubeOAuthService from '../../services/youtubeOAuthService';
+import { supabase } from '../../services/supabaseClient';
 
 const cardStyle = {
   background: "#1E1E1E",
@@ -64,13 +67,18 @@ const dangerButtonStyle = {
   color: "#ef4444",
 };
 
-export default function YouTubeOAuthSettings({ onNavigateToSecurity }) {
+export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUpdate }) {
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(null);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+
+  // Add as client prompt state
+  const [showAddClientPrompt, setShowAddClientPrompt] = useState(false);
+  const [pendingClientInfo, setPendingClientInfo] = useState(null);
+  const [addingClient, setAddingClient] = useState(false);
 
   useEffect(() => {
     loadConnections();
@@ -79,7 +87,24 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity }) {
     const params = new URLSearchParams(window.location.search);
     if (params.get('oauth_success') === 'true') {
       const channel = params.get('channel');
-      setSuccess(`Successfully connected ${channel || 'YouTube account'}!`);
+      const linkedClient = params.get('linked_client');
+
+      if (linkedClient) {
+        setSuccess(`Connected ${channel} (linked to existing client: ${linkedClient})`);
+      } else {
+        setSuccess(`Successfully connected ${channel || 'YouTube account'}!`);
+      }
+
+      // Check if we should prompt to add as client
+      if (params.get('prompt_add_client') === 'true') {
+        setPendingClientInfo({
+          channelId: params.get('channel_id'),
+          channelName: channel,
+          thumbnail: params.get('channel_thumbnail')
+        });
+        setShowAddClientPrompt(true);
+      }
+
       // Clean up URL without refreshing page
       window.history.replaceState({}, '', window.location.pathname + '?tab=api-keys');
     }
@@ -158,6 +183,50 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity }) {
       day: 'numeric',
       year: 'numeric'
     });
+  };
+
+  const handleAddAsClient = async () => {
+    if (!pendingClientInfo || !supabase) return;
+
+    setAddingClient(true);
+    try {
+      // Create a basic client entry in the channels table
+      const { data: newClient, error: insertError } = await supabase
+        .from('channels')
+        .insert({
+          youtube_channel_id: pendingClientInfo.channelId,
+          name: pendingClientInfo.channelName,
+          custom_url: `https://www.youtube.com/channel/${pendingClientInfo.channelId}`,
+          is_competitor: false,
+          client_id: pendingClientInfo.channelId,
+          subscriber_count: 0,
+          video_count: 0,
+          last_synced_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      setSuccess(`Added "${pendingClientInfo.channelName}" as a new client! Upload CSV data in Client Management to add videos.`);
+      setShowAddClientPrompt(false);
+      setPendingClientInfo(null);
+
+      // Notify parent to refresh clients list if callback provided
+      if (onClientsUpdate) {
+        onClientsUpdate();
+      }
+    } catch (err) {
+      console.error('Failed to add client:', err);
+      setError(`Failed to add client: ${err.message}`);
+    } finally {
+      setAddingClient(false);
+    }
+  };
+
+  const handleSkipAddClient = () => {
+    setShowAddClientPrompt(false);
+    setPendingClientInfo(null);
   };
 
   return (
@@ -377,6 +446,106 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity }) {
           </button>
         )}
       </div>
+
+      {/* Add as Client Prompt Modal */}
+      {showAddClientPrompt && pendingClientInfo && (
+        <>
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.7)",
+              zIndex: 1000
+            }}
+            onClick={handleSkipAddClient}
+          />
+          <div
+            style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              background: "#1E1E1E",
+              border: "1px solid #333",
+              borderRadius: "12px",
+              padding: "32px",
+              maxWidth: "420px",
+              width: "90%",
+              zIndex: 1001
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
+              {pendingClientInfo.thumbnail ? (
+                <img
+                  src={pendingClientInfo.thumbnail}
+                  alt={pendingClientInfo.channelName}
+                  style={{ width: "64px", height: "64px", borderRadius: "50%", objectFit: "cover" }}
+                />
+              ) : (
+                <div style={{
+                  width: "64px", height: "64px", borderRadius: "50%",
+                  background: "#333", display: "flex", alignItems: "center", justifyContent: "center"
+                }}>
+                  <Youtube size={32} style={{ color: "#ff0000" }} />
+                </div>
+              )}
+              <div>
+                <h3 style={{ fontSize: "18px", fontWeight: "700", margin: "0 0 4px", color: "#fff" }}>
+                  Add as Client?
+                </h3>
+                <p style={{ fontSize: "14px", color: "#9E9E9E", margin: 0 }}>
+                  {pendingClientInfo.channelName}
+                </p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: "14px", color: "#9E9E9E", marginBottom: "24px", lineHeight: "1.6" }}>
+              Would you like to add <strong style={{ color: "#fff" }}>{pendingClientInfo.channelName}</strong> as
+              a client in your dashboard? You can upload CSV data later to see analytics.
+            </p>
+
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                onClick={handleAddAsClient}
+                disabled={addingClient}
+                style={{
+                  flex: 1,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                  padding: "12px 20px",
+                  background: addingClient ? "#1e40af" : "#2962FF",
+                  border: "none", borderRadius: "8px",
+                  color: "#fff", fontWeight: "600", fontSize: "14px",
+                  cursor: addingClient ? "not-allowed" : "pointer"
+                }}
+              >
+                {addingClient ? (
+                  <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+                ) : (
+                  <Plus size={16} />
+                )}
+                {addingClient ? "Adding..." : "Add as Client"}
+              </button>
+              <button
+                onClick={handleSkipAddClient}
+                disabled={addingClient}
+                style={{
+                  padding: "12px 20px",
+                  background: "#333",
+                  border: "none", borderRadius: "8px",
+                  color: "#E0E0E0", fontWeight: "600", fontSize: "14px",
+                  cursor: "pointer"
+                }}
+              >
+                Skip
+              </button>
+            </div>
+
+            <p style={{ fontSize: "12px", color: "#666", marginTop: "16px", textAlign: "center" }}>
+              You can always add this channel as a client later from Client Management
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

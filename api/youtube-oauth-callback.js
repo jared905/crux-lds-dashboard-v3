@@ -268,12 +268,29 @@ export default async function handler(req, res) {
       .delete()
       .eq('id', stateRecord.id);
 
+    // Check if a client already exists with this YouTube channel ID
+    const { data: existingClient } = await supabase
+      .from('channels')
+      .select('id, name')
+      .eq('youtube_channel_id', channelInfo.channelId)
+      .eq('is_competitor', false)
+      .maybeSingle();
+
     // Redirect to settings with success
     const successParams = new URLSearchParams({
       tab: 'api-keys',
       oauth_success: 'true',
       channel: channelInfo.title
     });
+
+    // If no existing client, prompt user to add one
+    if (!existingClient) {
+      successParams.set('prompt_add_client', 'true');
+      successParams.set('channel_id', channelInfo.channelId);
+      successParams.set('channel_thumbnail', channelInfo.thumbnail || '');
+    } else {
+      successParams.set('linked_client', existingClient.name);
+    }
 
     return res.redirect(`${frontendUrl}?${successParams.toString()}`);
 
