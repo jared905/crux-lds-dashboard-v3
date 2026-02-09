@@ -437,12 +437,9 @@ export async function syncOAuthChannelVideos(youtubeChannelId, supabaseChannelId
         like_count: video.like_count || 0,
         comment_count: video.comment_count || 0,
         thumbnail_url: video.thumbnail_url || null,
-        // OAuth videos don't have YouTube Studio metrics
-        impressions: null,
-        ctr: null,
-        avg_view_percentage: null,
-        subscribers_gained: null,
-        watch_hours: null,
+        // Note: Don't overwrite KPI fields (impressions, ctr, avg_view_percentage,
+        // subscribers_gained, watch_hours) - these are populated by analytics sync
+        // and shouldn't be reset to null on video refresh
         content_source: channelDetails.name,
         last_synced_at: new Date().toISOString(),
       };

@@ -347,15 +347,13 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
 
       let summaryParts = [`${syncResult.videoCount} videos`];
 
-      // Step 3: Sync analytics if access is confirmed
-      const hasAnalyticsAccess = analyticsTestResult[connection.id]?.hasAccess;
+      // Step 3: Always attempt analytics sync (will fail gracefully if no access)
+      setSyncStatus(prev => ({
+        ...prev,
+        [connection.id]: { stage: 'analytics', message: 'Syncing analytics...' }
+      }));
 
-      if (hasAnalyticsAccess) {
-        setSyncStatus(prev => ({
-          ...prev,
-          [connection.id]: { stage: 'analytics', message: 'Syncing analytics...' }
-        }));
-
+      try {
         const token = await youtubeOAuthService.getAuthToken();
         const analyticsResponse = await fetch('/api/youtube-analytics-fetch', {
           method: 'POST',
@@ -368,9 +366,23 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
 
         const analyticsResult = await analyticsResponse.json();
 
-        if (analyticsResult.success && analyticsResult.updatedCount > 0) {
-          summaryParts.push(`${analyticsResult.updatedCount} with analytics`);
+        if (analyticsResult.success) {
+          if (analyticsResult.updatedCount > 0) {
+            summaryParts.push(`${analyticsResult.updatedCount} with analytics`);
+          }
+          // Update analytics test result based on successful fetch
+          if (analyticsResult.videoCount > 0) {
+            setAnalyticsTestResult(prev => ({
+              ...prev,
+              [connection.id]: { hasAccess: true, message: 'Analytics API access confirmed' }
+            }));
+          }
+        } else if (analyticsResult.errorCode === 'forbidden') {
+          console.log('[Sync] Analytics API access not available for this channel');
         }
+      } catch (analyticsError) {
+        // Analytics sync failed, but video sync succeeded - don't fail the whole operation
+        console.warn('[Sync] Analytics sync failed:', analyticsError.message);
       }
 
       // Success!

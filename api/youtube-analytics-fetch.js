@@ -206,12 +206,15 @@ export default async function handler(req, res) {
     let matchedCount = 0;
 
     if (updateVideos !== false) {
-      // Find the channel in the database
+      // Find the client channel in the database (prefer is_client=true)
       const { data: dbChannel } = await supabase
         .from('channels')
         .select('id')
         .eq('youtube_channel_id', channelId)
+        .eq('is_client', true)
         .single();
+
+      console.log(`[Analytics] Looking for channel ${channelId}, found:`, dbChannel?.id || 'none');
 
       if (dbChannel) {
         for (const [videoId, analytics] of Object.entries(videoAnalytics)) {
