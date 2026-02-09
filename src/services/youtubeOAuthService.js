@@ -17,6 +17,8 @@ class YouTubeOAuthService {
     this.connections = [];
     this.listeners = new Set();
     this.refreshTimer = null;
+    this.refreshingIds = new Set(); // Track connections currently being refreshed
+    this.lastRefreshAttempt = {}; // Track last refresh attempt time per connection
   }
 
   /**
@@ -64,10 +66,7 @@ class YouTubeOAuthService {
    */
   async getConnections() {
     const token = await this.getAuthToken();
-    console.log('[YouTubeOAuth] getConnections - token exists:', !!token);
-
     if (!token) {
-      console.log('[YouTubeOAuth] No auth token, returning empty connections');
       this.connections = [];
       this.notifyListeners();
       return [];
@@ -80,19 +79,13 @@ class YouTubeOAuthService {
         }
       });
 
-      console.log('[YouTubeOAuth] Status response:', response.status, response.statusText);
-
       if (!response.ok) {
-        console.warn('[YouTubeOAuth] Failed to fetch OAuth connections:', response.status);
+        console.warn('Failed to fetch OAuth connections:', response.status);
         return this.connections;
       }
 
       const data = await response.json();
-      console.log('[YouTubeOAuth] Response data:', data);
-
-      const connections = data.connections;
-      this.connections = connections || [];
-      console.log('[YouTubeOAuth] Connections loaded:', this.connections.length);
+      this.connections = data.connections || [];
       this.notifyListeners();
 
       // Schedule auto-refresh for expiring tokens
@@ -100,7 +93,7 @@ class YouTubeOAuthService {
 
       return this.connections;
     } catch (error) {
-      console.error('[YouTubeOAuth] Error fetching OAuth connections:', error);
+      console.error('Error fetching OAuth connections:', error);
       return this.connections;
     }
   }
@@ -197,14 +190,20 @@ class YouTubeOAuthService {
       this.refreshTimer = null;
     }
 
-    // Find connections that need refresh soon
-    const TEN_MINUTES = 10 * 60 * 1000;
-    const connectionsNeedingRefresh = this.connections.filter(conn =>
-      conn.is_active &&
-      !conn.connection_error &&
-      conn.expiresInSeconds > 0 &&
-      conn.expiresInSeconds < 600 // Less than 10 minutes
-    );
+    // Find connections that need refresh soon (excluding those recently attempted)
+    const now = Date.now();
+    const MIN_REFRESH_INTERVAL = 60000;
+
+    const connectionsNeedingRefresh = this.connections.filter(conn => {
+      // Skip if recently attempted refresh
+      const lastAttempt = this.lastRefreshAttempt[conn.id] || 0;
+      if (now - lastAttempt < MIN_REFRESH_INTERVAL) return false;
+
+      return conn.is_active &&
+        !conn.connection_error &&
+        conn.expiresInSeconds > 0 &&
+        conn.expiresInSeconds < 600; // Less than 10 minutes
+    });
 
     if (connectionsNeedingRefresh.length === 0) {
       // Check again in 5 minutes
@@ -215,9 +214,10 @@ class YouTubeOAuthService {
     // Find the soonest expiring token
     const soonestExpiry = Math.min(...connectionsNeedingRefresh.map(c => c.expiresInSeconds));
 
-    // Refresh 1 minute before expiry, or immediately if less than 1 minute
-    const refreshIn = Math.max(0, (soonestExpiry - 60) * 1000);
+    // Refresh 1 minute before expiry, minimum 5 seconds from now to prevent tight loops
+    const refreshIn = Math.max(5000, (soonestExpiry - 60) * 1000);
 
+    console.log(`[YouTubeOAuth] Scheduling auto-refresh in ${Math.round(refreshIn/1000)}s`);
     this.refreshTimer = setTimeout(() => this.checkAndRefreshExpiring(), refreshIn);
   }
 
@@ -225,16 +225,35 @@ class YouTubeOAuthService {
    * Check all connections and refresh those expiring soon
    */
   async checkAndRefreshExpiring() {
-    const connections = await this.getConnections();
+    // Use cached connections to avoid triggering another fetch cycle
+    const connections = this.connections;
+    const now = Date.now();
+    const MIN_REFRESH_INTERVAL = 60000; // Don't retry refresh for 60 seconds
 
     for (const conn of connections) {
+      // Skip if already refreshing or recently attempted
+      if (this.refreshingIds.has(conn.id)) {
+        console.log(`[YouTubeOAuth] Skipping ${conn.youtube_channel_title} - refresh in progress`);
+        continue;
+      }
+
+      const lastAttempt = this.lastRefreshAttempt[conn.id] || 0;
+      if (now - lastAttempt < MIN_REFRESH_INTERVAL) {
+        console.log(`[YouTubeOAuth] Skipping ${conn.youtube_channel_title} - recently attempted`);
+        continue;
+      }
+
       // Refresh if expiring in less than 5 minutes and no existing error
       if (conn.needsRefresh && !conn.connection_error && conn.is_active) {
         try {
-          console.log(`Auto-refreshing token for ${conn.youtube_channel_title}`);
+          this.refreshingIds.add(conn.id);
+          this.lastRefreshAttempt[conn.id] = now;
+          console.log(`[YouTubeOAuth] Auto-refreshing token for ${conn.youtube_channel_title}`);
           await this.refreshToken(conn.id);
         } catch (error) {
-          console.warn(`Auto-refresh failed for ${conn.youtube_channel_title}:`, error.message);
+          console.warn(`[YouTubeOAuth] Auto-refresh failed for ${conn.youtube_channel_title}:`, error.message);
+        } finally {
+          this.refreshingIds.delete(conn.id);
         }
       }
     }

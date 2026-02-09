@@ -238,7 +238,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
       const updatedClient = {
         ...editingClient,
         youtubeChannelUrl: youtubeChannelUrl.trim() || editingClient.youtubeChannelUrl,
-        backgroundImageUrl: backgroundImageUrl.trim() || null,
+        backgroundImageUrl: backgroundImageUrl.trim() || editingClient.backgroundImageUrl,
       };
 
       // Update in Supabase if synced
