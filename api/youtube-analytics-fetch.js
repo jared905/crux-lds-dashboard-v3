@@ -195,11 +195,59 @@ export default async function handler(req, res) {
       }
     }
 
+    // Update videos in the database with analytics data
+    // This is done server-side to bypass RLS restrictions
+    const { updateVideos } = req.body;
+    let updatedCount = 0;
+    let matchedCount = 0;
+
+    if (updateVideos !== false) {
+      // Find the channel in the database
+      const { data: dbChannel } = await supabase
+        .from('channels')
+        .select('id')
+        .eq('youtube_channel_id', channelId)
+        .single();
+
+      if (dbChannel) {
+        for (const [videoId, analytics] of Object.entries(videoAnalytics)) {
+          // Check if video exists and belongs to this channel
+          const { data: existingVideo } = await supabase
+            .from('videos')
+            .select('id')
+            .eq('youtube_video_id', videoId)
+            .eq('channel_id', dbChannel.id)
+            .single();
+
+          if (existingVideo) {
+            matchedCount++;
+            const { error: updateError } = await supabase
+              .from('videos')
+              .update({
+                impressions: analytics.impressions || null,
+                ctr: analytics.ctr || null,
+                avg_view_percentage: analytics.avgViewPercentage ? analytics.avgViewPercentage / 100 : null,
+                watch_hours: analytics.watchHours || null,
+                subscribers_gained: analytics.subscribersGained || null,
+                last_synced_at: new Date().toISOString()
+              })
+              .eq('id', existingVideo.id);
+
+            if (!updateError) {
+              updatedCount++;
+            }
+          }
+        }
+      }
+    }
+
     return res.status(200).json({
       success: true,
       dateRange: { start, end },
       videoCount: Object.keys(videoAnalytics).length,
-      analytics: videoAnalytics
+      analytics: videoAnalytics,
+      updatedCount,
+      matchedCount
     });
 
   } catch (error) {

@@ -408,67 +408,13 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
         throw new Error(result.error || 'Failed to fetch analytics');
       }
 
-      setAnalyticsStatus(prev => ({ ...prev, [connection.id]: { stage: 'updating', message: `Updating ${result.videoCount} videos...` } }));
+      // The backend now handles updating videos directly (bypasses RLS)
+      const { videoCount, matchedCount, updatedCount } = result;
 
-      // Update videos in the database with analytics data
-      const analyticsMap = result.analytics;
-      let updatedCount = 0;
-      let matchedCount = 0;
-
-      const analyticsVideoIds = Object.keys(analyticsMap);
-      console.log(`[Analytics Sync] Received analytics for ${analyticsVideoIds.length} videos`);
-      console.log(`[Analytics Sync] Sample video IDs from Analytics API:`, analyticsVideoIds.slice(0, 5));
-
-      for (const [videoId, analytics] of Object.entries(analyticsMap)) {
-        // First check if the video exists
-        const { data: existingVideo } = await supabase
-          .from('videos')
-          .select('id')
-          .eq('youtube_video_id', videoId)
-          .single();
-
-        if (existingVideo) {
-          matchedCount++;
-          const { error: updateError } = await supabase
-            .from('videos')
-            .update({
-              impressions: analytics.impressions || null,
-              ctr: analytics.ctr || null,
-              avg_view_percentage: analytics.avgViewPercentage ? analytics.avgViewPercentage / 100 : null,
-              watch_hours: analytics.watchHours || null,
-              subscribers_gained: analytics.subscribersGained || null,
-              last_synced_at: new Date().toISOString()
-            })
-            .eq('youtube_video_id', videoId);
-
-          if (!updateError) {
-            updatedCount++;
-          }
-        }
-      }
-
-      console.log(`[Analytics Sync] Matched ${matchedCount} videos, updated ${updatedCount}`);
+      console.log(`[Analytics Sync] Fetched analytics for ${videoCount} videos, matched ${matchedCount}, updated ${updatedCount}`);
 
       if (matchedCount === 0) {
-        // Check what video IDs exist in the database for this channel
-        const { data: dbChannel } = await supabase
-          .from('channels')
-          .select('id')
-          .eq('youtube_channel_id', connection.youtube_channel_id)
-          .single();
-
-        if (dbChannel) {
-          const { data: dbVideos } = await supabase
-            .from('videos')
-            .select('youtube_video_id')
-            .eq('channel_id', dbChannel.id)
-            .limit(5);
-
-          console.log(`[Analytics Sync] Sample video IDs in database:`, dbVideos?.map(v => v.youtube_video_id));
-          console.log(`[Analytics Sync] DB videos start with 'csv_':`, dbVideos?.some(v => v.youtube_video_id?.startsWith('csv_')));
-        }
-
-        setError(`Analytics fetched for ${analyticsVideoIds.length} videos, but none matched videos in your database. Click "Sync Videos" first to fetch videos with proper YouTube IDs.`);
+        setError(`Analytics fetched for ${videoCount} videos, but none matched videos in your database. Click "Sync Videos" first to fetch videos with proper YouTube IDs.`);
       } else {
         setSuccess(`Updated analytics for ${updatedCount} of ${matchedCount} matched videos!`);
       }
