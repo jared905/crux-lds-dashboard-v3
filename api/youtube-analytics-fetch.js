@@ -1,0 +1,209 @@
+/**
+ * Vercel Serverless Function - YouTube Analytics Fetch
+ * Fetches analytics data (impressions, CTR, retention, watch hours) for videos
+ * using the YouTube Analytics API.
+ */
+
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
+
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+// Get encryption key from environment
+function getEncryptionKey() {
+  const keyBase64 = process.env.TOKEN_ENCRYPTION_KEY;
+  if (!keyBase64) {
+    throw new Error('TOKEN_ENCRYPTION_KEY not configured');
+  }
+  return Buffer.from(keyBase64, 'base64');
+}
+
+// AES-256-GCM decryption
+function decryptToken(encrypted) {
+  const key = getEncryptionKey();
+  const [ivB64, dataB64, tagB64] = encrypted.split(':');
+
+  const iv = Buffer.from(ivB64, 'base64');
+  const data = Buffer.from(dataB64, 'base64');
+  const authTag = Buffer.from(tagB64, 'base64');
+
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(authTag);
+
+  let decrypted = decipher.update(data, null, 'utf8');
+  decrypted += decipher.final('utf8');
+
+  return decrypted;
+}
+
+export default async function handler(req, res) {
+  // CORS headers
+  const allowedOrigin = process.env.FRONTEND_URL || process.env.VERCEL_URL || '*';
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    // Verify user authentication
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authorization header required' });
+    }
+
+    const token = authHeader.slice(7);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
+
+    const { connectionId, videoIds, startDate, endDate } = req.body;
+
+    if (!connectionId) {
+      return res.status(400).json({ error: 'connectionId required' });
+    }
+
+    // Get the OAuth connection
+    const { data: connection, error: connError } = await supabase
+      .from('youtube_oauth_connections')
+      .select('*')
+      .eq('id', connectionId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (connError || !connection) {
+      return res.status(404).json({ error: 'Connection not found' });
+    }
+
+    // Decrypt access token
+    let accessToken;
+    try {
+      accessToken = decryptToken(connection.encrypted_access_token);
+    } catch (e) {
+      console.error('Token decryption failed:', e.message);
+      return res.status(500).json({ error: 'Failed to decrypt token' });
+    }
+
+    const channelId = connection.youtube_channel_id;
+
+    // Calculate date range (default to last 28 days)
+    const end = endDate || new Date().toISOString().split('T')[0];
+    const start = startDate || new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Fetch video-level analytics
+    // The Analytics API returns data per video when using video dimension
+    const analyticsUrl = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
+    analyticsUrl.searchParams.append('ids', `channel==${channelId}`);
+    analyticsUrl.searchParams.append('startDate', start);
+    analyticsUrl.searchParams.append('endDate', end);
+    analyticsUrl.searchParams.append('dimensions', 'video');
+    analyticsUrl.searchParams.append('metrics', 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained');
+    analyticsUrl.searchParams.append('sort', '-views');
+    analyticsUrl.searchParams.append('maxResults', '200');
+
+    // If specific video IDs provided, filter to those
+    if (videoIds && videoIds.length > 0) {
+      analyticsUrl.searchParams.append('filters', `video==${videoIds.join(',')}`);
+    }
+
+    const analyticsResponse = await fetch(analyticsUrl.toString(), {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!analyticsResponse.ok) {
+      const errorData = await analyticsResponse.json();
+      console.error('Analytics API error:', errorData);
+      return res.status(200).json({
+        success: false,
+        error: errorData.error?.message || 'Failed to fetch analytics',
+        errorCode: errorData.error?.errors?.[0]?.reason
+      });
+    }
+
+    const analyticsData = await analyticsResponse.json();
+
+    // Now fetch impressions data separately (different metric set)
+    const impressionsUrl = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
+    impressionsUrl.searchParams.append('ids', `channel==${channelId}`);
+    impressionsUrl.searchParams.append('startDate', start);
+    impressionsUrl.searchParams.append('endDate', end);
+    impressionsUrl.searchParams.append('dimensions', 'video');
+    impressionsUrl.searchParams.append('metrics', 'views,impressions,impressionsClickThroughRate');
+    impressionsUrl.searchParams.append('sort', '-views');
+    impressionsUrl.searchParams.append('maxResults', '200');
+
+    if (videoIds && videoIds.length > 0) {
+      impressionsUrl.searchParams.append('filters', `video==${videoIds.join(',')}`);
+    }
+
+    const impressionsResponse = await fetch(impressionsUrl.toString(), {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    let impressionsData = null;
+    if (impressionsResponse.ok) {
+      impressionsData = await impressionsResponse.json();
+    }
+
+    // Combine the data by video ID
+    // analyticsData columns: video, views, estimatedMinutesWatched, averageViewPercentage, subscribersGained
+    // impressionsData columns: video, views, impressions, impressionsClickThroughRate
+
+    const videoAnalytics = {};
+
+    // Process main analytics data
+    if (analyticsData.rows) {
+      for (const row of analyticsData.rows) {
+        const videoId = row[0];
+        videoAnalytics[videoId] = {
+          views: row[1] || 0,
+          watchMinutes: row[2] || 0,
+          watchHours: (row[2] || 0) / 60,
+          avgViewPercentage: row[3] || 0,
+          subscribersGained: row[4] || 0
+        };
+      }
+    }
+
+    // Merge impressions data
+    if (impressionsData?.rows) {
+      for (const row of impressionsData.rows) {
+        const videoId = row[0];
+        if (!videoAnalytics[videoId]) {
+          videoAnalytics[videoId] = {};
+        }
+        videoAnalytics[videoId].impressions = row[2] || 0;
+        videoAnalytics[videoId].ctr = row[3] || 0; // Already as decimal (0.05 = 5%)
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      dateRange: { start, end },
+      videoCount: Object.keys(videoAnalytics).length,
+      analytics: videoAnalytics
+    });
+
+  } catch (error) {
+    console.error('Analytics fetch error:', error);
+    return res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+}

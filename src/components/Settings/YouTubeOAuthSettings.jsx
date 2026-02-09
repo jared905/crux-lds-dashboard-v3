@@ -21,7 +21,8 @@ import {
   Shield,
   ExternalLink,
   Loader2,
-  Plus
+  Plus,
+  Activity
 } from 'lucide-react';
 import youtubeOAuthService from '../../services/youtubeOAuthService';
 import { supabase } from '../../services/supabaseClient';
@@ -83,6 +84,8 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
   const [syncStatus, setSyncStatus] = useState({});
   const [testingAnalytics, setTestingAnalytics] = useState(null);
   const [analyticsTestResult, setAnalyticsTestResult] = useState({});
+  const [syncingAnalytics, setSyncingAnalytics] = useState(null);
+  const [analyticsStatus, setAnalyticsStatus] = useState({});
 
   useEffect(() => {
     loadConnections();
@@ -370,6 +373,95 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
     }
   };
 
+  const handleSyncAnalytics = async (connection) => {
+    if (!supabase || syncingAnalytics) return;
+
+    // Check if analytics test passed for this connection
+    const testResult = analyticsTestResult[connection.id];
+    if (!testResult?.hasAccess) {
+      setError('Analytics access not confirmed. Please click "Test Analytics" first.');
+      return;
+    }
+
+    setSyncingAnalytics(connection.id);
+    setAnalyticsStatus(prev => ({ ...prev, [connection.id]: { stage: 'fetching', message: 'Fetching analytics data...' } }));
+    setError(null);
+
+    try {
+      const token = await youtubeOAuthService.getAuthToken();
+
+      // Fetch analytics from our API
+      const response = await fetch('/api/youtube-analytics-fetch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          connectionId: connection.id
+        })
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch analytics');
+      }
+
+      setAnalyticsStatus(prev => ({ ...prev, [connection.id]: { stage: 'updating', message: `Updating ${result.videoCount} videos...` } }));
+
+      // Update videos in the database with analytics data
+      const analyticsMap = result.analytics;
+      let updatedCount = 0;
+
+      for (const [videoId, analytics] of Object.entries(analyticsMap)) {
+        const { error: updateError } = await supabase
+          .from('videos')
+          .update({
+            impressions: analytics.impressions || null,
+            ctr: analytics.ctr || null,
+            avg_view_percentage: analytics.avgViewPercentage ? analytics.avgViewPercentage / 100 : null,
+            watch_hours: analytics.watchHours || null,
+            subscribers_gained: analytics.subscribersGained || null,
+            last_synced_at: new Date().toISOString()
+          })
+          .eq('youtube_video_id', videoId);
+
+        if (!updateError) {
+          updatedCount++;
+        }
+      }
+
+      setSuccess(`Updated analytics for ${updatedCount} videos!`);
+      setAnalyticsStatus(prev => ({ ...prev, [connection.id]: { stage: 'complete', message: `${updatedCount} videos updated` } }));
+
+      // Notify parent to refresh
+      if (onClientsUpdate) {
+        onClientsUpdate(connection.youtube_channel_title);
+      }
+
+      // Clear status after delay
+      setTimeout(() => {
+        setAnalyticsStatus(prev => {
+          const newStatus = { ...prev };
+          delete newStatus[connection.id];
+          return newStatus;
+        });
+      }, 3000);
+
+    } catch (err) {
+      console.error('Failed to sync analytics:', err);
+      setError(`Failed to sync analytics: ${err.message}`);
+      setAnalyticsStatus(prev => {
+        const newStatus = { ...prev };
+        delete newStatus[connection.id];
+        return newStatus;
+      });
+    } finally {
+      setSyncingAnalytics(null);
+    }
+  };
+
   return (
     <div style={cardStyle}>
       {/* Header */}
@@ -560,8 +652,48 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                     )}
                     {syncingConnection === conn.id ? "Syncing..." : "Sync Videos"}
                   </button>
+                  {/* Sync Analytics button - only show if analytics access confirmed */}
+                  {analyticsTestResult[conn.id]?.hasAccess && (
+                    <button
+                      onClick={() => handleSyncAnalytics(conn)}
+                      disabled={syncingAnalytics === conn.id || conn.connection_error}
+                      style={{
+                        ...buttonStyle,
+                        background: syncingAnalytics === conn.id ? "#333" : "#8b5cf6",
+                        border: "none",
+                        color: "#fff",
+                        opacity: (syncingAnalytics === conn.id || conn.connection_error) ? 0.6 : 1,
+                        cursor: (syncingAnalytics === conn.id || conn.connection_error) ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {syncingAnalytics === conn.id ? (
+                        <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                      ) : (
+                        <Activity size={14} />
+                      )}
+                      {syncingAnalytics === conn.id ? "Syncing..." : "Sync Analytics"}
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {/* Analytics Sync Status */}
+              {analyticsStatus[conn.id] && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: "8px",
+                  width: "100%", padding: "10px 12px",
+                  background: analyticsStatus[conn.id].stage === 'complete' ? "rgba(34, 197, 94, 0.1)" : "rgba(139, 92, 246, 0.1)",
+                  borderRadius: "6px", fontSize: "12px",
+                  color: analyticsStatus[conn.id].stage === 'complete' ? "#22c55e" : "#a78bfa"
+                }}>
+                  {analyticsStatus[conn.id].stage === 'complete' ? (
+                    <CheckCircle2 size={14} />
+                  ) : (
+                    <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                  )}
+                  {analyticsStatus[conn.id].message}
+                </div>
+              )}
 
               {/* Analytics Test Result */}
               {analyticsTestResult[conn.id] && (
