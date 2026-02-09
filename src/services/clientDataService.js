@@ -7,6 +7,7 @@
  */
 
 import { supabase } from './supabaseClient';
+import { youtubeAPI, determineVideoType } from './youtubeAPI';
 
 /**
  * Generate a deterministic video ID from CSV data
@@ -382,6 +383,118 @@ export async function deleteClientFromSupabase(channelId) {
 }
 
 /**
+ * Fetch and store videos for an OAuth-connected channel
+ * Uses the YouTube API to fetch recent videos and stores them in the database
+ *
+ * @param {string} youtubeChannelId - The YouTube channel ID (UC...)
+ * @param {string} supabaseChannelId - The Supabase channel UUID
+ * @param {number} maxVideos - Maximum number of videos to fetch (default 50)
+ * @param {Function} onProgress - Optional progress callback
+ * @returns {Object} - { videoCount, success, error }
+ */
+export async function syncOAuthChannelVideos(youtubeChannelId, supabaseChannelId, maxVideos = 100, onProgress = null) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  try {
+    if (onProgress) onProgress({ stage: 'fetching', message: 'Fetching channel details...' });
+
+    // Fetch channel details to get uploads playlist ID
+    const channelDetails = await youtubeAPI.fetchChannelDetails(youtubeChannelId);
+    if (!channelDetails?.uploads_playlist_id) {
+      throw new Error('Could not find uploads playlist for this channel');
+    }
+
+    if (onProgress) onProgress({ stage: 'videos', message: 'Fetching videos...' });
+
+    // Fetch videos from the uploads playlist
+    const videos = await youtubeAPI.fetchChannelVideos(channelDetails.uploads_playlist_id, maxVideos);
+    if (!videos || videos.length === 0) {
+      return { videoCount: 0, success: true, message: 'No videos found on this channel' };
+    }
+
+    if (onProgress) onProgress({ stage: 'detecting', message: 'Detecting Shorts vs long-form...' });
+
+    // Detect which videos are Shorts
+    const shortsResults = await youtubeAPI.checkIfShortBatch(videos);
+
+    if (onProgress) onProgress({ stage: 'storing', message: `Storing ${videos.length} videos...` });
+
+    // Prepare video records for database
+    const videosToUpsert = videos.map(video => {
+      const isShort = shortsResults.get(video.youtube_video_id);
+      const videoType = determineVideoType(isShort, video.duration_seconds);
+
+      return {
+        youtube_video_id: video.youtube_video_id,
+        channel_id: supabaseChannelId,
+        title: video.title,
+        description: video.description?.substring(0, 500) || null,
+        published_at: video.published_at,
+        duration_seconds: video.duration_seconds || 0,
+        video_type: videoType,
+        is_short: videoType === 'short',
+        view_count: video.view_count || 0,
+        like_count: video.like_count || 0,
+        comment_count: video.comment_count || 0,
+        thumbnail_url: video.thumbnail_url || null,
+        // OAuth videos don't have YouTube Studio metrics
+        impressions: null,
+        ctr: null,
+        avg_view_percentage: null,
+        subscribers_gained: null,
+        watch_hours: null,
+        content_source: channelDetails.name,
+        last_synced_at: new Date().toISOString(),
+      };
+    });
+
+    // Upsert videos in batches
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < videosToUpsert.length; i += BATCH_SIZE) {
+      const batch = videosToUpsert.slice(i, i + BATCH_SIZE);
+      const { error: videosError } = await supabase
+        .from('videos')
+        .upsert(batch, { onConflict: 'youtube_video_id' });
+
+      if (videosError) {
+        console.error('Error upserting videos batch:', videosError);
+        throw videosError;
+      }
+    }
+
+    // Update channel metadata
+    await supabase
+      .from('channels')
+      .update({
+        subscriber_count: channelDetails.subscriber_count || 0,
+        video_count: channelDetails.video_count || videos.length,
+        thumbnail_url: channelDetails.thumbnail_url || null,
+        last_synced_at: new Date().toISOString(),
+      })
+      .eq('id', supabaseChannelId);
+
+    if (onProgress) onProgress({ stage: 'complete', message: `Synced ${videos.length} videos` });
+
+    return {
+      videoCount: videos.length,
+      success: true,
+      channelDetails: {
+        name: channelDetails.name,
+        subscriberCount: channelDetails.subscriber_count,
+        videoCount: channelDetails.video_count,
+      }
+    };
+  } catch (error) {
+    console.error('Error syncing OAuth channel videos:', error);
+    return {
+      videoCount: 0,
+      success: false,
+      error: error.message || 'Failed to sync videos'
+    };
+  }
+}
+
+/**
  * Check if Supabase is configured and accessible
  */
 export async function checkSupabaseConnection() {
@@ -692,6 +805,7 @@ export default {
   getClientsFromSupabase,
   deleteClientFromSupabase,
   checkSupabaseConnection,
+  syncOAuthChannelVideos,
   // Report periods
   PERIOD_TYPES,
   calculatePeriodDates,
