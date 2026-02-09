@@ -189,10 +189,11 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
     setSyncProgress({ stage: 'creating', message: 'Creating client...' });
 
     try {
-      // Create a basic client entry in the channels table
+      // Create or update the client entry in the channels table
+      // Using upsert to handle re-adding previously deleted channels
       const { data: newClient, error: insertError } = await supabase
         .from('channels')
-        .insert({
+        .upsert({
           youtube_channel_id: pendingClientInfo.channelId,
           name: pendingClientInfo.channelName,
           custom_url: `https://www.youtube.com/channel/${pendingClientInfo.channelId}`,
@@ -203,7 +204,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
           video_count: 0,
           created_via: 'oauth',
           last_synced_at: new Date().toISOString()
-        })
+        }, { onConflict: 'youtube_channel_id' })
         .select()
         .single();
 
@@ -305,10 +306,11 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
 
       let channelId;
       if (findError || !existingChannel) {
-        // Create a new client channel
+        // Create or update the client channel
+        // Using upsert to handle re-adding previously deleted channels
         const { data: newChannel, error: insertError } = await supabase
           .from('channels')
-          .insert({
+          .upsert({
             youtube_channel_id: connection.youtube_channel_id,
             name: connection.youtube_channel_title,
             custom_url: `https://www.youtube.com/channel/${connection.youtube_channel_id}`,
@@ -319,7 +321,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
             video_count: 0,
             created_via: 'oauth',
             last_synced_at: new Date().toISOString()
-          })
+          }, { onConflict: 'youtube_channel_id' })
           .select()
           .single();
 
