@@ -413,26 +413,45 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
       // Update videos in the database with analytics data
       const analyticsMap = result.analytics;
       let updatedCount = 0;
+      let matchedCount = 0;
+
+      console.log(`[Analytics Sync] Received analytics for ${Object.keys(analyticsMap).length} videos`);
 
       for (const [videoId, analytics] of Object.entries(analyticsMap)) {
-        const { error: updateError } = await supabase
+        // First check if the video exists
+        const { data: existingVideo } = await supabase
           .from('videos')
-          .update({
-            impressions: analytics.impressions || null,
-            ctr: analytics.ctr || null,
-            avg_view_percentage: analytics.avgViewPercentage ? analytics.avgViewPercentage / 100 : null,
-            watch_hours: analytics.watchHours || null,
-            subscribers_gained: analytics.subscribersGained || null,
-            last_synced_at: new Date().toISOString()
-          })
-          .eq('youtube_video_id', videoId);
+          .select('id')
+          .eq('youtube_video_id', videoId)
+          .single();
 
-        if (!updateError) {
-          updatedCount++;
+        if (existingVideo) {
+          matchedCount++;
+          const { error: updateError } = await supabase
+            .from('videos')
+            .update({
+              impressions: analytics.impressions || null,
+              ctr: analytics.ctr || null,
+              avg_view_percentage: analytics.avgViewPercentage ? analytics.avgViewPercentage / 100 : null,
+              watch_hours: analytics.watchHours || null,
+              subscribers_gained: analytics.subscribersGained || null,
+              last_synced_at: new Date().toISOString()
+            })
+            .eq('youtube_video_id', videoId);
+
+          if (!updateError) {
+            updatedCount++;
+          }
         }
       }
 
-      setSuccess(`Updated analytics for ${updatedCount} videos!`);
+      console.log(`[Analytics Sync] Matched ${matchedCount} videos, updated ${updatedCount}`);
+
+      if (matchedCount === 0) {
+        setError(`Analytics fetched for ${Object.keys(analyticsMap).length} videos, but none matched videos in your database. Try "Sync Videos" first.`);
+      } else {
+        setSuccess(`Updated analytics for ${updatedCount} of ${matchedCount} matched videos!`);
+      }
       setAnalyticsStatus(prev => ({ ...prev, [connection.id]: { stage: 'complete', message: `${updatedCount} videos updated` } }));
 
       // Notify parent to refresh
