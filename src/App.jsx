@@ -45,7 +45,11 @@ export default function App() {
   console.log('[Auth] State:', { user: user?.email || null, authLoading, isAdmin });
 
   const [sidebar, setSidebar] = useState(false);
-  const [tab, setTab] = useState("dashboard");
+  const [tab, setTab] = useState(() => {
+    // Check URL params for tab (used by OAuth callback redirect)
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') || 'dashboard';
+  });
   
   // Multi-client state with localStorage persistence
   const [clients, setClients] = useState(() => {
