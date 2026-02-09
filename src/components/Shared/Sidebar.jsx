@@ -20,6 +20,7 @@ import {
   Building,
   Key,
   Shield,
+  ShieldCheck,
   Table,
   ClipboardCheck,
   // Section icons
@@ -86,6 +87,7 @@ const SECTIONS = [
     tabs: [
       { id: "clients", label: "Clients", icon: Building },
       { id: "api-keys", label: "API Keys", icon: Key },
+      { id: "security", label: "Security", icon: ShieldCheck },
       { id: "standardizer", label: "Data Standardizer", icon: Table },
       { id: "user-management", label: "User Management", icon: Shield, adminOnly: true },
     ],

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Key, DollarSign, Activity, AlertCircle, CheckCircle2, ExternalLink } from 'lucide-react';
 import claudeAPI from '../../services/claudeAPI';
 import youtubeAPI from '../../services/youtubeAPI';
+import YouTubeOAuthSettings from './YouTubeOAuthSettings';
 
 const inputStyle = {
   flex: 1,
@@ -40,7 +41,7 @@ const statBox = {
   textAlign: "center",
 };
 
-export default function APISettings() {
+export default function APISettings({ onNavigateToSecurity }) {
   const [claudeKey, setClaudeKey] = useState('');
   const [youtubeKey, setYoutubeKey] = useState('');
   const [monthlyBudget, setMonthlyBudget] = useState(20);
@@ -193,6 +194,9 @@ export default function APISettings() {
           </div>
         </div>
       </div>
+
+      {/* YouTube OAuth Connection */}
+      <YouTubeOAuthSettings onNavigateToSecurity={onNavigateToSecurity} />
 
       {/* Usage Statistics */}
       {usageStats && (

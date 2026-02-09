@@ -31,6 +31,7 @@ import VideoIdeaGenerator from "./components/ContentLab/VideoIdeaGenerator.jsx";
 import BriefsList from "./components/Strategy/BriefsList.jsx";
 import UserManagement from "./components/Admin/UserManagement.jsx";
 import APISettings from "./components/Settings/APISettings.jsx";
+import SecurityDocs from "./components/Settings/SecurityDocs.jsx";
 
 // Lazy-loaded audit feature
 const AuditPage = lazy(() => import("./components/Audit/AuditPage.jsx"));
@@ -965,7 +966,12 @@ export default function App() {
 
         {/* API Keys */}
         {tab === "api-keys" && (
-          <APISettings />
+          <APISettings onNavigateToSecurity={() => setTab("security")} />
+        )}
+
+        {/* Security Documentation */}
+        {tab === "security" && (
+          <SecurityDocs />
         )}
 
         {/* User Management - Admin Only */}
