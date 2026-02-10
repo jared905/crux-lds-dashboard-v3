@@ -60,6 +60,9 @@ export default async function handler(req, res) {
         last_used_at,
         last_refreshed_at,
         connection_error,
+        reporting_job_id,
+        reporting_job_type,
+        last_report_downloaded_at,
         created_at,
         updated_at
       `)
