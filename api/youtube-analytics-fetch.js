@@ -202,12 +202,13 @@ export default async function handler(req, res) {
     const analyticsData = await analyticsResponse.json();
 
     // Now fetch impressions data separately (different metric set)
+    // Try videoThumbnailImpressions metrics (may work for non-content-owner channels)
     const impressionsUrl = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
     impressionsUrl.searchParams.append('ids', `channel==${channelId}`);
     impressionsUrl.searchParams.append('startDate', start);
     impressionsUrl.searchParams.append('endDate', end);
     impressionsUrl.searchParams.append('dimensions', 'video');
-    impressionsUrl.searchParams.append('metrics', 'views,impressions,impressionsClickThroughRate');
+    impressionsUrl.searchParams.append('metrics', 'views,videoThumbnailImpressions,videoThumbnailImpressionsClickRate');
     impressionsUrl.searchParams.append('sort', '-views');
     impressionsUrl.searchParams.append('maxResults', '200');
 
@@ -241,7 +242,7 @@ export default async function handler(req, res) {
 
     // Combine the data by video ID
     // analyticsData columns: video, views, estimatedMinutesWatched, averageViewPercentage, subscribersGained
-    // impressionsData columns: video, views, impressions, impressionsClickThroughRate
+    // impressionsData columns: video, views, videoThumbnailImpressions, videoThumbnailImpressionsClickRate
 
     const videoAnalytics = {};
 
