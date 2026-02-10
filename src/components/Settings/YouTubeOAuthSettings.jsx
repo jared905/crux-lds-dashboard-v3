@@ -22,7 +22,9 @@ import {
   ExternalLink,
   Loader2,
   Plus,
-  Activity
+  Activity,
+  BarChart3,
+  FileText
 } from 'lucide-react';
 import youtubeOAuthService from '../../services/youtubeOAuthService';
 import { supabase } from '../../services/supabaseClient';
@@ -85,6 +87,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
   const [analyticsTestResult, setAnalyticsTestResult] = useState({});
   const [lastSynced, setLastSynced] = useState({});
   const [syncing, setSyncing] = useState(null);
+  const [settingUpReporting, setSettingUpReporting] = useState(null);
+  const [syncingImpressions, setSyncingImpressions] = useState(null);
+  const [reportingStatus, setReportingStatus] = useState({});
 
   useEffect(() => {
     loadConnections();
@@ -421,6 +426,118 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
     }
   };
 
+  // Setup YouTube Reporting job for impressions/CTR data
+  const handleSetupReporting = async (connection) => {
+    if (!supabase || settingUpReporting) return;
+
+    setSettingUpReporting(connection.id);
+    setReportingStatus(prev => ({ ...prev, [connection.id]: { stage: 'setup', message: 'Setting up reporting job...' } }));
+    setError(null);
+
+    try {
+      const token = await youtubeOAuthService.getAuthToken();
+      const response = await fetch('/api/youtube-reporting-setup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ connectionId: connection.id })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setReportingStatus(prev => ({
+          ...prev,
+          [connection.id]: { stage: 'complete', message: result.message, jobId: result.jobId }
+        }));
+        setSuccess(`Reporting job created for ${connection.youtube_channel_title}. First report available in ~24 hours.`);
+        // Reload connections to get updated reporting_job_id
+        await loadConnections();
+      } else {
+        throw new Error(result.error || 'Failed to setup reporting');
+      }
+    } catch (err) {
+      console.error('Reporting setup failed:', err);
+      setError(`Reporting setup failed: ${err.message}`);
+      setReportingStatus(prev => {
+        const newStatus = { ...prev };
+        delete newStatus[connection.id];
+        return newStatus;
+      });
+    } finally {
+      setSettingUpReporting(null);
+    }
+  };
+
+  // Sync impressions/CTR from YouTube Reporting API
+  const handleSyncImpressions = async (connection) => {
+    if (!supabase || syncingImpressions) return;
+
+    setSyncingImpressions(connection.id);
+    setReportingStatus(prev => ({ ...prev, [connection.id]: { stage: 'syncing', message: 'Downloading impressions data...' } }));
+    setError(null);
+
+    try {
+      const token = await youtubeOAuthService.getAuthToken();
+      const response = await fetch('/api/youtube-reporting-fetch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ connectionId: connection.id })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        if (result.updatedCount > 0) {
+          setSuccess(`Updated impressions/CTR for ${result.updatedCount} videos from ${connection.youtube_channel_title}!`);
+        } else if (result.reportsAvailable === 0) {
+          setSuccess(result.message || 'No reports available yet. Check back in 24 hours.');
+        } else {
+          setSuccess(`Report downloaded. ${result.matchedCount} videos matched, ${result.updatedCount} updated.`);
+        }
+        setReportingStatus(prev => ({
+          ...prev,
+          [connection.id]: {
+            stage: 'complete',
+            message: `${result.updatedCount || 0} videos updated`,
+            lastReport: result.reportDate
+          }
+        }));
+
+        // Notify parent to refresh data
+        if (onClientsUpdate) {
+          onClientsUpdate(connection.youtube_channel_title);
+        }
+      } else {
+        throw new Error(result.error || 'Failed to sync impressions');
+      }
+
+      // Clear status after delay
+      setTimeout(() => {
+        setReportingStatus(prev => {
+          const newStatus = { ...prev };
+          delete newStatus[connection.id];
+          return newStatus;
+        });
+      }, 5000);
+    } catch (err) {
+      console.error('Impressions sync failed:', err);
+      setError(`Impressions sync failed: ${err.message}`);
+      setReportingStatus(prev => {
+        const newStatus = { ...prev };
+        delete newStatus[connection.id];
+        return newStatus;
+      });
+    } finally {
+      setSyncingImpressions(null);
+    }
+  };
+
   // Helper to format last synced time
   const formatLastSynced = (date) => {
     if (!date) return null;
@@ -636,6 +753,84 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                   {analyticsTestResult[conn.id]?.hasAccess && (
                     <span style={{ fontSize: "11px", color: "#22c55e", display: "flex", alignItems: "center", gap: "4px" }}>
                       <Activity size={12} /> Analytics
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Impressions/CTR Reporting Section */}
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                width: "100%", paddingTop: "12px", borderTop: "1px solid #333"
+              }}>
+                {reportingStatus[conn.id] ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#93c5fd" }}>
+                    {reportingStatus[conn.id].stage === 'complete' ? (
+                      <CheckCircle2 size={14} style={{ color: "#22c55e" }} />
+                    ) : (
+                      <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                    )}
+                    {reportingStatus[conn.id].message}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: "12px", color: "#666" }}>
+                    {conn.reporting_job_id ? (
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                        <FileText size={12} style={{ color: "#22c55e" }} />
+                        Reporting job active - sync for impressions/CTR
+                      </span>
+                    ) : (
+                      "Setup reporting to get impressions & CTR data"
+                    )}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  {/* Setup Reporting or Sync Impressions based on job status */}
+                  {!conn.reporting_job_id ? (
+                    <button
+                      onClick={() => handleSetupReporting(conn)}
+                      disabled={settingUpReporting === conn.id || conn.connection_error}
+                      style={{
+                        ...buttonStyle,
+                        background: settingUpReporting === conn.id ? "#333" : "rgba(139, 92, 246, 0.2)",
+                        border: "1px solid rgba(139, 92, 246, 0.4)",
+                        color: "#a78bfa",
+                        opacity: (settingUpReporting === conn.id || conn.connection_error) ? 0.6 : 1,
+                        cursor: (settingUpReporting === conn.id || conn.connection_error) ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {settingUpReporting === conn.id ? (
+                        <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                      ) : (
+                        <BarChart3 size={14} />
+                      )}
+                      {settingUpReporting === conn.id ? "Setting up..." : "Setup Reporting"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleSyncImpressions(conn)}
+                      disabled={syncingImpressions === conn.id || conn.connection_error}
+                      style={{
+                        ...buttonStyle,
+                        background: syncingImpressions === conn.id ? "#333" : "rgba(139, 92, 246, 0.2)",
+                        border: "1px solid rgba(139, 92, 246, 0.4)",
+                        color: "#a78bfa",
+                        opacity: (syncingImpressions === conn.id || conn.connection_error) ? 0.6 : 1,
+                        cursor: (syncingImpressions === conn.id || conn.connection_error) ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {syncingImpressions === conn.id ? (
+                        <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                      ) : (
+                        <BarChart3 size={14} />
+                      )}
+                      {syncingImpressions === conn.id ? "Syncing..." : "Sync Impressions"}
+                    </button>
+                  )}
+                  {/* Reporting job indicator */}
+                  {conn.reporting_job_id && (
+                    <span style={{ fontSize: "11px", color: "#a78bfa", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <FileText size={12} /> Job Active
                     </span>
                   )}
                 </div>
