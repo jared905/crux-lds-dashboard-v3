@@ -231,7 +231,7 @@ export default async function handler(req, res) {
         encrypted_access_token: encryptedAccessToken,
         encrypted_refresh_token: encryptedRefreshToken,
         token_expires_at: expiresAt.toISOString(),
-        scopes: ['https://www.googleapis.com/auth/youtube.readonly'],
+        scopes: ['https://www.googleapis.com/auth/youtube.readonly', 'https://www.googleapis.com/auth/yt-analytics.readonly', 'https://www.googleapis.com/auth/yt-analytics-monetary.readonly'],
         is_active: true,
         connection_error: null,
         updated_at: new Date().toISOString()
@@ -258,7 +258,7 @@ export default async function handler(req, res) {
       metadata: {
         channel_title: channelInfo.title,
         email: channelInfo.email,
-        scopes: ['youtube.readonly']
+        scopes: ['youtube.readonly', 'yt-analytics.readonly', 'yt-analytics-monetary.readonly']
       }
     });
 
