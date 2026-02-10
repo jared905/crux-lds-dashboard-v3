@@ -209,13 +209,15 @@ export default async function handler(req, res) {
     let impressionsData = null;
     let impressionsError = null;
     let testedMetrics = [];
+    let channelSummary = null; // Channel-level totals (if available)
 
     // Try multiple metric combinations to find what works
+    // Key insight: thumbnailImpressions may only work with NO dimension (channel totals)
     const metricAttempts = [
+      { name: 'thumbnailImpressions-none', metrics: 'videoThumbnailImpressions,videoThumbnailImpressionsClickRate', dimension: null },
+      { name: 'thumbnailImpressions-day', metrics: 'videoThumbnailImpressions,videoThumbnailImpressionsClickRate', dimension: 'day' },
       { name: 'annotationImpressions', metrics: 'views,annotationImpressions,annotationClickableImpressions', dimension: 'video' },
-      { name: 'cardImpressions', metrics: 'views,cardImpressions,cardClickRate', dimension: 'video' },
-      { name: 'thumbnailImpressions-day', metrics: 'views,videoThumbnailImpressions,videoThumbnailImpressionsClickRate', dimension: 'day' },
-      { name: 'annotationImpressions-day', metrics: 'views,annotationImpressions,annotationClickableImpressions', dimension: 'day' }
+      { name: 'cardImpressions', metrics: 'views,cardImpressions,cardClickRate', dimension: 'video' }
     ];
 
     for (const attempt of metricAttempts) {
@@ -223,8 +225,11 @@ export default async function handler(req, res) {
       testUrl.searchParams.append('ids', `channel==${channelId}`);
       testUrl.searchParams.append('startDate', start);
       testUrl.searchParams.append('endDate', impressionsEnd);
-      testUrl.searchParams.append('dimensions', attempt.dimension);
       testUrl.searchParams.append('metrics', attempt.metrics);
+      // Only add dimension if specified (null = channel totals)
+      if (attempt.dimension) {
+        testUrl.searchParams.append('dimensions', attempt.dimension);
+      }
       if (attempt.dimension === 'video') {
         testUrl.searchParams.append('maxResults', '200');
       }
@@ -240,7 +245,21 @@ export default async function handler(req, res) {
       if (testResponse.ok) {
         const data = await testResponse.json();
         console.log(`[Analytics] ${attempt.name} SUCCESS: ${data.rows?.length || 0} rows`);
+        if (data.rows?.length > 0) {
+          console.log(`[Analytics] ${attempt.name} sample row:`, JSON.stringify(data.rows[0]));
+        }
         testedMetrics.push({ name: attempt.name, success: true, rows: data.rows?.length || 0 });
+
+        // Capture channel-level totals (no dimension or day dimension)
+        if (!attempt.dimension && data.rows?.length > 0 && !channelSummary) {
+          // No dimension = single row with totals [impressions, ctr]
+          channelSummary = {
+            totalImpressions: data.rows[0][0] ?? 0,
+            averageCtr: data.rows[0][1] ?? 0,
+            period: `${start} to ${impressionsEnd}`
+          };
+          console.log(`[Analytics] Channel summary:`, channelSummary);
+        }
 
         // If this is a per-video metric and we got data, use it
         if (attempt.dimension === 'video' && data.rows?.length > 0) {
@@ -355,7 +374,8 @@ export default async function handler(req, res) {
       matchedCount,
       impressionsAvailable: impressionsData?.rows?.length > 0,
       impressionsError: impressionsError || null,
-      testedMetrics: testedMetrics
+      testedMetrics: testedMetrics,
+      channelSummary: channelSummary // Channel-level impressions/CTR if available
     });
 
   } catch (error) {
