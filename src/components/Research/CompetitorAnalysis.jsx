@@ -66,6 +66,7 @@ const INDUSTRY_FILTERS = [
 ];
 
 export default function CompetitorAnalysis({ rows, activeClient }) {
+  console.log('[CompetitorAnalysis] MOUNTED — build v2', { activeClientId: activeClient?.id, activeClientName: activeClient?.name });
   const [apiKey, setApiKey] = useState(localStorage.getItem('yt_api_key') || "");
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
@@ -199,11 +200,15 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
   // Load competitors from Supabase when activeClient or masterView changes
   useEffect(() => {
+    console.log('[Competitors] useEffect fired:', { activeClientId: activeClient?.id, masterView });
     // Clear previous data immediately to prevent showing wrong client's competitors
     setSupabaseCompetitors([]);
     setSelectedChannelId(null);
 
-    if (!activeClient?.id && !masterView) return;
+    if (!activeClient?.id && !masterView) {
+      console.log('[Competitors] Early return — no activeClient.id and not masterView');
+      return;
+    }
 
     const loadFromSupabase = async () => {
       setSupabaseLoading(true);
