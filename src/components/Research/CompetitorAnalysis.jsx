@@ -209,10 +209,13 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       setSupabaseLoading(true);
       try {
         const { getChannels } = await import('../../services/competitorDatabase');
+        const queryClientId = masterView ? undefined : activeClient?.id;
+        console.log('[Competitors] Loading from Supabase:', { queryClientId, masterView, activeClientId: activeClient?.id, activeClientName: activeClient?.name });
         const channels = await getChannels({
-          clientId: masterView ? undefined : activeClient?.id,
+          clientId: queryClientId,
           isCompetitor: true
         });
+        console.log('[Competitors] Loaded:', channels?.length, 'channels', channels?.slice(0, 3).map(c => ({ name: c.name, client_id: c.client_id, is_competitor: c.is_competitor })));
         setSupabaseCompetitors(channels || []);
       } catch (err) {
         console.error('[Competitors] Failed to load from Supabase:', err);
