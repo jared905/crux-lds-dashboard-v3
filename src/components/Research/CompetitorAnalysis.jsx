@@ -66,7 +66,6 @@ const INDUSTRY_FILTERS = [
 ];
 
 export default function CompetitorAnalysis({ rows, activeClient }) {
-  console.log('[CompetitorAnalysis] MOUNTED — build v2', { activeClientId: activeClient?.id, activeClientName: activeClient?.name });
   const [apiKey, setApiKey] = useState(localStorage.getItem('yt_api_key') || "");
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
@@ -200,27 +199,20 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
   // Load competitors from Supabase when activeClient or masterView changes
   useEffect(() => {
-    console.log('[Competitors] useEffect fired:', { activeClientId: activeClient?.id, masterView });
     // Clear previous data immediately to prevent showing wrong client's competitors
     setSupabaseCompetitors([]);
     setSelectedChannelId(null);
 
-    if (!activeClient?.id && !masterView) {
-      console.log('[Competitors] Early return — no activeClient.id and not masterView');
-      return;
-    }
+    if (!activeClient?.id && !masterView) return;
 
     const loadFromSupabase = async () => {
       setSupabaseLoading(true);
       try {
         const { getChannels } = await import('../../services/competitorDatabase');
-        const queryClientId = masterView ? undefined : activeClient?.id;
-        console.log('[Competitors] Loading from Supabase:', { queryClientId, masterView, activeClientId: activeClient?.id, activeClientName: activeClient?.name });
         const channels = await getChannels({
-          clientId: queryClientId,
+          clientId: masterView ? undefined : activeClient?.id,
           isCompetitor: true
         });
-        console.log('[Competitors] Loaded:', channels?.length, 'channels', channels?.slice(0, 3).map(c => ({ name: c.name, client_id: c.client_id, is_competitor: c.is_competitor })));
         setSupabaseCompetitors(channels || []);
       } catch (err) {
         console.error('[Competitors] Failed to load from Supabase:', err);
@@ -1159,8 +1151,27 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
     // Assign channels to groups
     activeCompetitors.forEach(comp => {
-      const cat = comp.category || 'lds-faithful'; // fallback
-      if (!groups[cat]) return;
+      const cat = comp.category || 'uncategorized';
+      if (!groups[cat]) {
+        // Dynamically create group for categories not in config
+        groups[cat] = {
+          key: cat,
+          config: { label: cat.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), color: '#666', icon: '📁', order: 999, description: '' },
+          channels: [],
+          channelCount: 0,
+          totalSubs: 0,
+          totalViews: 0,
+          totalVideos: 0,
+          totalUploads30d: 0,
+          totalShorts30d: 0,
+          totalLongs30d: 0,
+          totalEngagement: 0,
+          primaryCount: 0,
+          secondaryCount: 0,
+          tertiaryCount: 0,
+          hasData: false,
+        };
+      }
       const g = groups[cat];
       g.channels.push(comp);
       g.channelCount++;
