@@ -409,7 +409,8 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
         // Reload connections to get updated reporting_job_id
         await loadConnections();
       } else {
-        throw new Error(result.error || 'Failed to setup reporting');
+        const errorMsg = result.details || result.error || 'Failed to setup reporting';
+        throw new Error(errorMsg);
       }
     } catch (err) {
       console.error('Reporting setup failed:', err);
