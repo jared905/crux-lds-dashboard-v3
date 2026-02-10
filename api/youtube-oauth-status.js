@@ -64,7 +64,8 @@ async function handleGet(user, res) {
 }
 
 async function handleDelete(user, req, res) {
-  const { connectionId } = req.body;
+  // Support both query param (preferred for DELETE) and body
+  const connectionId = req.query?.connectionId || req.body?.connectionId;
   if (!connectionId) return res.status(400).json({ error: 'connectionId required' });
 
   const ipAddress = req.headers['x-forwarded-for']?.split(',')[0] || req.headers['x-real-ip'] || null;
