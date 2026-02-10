@@ -323,6 +323,9 @@ async function handleBackfill(connection, accessToken, res) {
       const impressionsCol = headers.find(h => h.toLowerCase() === 'impressions' || h.toLowerCase().includes('thumbnail_impressions'));
       const ctrCol = headers.find(h => h.toLowerCase().includes('click_through_rate') || h.toLowerCase() === 'ctr');
       const viewsCol = headers.find(h => h.toLowerCase() === 'views');
+      const watchTimeCol = headers.find(h => h.toLowerCase().includes('watch_time'));
+      const avgDurationCol = headers.find(h => h.toLowerCase().includes('average_view_duration'));
+      const subsGainedCol = headers.find(h => h.toLowerCase().includes('subscribers_gained'));
 
       if (!videoIdCol) continue;
 
@@ -337,7 +340,18 @@ async function handleBackfill(connection, accessToken, res) {
         const key = `${dbVideoId}:${date}`;
 
         if (!dailyData[key]) {
-          dailyData[key] = { video_id: dbVideoId, snapshot_date: date, impressions: 0, ctrSum: 0, ctrCount: 0, views: 0 };
+          dailyData[key] = {
+            video_id: dbVideoId,
+            snapshot_date: date,
+            impressions: 0,
+            ctrSum: 0,
+            ctrCount: 0,
+            views: 0,
+            watchTimeMinutes: 0,
+            avgDurationSum: 0,
+            avgDurationCount: 0,
+            subscribersGained: 0
+          };
         }
 
         if (impressionsCol && row[impressionsCol]) {
@@ -350,6 +364,16 @@ async function handleBackfill(connection, accessToken, res) {
         if (viewsCol && row[viewsCol]) {
           dailyData[key].views += parseInt(row[viewsCol]) || 0;
         }
+        if (watchTimeCol && row[watchTimeCol]) {
+          dailyData[key].watchTimeMinutes += parseFloat(row[watchTimeCol]) || 0;
+        }
+        if (avgDurationCol && row[avgDurationCol]) {
+          dailyData[key].avgDurationSum += parseFloat(row[avgDurationCol]) || 0;
+          dailyData[key].avgDurationCount++;
+        }
+        if (subsGainedCol && row[subsGainedCol]) {
+          dailyData[key].subscribersGained += parseInt(row[subsGainedCol]) || 0;
+        }
       }
 
       // Upsert snapshots
@@ -359,7 +383,10 @@ async function handleBackfill(connection, accessToken, res) {
           snapshot_date: data.snapshot_date,
           impressions: data.impressions > 0 ? data.impressions : null,
           ctr: data.ctrCount > 0 ? data.ctrSum / data.ctrCount : null,
-          view_count: data.views > 0 ? data.views : null
+          view_count: data.views > 0 ? data.views : null,
+          watch_hours: data.watchTimeMinutes > 0 ? data.watchTimeMinutes / 60 : null,
+          avg_view_duration_seconds: data.avgDurationCount > 0 ? data.avgDurationSum / data.avgDurationCount : null,
+          subscribers_gained: data.subscribersGained > 0 ? data.subscribersGained : null
         };
 
         const { error } = await supabase
