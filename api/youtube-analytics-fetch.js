@@ -39,6 +39,60 @@ function decryptToken(encrypted) {
   return decrypted;
 }
 
+// AES-256-GCM encryption
+function encryptToken(plaintext) {
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+
+  let encrypted = cipher.update(plaintext, 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+
+  const authTag = cipher.getAuthTag();
+
+  return `${iv.toString('base64')}:${encrypted}:${authTag.toString('base64')}`;
+}
+
+// Refresh access token if expired
+async function refreshAccessToken(connection) {
+  const refreshToken = decryptToken(connection.encrypted_refresh_token);
+
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token'
+    })
+  });
+
+  if (!tokenResponse.ok) {
+    const errorData = await tokenResponse.json();
+    throw new Error(errorData.error_description || errorData.error || 'Token refresh failed');
+  }
+
+  const tokens = await tokenResponse.json();
+  const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
+  const encryptedAccessToken = encryptToken(tokens.access_token);
+
+  // Update connection with new token
+  await supabase
+    .from('youtube_oauth_connections')
+    .update({
+      encrypted_access_token: encryptedAccessToken,
+      token_expires_at: expiresAt.toISOString(),
+      last_refreshed_at: new Date().toISOString(),
+      connection_error: null,
+      is_active: true,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', connection.id);
+
+  return tokens.access_token;
+}
+
 export default async function handler(req, res) {
   // CORS headers
   const allowedOrigin = process.env.FRONTEND_URL || process.env.VERCEL_URL || '*';
@@ -87,13 +141,23 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: 'Connection not found' });
     }
 
-    // Decrypt access token
+    // Check if token is expired (with 5-minute buffer)
+    const tokenExpiresAt = new Date(connection.token_expires_at);
+    const bufferMs = 5 * 60 * 1000; // 5 minutes
+    const isExpired = tokenExpiresAt.getTime() - bufferMs < Date.now();
+
     let accessToken;
     try {
-      accessToken = decryptToken(connection.encrypted_access_token);
+      if (isExpired) {
+        console.log('[Analytics] Token expired, refreshing...');
+        accessToken = await refreshAccessToken(connection);
+        console.log('[Analytics] Token refreshed successfully');
+      } else {
+        accessToken = decryptToken(connection.encrypted_access_token);
+      }
     } catch (e) {
-      console.error('Token decryption failed:', e.message);
-      return res.status(500).json({ error: 'Failed to decrypt token' });
+      console.error('Token error:', e.message);
+      return res.status(401).json({ error: 'Failed to get valid token', details: e.message });
     }
 
     const channelId = connection.youtube_channel_id;
