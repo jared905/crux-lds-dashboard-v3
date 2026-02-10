@@ -1050,6 +1050,11 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   // Load outliers scoped to current client's competitors
   useEffect(() => {
     const scopedIds = activeCompetitors.map(c => c.supabaseId).filter(Boolean);
+    if (scopedIds.length === 0) {
+      // Clear stale outliers when switching clients or no competitors loaded
+      setOutliers([]);
+      return;
+    }
     fetchOutliers(scopedIds);
   }, [activeCompetitors, fetchOutliers]);
 
