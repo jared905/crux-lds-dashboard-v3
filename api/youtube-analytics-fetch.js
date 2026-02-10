@@ -201,82 +201,13 @@ export default async function handler(req, res) {
 
     const analyticsData = await analyticsResponse.json();
 
-    // Now fetch impressions data separately
-    // YouTube has a 3-day data latency for impressions - adjust end date
-    const impressionsEnd = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    console.log(`[Analytics] Using impressions end date: ${impressionsEnd} (3 days ago)`);
-
-    let impressionsData = null;
-    let impressionsError = null;
-    let testedMetrics = [];
-    let channelSummary = null; // Channel-level totals (if available)
-
-    // Try multiple metric combinations to find what works
-    // Key insight: thumbnailImpressions may only work with NO dimension (channel totals)
-    const metricAttempts = [
-      { name: 'thumbnailImpressions-none', metrics: 'videoThumbnailImpressions,videoThumbnailImpressionsClickRate', dimension: null },
-      { name: 'thumbnailImpressions-day', metrics: 'videoThumbnailImpressions,videoThumbnailImpressionsClickRate', dimension: 'day' },
-      { name: 'annotationImpressions', metrics: 'views,annotationImpressions,annotationClickableImpressions', dimension: 'video' },
-      { name: 'cardImpressions', metrics: 'views,cardImpressions,cardClickRate', dimension: 'video' }
-    ];
-
-    for (const attempt of metricAttempts) {
-      const testUrl = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
-      testUrl.searchParams.append('ids', `channel==${channelId}`);
-      testUrl.searchParams.append('startDate', start);
-      testUrl.searchParams.append('endDate', impressionsEnd);
-      testUrl.searchParams.append('metrics', attempt.metrics);
-      // Only add dimension if specified (null = channel totals)
-      if (attempt.dimension) {
-        testUrl.searchParams.append('dimensions', attempt.dimension);
-      }
-      if (attempt.dimension === 'video') {
-        testUrl.searchParams.append('maxResults', '200');
-      }
-
-      console.log(`[Analytics] Trying ${attempt.name}...`);
-      const testResponse = await fetch(testUrl.toString(), {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json'
-        }
-      });
-
-      if (testResponse.ok) {
-        const data = await testResponse.json();
-        console.log(`[Analytics] ${attempt.name} SUCCESS: ${data.rows?.length || 0} rows`);
-        if (data.rows?.length > 0) {
-          console.log(`[Analytics] ${attempt.name} sample row:`, JSON.stringify(data.rows[0]));
-        }
-        testedMetrics.push({ name: attempt.name, success: true, rows: data.rows?.length || 0 });
-
-        // Capture channel-level totals (no dimension or day dimension)
-        if (!attempt.dimension && data.rows?.length > 0 && !channelSummary) {
-          // No dimension = single row with totals [impressions, ctr]
-          channelSummary = {
-            totalImpressions: data.rows[0][0] ?? 0,
-            averageCtr: data.rows[0][1] ?? 0,
-            period: `${start} to ${impressionsEnd}`
-          };
-          console.log(`[Analytics] Channel summary:`, channelSummary);
-        }
-
-        // If this is a per-video metric and we got data, use it
-        if (attempt.dimension === 'video' && data.rows?.length > 0) {
-          impressionsData = data;
-          break;
-        }
-      } else {
-        const errorData = await testResponse.json();
-        const errorMsg = errorData.error?.message || 'Unknown';
-        console.log(`[Analytics] ${attempt.name} FAILED: ${errorMsg}`);
-        testedMetrics.push({ name: attempt.name, success: false, error: errorMsg });
-      }
-    }
-
-    if (!impressionsData) {
-      impressionsError = `Tested metrics: ${testedMetrics.map(m => `${m.name}=${m.success ? 'OK' : 'FAIL'}`).join(', ')}`;
-    }
+    // Note: Impressions/CTR metrics are NOT available through the YouTube Analytics API
+    // for regular channel owners. These metrics are only available via:
+    // 1. YouTube Studio CSV export
+    // 2. YouTube Reporting API (bulk download, requires separate implementation)
+    // 3. Content Owner API (for MCNs/CMS only)
+    //
+    // We skip attempting to fetch impressions to avoid unnecessary API calls and latency.
 
     // Combine the data by video ID
     // analyticsData columns: video, views, estimatedMinutesWatched, averageViewPercentage, subscribersGained
@@ -298,22 +229,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Merge impressions data (if available)
-    // Note: Different metrics have different column layouts
-    // annotationImpressions: video, views, annotationImpressions, annotationClickableImpressions
-    // cardImpressions: video, views, cardImpressions, cardClickRate
-    if (impressionsData?.rows) {
-      for (const row of impressionsData.rows) {
-        const videoId = row[0];
-        if (!videoAnalytics[videoId]) {
-          videoAnalytics[videoId] = {};
-        }
-        // Column 2 is the impressions-like metric, column 3 is the CTR-like metric
-        videoAnalytics[videoId].impressions = row[2] ?? 0;
-        videoAnalytics[videoId].ctr = row[3] ?? 0;
-      }
-      console.log(`[Analytics] Merged impressions for ${impressionsData.rows.length} videos`);
-    }
+    // Note: Impressions/CTR not available via Analytics API - use CSV export instead
 
     // Update videos in the database with analytics data
     // This is done server-side to bypass RLS restrictions
@@ -344,11 +260,11 @@ export default async function handler(req, res) {
 
           if (existingVideo) {
             matchedCount++;
+            // Note: Don't update impressions/ctr - these require CSV export
+            // Only update metrics available via YouTube Analytics API
             const { error: updateError } = await supabase
               .from('videos')
               .update({
-                impressions: analytics.impressions != null ? analytics.impressions : null,
-                ctr: analytics.ctr != null ? analytics.ctr : null,
                 avg_view_percentage: analytics.avgViewPercentage != null ? analytics.avgViewPercentage / 100 : null,
                 watch_hours: analytics.watchHours != null ? analytics.watchHours : null,
                 subscribers_gained: analytics.subscribersGained != null ? analytics.subscribersGained : null,
@@ -367,15 +283,13 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       dateRange: { start, end },
-      impressionsDateRange: { start, end: impressionsEnd },
       videoCount: Object.keys(videoAnalytics).length,
       analytics: videoAnalytics,
       updatedCount,
       matchedCount,
-      impressionsAvailable: impressionsData?.rows?.length > 0,
-      impressionsError: impressionsError || null,
-      testedMetrics: testedMetrics,
-      channelSummary: channelSummary // Channel-level impressions/CTR if available
+      // Note: Impressions/CTR not available via YouTube Analytics API
+      // Use CSV export from YouTube Studio for these metrics
+      impressionsNote: 'Impressions/CTR require CSV export from YouTube Studio'
     });
 
   } catch (error) {
