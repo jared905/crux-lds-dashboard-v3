@@ -97,7 +97,13 @@ async function handleSetup(connection, accessToken, res) {
   );
   if (!reportTypesResponse.ok) {
     const errorData = await reportTypesResponse.json();
-    return res.status(400).json({ error: 'Failed to list report types', details: errorData.error?.message });
+    console.error('[Reporting] Failed to list report types:', JSON.stringify(errorData));
+    return res.status(400).json({
+      error: 'Failed to list report types',
+      details: errorData.error?.message || JSON.stringify(errorData),
+      code: errorData.error?.code,
+      status: errorData.error?.status
+    });
   }
   const reportTypes = await reportTypesResponse.json();
   const reachReportType = reportTypes.reportTypes?.find(rt =>
