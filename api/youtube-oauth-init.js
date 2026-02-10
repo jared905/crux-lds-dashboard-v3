@@ -103,7 +103,7 @@ export default async function handler(req, res) {
       ip_address: ipAddress,
       user_agent: userAgent,
       metadata: {
-        scopes: ['youtube.readonly', 'yt-analytics.readonly', 'yt-analytics-monetary.readonly', 'userinfo.email'],
+        scopes: ['youtube.readonly', 'yt-analytics.readonly', 'yt-analytics-monetary.readonly', 'youtubereporting', 'userinfo.email'],
         pkce_method: 'S256'
       }
     });
@@ -118,7 +118,7 @@ export default async function handler(req, res) {
       client_id: process.env.GOOGLE_CLIENT_ID,
       redirect_uri: redirectUri,
       response_type: 'code',
-      scope: 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly https://www.googleapis.com/auth/yt-analytics-monetary.readonly https://www.googleapis.com/auth/userinfo.email',
+      scope: 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly https://www.googleapis.com/auth/yt-analytics-monetary.readonly https://www.googleapis.com/auth/youtubereporting https://www.googleapis.com/auth/userinfo.email',
       access_type: 'offline',      // Request refresh token
       prompt: 'consent',           // Force consent to always get refresh token
       state,
