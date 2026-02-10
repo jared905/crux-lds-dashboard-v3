@@ -1,8 +1,9 @@
 /**
  * Vercel Serverless Function - YouTube Reporting API
- * Combined endpoint for setup and fetch operations.
+ * Combined endpoint for setup, fetch, and backfill operations.
  * POST with action: "setup" - Creates a reporting job
- * POST with action: "fetch" - Downloads and processes reports
+ * POST with action: "fetch" - Downloads and processes latest report
+ * POST with action: "backfill" - Downloads ALL available reports (up to 180 days)
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -250,6 +251,148 @@ async function handleFetch(connection, accessToken, res) {
   return res.status(200).json({ success: true, reportId: latestReport.id, reportDate: latestReport.createTime, videosInReport: Object.keys(videoData).length, matchedCount, updatedCount });
 }
 
+async function handleBackfill(connection, accessToken, res) {
+  if (!connection.reporting_job_id) {
+    return res.status(400).json({ error: 'No reporting job configured', message: 'Please set up a reporting job first' });
+  }
+
+  // List all reports
+  const reportsResponse = await fetch(
+    `https://youtubereporting.googleapis.com/v1/jobs/${connection.reporting_job_id}/reports`,
+    { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
+  );
+  if (!reportsResponse.ok) {
+    const errorData = await reportsResponse.json();
+    return res.status(400).json({ error: 'Failed to list reports', details: errorData.error?.message });
+  }
+  const reportsData = await reportsResponse.json();
+  const reports = reportsData.reports || [];
+
+  if (reports.length === 0) {
+    return res.status(200).json({ success: true, message: 'No reports available yet. Reports are generated daily, please check back in 24 hours.', reportsAvailable: 0 });
+  }
+
+  // Get client channel
+  const { data: dbChannel } = await supabase
+    .from('channels')
+    .select('id')
+    .eq('youtube_channel_id', connection.youtube_channel_id)
+    .eq('is_client', true)
+    .single();
+
+  if (!dbChannel) {
+    return res.status(200).json({ success: true, message: 'No matching client channel found', reportsAvailable: reports.length });
+  }
+
+  // Get all videos for this channel
+  const { data: videos } = await supabase
+    .from('videos')
+    .select('id, youtube_video_id')
+    .eq('channel_id', dbChannel.id);
+
+  if (!videos || videos.length === 0) {
+    return res.status(200).json({ success: true, message: 'No videos found for channel', reportsAvailable: reports.length });
+  }
+
+  const videoMap = {};
+  for (const v of videos) {
+    videoMap[v.youtube_video_id] = v.id;
+  }
+
+  // Sort reports oldest to newest (so latest data overwrites older)
+  reports.sort((a, b) => new Date(a.createTime) - new Date(b.createTime));
+
+  let totalSnapshots = 0;
+  let reportsProcessed = 0;
+  const errors = [];
+
+  // Process each report
+  for (const report of reports) {
+    try {
+      const reportResponse = await fetch(report.downloadUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+      if (!reportResponse.ok) {
+        errors.push(`Failed to download report ${report.id}`);
+        continue;
+      }
+
+      const csvContent = await reportResponse.text();
+      const { headers, rows } = parseCSV(csvContent);
+
+      const videoIdCol = headers.find(h => h.toLowerCase().includes('video_id'));
+      const dateCol = headers.find(h => h.toLowerCase() === 'date');
+      const impressionsCol = headers.find(h => h.toLowerCase() === 'impressions' || h.toLowerCase().includes('thumbnail_impressions'));
+      const ctrCol = headers.find(h => h.toLowerCase().includes('click_through_rate') || h.toLowerCase() === 'ctr');
+      const viewsCol = headers.find(h => h.toLowerCase() === 'views');
+
+      if (!videoIdCol) continue;
+
+      // Group by video+date for snapshots
+      const dailyData = {};
+      for (const row of rows) {
+        const ytVideoId = row[videoIdCol];
+        const dbVideoId = videoMap[ytVideoId];
+        if (!dbVideoId) continue;
+
+        const date = dateCol ? row[dateCol] : report.createTime.split('T')[0];
+        const key = `${dbVideoId}:${date}`;
+
+        if (!dailyData[key]) {
+          dailyData[key] = { video_id: dbVideoId, snapshot_date: date, impressions: 0, ctrSum: 0, ctrCount: 0, views: 0 };
+        }
+
+        if (impressionsCol && row[impressionsCol]) {
+          dailyData[key].impressions += parseInt(row[impressionsCol]) || 0;
+        }
+        if (ctrCol && row[ctrCol]) {
+          dailyData[key].ctrSum += parseFloat(row[ctrCol]) || 0;
+          dailyData[key].ctrCount++;
+        }
+        if (viewsCol && row[viewsCol]) {
+          dailyData[key].views += parseInt(row[viewsCol]) || 0;
+        }
+      }
+
+      // Upsert snapshots
+      for (const data of Object.values(dailyData)) {
+        const snapshotData = {
+          video_id: data.video_id,
+          snapshot_date: data.snapshot_date,
+          impressions: data.impressions > 0 ? data.impressions : null,
+          ctr: data.ctrCount > 0 ? data.ctrSum / data.ctrCount : null,
+          view_count: data.views > 0 ? data.views : null
+        };
+
+        const { error } = await supabase
+          .from('video_snapshots')
+          .upsert(snapshotData, { onConflict: 'video_id,snapshot_date' });
+
+        if (!error) totalSnapshots++;
+      }
+
+      reportsProcessed++;
+    } catch (e) {
+      errors.push(`Error processing report ${report.id}: ${e.message}`);
+    }
+  }
+
+  // Update connection
+  await supabase
+    .from('youtube_oauth_connections')
+    .update({
+      last_report_downloaded_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', connection.id);
+
+  return res.status(200).json({
+    success: true,
+    reportsAvailable: reports.length,
+    reportsProcessed,
+    snapshotsCreated: totalSnapshots,
+    errors: errors.length > 0 ? errors : undefined
+  });
+}
+
 export default async function handler(req, res) {
   const allowedOrigin = process.env.FRONTEND_URL || process.env.VERCEL_URL || '*';
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -270,7 +413,7 @@ export default async function handler(req, res) {
 
     const { connectionId, action } = req.body;
     if (!connectionId) return res.status(400).json({ error: 'connectionId required' });
-    if (!action || !['setup', 'fetch'].includes(action)) return res.status(400).json({ error: 'action must be "setup" or "fetch"' });
+    if (!action || !['setup', 'fetch', 'backfill'].includes(action)) return res.status(400).json({ error: 'action must be "setup", "fetch", or "backfill"' });
 
     const { data: connection, error: connError } = await supabase
       .from('youtube_oauth_connections')
@@ -293,6 +436,8 @@ export default async function handler(req, res) {
 
     if (action === 'setup') {
       return await handleSetup(connection, accessToken, res);
+    } else if (action === 'backfill') {
+      return await handleBackfill(connection, accessToken, res);
     } else {
       return await handleFetch(connection, accessToken, res);
     }

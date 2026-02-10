@@ -86,6 +86,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
   const [syncing, setSyncing] = useState(null);
   const [settingUpReporting, setSettingUpReporting] = useState(null);
   const [syncingImpressions, setSyncingImpressions] = useState(null);
+  const [backfillingData, setBackfillingData] = useState(null);
   const [reportingStatus, setReportingStatus] = useState({});
 
   useEffect(() => {
@@ -492,6 +493,70 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
     }
   };
 
+  // Backfill all historical data from YouTube Reporting API
+  const handleBackfillData = async (connection) => {
+    if (!supabase || backfillingData) return;
+
+    setBackfillingData(connection.id);
+    setReportingStatus(prev => ({ ...prev, [connection.id]: { stage: 'backfilling', message: 'Downloading all historical reports...' } }));
+    setError(null);
+
+    try {
+      const token = await youtubeOAuthService.getAuthToken();
+      const response = await fetch('/api/youtube-reporting', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ connectionId: connection.id, action: 'backfill' })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        if (result.snapshotsCreated > 0) {
+          setSuccess(`Backfilled ${result.snapshotsCreated} data points from ${result.reportsProcessed} reports!`);
+        } else if (result.reportsAvailable === 0) {
+          setSuccess(result.message || 'No reports available yet. Check back in 24 hours.');
+        } else {
+          setSuccess(`Processed ${result.reportsProcessed} reports. ${result.snapshotsCreated} snapshots created.`);
+        }
+        setReportingStatus(prev => ({
+          ...prev,
+          [connection.id]: {
+            stage: 'complete',
+            message: `${result.snapshotsCreated} snapshots from ${result.reportsProcessed} reports`
+          }
+        }));
+
+        if (onClientsUpdate) {
+          onClientsUpdate(connection.youtube_channel_title);
+        }
+      } else {
+        throw new Error(result.error || 'Failed to backfill data');
+      }
+
+      setTimeout(() => {
+        setReportingStatus(prev => {
+          const newStatus = { ...prev };
+          delete newStatus[connection.id];
+          return newStatus;
+        });
+      }, 5000);
+    } catch (err) {
+      console.error('Backfill failed:', err);
+      setError(`Backfill failed: ${err.message}`);
+      setReportingStatus(prev => {
+        const newStatus = { ...prev };
+        delete newStatus[connection.id];
+        return newStatus;
+      });
+    } finally {
+      setBackfillingData(null);
+    }
+  };
+
   // Helper to format last synced time
   const formatLastSynced = (date) => {
     if (!date) return null;
@@ -736,25 +801,47 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                       {settingUpReporting === conn.id ? "Setting up..." : "Setup Reporting"}
                     </button>
                   ) : (
-                    <button
-                      onClick={() => handleSyncImpressions(conn)}
-                      disabled={syncingImpressions === conn.id || conn.connection_error}
-                      style={{
-                        ...buttonStyle,
-                        background: syncingImpressions === conn.id ? "#333" : "rgba(139, 92, 246, 0.2)",
-                        border: "1px solid rgba(139, 92, 246, 0.4)",
-                        color: "#a78bfa",
-                        opacity: (syncingImpressions === conn.id || conn.connection_error) ? 0.6 : 1,
-                        cursor: (syncingImpressions === conn.id || conn.connection_error) ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      {syncingImpressions === conn.id ? (
-                        <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
-                      ) : (
-                        <BarChart3 size={14} />
-                      )}
-                      {syncingImpressions === conn.id ? "Syncing..." : "Sync Impressions"}
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleSyncImpressions(conn)}
+                        disabled={syncingImpressions === conn.id || backfillingData === conn.id || conn.connection_error}
+                        style={{
+                          ...buttonStyle,
+                          background: syncingImpressions === conn.id ? "#333" : "rgba(139, 92, 246, 0.2)",
+                          border: "1px solid rgba(139, 92, 246, 0.4)",
+                          color: "#a78bfa",
+                          opacity: (syncingImpressions === conn.id || backfillingData === conn.id || conn.connection_error) ? 0.6 : 1,
+                          cursor: (syncingImpressions === conn.id || backfillingData === conn.id || conn.connection_error) ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {syncingImpressions === conn.id ? (
+                          <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                        ) : (
+                          <BarChart3 size={14} />
+                        )}
+                        {syncingImpressions === conn.id ? "Syncing..." : "Sync Latest"}
+                      </button>
+                      <button
+                        onClick={() => handleBackfillData(conn)}
+                        disabled={backfillingData === conn.id || syncingImpressions === conn.id || conn.connection_error}
+                        title="Download all available historical reports (up to 180 days)"
+                        style={{
+                          ...buttonStyle,
+                          background: backfillingData === conn.id ? "#333" : "rgba(34, 197, 94, 0.2)",
+                          border: "1px solid rgba(34, 197, 94, 0.4)",
+                          color: "#22c55e",
+                          opacity: (backfillingData === conn.id || syncingImpressions === conn.id || conn.connection_error) ? 0.6 : 1,
+                          cursor: (backfillingData === conn.id || syncingImpressions === conn.id || conn.connection_error) ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {backfillingData === conn.id ? (
+                          <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                        ) : (
+                          <FileText size={14} />
+                        )}
+                        {backfillingData === conn.id ? "Backfilling..." : "Backfill All"}
+                      </button>
+                    </>
                   )}
                   {/* Reporting job indicator */}
                   {conn.reporting_job_id && (
