@@ -22,7 +22,6 @@ import {
   ExternalLink,
   Loader2,
   Plus,
-  Activity,
   BarChart3,
   FileText
 } from 'lucide-react';
@@ -83,8 +82,6 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
   const [addingClient, setAddingClient] = useState(false);
   const [syncProgress, setSyncProgress] = useState(null);
   const [syncStatus, setSyncStatus] = useState({});
-  const [testingAnalytics, setTestingAnalytics] = useState(null);
-  const [analyticsTestResult, setAnalyticsTestResult] = useState({});
   const [lastSynced, setLastSynced] = useState({});
   const [syncing, setSyncing] = useState(null);
   const [settingUpReporting, setSettingUpReporting] = useState(null);
@@ -257,43 +254,6 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
     setPendingClientInfo(null);
   };
 
-  const handleTestAnalytics = async (connection) => {
-    if (!supabase || testingAnalytics) return;
-
-    setTestingAnalytics(connection.id);
-    setAnalyticsTestResult(prev => ({ ...prev, [connection.id]: null }));
-    setError(null);
-
-    try {
-      const token = await youtubeOAuthService.getAuthToken();
-      const response = await fetch('/api/youtube-analytics-test', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ connectionId: connection.id })
-      });
-
-      const result = await response.json();
-      setAnalyticsTestResult(prev => ({ ...prev, [connection.id]: result }));
-
-      if (result.hasAccess) {
-        setSuccess(`Analytics API access confirmed for ${connection.youtube_channel_title}!`);
-      } else if (result.needsReauth) {
-        setError(`Analytics scope missing. Please disconnect and reconnect your account.`);
-      } else {
-        setError(result.message || 'No Analytics API access');
-      }
-    } catch (err) {
-      console.error('Analytics test failed:', err);
-      setError(`Test failed: ${err.message}`);
-      setAnalyticsTestResult(prev => ({ ...prev, [connection.id]: { hasAccess: false, error: err.message } }));
-    } finally {
-      setTestingAnalytics(null);
-    }
-  };
-
   // Combined sync function - syncs videos first, then analytics if access confirmed
   const handleSync = async (connection) => {
     if (!supabase || syncing) return;
@@ -375,13 +335,6 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
           if (analyticsResult.updatedCount > 0) {
             summaryParts.push(`${analyticsResult.updatedCount} with analytics`);
           }
-          // Update analytics test result based on successful fetch
-          if (analyticsResult.videoCount > 0) {
-            setAnalyticsTestResult(prev => ({
-              ...prev,
-              [connection.id]: { hasAccess: true, message: 'Analytics API access confirmed' }
-            }));
-          }
         } else if (analyticsResult.errorCode === 'forbidden') {
           console.log('[Sync] Analytics API access not available for this channel');
         }
@@ -436,13 +389,13 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
 
     try {
       const token = await youtubeOAuthService.getAuthToken();
-      const response = await fetch('/api/youtube-reporting-setup', {
+      const response = await fetch('/api/youtube-reporting', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ connectionId: connection.id })
+        body: JSON.stringify({ connectionId: connection.id, action: 'setup' })
       });
 
       const result = await response.json();
@@ -481,13 +434,13 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
 
     try {
       const token = await youtubeOAuthService.getAuthToken();
-      const response = await fetch('/api/youtube-reporting-fetch', {
+      const response = await fetch('/api/youtube-reporting', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ connectionId: connection.id })
+        body: JSON.stringify({ connectionId: connection.id, action: 'fetch' })
       });
 
       const result = await response.json();
@@ -704,25 +657,6 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                   </div>
                 )}
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  {/* Test Analytics - only show if not yet tested */}
-                  {!analyticsTestResult[conn.id]?.hasAccess && (
-                    <button
-                      onClick={() => handleTestAnalytics(conn)}
-                      disabled={testingAnalytics === conn.id || conn.connection_error}
-                      style={{
-                        ...buttonStyle,
-                        opacity: (testingAnalytics === conn.id || conn.connection_error) ? 0.6 : 1,
-                        cursor: (testingAnalytics === conn.id || conn.connection_error) ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      {testingAnalytics === conn.id ? (
-                        <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
-                      ) : (
-                        <Shield size={14} />
-                      )}
-                      {testingAnalytics === conn.id ? "Testing..." : "Test Analytics"}
-                    </button>
-                  )}
                   {/* Combined Sync button */}
                   <button
                     onClick={() => handleSync(conn)}
@@ -747,12 +681,6 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                   {lastSynced[conn.id] && !syncing && (
                     <span style={{ fontSize: "11px", color: "#666" }}>
                       {formatLastSynced(lastSynced[conn.id])}
-                    </span>
-                  )}
-                  {/* Analytics access indicator */}
-                  {analyticsTestResult[conn.id]?.hasAccess && (
-                    <span style={{ fontSize: "11px", color: "#22c55e", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <Activity size={12} /> Analytics
                     </span>
                   )}
                 </div>
@@ -836,28 +764,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                 </div>
               </div>
 
-              {/* Analytics Test Result - only show if test failed */}
-              {analyticsTestResult[conn.id] && !analyticsTestResult[conn.id].hasAccess && (
-                <div style={{
-                  width: "100%", padding: "12px", borderRadius: "6px", fontSize: "12px",
-                  background: "rgba(239, 68, 68, 0.1)",
-                  border: "1px solid rgba(239, 68, 68, 0.3)",
-                  color: "#ef4444"
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: "600" }}>
-                    <AlertCircle size={14} /> No Analytics Access
-                  </div>
-                  <div style={{ marginTop: "4px", color: "#fca5a5" }}>
-                    {analyticsTestResult[conn.id].message}
-                    {analyticsTestResult[conn.id].needsReauth && (
-                      <span style={{ marginLeft: "8px", fontWeight: "500" }}>
-                        → Disconnect and reconnect to add Analytics scope
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+                          </div>
           ))}
         </div>
       ) : (
@@ -1053,4 +960,3 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
     </div>
   );
 }
-// Force rebuild Mon Feb  9 18:23:19 MST 2026

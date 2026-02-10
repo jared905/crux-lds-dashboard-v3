@@ -171,8 +171,8 @@ class YouTubeOAuthService {
     const token = await this.getAuthToken();
     if (!token) throw new Error('Not authenticated');
 
-    const response = await fetch('/api/youtube-oauth-disconnect', {
-      method: 'POST',
+    const response = await fetch('/api/youtube-oauth-status', {
+      method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
