@@ -106,11 +106,21 @@ async function handleSetup(connection, accessToken, res) {
     });
   }
   const reportTypes = await reportTypesResponse.json();
+  const availableTypes = reportTypes.reportTypes?.map(rt => rt.id) || [];
+  console.log('[Reporting] Available report types:', availableTypes);
+
+  // Look for any channel report type that includes reach/impressions data
   const reachReportType = reportTypes.reportTypes?.find(rt =>
-    rt.id === 'channel_combined_a2' || rt.id === 'channel_basic_a2'
+    rt.id === 'channel_combined_a2' ||
+    rt.id === 'channel_basic_a2' ||
+    rt.id.includes('channel_') // fallback to any channel report
   );
   if (!reachReportType) {
-    return res.status(400).json({ error: 'Reach report type not available' });
+    return res.status(400).json({
+      error: 'Reach report type not available',
+      availableTypes,
+      message: 'You may need to disconnect and reconnect your YouTube account to grant the new reporting scope.'
+    });
   }
 
   // Check for existing job
