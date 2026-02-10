@@ -195,6 +195,10 @@ async function fetchReportingData(accessToken, jobId) {
   const videoIdCol = headers.find(h => h.toLowerCase().includes('video_id') || h === 'video_id');
   const impressionsCol = headers.find(h => h.toLowerCase() === 'impressions' || h.toLowerCase().includes('thumbnail_impressions'));
   const ctrCol = headers.find(h => h.toLowerCase().includes('click_through_rate') || h.toLowerCase() === 'ctr');
+  const likesCol = headers.find(h => h.toLowerCase() === 'likes');
+  const commentsCol = headers.find(h => h.toLowerCase() === 'comments');
+  const sharesCol = headers.find(h => h.toLowerCase() === 'shares');
+  const subsLostCol = headers.find(h => h.toLowerCase().includes('subscribers_lost'));
 
   if (!videoIdCol) return null;
 
@@ -205,7 +209,15 @@ async function fetchReportingData(accessToken, jobId) {
     if (!videoId) continue;
 
     if (!videoData[videoId]) {
-      videoData[videoId] = { impressions: 0, ctrSum: 0, ctrCount: 0 };
+      videoData[videoId] = {
+        impressions: 0,
+        ctrSum: 0,
+        ctrCount: 0,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        subscribersLost: 0
+      };
     }
 
     if (impressionsCol && row[impressionsCol]) {
@@ -217,13 +229,32 @@ async function fetchReportingData(accessToken, jobId) {
       videoData[videoId].ctrSum += ctr;
       videoData[videoId].ctrCount++;
     }
+
+    if (likesCol && row[likesCol]) {
+      videoData[videoId].likes += parseInt(row[likesCol]) || 0;
+    }
+
+    if (commentsCol && row[commentsCol]) {
+      videoData[videoId].comments += parseInt(row[commentsCol]) || 0;
+    }
+
+    if (sharesCol && row[sharesCol]) {
+      videoData[videoId].shares += parseInt(row[sharesCol]) || 0;
+    }
+
+    if (subsLostCol && row[subsLostCol]) {
+      videoData[videoId].subscribersLost += parseInt(row[subsLostCol]) || 0;
+    }
   }
 
-  // Calculate average CTR
+  // Calculate average CTR and finalize data
   for (const videoId of Object.keys(videoData)) {
     if (videoData[videoId].ctrCount > 0) {
       videoData[videoId].ctr = videoData[videoId].ctrSum / videoData[videoId].ctrCount;
     }
+    // Clean up aggregation fields
+    delete videoData[videoId].ctrSum;
+    delete videoData[videoId].ctrCount;
   }
 
   return { videoData, reportDate: latestReport.createTime };
@@ -341,11 +372,17 @@ async function syncConnection(connection) {
         ctr: reporting.ctr || null,
         avg_view_percentage: analytics.avgViewPercentage || null,
         watch_hours: analytics.watchHours || null,
-        subscribers_gained: analytics.subscribersGained || null
+        subscribers_gained: analytics.subscribersGained || null,
+        subscribers_lost: reporting.subscribersLost || null,
+        likes: reporting.likes || null,
+        comments: reporting.comments || null,
+        shares: reporting.shares || null
       };
 
       // Only create snapshot if we have some data
-      if (snapshotData.view_count || snapshotData.impressions || snapshotData.watch_hours) {
+      const hasData = snapshotData.view_count || snapshotData.impressions || snapshotData.watch_hours ||
+                      snapshotData.likes || snapshotData.comments || snapshotData.shares;
+      if (hasData) {
         const { error: snapshotError } = await supabase
           .from('video_snapshots')
           .upsert(snapshotData, { onConflict: 'video_id,snapshot_date' });

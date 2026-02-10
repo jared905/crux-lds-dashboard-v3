@@ -326,6 +326,10 @@ async function handleBackfill(connection, accessToken, res) {
       const watchTimeCol = headers.find(h => h.toLowerCase().includes('watch_time'));
       const avgDurationCol = headers.find(h => h.toLowerCase().includes('average_view_duration'));
       const subsGainedCol = headers.find(h => h.toLowerCase().includes('subscribers_gained'));
+      const subsLostCol = headers.find(h => h.toLowerCase().includes('subscribers_lost'));
+      const likesCol = headers.find(h => h.toLowerCase() === 'likes');
+      const commentsCol = headers.find(h => h.toLowerCase() === 'comments');
+      const sharesCol = headers.find(h => h.toLowerCase() === 'shares');
 
       if (!videoIdCol) continue;
 
@@ -350,7 +354,11 @@ async function handleBackfill(connection, accessToken, res) {
             watchTimeMinutes: 0,
             avgDurationSum: 0,
             avgDurationCount: 0,
-            subscribersGained: 0
+            subscribersGained: 0,
+            subscribersLost: 0,
+            likes: 0,
+            comments: 0,
+            shares: 0
           };
         }
 
@@ -374,6 +382,18 @@ async function handleBackfill(connection, accessToken, res) {
         if (subsGainedCol && row[subsGainedCol]) {
           dailyData[key].subscribersGained += parseInt(row[subsGainedCol]) || 0;
         }
+        if (subsLostCol && row[subsLostCol]) {
+          dailyData[key].subscribersLost += parseInt(row[subsLostCol]) || 0;
+        }
+        if (likesCol && row[likesCol]) {
+          dailyData[key].likes += parseInt(row[likesCol]) || 0;
+        }
+        if (commentsCol && row[commentsCol]) {
+          dailyData[key].comments += parseInt(row[commentsCol]) || 0;
+        }
+        if (sharesCol && row[sharesCol]) {
+          dailyData[key].shares += parseInt(row[sharesCol]) || 0;
+        }
       }
 
       // Upsert snapshots
@@ -386,7 +406,11 @@ async function handleBackfill(connection, accessToken, res) {
           view_count: data.views > 0 ? data.views : null,
           watch_hours: data.watchTimeMinutes > 0 ? data.watchTimeMinutes / 60 : null,
           avg_view_duration_seconds: data.avgDurationCount > 0 ? data.avgDurationSum / data.avgDurationCount : null,
-          subscribers_gained: data.subscribersGained > 0 ? data.subscribersGained : null
+          subscribers_gained: data.subscribersGained > 0 ? data.subscribersGained : null,
+          subscribers_lost: data.subscribersLost > 0 ? data.subscribersLost : null,
+          likes: data.likes > 0 ? data.likes : null,
+          comments: data.comments > 0 ? data.comments : null,
+          shares: data.shares > 0 ? data.shares : null
         };
 
         const { error } = await supabase
