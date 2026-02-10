@@ -23,17 +23,23 @@ import { claudeAPI } from './claudeAPI';
  * @param {number} opts.limit - Max outliers to return (default 20)
  * @returns {Promise<Array>} Outlier videos with channel info and outlier score
  */
-export async function getOutlierVideos({ days = 90, minMultiplier = 2.5, limit = 20 } = {}) {
+export async function getOutlierVideos({ days = 90, minMultiplier = 2.5, limit = 20, channelIds: scopedChannelIds } = {}) {
   if (!supabase) throw new Error('Supabase not configured');
 
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - days);
 
-  // Step 1: Get all competitor channels
-  const { data: channels, error: chErr } = await supabase
+  // Step 1: Get competitor channels (scoped to provided IDs if given)
+  let query = supabase
     .from('channels')
     .select('id, name, thumbnail_url, subscriber_count')
     .eq('is_competitor', true);
+
+  if (scopedChannelIds && scopedChannelIds.length > 0) {
+    query = query.in('id', scopedChannelIds);
+  }
+
+  const { data: channels, error: chErr } = await query;
 
   if (chErr) throw chErr;
   if (!channels.length) return [];

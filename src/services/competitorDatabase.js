@@ -160,12 +160,13 @@ export async function upsertChannel(channelData) {
     sync_enabled: channelData.sync_enabled ?? true,
   };
 
-  // Optional metadata fields (tier, subcategory, notes, created_via, size_tier)
+  // Optional metadata fields (tier, subcategory, notes, created_via, size_tier, industry)
   if (channelData.tier !== undefined) record.tier = channelData.tier;
   if (channelData.subcategory !== undefined) record.subcategory = channelData.subcategory;
   if (channelData.notes !== undefined) record.notes = channelData.notes;
   if (channelData.created_via !== undefined) record.created_via = channelData.created_via;
   if (channelData.size_tier !== undefined) record.size_tier = channelData.size_tier;
+  if (channelData.industry !== undefined) record.industry = channelData.industry;
 
   const { data, error } = await supabase
     .from('channels')

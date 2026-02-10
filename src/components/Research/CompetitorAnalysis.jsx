@@ -144,6 +144,10 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
   const [bulkAssignLoading, setBulkAssignLoading] = useState(false);
 
+  // YouTube search state for add-competitor
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
   // Sync competitors state to localStorage for enriched data persistence
   useEffect(() => {
     if (competitors.length > 0) {
@@ -298,7 +302,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     setShowCSVImport(false);
     try {
       const { importFromCSV } = await import('../../services/unifiedCompetitorImport');
-      const results = await importFromCSV(csvText, null, {
+      const results = await importFromCSV(csvText, activeClient?.id || null, {
         onProgress: (current, total, name) => {
           setImportProgress({ current, total, name });
         },
@@ -315,7 +319,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     } finally {
       setImporting(false);
     }
-  }, [csvText, reloadSupabaseCompetitors]);
+  }, [csvText, activeClient?.id, reloadSupabaseCompetitors]);
 
   // Category expand/collapse handlers
   const toggleCategory = useCallback((categoryKey) => {
@@ -328,58 +332,8 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     setExpandedCategories(all);
   }, []);
 
-  // One-time migration: localStorage competitors → Supabase with client_id
-  useEffect(() => {
-    if (!activeClient?.id) return;
-    const migrationKey = `competitors_migrated_${activeClient.id}`;
-    if (localStorage.getItem(migrationKey)) return;
-
-    const localCompetitors = JSON.parse(localStorage.getItem('competitors') || '[]');
-    if (localCompetitors.length === 0) return;
-
-    const migrate = async () => {
-      try {
-        const { upsertChannel, upsertVideos } = await import('../../services/competitorDatabase');
-
-        for (const comp of localCompetitors) {
-          const channel = await upsertChannel({
-            youtube_channel_id: comp.id,
-            name: comp.name,
-            description: comp.description,
-            thumbnail_url: comp.thumbnail,
-            subscriber_count: comp.subscriberCount,
-            total_view_count: comp.viewCount,
-            video_count: comp.videoCount,
-            is_competitor: true,
-            client_id: activeClient.id,
-            category: comp.category,
-          });
-
-          if (comp.videos?.length && channel?.id) {
-            const videosToUpsert = comp.videos.map(v => ({
-              youtube_video_id: v.id,
-              title: v.title,
-              thumbnail_url: v.thumbnail,
-              published_at: v.publishedAt,
-              duration_seconds: v.duration,
-              view_count: v.views,
-              like_count: v.likes,
-              comment_count: v.comments,
-            }));
-            await upsertVideos(videosToUpsert, channel.id);
-          }
-        }
-
-        localStorage.setItem(migrationKey, 'true');
-        console.log(`[Migration] Migrated ${localCompetitors.length} competitors for client ${activeClient.name}`);
-        await reloadSupabaseCompetitors();
-      } catch (err) {
-        console.error('[Migration] Failed:', err);
-      }
-    };
-
-    migrate();
-  }, [activeClient?.id, activeClient?.name, reloadSupabaseCompetitors]);
+  // Legacy localStorage migration removed - all competitor data now lives in Supabase.
+  // Competitors are assigned per-client via client_id on the channels table.
 
   // Calculate your channel stats
   const yourStats = useMemo(() => {
@@ -417,11 +371,11 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     };
   }, [rows]);
 
-  // Fetch outlier videos
-  const fetchOutliers = useCallback(async () => {
+  // Fetch outlier videos — accepts optional channel IDs to scope results
+  const fetchOutliers = useCallback(async (scopedIds) => {
     setOutliersLoading(true);
     try {
-      const data = await getOutlierVideos({ days: outlierDays, minMultiplier: outlierMinMultiplier });
+      const data = await getOutlierVideos({ days: outlierDays, minMultiplier: outlierMinMultiplier, channelIds: scopedIds && scopedIds.length > 0 ? scopedIds : undefined });
       setOutliers(data);
     } catch (err) {
       console.error('Failed to fetch outliers:', err);
@@ -429,11 +383,6 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       setOutliersLoading(false);
     }
   }, [outlierDays, outlierMinMultiplier]);
-
-  // Load outliers on mount
-  useEffect(() => {
-    fetchOutliers();
-  }, [fetchOutliers]);
 
   // Load insight for selected outlier
   const handleViewInsight = useCallback(async (video) => {
@@ -469,14 +418,15 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   };
 
   // Add competitor with enhanced data
-  const addCompetitor = async () => {
+  const addCompetitor = async (urlOverride) => {
     if (!apiKey) {
       setError("Please add your YouTube Data API key first");
       setShowApiKeyInput(true);
       return;
     }
 
-    if (!newCompetitor.trim()) {
+    const input = urlOverride || newCompetitor.trim();
+    if (!input) {
       setError("Please enter a channel URL or ID");
       return;
     }
@@ -486,7 +436,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
     try {
       // Extract channel ID from URL or use as-is
-      let channelId = newCompetitor.trim();
+      let channelId = input;
 
       // Handle different YouTube URL formats
       if (channelId.includes('youtube.com/channel/')) {
@@ -635,22 +585,20 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         addedAt: new Date().toISOString()
       };
 
-      // Check if already exists
-      if (competitors.some(c => c.id === channelId)) {
-        setError("This competitor is already in your list");
+      // Check if already exists for this client (use Supabase as source of truth)
+      if (supabaseCompetitors.some(c => c.youtube_channel_id === channelId)) {
+        setError("This competitor is already assigned to this client");
         setLoading(false);
         return;
       }
 
-      const updated = [...competitors, competitorData];
-      setCompetitors(updated);
       setNewCompetitor("");
       setError("");
 
-      // Also save to Supabase with client_id
+      // Save to Supabase with client_id (primary storage)
       try {
         const { upsertChannel, upsertVideos } = await import('../../services/competitorDatabase');
-        const channel = await upsertChannel({
+        const dbChannel = await upsertChannel({
           youtube_channel_id: competitorData.id,
           name: competitorData.name,
           description: competitorData.description,
@@ -662,7 +610,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           client_id: activeClient?.id || null,
         });
 
-        if (competitorData.videos?.length && channel?.id) {
+        if (competitorData.videos?.length && dbChannel?.id) {
           const videosToUpsert = competitorData.videos.map(v => ({
             youtube_video_id: v.id,
             title: v.title,
@@ -673,12 +621,13 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             like_count: v.likes,
             comment_count: v.comments,
           }));
-          await upsertVideos(videosToUpsert, channel.id);
+          await upsertVideos(videosToUpsert, dbChannel.id);
         }
 
         await reloadSupabaseCompetitors();
       } catch (dbErr) {
-        console.warn('[Competitors] Supabase save failed (localStorage still valid):', dbErr);
+        console.error('[Competitors] Supabase save failed:', dbErr);
+        setError(`Failed to save: ${dbErr.message}`);
       }
     } catch (err) {
       setError(err.message || "Failed to add competitor. Please check the URL and API key.");
@@ -1097,6 +1046,12 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
     return result;
   }, [supabaseCompetitors, competitors, masterView, industryFilter, selectedCategoryIds, categoryTree]);
+
+  // Load outliers scoped to current client's competitors
+  useEffect(() => {
+    const scopedIds = activeCompetitors.map(c => c.supabaseId).filter(Boolean);
+    fetchOutliers(scopedIds);
+  }, [activeCompetitors, fetchOutliers]);
 
   // Bulk assign categories to a client
   const handleBulkCategoryAssign = useCallback(async (categorySlugs, targetClientId) => {
@@ -1664,21 +1619,52 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           </div>
         )}
 
-        {/* Add Competitor Popover (collapsible) */}
+        {/* Add Competitor Popover (collapsible) - supports URL paste or keyword search */}
         {showAddPopover && !masterView && (
-          <div style={{ marginTop: "12px", background: "#252525", border: "1px solid #333", borderRadius: "8px", padding: "12px" }}>
+          <div style={{ marginTop: "12px", background: "#252525", border: "1px solid #333", borderRadius: "8px", padding: "12px", position: "relative" }}>
             <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>
-              Add a YouTube channel URL, @handle, or channel ID
+              Search YouTube or paste a channel URL
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
               <input
-                type="text" value={newCompetitor} onChange={(e) => setNewCompetitor(e.target.value)}
-                placeholder="https://youtube.com/@channelname"
+                type="text" value={newCompetitor}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setNewCompetitor(val);
+                  setSearchResults([]);
+
+                  // If it looks like a search query (not a URL), trigger debounced search
+                  const isUrl = val.includes('youtube.com') || val.startsWith('@') || val.startsWith('UC') || val.startsWith('http');
+                  if (!isUrl && val.trim().length >= 3 && apiKey) {
+                    setSearchLoading(true);
+                    clearTimeout(window._searchDebounce);
+                    window._searchDebounce = setTimeout(async () => {
+                      try {
+                        const { youtubeAPI } = await import('../../services/youtubeAPI');
+                        const results = await youtubeAPI.searchChannels(val.trim(), 5);
+                        setSearchResults(results);
+                      } catch (err) {
+                        console.warn('[Search]', err.message);
+                        setSearchResults([]);
+                      } finally {
+                        setSearchLoading(false);
+                      }
+                    }, 500);
+                  } else {
+                    setSearchLoading(false);
+                  }
+                }}
+                placeholder="e.g. retirement planning or https://youtube.com/@channel"
                 style={{ flex: 1, background: "#1E1E1E", border: "1px solid #333", borderRadius: "6px", padding: "8px 10px", color: "#fff", fontSize: "12px" }}
-                onKeyPress={(e) => e.key === 'Enter' && addCompetitor()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setSearchResults([]);
+                    addCompetitor();
+                  }
+                }}
               />
               <button
-                onClick={addCompetitor} disabled={loading}
+                onClick={() => { setSearchResults([]); addCompetitor(); }} disabled={loading}
                 style={{
                   background: loading ? "#555" : "#3b82f6", border: "none", borderRadius: "6px",
                   padding: "8px 16px", color: "#fff", fontSize: "12px", fontWeight: "600",
@@ -1688,6 +1674,61 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                 {loading ? "Adding..." : <><Plus size={14} /> Add</>}
               </button>
             </div>
+
+            {/* Search Results Dropdown */}
+            {searchLoading && (
+              <div style={{ marginTop: "8px", display: "flex", alignItems: "center", gap: "6px", color: "#888", fontSize: "11px" }}>
+                <Loader size={12} style={{ animation: "spin 1s linear infinite" }} /> Searching YouTube...
+              </div>
+            )}
+            {!searchLoading && searchResults.length > 0 && (
+              <div style={{ marginTop: "8px", background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px", overflow: "hidden" }}>
+                {searchResults.map((result, idx) => {
+                  const alreadyAdded = activeCompetitors.some(c => c.id === result.channelId);
+                  return (
+                    <div
+                      key={result.channelId}
+                      onClick={() => {
+                        if (alreadyAdded || loading) return;
+                        const url = `https://youtube.com/channel/${result.channelId}`;
+                        setNewCompetitor(url);
+                        setSearchResults([]);
+                        addCompetitor(url);
+                      }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "10px", padding: "8px 12px",
+                        cursor: alreadyAdded ? "default" : "pointer",
+                        opacity: alreadyAdded ? 0.5 : 1,
+                        borderTop: idx > 0 ? "1px solid #333" : "none",
+                        transition: "background 0.1s",
+                      }}
+                      onMouseOver={(e) => !alreadyAdded && (e.currentTarget.style.background = "#2a2a2a")}
+                      onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <img
+                        src={result.thumbnail} alt=""
+                        style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {result.name}
+                        </div>
+                        <div style={{ fontSize: "10px", color: "#888" }}>
+                          {result.subscriberCount > 0 ? `${(result.subscriberCount / 1000).toFixed(result.subscriberCount >= 1000000 ? 0 : 1)}K subs` : 'Subs hidden'}
+                          {' · '}{result.videoCount} videos
+                        </div>
+                      </div>
+                      {alreadyAdded ? (
+                        <div style={{ fontSize: "10px", color: "#10b981", fontWeight: "600", flexShrink: 0 }}>Added</div>
+                      ) : (
+                        <Plus size={14} style={{ color: "#3b82f6", flexShrink: 0 }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {error && (
               <div style={{ marginTop: "6px", padding: "6px 10px", background: "#ef444420", border: "1px solid #ef4444", borderRadius: "6px", color: "#ef4444", fontSize: "11px" }}>
                 {error}
@@ -1861,7 +1902,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                       style={{ background: "#252525", border: "1px solid #555", borderRadius: "6px", padding: "6px 10px", color: "#fff", fontSize: "12px" }}>
                       <option value={2}>2x+ avg</option><option value={2.5}>2.5x+ avg</option><option value={3}>3x+ avg</option><option value={5}>5x+ avg</option>
                     </select>
-                    <button onClick={fetchOutliers} disabled={outliersLoading}
+                    <button onClick={() => fetchOutliers(activeCompetitors.map(c => c.supabaseId).filter(Boolean))} disabled={outliersLoading}
                       style={{ background: "#3b82f6", border: "none", borderRadius: "6px", padding: "6px 12px", color: "#fff", fontSize: "12px", fontWeight: "600", cursor: outliersLoading ? "not-allowed" : "pointer", opacity: outliersLoading ? 0.6 : 1 }}>
                       {outliersLoading ? "Loading..." : "Refresh"}
                     </button>
@@ -2562,7 +2603,7 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
             <ExternalLink size={12} /> YouTube
           </a>
           <button onClick={() => onRemove(channel.id)}
-            style={{ background: "transparent", border: "1px solid #ef4444", borderRadius: "6px", padding: "6px 10px", color: "#ef4444", cursor: "pointer", fontSize: "11px", fontWeight: "600", display: "flex", alignItems: "center", gap: "4px" }}>
+            style={{ flex: 1, background: "transparent", border: "1px solid #ef4444", borderRadius: "6px", padding: "6px 10px", color: "#ef4444", cursor: "pointer", fontSize: "11px", fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
             <Trash2 size={12} /> Remove
           </button>
         </div>

@@ -154,6 +154,67 @@ class YouTubeAPIService {
   }
 
   /**
+   * Search YouTube for channels and return multiple results with stats.
+   * Quota: ~102 units (100 for search + 1 for channels.list batch).
+   */
+  async searchChannels(query, maxResults = 5) {
+    if (!this.apiKey) {
+      throw new Error('YouTube API key not configured. Please add your API key in settings.');
+    }
+
+    // Step 1: Search for channels
+    const searchUrl = new URL(`${YOUTUBE_API_BASE}/search`);
+    searchUrl.searchParams.append('part', 'snippet');
+    searchUrl.searchParams.append('type', 'channel');
+    searchUrl.searchParams.append('q', query);
+    searchUrl.searchParams.append('maxResults', String(maxResults));
+    searchUrl.searchParams.append('key', this.apiKey);
+
+    const searchResponse = await fetch(searchUrl);
+    const searchData = await searchResponse.json();
+
+    this.trackQuota(100);
+
+    if (searchData.error) throw new Error(searchData.error.message);
+    if (!searchData.items?.length) return [];
+
+    // Step 2: Batch fetch stats for all results
+    const channelIds = searchData.items.map(item => item.snippet.channelId);
+    const statsUrl = new URL(`${YOUTUBE_API_BASE}/channels`);
+    statsUrl.searchParams.append('part', 'snippet,statistics');
+    statsUrl.searchParams.append('id', channelIds.join(','));
+    statsUrl.searchParams.append('key', this.apiKey);
+
+    const statsResponse = await fetch(statsUrl);
+    const statsData = await statsResponse.json();
+
+    this.trackQuota(1);
+
+    if (statsData.error) throw new Error(statsData.error.message);
+
+    // Build a map of channelId → stats
+    const statsMap = {};
+    (statsData.items || []).forEach(item => {
+      statsMap[item.id] = item;
+    });
+
+    // Merge search results with stats
+    return searchData.items.map(item => {
+      const channelId = item.snippet.channelId;
+      const stats = statsMap[channelId];
+      return {
+        channelId,
+        name: stats?.snippet?.title || item.snippet.title,
+        thumbnail: stats?.snippet?.thumbnails?.default?.url || item.snippet.thumbnails?.default?.url,
+        description: (stats?.snippet?.description || item.snippet.description || '').slice(0, 120),
+        subscriberCount: parseInt(stats?.statistics?.subscriberCount) || 0,
+        videoCount: parseInt(stats?.statistics?.videoCount) || 0,
+        customUrl: stats?.snippet?.customUrl || null,
+      };
+    });
+  }
+
+  /**
    * Fetch full channel details including uploads playlist ID.
    * Quota: 1 unit (channels.list).
    */
