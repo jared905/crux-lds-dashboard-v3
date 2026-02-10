@@ -201,13 +201,50 @@ export default async function handler(req, res) {
 
     const analyticsData = await analyticsResponse.json();
 
-    // Note: Impressions/CTR metrics are NOT available through the YouTube Analytics API
-    // for regular channel owners. These metrics are only available via:
-    // 1. YouTube Studio CSV export
-    // 2. YouTube Reporting API (bulk download, requires separate implementation)
-    // 3. Content Owner API (for MCNs/CMS only)
-    //
-    // We skip attempting to fetch impressions to avoid unnecessary API calls and latency.
+    // Try Gemini's exact suggestion for impressions
+    // Use day dimension + views with impressions metrics + 3-day delayed end date
+    const impressionsEnd = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const impressionsUrl = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
+    impressionsUrl.searchParams.append('ids', `channel==${channelId}`);
+    impressionsUrl.searchParams.append('startDate', start);
+    impressionsUrl.searchParams.append('endDate', impressionsEnd);
+    impressionsUrl.searchParams.append('dimensions', 'day');
+    impressionsUrl.searchParams.append('metrics', 'views,videoThumbnailImpressions,videoThumbnailImpressionsClickRate');
+
+    console.log(`[Analytics] Trying impressions with day dimension, end=${impressionsEnd}...`);
+    const impressionsResponse = await fetch(impressionsUrl.toString(), {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+
+    let channelImpressions = null;
+    if (impressionsResponse.ok) {
+      const data = await impressionsResponse.json();
+      console.log(`[Analytics] Impressions SUCCESS: ${data.rows?.length || 0} days of data`);
+      if (data.rows?.length > 0) {
+        // Sum up the daily impressions
+        let totalImpressions = 0;
+        let totalViews = 0;
+        for (const row of data.rows) {
+          totalViews += row[1] || 0;
+          totalImpressions += row[2] || 0;
+        }
+        const avgCtr = data.rows.reduce((sum, row) => sum + (row[3] || 0), 0) / data.rows.length;
+        channelImpressions = {
+          totalImpressions,
+          totalViews,
+          avgCtr,
+          daysOfData: data.rows.length
+        };
+        console.log(`[Analytics] Channel impressions:`, channelImpressions);
+      }
+    } else {
+      const errorData = await impressionsResponse.json();
+      console.log(`[Analytics] Impressions FAILED:`, errorData.error?.message || 'Unknown');
+    }
 
     // Combine the data by video ID
     // analyticsData columns: video, views, estimatedMinutesWatched, averageViewPercentage, subscribersGained
@@ -287,9 +324,7 @@ export default async function handler(req, res) {
       analytics: videoAnalytics,
       updatedCount,
       matchedCount,
-      // Note: Impressions/CTR not available via YouTube Analytics API
-      // Use CSV export from YouTube Studio for these metrics
-      impressionsNote: 'Impressions/CTR require CSV export from YouTube Studio'
+      channelImpressions: channelImpressions // Channel-level impressions if available
     });
 
   } catch (error) {
