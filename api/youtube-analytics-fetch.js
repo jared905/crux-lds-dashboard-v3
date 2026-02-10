@@ -201,43 +201,62 @@ export default async function handler(req, res) {
 
     const analyticsData = await analyticsResponse.json();
 
-    // Now fetch impressions data separately (different metric set)
-    // Try videoThumbnailImpressions metrics (may work for non-content-owner channels)
-    const impressionsUrl = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
-    impressionsUrl.searchParams.append('ids', `channel==${channelId}`);
-    impressionsUrl.searchParams.append('startDate', start);
-    impressionsUrl.searchParams.append('endDate', end);
-    impressionsUrl.searchParams.append('dimensions', 'video');
-    impressionsUrl.searchParams.append('metrics', 'views,videoThumbnailImpressions,videoThumbnailImpressionsClickRate');
-    impressionsUrl.searchParams.append('sort', '-views');
-    impressionsUrl.searchParams.append('maxResults', '200');
-
-    if (videoIds && videoIds.length > 0) {
-      impressionsUrl.searchParams.append('filters', `video==${videoIds.join(',')}`);
-    }
-
-    const impressionsResponse = await fetch(impressionsUrl.toString(), {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
-      }
-    });
+    // Now fetch impressions data separately
+    // YouTube has a 3-day data latency for impressions - adjust end date
+    const impressionsEnd = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    console.log(`[Analytics] Using impressions end date: ${impressionsEnd} (3 days ago)`);
 
     let impressionsData = null;
     let impressionsError = null;
-    if (impressionsResponse.ok) {
-      impressionsData = await impressionsResponse.json();
-      console.log(`[Analytics] Impressions data: ${impressionsData.rows?.length || 0} videos`);
-      if (impressionsData.rows?.length > 0) {
-        // Log sample CTR value to debug format
-        const sampleRow = impressionsData.rows[0];
-        console.log(`[Analytics] Sample impressions row: videoId=${sampleRow[0]}, impressions=${sampleRow[2]}, ctr=${sampleRow[3]}`);
+    let testedMetrics = [];
+
+    // Try multiple metric combinations to find what works
+    const metricAttempts = [
+      { name: 'annotationImpressions', metrics: 'views,annotationImpressions,annotationClickableImpressions', dimension: 'video' },
+      { name: 'cardImpressions', metrics: 'views,cardImpressions,cardClickRate', dimension: 'video' },
+      { name: 'thumbnailImpressions-day', metrics: 'views,videoThumbnailImpressions,videoThumbnailImpressionsClickRate', dimension: 'day' },
+      { name: 'annotationImpressions-day', metrics: 'views,annotationImpressions,annotationClickableImpressions', dimension: 'day' }
+    ];
+
+    for (const attempt of metricAttempts) {
+      const testUrl = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
+      testUrl.searchParams.append('ids', `channel==${channelId}`);
+      testUrl.searchParams.append('startDate', start);
+      testUrl.searchParams.append('endDate', impressionsEnd);
+      testUrl.searchParams.append('dimensions', attempt.dimension);
+      testUrl.searchParams.append('metrics', attempt.metrics);
+      if (attempt.dimension === 'video') {
+        testUrl.searchParams.append('maxResults', '200');
       }
-    } else {
-      const errorData = await impressionsResponse.json();
-      impressionsError = errorData.error?.message || 'Unknown error';
-      console.log('[Analytics] Impressions API failed:', impressionsError);
-      console.log('[Analytics] Impressions API error details:', JSON.stringify(errorData.error || errorData));
+
+      console.log(`[Analytics] Trying ${attempt.name}...`);
+      const testResponse = await fetch(testUrl.toString(), {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (testResponse.ok) {
+        const data = await testResponse.json();
+        console.log(`[Analytics] ${attempt.name} SUCCESS: ${data.rows?.length || 0} rows`);
+        testedMetrics.push({ name: attempt.name, success: true, rows: data.rows?.length || 0 });
+
+        // If this is a per-video metric and we got data, use it
+        if (attempt.dimension === 'video' && data.rows?.length > 0) {
+          impressionsData = data;
+          break;
+        }
+      } else {
+        const errorData = await testResponse.json();
+        const errorMsg = errorData.error?.message || 'Unknown';
+        console.log(`[Analytics] ${attempt.name} FAILED: ${errorMsg}`);
+        testedMetrics.push({ name: attempt.name, success: false, error: errorMsg });
+      }
+    }
+
+    if (!impressionsData) {
+      impressionsError = `Tested metrics: ${testedMetrics.map(m => `${m.name}=${m.success ? 'OK' : 'FAIL'}`).join(', ')}`;
     }
 
     // Combine the data by video ID
@@ -260,16 +279,21 @@ export default async function handler(req, res) {
       }
     }
 
-    // Merge impressions data
+    // Merge impressions data (if available)
+    // Note: Different metrics have different column layouts
+    // annotationImpressions: video, views, annotationImpressions, annotationClickableImpressions
+    // cardImpressions: video, views, cardImpressions, cardClickRate
     if (impressionsData?.rows) {
       for (const row of impressionsData.rows) {
         const videoId = row[0];
         if (!videoAnalytics[videoId]) {
           videoAnalytics[videoId] = {};
         }
+        // Column 2 is the impressions-like metric, column 3 is the CTR-like metric
         videoAnalytics[videoId].impressions = row[2] ?? 0;
-        videoAnalytics[videoId].ctr = row[3] ?? 0; // Already as decimal (0.05 = 5%)
+        videoAnalytics[videoId].ctr = row[3] ?? 0;
       }
+      console.log(`[Analytics] Merged impressions for ${impressionsData.rows.length} videos`);
     }
 
     // Update videos in the database with analytics data
@@ -324,12 +348,14 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       dateRange: { start, end },
+      impressionsDateRange: { start, end: impressionsEnd },
       videoCount: Object.keys(videoAnalytics).length,
       analytics: videoAnalytics,
       updatedCount,
       matchedCount,
       impressionsAvailable: impressionsData?.rows?.length > 0,
-      impressionsError: impressionsError || null
+      impressionsError: impressionsError || null,
+      testedMetrics: testedMetrics
     });
 
   } catch (error) {
