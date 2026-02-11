@@ -196,7 +196,10 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
   };
 
   const handleSaveNetwork = async () => {
-    if (!supabase || selectedMembers.size < 2 || !primaryChannelYtId || !networkName.trim()) return;
+    if (!supabase) return;
+    if (!networkName.trim()) { setError('Enter a network name.'); return; }
+    if (selectedMembers.size < 2) { setError('Select at least 2 channels.'); return; }
+    if (!primaryChannelYtId) { setError('Select a primary channel.'); return; }
     setSavingNetwork(true);
     setError(null);
 
@@ -1254,14 +1257,14 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button
                       onClick={handleSaveNetwork}
-                      disabled={savingNetwork || selectedMembers.size < 2 || !primaryChannelYtId || !networkName.trim()}
+                      disabled={savingNetwork}
                       style={{
                         ...buttonStyle,
                         background: savingNetwork ? "#333" : "#2962FF",
                         border: "none",
                         color: "#fff",
-                        opacity: (savingNetwork || selectedMembers.size < 2 || !primaryChannelYtId || !networkName.trim()) ? 0.5 : 1,
-                        cursor: (savingNetwork || selectedMembers.size < 2 || !primaryChannelYtId || !networkName.trim()) ? "not-allowed" : "pointer",
+                        opacity: savingNetwork ? 0.7 : 1,
+                        cursor: savingNetwork ? "not-allowed" : "pointer",
                       }}
                     >
                       {savingNetwork ? (
