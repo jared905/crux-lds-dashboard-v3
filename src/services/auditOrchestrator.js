@@ -26,6 +26,7 @@ import { runBenchmarking } from './auditBenchmark';
 import { analyzeOpportunities } from './auditOpportunities';
 import { generateRecommendations } from './auditRecommendations';
 import { generateExecutiveSummary } from './auditSummary';
+import { saveBrandContext } from './brandContextService';
 
 const AUDIT_STEPS = [
   'ingestion',
@@ -84,6 +85,16 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
       channel_id: channel.id,
       channel_snapshot: channelSnapshot,
     });
+
+    // Save pre-extracted brand context if provided (from audit creation flow)
+    if (config.brandContext) {
+      try {
+        await saveBrandContext(channel.id, config.brandContext);
+        console.log('[auditOrchestrator] Pre-extracted brand context saved for', channel.id);
+      } catch (e) {
+        console.warn('[auditOrchestrator] Failed to save brand context, continuing:', e.message);
+      }
+    }
 
     notify({ step: 'ingestion', pct: 15, message: 'Ingestion complete' });
 
@@ -265,6 +276,7 @@ export async function resumeAudit(auditId, onProgress) {
       if (step === 'opportunity_analysis') {
         notify({ step, pct: 57, message: 'Resuming opportunity analysis...' });
         opportunities = await analyzeOpportunities(auditId, {
+          channelId: channel.id,
           channelSnapshot,
           seriesSummary,
           benchmarkData,
@@ -276,6 +288,7 @@ export async function resumeAudit(auditId, onProgress) {
       if (step === 'recommendations') {
         notify({ step, pct: 72, message: 'Resuming recommendations...' });
         recommendations = await generateRecommendations(auditId, {
+          channelId: channel.id,
           channelSnapshot,
           seriesSummary,
           benchmarkData,
@@ -288,6 +301,7 @@ export async function resumeAudit(auditId, onProgress) {
       if (step === 'executive_summary') {
         notify({ step, pct: 87, message: 'Resuming executive summary...' });
         const executiveSummary = await generateExecutiveSummary(auditId, {
+          channelId: channel.id,
           auditType: audit.audit_type,
           channelSnapshot,
           seriesSummary,

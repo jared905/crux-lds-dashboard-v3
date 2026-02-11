@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Palette, Upload, Loader2, AlertCircle, Check, ChevronDown, ChevronRight,
   Megaphone, Users, Layers, Eye, Globe, Sparkles, Edit2, RotateCcw, Save,
-  Plus, X, Clock
+  Plus, X, Clock, Search, ArrowLeft
 } from 'lucide-react';
 import {
   getCurrentBrandContext,
   saveBrandContext,
   extractBrandContext,
   getBrandContextHistory,
+  searchChannels,
 } from '../../services/brandContextService';
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
@@ -470,23 +471,66 @@ export default function BrandContext({ activeClient }) {
   const [expandedSections, setExpandedSections] = useState({});
   const [history, setHistory] = useState([]);
 
-  // Load brand context when client changes
+  // Channel search state (used when no activeClient)
+  const [selectedChannel, setSelectedChannel] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const searchTimerRef = useRef(null);
+
+  // Effective channel: sidebar client takes priority, otherwise use searched channel
+  const effectiveChannel = activeClient || selectedChannel;
+
+  // Debounced channel search
   useEffect(() => {
-    if (!activeClient?.id) {
+    if (activeClient) return; // Don't search when client is selected via sidebar
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const results = await searchChannels(searchQuery.trim());
+        setSearchResults(results);
+      } catch (err) {
+        console.error('[BrandContext] Search error:', err);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [searchQuery, activeClient]);
+
+  // Reset selected channel when activeClient changes
+  useEffect(() => {
+    if (activeClient) {
+      setSelectedChannel(null);
+      setSearchQuery('');
+      setSearchResults([]);
+    }
+  }, [activeClient?.id]);
+
+  // Load brand context when effective channel changes
+  useEffect(() => {
+    if (!effectiveChannel?.id) {
       setMode('extract');
       setBrandContext(null);
       setFormData(null);
       return;
     }
 
-    setBrandName(activeClient.name || '');
+    setBrandName(effectiveChannel.name || '');
     setError(null);
     setSuccessMsg(null);
 
     const load = async () => {
       setMode('loading');
       try {
-        const ctx = await getCurrentBrandContext(activeClient.id);
+        const ctx = await getCurrentBrandContext(effectiveChannel.id);
         if (ctx) {
           setBrandContext(ctx);
           setMode('review');
@@ -500,7 +544,7 @@ export default function BrandContext({ activeClient }) {
       }
     };
     load();
-  }, [activeClient?.id]);
+  }, [effectiveChannel?.id]);
 
   const toggleSection = (key) => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -520,7 +564,7 @@ export default function BrandContext({ activeClient }) {
     setExtractionCost(null);
 
     try {
-      const result = await extractBrandContext(pasteContent, brandName || activeClient?.name || 'Unknown');
+      const result = await extractBrandContext(pasteContent, brandName || effectiveChannel?.name || 'Unknown');
       const { raw_extraction, extraction_model, usage, cost, ...contextFields } = result;
 
       setFormData({
@@ -544,18 +588,18 @@ export default function BrandContext({ activeClient }) {
     } finally {
       setLoading(false);
     }
-  }, [pasteContent, brandName, activeClient?.name]);
+  }, [pasteContent, brandName, effectiveChannel?.name]);
 
   // ── Save ───────────────────────────────────────────────────────────────────
 
   const handleSave = useCallback(async () => {
-    if (!activeClient?.id || !formData) return;
+    if (!effectiveChannel?.id || !formData) return;
     setSaving(true);
     setError(null);
     setSuccessMsg(null);
 
     try {
-      const saved = await saveBrandContext(activeClient.id, formData);
+      const saved = await saveBrandContext(effectiveChannel.id, formData);
       setBrandContext(saved);
       setMode('review');
       setSuccessMsg('Brand context saved successfully.');
@@ -566,7 +610,7 @@ export default function BrandContext({ activeClient }) {
     } finally {
       setSaving(false);
     }
-  }, [activeClient?.id, formData]);
+  }, [effectiveChannel?.id, formData]);
 
   // ── Edit existing context ──────────────────────────────────────────────────
 
@@ -591,8 +635,8 @@ export default function BrandContext({ activeClient }) {
   };
 
   const handleViewHistory = async () => {
-    if (!activeClient?.id) return;
-    const h = await getBrandContextHistory(activeClient.id);
+    if (!effectiveChannel?.id) return;
+    const h = await getBrandContextHistory(effectiveChannel.id);
     setHistory(h);
   };
 
@@ -613,7 +657,7 @@ export default function BrandContext({ activeClient }) {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  if (!activeClient) {
+  if (!effectiveChannel) {
     return (
       <div style={styles.page}>
         <div style={styles.card}>
@@ -621,10 +665,77 @@ export default function BrandContext({ activeClient }) {
             <Palette size={24} color="#2962FF" />
             Brand Context
           </div>
-          <div style={{ color: '#9E9E9E', fontSize: '14px' }}>
-            Select a client to manage their brand context.
+          <div style={{ color: '#9E9E9E', fontSize: '14px', marginBottom: '20px' }}>
+            {activeClient === undefined || activeClient === null
+              ? 'Search for a channel to manage its brand context, or select a client from the sidebar.'
+              : 'Select a client to manage their brand context.'}
           </div>
+
+          {/* Channel search */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <Search size={16} style={{ color: '#666', flexShrink: 0 }} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search channels by name..."
+                style={{ ...styles.input, flex: 1 }}
+              />
+            </div>
+          </div>
+
+          {/* Search results */}
+          {searching && (
+            <div style={{ textAlign: 'center', padding: '16px', color: '#9E9E9E', fontSize: '13px' }}>
+              <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', marginBottom: '4px' }} />
+              <div>Searching...</div>
+            </div>
+          )}
+
+          {!searching && searchResults.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {searchResults.map(ch => (
+                <button
+                  key={ch.id}
+                  onClick={() => {
+                    setSelectedChannel({ id: ch.id, name: ch.name, thumbnail_url: ch.thumbnail_url });
+                    setSearchQuery('');
+                    setSearchResults([]);
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    background: '#252525', border: '1px solid #333', borderRadius: '8px',
+                    padding: '12px', cursor: 'pointer', textAlign: 'left', width: '100%',
+                  }}
+                >
+                  {ch.thumbnail_url && (
+                    <img src={ch.thumbnail_url} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
+                  )}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '14px', fontWeight: '600', color: '#E0E0E0' }}>{ch.name}</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>
+                      {(ch.subscriber_count || 0).toLocaleString()} subscribers
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {ch.is_client && <span style={{ fontSize: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '2px 6px', borderRadius: '4px' }}>Client</span>}
+                    {ch.is_competitor && <span style={{ fontSize: '10px', background: 'rgba(41, 98, 255, 0.15)', color: '#60a5fa', padding: '2px 6px', borderRadius: '4px' }}>Competitor</span>}
+                    {!ch.is_client && !ch.is_competitor && <span style={{ fontSize: '10px', background: '#333', color: '#9E9E9E', padding: '2px 6px', borderRadius: '4px' }}>Audit</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!searching && searchQuery.trim().length >= 2 && searchResults.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '16px', color: '#666', fontSize: '13px' }}>
+              No channels found matching &ldquo;{searchQuery}&rdquo;
+            </div>
+          )}
         </div>
+
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
@@ -644,14 +755,26 @@ export default function BrandContext({ activeClient }) {
     <div style={styles.page}>
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
+        {selectedChannel && !activeClient && (
+          <button
+            onClick={() => { setSelectedChannel(null); setMode('loading'); }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              background: 'none', border: 'none', color: '#60a5fa',
+              cursor: 'pointer', padding: '0 0 8px', fontSize: '13px',
+            }}
+          >
+            <ArrowLeft size={14} /> Change channel
+          </button>
+        )}
         <div style={styles.header}>
           <Palette size={24} color="#2962FF" />
-          Brand Context — {activeClient.name}
+          Brand Context — {effectiveChannel.name}
         </div>
         <div style={styles.subtitle}>
           {mode === 'extract' && 'Paste website content, about pages, or social media posts to extract brand intelligence.'}
           {mode === 'edit' && 'Review and edit the extracted brand context before saving.'}
-          {mode === 'review' && 'Brand context is active and will be injected into all AI-generated outputs for this client.'}
+          {mode === 'review' && 'Brand context is active and will be injected into all AI-generated outputs for this channel.'}
         </div>
       </div>
 

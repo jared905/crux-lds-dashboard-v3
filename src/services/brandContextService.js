@@ -96,6 +96,48 @@ export async function getBrandContextHistory(channelId) {
   return data || [];
 }
 
+/**
+ * Look up a channel by youtube_channel_id and return its current brand context.
+ * Useful in the audit flow when we have a YouTube ID but not the internal UUID.
+ */
+export async function getContextByYoutubeChannelId(youtubeChannelId) {
+  if (!supabase) throw new Error('Supabase not configured');
+  if (!youtubeChannelId) return { channelId: null, context: null };
+
+  const { data: channel } = await supabase
+    .from('channels')
+    .select('id')
+    .eq('youtube_channel_id', youtubeChannelId)
+    .maybeSingle();
+
+  if (!channel) return { channelId: null, context: null };
+
+  const context = await getCurrentBrandContext(channel.id);
+  return { channelId: channel.id, context };
+}
+
+/**
+ * Search channels by name (for brand context page channel picker).
+ * Returns all channels, not just clients.
+ */
+export async function searchChannels(query, limit = 10) {
+  if (!supabase) throw new Error('Supabase not configured');
+  if (!query || !query.trim()) return [];
+
+  const { data, error } = await supabase
+    .from('channels')
+    .select('id, name, thumbnail_url, subscriber_count, is_client, is_competitor, youtube_channel_id')
+    .ilike('name', `%${query.trim()}%`)
+    .order('subscriber_count', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('[brandContext] Search error:', error);
+    return [];
+  }
+  return data || [];
+}
+
 // ─── EXTRACTION ────────────────────────────────────────────────────────────────
 
 const EXTRACTION_SYSTEM_PROMPT = `You are a brand analyst extracting structured brand intelligence from website content and social media posts. Given raw content from a brand's online presence, extract a comprehensive brand context profile.
