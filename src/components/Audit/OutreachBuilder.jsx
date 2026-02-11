@@ -62,7 +62,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
   const [customTeases, setCustomTeases] = useState([]);
   const [featuredVideos, setFeaturedVideos] = useState([]);
   const [signOff, setSignOff] = useState(
-    "We're fans of what you're building. If there's ever an opportunity to help, we'd love to be part of it. Either way — keep going."
+    "Quick bit about us — we work with brands on YouTube, everything from channel strategy and direction to production, editing, and packaging (titles, thumbnails, the stuff that actually moves the needle). We're not trying to pitch you — just genuinely impressed by what you're building and wanted to share what we saw. If it ever makes sense to talk, we're here."
   );
   const [senderName, setSenderName] = useState("Jared");
   const [senderCompany, setSenderCompany] = useState("CRUX");
@@ -208,9 +208,8 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
 
     // Weave observations naturally into prose
     if (content.observations.length > 0) {
-      email += "I spent some time looking at your channel and a few things stood out:\n\n";
+      email += "I spent some time going through your channel and wanted to share a few things that caught my eye:\n\n";
       content.observations.forEach(o => {
-        // Include video link if observation has one
         if (o.videoUrl) {
           email += `${o.text}\n${o.videoUrl}\n\n`;
         } else {
@@ -221,12 +220,12 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
 
     // Quick win as a gift
     if (content.quickWin) {
-      email += `One thing you could try right away: ${content.quickWin.text}\n\n`;
+      email += `One thought that might be useful: ${content.quickWin.text}\n\n`;
     }
 
     // Teases as curiosity hooks
     if (content.teases.length > 0) {
-      email += "If you're curious, I'd love to dig into:\n";
+      email += "A few other things I'd be curious to explore with you:\n";
       content.teases.forEach(t => {
         email += `- ${t.text}\n`;
       });
@@ -923,7 +922,7 @@ function generateObservations(audit, videoAnalysis, videos) {
       id: "top-video",
       type: "compliment",
       icon: <TrendingUp size={14} style={{ color: "#22c55e" }} />,
-      text: `"${topVideo.title}" really stood out — ${(topVideo.view_count || 0).toLocaleString()} views tells me your audience responds to this kind of content.`,
+      text: `"${topVideo.title}" is a standout — ${(topVideo.view_count || 0).toLocaleString()} views. You clearly tapped into something your audience cares about here.`,
       thumbnail: topVideo.thumbnail_url,
       videoUrl: topVideo.youtube_video_id ? `https://youtube.com/watch?v=${topVideo.youtube_video_id}` : null,
     });
@@ -938,7 +937,7 @@ function generateObservations(audit, videoAnalysis, videos) {
         id: "series-performance",
         type: "compliment",
         icon: <TrendingUp size={14} style={{ color: "#22c55e" }} />,
-        text: `Your "${topSeries.name}" series is doing well — ${topSeries.videoCount} episodes averaging ${(topSeries.avgViews || 0).toLocaleString()} views. Consistency is paying off.`,
+        text: `The "${topSeries.name}" series is clearly resonating — ${topSeries.videoCount} episodes in, averaging ${(topSeries.avgViews || 0).toLocaleString()} views. That kind of consistency builds real audience trust.`,
         thumbnail: seriesVideo?.thumbnail_url || topSeries.thumbnail,
         videoUrl: seriesVideo?.youtube_video_id ? `https://youtube.com/watch?v=${seriesVideo.youtube_video_id}` : null,
       });
@@ -952,7 +951,7 @@ function generateObservations(audit, videoAnalysis, videos) {
       id: "investigate-video",
       type: "insight",
       icon: <HelpCircle size={14} style={{ color: "#3b82f6" }} />,
-      text: `I noticed "${investigateVideo.title}" got ${(investigateVideo.view_count || 0).toLocaleString()} views but engagement was lower than usual. Curious what drove the reach — algorithm, external traffic, or something else?`,
+      text: `This one's interesting — "${investigateVideo.title}" pulled ${(investigateVideo.view_count || 0).toLocaleString()} views but the engagement didn't match the reach. Feels like the algorithm caught a wave, but the audience might have been different than your usual viewers. Would be worth looking at the traffic sources.`,
       thumbnail: investigateVideo.thumbnail_url,
       videoUrl: investigateVideo.youtube_video_id ? `https://youtube.com/watch?v=${investigateVideo.youtube_video_id}` : null,
     });
@@ -972,7 +971,7 @@ function generateObservations(audit, videoAnalysis, videos) {
         id: "shorts-winning",
         type: "opportunity",
         icon: <Zap size={14} style={{ color: "#f59e0b" }} />,
-        text: `Your Shorts are pulling ${(shortsAvg / longAvg).toFixed(1)}x the views of your long-form. Looks like there's untapped potential in short-form for your content.`,
+        text: `Your Shorts are averaging ${(shortsAvg / longAvg).toFixed(1)}x the views of your long-form content — that's a real signal. Seems like your audience wants more of those bite-sized takes.`,
         thumbnail: topShort?.thumbnail_url,
         videoUrl: topShort?.youtube_video_id ? `https://youtube.com/watch?v=${topShort.youtube_video_id}` : null,
       });
@@ -997,7 +996,7 @@ function generateObservations(audit, videoAnalysis, videos) {
         id: "recent-momentum",
         type: "compliment",
         icon: <TrendingUp size={14} style={{ color: "#22c55e" }} />,
-        text: `Your recent content is outperforming your historical average — something's working. "${recentTop.title}" is a good example.`,
+        text: `You've got real momentum right now — your recent uploads are outpacing your usual numbers. "${recentTop.title}" being a good example. Whatever shifted, it's working.`,
         thumbnail: recentTop.thumbnail_url,
         videoUrl: recentTop.youtube_video_id ? `https://youtube.com/watch?v=${recentTop.youtube_video_id}` : null,
       });
@@ -1006,7 +1005,7 @@ function generateObservations(audit, videoAnalysis, videos) {
         id: "recent-dip",
         type: "insight",
         icon: <Clock size={14} style={{ color: "#3b82f6" }} />,
-        text: `Your recent videos are coming in below your typical performance. Could be timing, topic, or packaging — worth diagnosing.`,
+        text: `Your recent videos are landing below where they usually do. Could be a few things — topic selection, packaging, or just timing. Sometimes small tweaks to titles and thumbnails unlock it again.`,
         thumbnail: recentTop.thumbnail_url,
         videoUrl: recentTop.youtube_video_id ? `https://youtube.com/watch?v=${recentTop.youtube_video_id}` : null,
       });
@@ -1020,7 +1019,7 @@ function generateObservations(audit, videoAnalysis, videos) {
         id: "benchmark-strong",
         type: "compliment",
         icon: <Target size={14} style={{ color: "#22c55e" }} />,
-        text: `You're outperforming most channels your size by ${Math.round((benchmark.comparison.overallScore - 1) * 100)}%. That's not easy to do — whatever you're doing, it's working.`,
+        text: `For context, we looked at ${benchmark.peer_count} channels in your space — and you're outperforming most of them by about ${Math.round((benchmark.comparison.overallScore - 1) * 100)}%. That's genuinely impressive and not something we see often.`,
       });
     }
   }
@@ -1036,7 +1035,7 @@ function generateObservations(audit, videoAnalysis, videos) {
         id: "engagement-gem",
         type: "insight",
         icon: <Sparkles size={14} style={{ color: "#8b5cf6" }} />,
-        text: `"${highEngagement.title}" didn't get huge views but engagement was ${highEngagement.engagement_ratio}x your baseline. Your core audience really connected with that one.`,
+        text: `"${highEngagement.title}" is a hidden gem — it didn't get the biggest reach, but your audience was ${highEngagement.engagement_ratio}x more engaged than usual. That kind of content builds a loyal community even if the algorithm doesn't always reward it.`,
         thumbnail: highEngagement.thumbnail_url,
         videoUrl: highEngagement.youtube_video_id ? `https://youtube.com/watch?v=${highEngagement.youtube_video_id}` : null,
       });
@@ -1056,7 +1055,7 @@ function generateObservations(audit, videoAnalysis, videos) {
       id: `video-${observations.length}`,
       type: "compliment",
       icon: <Video size={14} style={{ color: "#ec4899" }} />,
-      text: `"${video.title}" caught my attention — ${(video.view_count || 0).toLocaleString()} views.`,
+      text: `Really liked "${video.title}" — ${(video.view_count || 0).toLocaleString()} views and the topic clearly landed.`,
       thumbnail: video.thumbnail_url,
       videoUrl: video.youtube_video_id ? `https://youtube.com/watch?v=${video.youtube_video_id}` : null,
     });
@@ -1082,7 +1081,7 @@ function generateQuickWins(audit, videoAnalysis, videos) {
       id: "title-numbers",
       category: "packaging",
       icon: <Sparkles size={14} style={{ color: "#22c55e" }} />,
-      text: `${topWithNumbers} of your top videos use numbers in the title (like "5 ways..." or "3 things..."). Your recent uploads don't. Easy test: add a number to your next title and see if CTR improves.`,
+      text: `Something we noticed in your data — ${topWithNumbers} of your best-performing videos use numbers in the title. Your recent uploads haven't. Small tweak, but worth testing on your next upload to see if it moves the click-through rate.`,
     });
   }
 
@@ -1093,7 +1092,7 @@ function generateQuickWins(audit, videoAnalysis, videos) {
       id: "title-questions",
       category: "packaging",
       icon: <Sparkles size={14} style={{ color: "#22c55e" }} />,
-      text: `Questions in titles are working for you — ${topWithQuestions} of your top performers use them. Try leading with curiosity: "Why does X happen?" or "What if you tried Y?"`,
+      text: `Your audience clearly responds to curiosity — ${topWithQuestions} of your top performers use questions in the title. Leaning into that more could be an easy win.`,
     });
   }
 
@@ -1110,7 +1109,7 @@ function generateQuickWins(audit, videoAnalysis, videos) {
         id: "shorts-recency",
         category: "format",
         icon: <Video size={14} style={{ color: "#22c55e" }} />,
-        text: `It's been ${daysSinceShort} days since your last Short. Even repurposing a clip from a recent long-form video could bring in new viewers. Low effort, high optionality.`,
+        text: `It's been ${daysSinceShort} days since your last Short. You don't need to create new content for these — pulling a strong 30-second moment from a recent long-form video works great as a way to bring new people into your world.`,
       });
     }
   }
@@ -1134,7 +1133,7 @@ function generateQuickWins(audit, videoAnalysis, videos) {
         id: "consistency",
         category: "cadence",
         icon: <Clock size={14} style={{ color: "#22c55e" }} />,
-        text: `Your upload schedule has some gaps (up to ${Math.round(maxGap)} days between videos). YouTube rewards consistency. Even a simple "check-in" video during slow periods keeps the algorithm warm.`,
+        text: `There are some gaps in your upload schedule (up to ${Math.round(maxGap)} days between videos). Consistency matters more than volume on YouTube — even a lighter-lift video during slower periods keeps your audience and the algorithm engaged.`,
       });
     }
   }
@@ -1145,7 +1144,7 @@ function generateQuickWins(audit, videoAnalysis, videos) {
       id: "engagement-cta",
       category: "engagement",
       icon: <MessageSquare size={14} style={{ color: "#22c55e" }} />,
-      text: `A simple "What do you think? Let me know in the comments" at the end of your videos can significantly boost engagement. Most creators skip this. Don't be most creators.`,
+      text: `One thing we've seen work well for channels your size — ending with a specific question for the audience. Not "like and subscribe" but something related to the video topic. It invites conversation and signals to YouTube that people care about what you're making.`,
     });
   }
 
@@ -1154,7 +1153,7 @@ function generateQuickWins(audit, videoAnalysis, videos) {
     id: "thumbnail-test",
     category: "packaging",
     icon: <Sparkles size={14} style={{ color: "#22c55e" }} />,
-    text: `Pick your lowest-CTR video from the last month and swap the thumbnail for something bolder — bigger text, more contrast, your face if you're not using it. YouTube lets you A/B test now.`,
+    text: `YouTube now lets you A/B test thumbnails — worth trying on one of your recent videos that underperformed. Sometimes a bolder thumbnail (more contrast, cleaner text, or a different still) unlocks a video that the algorithm overlooked.`,
   });
 
   // 7. Series format
@@ -1162,7 +1161,7 @@ function generateQuickWins(audit, videoAnalysis, videos) {
     id: "series-format",
     category: "content",
     icon: <Target size={14} style={{ color: "#22c55e" }} />,
-    text: `Take your best-performing video topic and turn it into a series. "Part 2" in a title instantly signals value to people who watched Part 1, and YouTube loves connecting them.`,
+    text: `Your best-performing topic has series potential. Revisiting a winning topic as a "part 2" or follow-up gives you a built-in audience from the first video and YouTube tends to recommend them together.`,
   });
 
   // Return exactly 5
@@ -1171,39 +1170,40 @@ function generateQuickWins(audit, videoAnalysis, videos) {
 
 function generateTeases(audit, videoAnalysis, videos, benchmark) {
   const teases = [];
+  const snapshot = audit.channel_snapshot || {};
 
   teases.push({
     id: "retention-analysis",
-    text: "Where viewers drop off in your videos (and what editing tweaks could fix it)",
+    text: "Where viewers are dropping off in your videos — and what small editing or pacing changes tend to fix it",
   });
 
   if (benchmark.hasBenchmarks) {
     teases.push({
       id: "competitor-analysis",
-      text: `How you stack up against ${benchmark.peer_count} similar channels — and what the top performers are doing differently`,
+      text: `How your channel compares to ${benchmark.peer_count} others in your space — not to compete, but to spot what's working for similar audiences`,
     });
   }
 
   if (videoAnalysis?.investigateVideos?.length > 0) {
     teases.push({
       id: "investigate-deep-dive",
-      text: `Why ${videoAnalysis.investigateVideos.length} of your videos got reach but not engagement — and what that pattern means`,
+      text: `The pattern behind ${videoAnalysis.investigateVideos.length} of your videos that got big reach but lower engagement — there's something interesting happening there`,
     });
   }
 
   teases.push({
     id: "content-pillars",
-    text: "Which content pillars are actually driving subscribers vs. just views",
+    text: "Which topics are actually converting viewers into subscribers vs. just getting one-time views — they're often different",
   });
 
   teases.push({
     id: "packaging-formula",
-    text: "The title/thumbnail patterns that work for your audience (based on your own data)",
+    text: "Your specific title and thumbnail patterns that outperform — based on your own data, not generic YouTube advice",
   });
 
   teases.push({
     id: "growth-roadmap",
-    text: "A 90-day content plan built around what's already working",
+    text: `A focused content direction for the next quarter, built around what's already resonating with your audience`,
   });
 
   return teases.slice(0, 5);
