@@ -112,7 +112,7 @@ async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
   analyticsUrl.searchParams.append('startDate', startDate);
   analyticsUrl.searchParams.append('endDate', endDate);
   analyticsUrl.searchParams.append('dimensions', 'video');
-  analyticsUrl.searchParams.append('metrics', 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained');
+  analyticsUrl.searchParams.append('metrics', 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained,videoThumbnailImpressions,videoThumbnailImpressionsClickRate');
   analyticsUrl.searchParams.append('sort', '-views');
   analyticsUrl.searchParams.append('maxResults', '200');
 
@@ -423,7 +423,9 @@ async function syncConnection(connection) {
             views: row[1] ?? 0,
             watchHours: (row[2] ?? 0) / 60,
             avgViewPercentage: (row[3] ?? 0) / 100,
-            subscribersGained: row[4] ?? 0
+            subscribersGained: row[4] ?? 0,
+            impressions: row[5] ?? 0,
+            ctr: row[6] ?? 0
           };
         }
       }
@@ -471,6 +473,14 @@ async function syncConnection(connection) {
       if (analytics.subscribersGained != null) {
         updateData.subscribers_gained = analytics.subscribersGained;
       }
+      // Impressions/CTR from Analytics API
+      if (analytics.impressions > 0) {
+        updateData.impressions = analytics.impressions;
+      }
+      if (analytics.ctr > 0) {
+        updateData.ctr = analytics.ctr;
+      }
+      // Reporting API overrides if available (aggregated historical data)
       if (reporting.impressions != null && reporting.impressions > 0) {
         updateData.impressions = reporting.impressions;
       }
@@ -491,8 +501,8 @@ async function syncConnection(connection) {
         video_id: video.id,
         snapshot_date: yesterday,
         view_count: analytics.views || null,
-        impressions: reporting.impressions || null,
-        ctr: reporting.ctr || null,
+        impressions: reporting.impressions || analytics.impressions || null,
+        ctr: reporting.ctr || analytics.ctr || null,
         avg_view_percentage: analytics.avgViewPercentage || null,
         watch_hours: analytics.watchHours || null,
         subscribers_gained: analytics.subscribersGained || null,

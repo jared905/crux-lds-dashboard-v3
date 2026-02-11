@@ -173,7 +173,7 @@ export default async function handler(req, res) {
     analyticsUrl.searchParams.append('startDate', start);
     analyticsUrl.searchParams.append('endDate', end);
     analyticsUrl.searchParams.append('dimensions', 'video');
-    analyticsUrl.searchParams.append('metrics', 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained');
+    analyticsUrl.searchParams.append('metrics', 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained,videoThumbnailImpressions,videoThumbnailImpressionsClickRate');
     analyticsUrl.searchParams.append('sort', '-views');
     analyticsUrl.searchParams.append('maxResults', '200');
 
@@ -219,7 +219,9 @@ export default async function handler(req, res) {
           watchMinutes: row[2] ?? 0,
           watchHours: (row[2] ?? 0) / 60,
           avgViewPercentage: row[3] ?? 0,
-          subscribersGained: row[4] ?? 0
+          subscribersGained: row[4] ?? 0,
+          impressions: row[5] ?? 0,
+          ctr: row[6] ?? 0
         };
       }
     }
@@ -255,16 +257,22 @@ export default async function handler(req, res) {
 
           if (existingVideo) {
             matchedCount++;
-            // Note: Don't update impressions/ctr - these require CSV export
-            // Only update metrics available via YouTube Analytics API
-            const { error: updateError } = await supabase
-              .from('videos')
-              .update({
+            const updateFields = {
                 avg_view_percentage: analytics.avgViewPercentage != null ? analytics.avgViewPercentage / 100 : null,
                 watch_hours: analytics.watchHours != null ? analytics.watchHours : null,
                 subscribers_gained: analytics.subscribersGained != null ? analytics.subscribersGained : null,
                 last_synced_at: new Date().toISOString()
-              })
+            };
+            // Impressions/CTR from Analytics API (videoThumbnailImpressions)
+            if (analytics.impressions > 0) {
+              updateFields.impressions = analytics.impressions;
+            }
+            if (analytics.ctr > 0) {
+              updateFields.ctr = analytics.ctr;
+            }
+            const { error: updateError } = await supabase
+              .from('videos')
+              .update(updateFields)
               .eq('id', existingVideo.id);
 
             if (!updateError) {

@@ -110,11 +110,12 @@ async function handleSetup(connection, accessToken, res) {
   const availableTypes = reportTypes.reportTypes?.map(rt => rt.id) || [];
   console.log('[Reporting] Available report types:', availableTypes);
 
-  // Look for any channel report type that includes reach/impressions data
+  // Look for Reach report type — this is the ONLY type that includes impressions/CTR
+  // channel_combined_a2 does NOT have impressions; only channel_reach_* types do
   const reachReportType = reportTypes.reportTypes?.find(rt =>
-    rt.id === 'channel_combined_a2' ||
-    rt.id === 'channel_basic_a2' ||
-    rt.id.includes('channel_') // fallback to any channel report
+    rt.id === 'channel_reach_basic_a1' ||
+    rt.id === 'channel_reach_combined_a1' ||
+    rt.id.includes('channel_reach_') // fallback to any reach report
   );
   if (!reachReportType) {
     return res.status(400).json({
@@ -134,7 +135,11 @@ async function handleSetup(connection, accessToken, res) {
     return res.status(400).json({ error: 'Failed to list jobs', details: errorData.error?.message });
   }
   const jobsData = await jobsResponse.json();
-  const existingJob = jobsData.jobs?.find(j => j.reportTypeId === reachReportType.id);
+  // Check for an existing reach report job (any channel_reach_* type)
+  const existingJob = jobsData.jobs?.find(j =>
+    j.reportTypeId === reachReportType.id ||
+    j.reportTypeId?.includes('channel_reach_')
+  );
 
   if (existingJob) {
     await supabase
