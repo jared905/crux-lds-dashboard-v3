@@ -245,13 +245,21 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
       if (editingClient.syncedToSupabase && editingClient.supabaseId) {
         const { supabase } = await import('./services/supabaseClient');
         if (supabase) {
-          await supabase
+          const { data: updated, error: updateError } = await supabase
             .from('channels')
             .update({
               custom_url: updatedClient.youtubeChannelUrl || null,
               background_image_url: updatedClient.backgroundImageUrl || null,
             })
-            .eq('id', editingClient.supabaseId);
+            .eq('id', editingClient.supabaseId)
+            .select('id, background_image_url')
+            .single();
+
+          if (updateError) {
+            console.error('[ClientManager] Supabase update failed:', updateError);
+            throw new Error('Failed to save to cloud: ' + updateError.message);
+          }
+          console.log('[ClientManager] Supabase update verified:', updated?.id, '— background_image_url:', updated?.background_image_url || '(null)');
         }
       }
 
