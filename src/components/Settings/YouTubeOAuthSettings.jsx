@@ -23,7 +23,9 @@ import {
   Loader2,
   Plus,
   BarChart3,
-  FileText
+  FileText,
+  Network,
+  Trash2
 } from 'lucide-react';
 import youtubeOAuthService from '../../services/youtubeOAuthService';
 import { supabase } from '../../services/supabaseClient';
@@ -89,6 +91,17 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
   const [backfillingData, setBackfillingData] = useState(null);
   const [reportingStatus, setReportingStatus] = useState({});
 
+  // Network management state
+  const [networkConfig, setNetworkConfig] = useState(null); // { parentId, parentName, networkName, memberIds }
+  const [networkLoading, setNetworkLoading] = useState(true);
+  const [showNetworkSetup, setShowNetworkSetup] = useState(false);
+  const [networkName, setNetworkName] = useState('');
+  const [selectedMembers, setSelectedMembers] = useState(new Set());
+  const [primaryChannelYtId, setPrimaryChannelYtId] = useState(null);
+  const [savingNetwork, setSavingNetwork] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [syncAllProgress, setSyncAllProgress] = useState(null); // { current, total, channelName }
+
   useEffect(() => {
     loadConnections();
 
@@ -136,6 +149,177 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
     } finally {
       setLoading(false);
     }
+  };
+
+  // Load existing network configuration
+  useEffect(() => {
+    if (!supabase) return;
+    loadNetworkConfig();
+  }, []);
+
+  const loadNetworkConfig = async () => {
+    setNetworkLoading(true);
+    try {
+      // Find any channel that IS a network parent (has network_name set, or has members pointing to it)
+      const { data: members } = await supabase
+        .from('channels')
+        .select('id, name, youtube_channel_id, network_id')
+        .eq('is_client', true)
+        .not('network_id', 'is', null);
+
+      if (members && members.length > 0) {
+        const parentId = members[0].network_id;
+        const { data: parent } = await supabase
+          .from('channels')
+          .select('id, name, network_name, youtube_channel_id')
+          .eq('id', parentId)
+          .single();
+
+        if (parent) {
+          setNetworkConfig({
+            parentId: parent.id,
+            parentYtId: parent.youtube_channel_id,
+            parentName: parent.name,
+            networkName: parent.network_name || parent.name,
+            memberYtIds: new Set(members.map(m => m.youtube_channel_id)),
+          });
+          setNetworkName(parent.network_name || parent.name);
+          setSelectedMembers(new Set([parent.youtube_channel_id, ...members.map(m => m.youtube_channel_id)]));
+          setPrimaryChannelYtId(parent.youtube_channel_id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load network config:', err);
+    } finally {
+      setNetworkLoading(false);
+    }
+  };
+
+  const handleSaveNetwork = async () => {
+    if (!supabase || selectedMembers.size < 2 || !primaryChannelYtId || !networkName.trim()) return;
+    setSavingNetwork(true);
+    setError(null);
+
+    try {
+      // Find the primary channel's UUID
+      const { data: parent, error: parentErr } = await supabase
+        .from('channels')
+        .select('id')
+        .eq('youtube_channel_id', primaryChannelYtId)
+        .eq('is_client', true)
+        .single();
+
+      if (parentErr || !parent) throw new Error('Primary channel not found in database. Make sure it has been synced as a client first.');
+
+      // Set network_name on the parent
+      await supabase
+        .from('channels')
+        .update({ network_name: networkName.trim(), network_id: null })
+        .eq('id', parent.id);
+
+      // Clear any old network_id references (in case editing)
+      await supabase
+        .from('channels')
+        .update({ network_id: null })
+        .eq('is_client', true)
+        .not('network_id', 'is', null);
+
+      // Set network_id on all member channels (excluding the parent itself)
+      const memberYtIds = [...selectedMembers].filter(id => id !== primaryChannelYtId);
+      if (memberYtIds.length > 0) {
+        await supabase
+          .from('channels')
+          .update({ network_id: parent.id })
+          .eq('is_client', true)
+          .in('youtube_channel_id', memberYtIds);
+      }
+
+      setSuccess(`Network "${networkName.trim()}" saved with ${selectedMembers.size} channels!`);
+      setTimeout(() => setSuccess(null), 3000);
+      setShowNetworkSetup(false);
+      await loadNetworkConfig();
+
+      if (onClientsUpdate) onClientsUpdate(networkName.trim());
+    } catch (err) {
+      setError(`Failed to save network: ${err.message}`);
+    } finally {
+      setSavingNetwork(false);
+    }
+  };
+
+  const handleDissolveNetwork = async () => {
+    if (!confirm('Dissolve this network? All channels will become standalone clients again.')) return;
+    if (!supabase) return;
+    setSavingNetwork(true);
+
+    try {
+      // Clear all network_id references
+      await supabase
+        .from('channels')
+        .update({ network_id: null })
+        .eq('is_client', true)
+        .not('network_id', 'is', null);
+
+      // Clear network_name on the parent
+      if (networkConfig?.parentId) {
+        await supabase
+          .from('channels')
+          .update({ network_name: null })
+          .eq('id', networkConfig.parentId);
+      }
+
+      setNetworkConfig(null);
+      setNetworkName('');
+      setSelectedMembers(new Set());
+      setPrimaryChannelYtId(null);
+      setShowNetworkSetup(false);
+      setSuccess('Network dissolved. Channels are now standalone.');
+      setTimeout(() => setSuccess(null), 3000);
+
+      if (onClientsUpdate) onClientsUpdate();
+    } catch (err) {
+      setError(`Failed to dissolve network: ${err.message}`);
+    } finally {
+      setSavingNetwork(false);
+    }
+  };
+
+  const handleSyncAll = async () => {
+    if (syncingAll || !networkConfig) return;
+    setSyncingAll(true);
+    setError(null);
+
+    // Find connections that belong to the network
+    const networkYtIds = new Set([networkConfig.parentYtId, ...(networkConfig.memberYtIds || [])]);
+    const networkConnections = connections.filter(c => networkYtIds.has(c.youtube_channel_id));
+
+    try {
+      for (let i = 0; i < networkConnections.length; i++) {
+        const conn = networkConnections[i];
+        setSyncAllProgress({ current: i + 1, total: networkConnections.length, channelName: conn.youtube_channel_title });
+        await handleSync(conn, { skipGuard: true });
+      }
+      setSuccess(`Synced all ${networkConnections.length} network channels!`);
+      setTimeout(() => setSuccess(null), 5000);
+    } catch (err) {
+      setError(`Network sync failed: ${err.message}`);
+    } finally {
+      setSyncingAll(false);
+      setSyncAllProgress(null);
+    }
+  };
+
+  const toggleMember = (ytChannelId) => {
+    setSelectedMembers(prev => {
+      const next = new Set(prev);
+      if (next.has(ytChannelId)) {
+        next.delete(ytChannelId);
+        if (primaryChannelYtId === ytChannelId) setPrimaryChannelYtId(null);
+      } else {
+        next.add(ytChannelId);
+      }
+      return next;
+    });
   };
 
   const handleConnect = async () => {
@@ -256,8 +440,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
   };
 
   // Combined sync function - syncs videos first, then analytics if access confirmed
-  const handleSync = async (connection) => {
-    if (!supabase || syncing) return;
+  // When called from handleSyncAll, pass skipGuard=true to bypass the syncing state check
+  const handleSync = async (connection, { skipGuard = false } = {}) => {
+    if (!supabase || (!skipGuard && syncing)) return;
 
     setSyncing(connection.id);
     setSyncStatus(prev => ({ ...prev, [connection.id]: { stage: 'videos', message: 'Syncing videos...' } }));
@@ -865,6 +1050,256 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
           <p style={{ color: "#666", fontSize: "13px", margin: 0 }}>
             Connect your YouTube account to access channel analytics
           </p>
+        </div>
+      )}
+
+      {/* Network Management Section */}
+      {!loading && connections.length >= 2 && !networkLoading && (
+        <div style={{
+          marginBottom: "20px",
+          padding: "20px",
+          background: "rgba(139, 92, 246, 0.06)",
+          border: "1px solid rgba(139, 92, 246, 0.2)",
+          borderRadius: "12px",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <Network size={18} style={{ color: "#a78bfa" }} />
+              <h4 style={{ fontSize: "14px", fontWeight: "600", margin: 0, color: "#a78bfa" }}>
+                Channel Network
+              </h4>
+            </div>
+            {networkConfig && !showNetworkSetup && (
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  onClick={handleSyncAll}
+                  disabled={syncingAll}
+                  style={{
+                    ...buttonStyle,
+                    background: syncingAll ? "#333" : "#2962FF",
+                    border: "none",
+                    color: "#fff",
+                    opacity: syncingAll ? 0.7 : 1,
+                    cursor: syncingAll ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {syncingAll ? (
+                    <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                  ) : (
+                    <RefreshCw size={14} />
+                  )}
+                  {syncingAll
+                    ? `Syncing ${syncAllProgress?.current || 0}/${syncAllProgress?.total || 0}`
+                    : "Sync All Channels"
+                  }
+                </button>
+                <button
+                  onClick={() => setShowNetworkSetup(true)}
+                  style={buttonStyle}
+                >
+                  Edit
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Sync All progress bar */}
+          {syncingAll && syncAllProgress && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: "10px",
+              padding: "10px 14px", background: "rgba(59, 130, 246, 0.1)",
+              border: "1px solid rgba(59, 130, 246, 0.2)", borderRadius: "8px",
+              marginBottom: "16px", fontSize: "13px", color: "#93c5fd"
+            }}>
+              <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+              Syncing {syncAllProgress.current}/{syncAllProgress.total} — {syncAllProgress.channelName}
+            </div>
+          )}
+
+          {networkConfig && !showNetworkSetup ? (
+            /* Network summary view */
+            <div>
+              <div style={{ fontSize: "13px", color: "#E0E0E0", marginBottom: "8px" }}>
+                <strong>{networkConfig.networkName}</strong>
+                <span style={{ color: "#9E9E9E", marginLeft: "8px" }}>
+                  {(networkConfig.memberYtIds?.size || 0) + 1} channels
+                </span>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {connections
+                  .filter(c => c.youtube_channel_id === networkConfig.parentYtId || networkConfig.memberYtIds?.has(c.youtube_channel_id))
+                  .map(c => (
+                    <span key={c.id} style={{
+                      display: "inline-flex", alignItems: "center", gap: "6px",
+                      padding: "4px 10px", background: "#333", borderRadius: "14px",
+                      fontSize: "12px", color: "#E0E0E0",
+                    }}>
+                      <img
+                        src={c.youtube_channel_thumbnail || ''}
+                        alt=""
+                        style={{ width: "16px", height: "16px", borderRadius: "50%", background: "#444" }}
+                      />
+                      {c.youtube_channel_title}
+                      {c.youtube_channel_id === networkConfig.parentYtId && (
+                        <span style={{ fontSize: "10px", color: "#a78bfa" }}>primary</span>
+                      )}
+                    </span>
+                  ))
+                }
+              </div>
+            </div>
+          ) : (
+            /* Network setup/edit form */
+            <div>
+              {!showNetworkSetup && !networkConfig && (
+                <div style={{ marginBottom: "12px" }}>
+                  <p style={{ fontSize: "13px", color: "#9E9E9E", margin: "0 0 12px" }}>
+                    Group your connected channels into a network to view aggregate metrics and switch between channels.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowNetworkSetup(true);
+                      // Pre-select all connections
+                      setSelectedMembers(new Set(connections.map(c => c.youtube_channel_id)));
+                      if (!primaryChannelYtId && connections.length > 0) {
+                        setPrimaryChannelYtId(connections[0].youtube_channel_id);
+                      }
+                    }}
+                    style={{
+                      ...buttonStyle,
+                      background: "rgba(139, 92, 246, 0.15)",
+                      border: "1px solid rgba(139, 92, 246, 0.3)",
+                      color: "#a78bfa",
+                    }}
+                  >
+                    <Network size={14} />
+                    Create Network
+                  </button>
+                </div>
+              )}
+
+              {showNetworkSetup && (
+                <div>
+                  {/* Network name input */}
+                  <div style={{ marginBottom: "16px" }}>
+                    <label style={{ display: "block", fontSize: "12px", color: "#9E9E9E", fontWeight: "600", marginBottom: "6px" }}>
+                      Network Name
+                    </label>
+                    <input
+                      type="text"
+                      value={networkName}
+                      onChange={(e) => setNetworkName(e.target.value)}
+                      placeholder="e.g., LDS Church Network"
+                      style={{
+                        width: "100%", padding: "10px 14px",
+                        background: "#252525", border: "1px solid #444",
+                        borderRadius: "8px", color: "#E0E0E0", fontSize: "14px",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+
+                  {/* Channel selection */}
+                  <div style={{ marginBottom: "16px" }}>
+                    <label style={{ display: "block", fontSize: "12px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                      Channels ({selectedMembers.size} selected)
+                    </label>
+                    <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+                      {connections.map(conn => (
+                        <div key={conn.id} style={{
+                          display: "flex", alignItems: "center", gap: "12px",
+                          padding: "10px 12px", background: selectedMembers.has(conn.youtube_channel_id) ? "rgba(139, 92, 246, 0.1)" : "#1E1E1E",
+                          border: selectedMembers.has(conn.youtube_channel_id) ? "1px solid rgba(139, 92, 246, 0.3)" : "1px solid #333",
+                          borderRadius: "8px", marginBottom: "6px", cursor: "pointer",
+                        }} onClick={() => toggleMember(conn.youtube_channel_id)}>
+                          <input
+                            type="checkbox"
+                            checked={selectedMembers.has(conn.youtube_channel_id)}
+                            onChange={() => toggleMember(conn.youtube_channel_id)}
+                            style={{ accentColor: "#a78bfa" }}
+                          />
+                          <img
+                            src={conn.youtube_channel_thumbnail || ''}
+                            alt=""
+                            style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#333" }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: "13px", fontWeight: "500", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {conn.youtube_channel_title}
+                            </div>
+                            <div style={{ fontSize: "11px", color: "#666" }}>{conn.youtube_email}</div>
+                          </div>
+                          {selectedMembers.has(conn.youtube_channel_id) && (
+                            <label style={{
+                              display: "flex", alignItems: "center", gap: "4px",
+                              fontSize: "11px", color: primaryChannelYtId === conn.youtube_channel_id ? "#a78bfa" : "#666",
+                              cursor: "pointer", whiteSpace: "nowrap",
+                            }} onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="radio"
+                                name="primaryChannel"
+                                checked={primaryChannelYtId === conn.youtube_channel_id}
+                                onChange={() => setPrimaryChannelYtId(conn.youtube_channel_id)}
+                                style={{ accentColor: "#a78bfa" }}
+                              />
+                              Primary
+                            </label>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      onClick={handleSaveNetwork}
+                      disabled={savingNetwork || selectedMembers.size < 2 || !primaryChannelYtId || !networkName.trim()}
+                      style={{
+                        ...buttonStyle,
+                        background: savingNetwork ? "#333" : "#2962FF",
+                        border: "none",
+                        color: "#fff",
+                        opacity: (savingNetwork || selectedMembers.size < 2 || !primaryChannelYtId || !networkName.trim()) ? 0.5 : 1,
+                        cursor: (savingNetwork || selectedMembers.size < 2 || !primaryChannelYtId || !networkName.trim()) ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {savingNetwork ? (
+                        <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                      ) : (
+                        <CheckCircle2 size={14} />
+                      )}
+                      {savingNetwork ? "Saving..." : (networkConfig ? "Update Network" : "Create Network")}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowNetworkSetup(false);
+                        // Reset to existing config if canceling
+                        if (networkConfig) {
+                          setNetworkName(networkConfig.networkName);
+                          setSelectedMembers(new Set([networkConfig.parentYtId, ...(networkConfig.memberYtIds || [])]));
+                          setPrimaryChannelYtId(networkConfig.parentYtId);
+                        }
+                      }}
+                      style={buttonStyle}
+                    >
+                      Cancel
+                    </button>
+                    {networkConfig && (
+                      <button
+                        onClick={handleDissolveNetwork}
+                        disabled={savingNetwork}
+                        style={dangerButtonStyle}
+                      >
+                        <Trash2 size={14} />
+                        Dissolve
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

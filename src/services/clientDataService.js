@@ -185,12 +185,141 @@ export async function saveClientToSupabase(clientName, normalizedRows, youtubeCh
  *
  * @returns {Array} - Array of client objects
  */
+/**
+ * Load videos and report periods for a single channel.
+ * Returns { rows, reportPeriods, activePeriod } or null on error.
+ */
+async function loadChannelData(channel) {
+  // Fetch report periods (without full video_data for performance)
+  const { data: periods, error: periodsError } = await supabase
+    .from('report_periods')
+    .select(`
+      id,
+      name,
+      period_type,
+      start_date,
+      end_date,
+      video_count,
+      total_views,
+      total_watch_hours,
+      total_impressions,
+      subscribers_gained,
+      is_baseline,
+      is_active,
+      uploaded_at
+    `)
+    .eq('channel_id', channel.id)
+    .eq('is_active', true)
+    .order('uploaded_at', { ascending: false });
+
+  if (periodsError) {
+    console.error(`Error fetching periods for channel ${channel.id}:`, periodsError);
+  }
+
+  const reportPeriods = periods || [];
+  const hasReportPeriods = reportPeriods.length > 0;
+
+  let rows = [];
+  let activePeriod = null;
+
+  if (hasReportPeriods && channel.active_period_id) {
+    const { data: periodData, error: periodError } = await supabase
+      .from('report_periods')
+      .select('*, video_data')
+      .eq('id', channel.active_period_id)
+      .single();
+
+    if (!periodError && periodData?.video_data) {
+      activePeriod = {
+        id: periodData.id,
+        name: periodData.name,
+        periodType: periodData.period_type,
+        startDate: periodData.start_date,
+        endDate: periodData.end_date,
+        isBaseline: periodData.is_baseline,
+      };
+
+      rows = (periodData.video_data || []).map(video => ({
+        'Video title': video.title,
+        'Video publish time': video.publishDate,
+        'Views': video.views,
+        'Duration': video.duration,
+        'Impressions': video.impressions,
+        'Impressions click-through rate (%)': video.ctr ? video.ctr * 100 : null,
+        'Average percentage viewed (%)': video.retention ? video.retention * 100 : null,
+        'Subscribers gained': video.subscribers,
+        'Content': video.channel,
+        videoId: video.youtubeVideoId || null,
+        thumbnailUrl: video.thumbnailUrl || null,
+        title: video.title,
+        publishDate: video.publishDate,
+        views: video.views || 0,
+        duration: video.duration || 0,
+        type: video.type,
+        impressions: video.impressions || 0,
+        ctr: video.ctr,
+        retention: video.retention,
+        avgViewPct: video.retention,
+        subscribers: video.subscribers || 0,
+        watchHours: video.watchHours || 0,
+        channel: video.channel,
+      }));
+    }
+  }
+
+  // Fall back to legacy videos table if no period data
+  if (rows.length === 0) {
+    const { data: videos, error: videosError } = await supabase
+      .from('videos')
+      .select('*')
+      .eq('channel_id', channel.id)
+      .order('published_at', { ascending: false });
+
+    if (videosError) {
+      console.error(`Error fetching videos for channel ${channel.id}:`, videosError);
+      return null;
+    }
+
+    rows = (videos || []).map(video => {
+      const contentSource = video.content_source || channel.name;
+      const thumbMatch = video.thumbnail_url?.match(/\/vi\/([a-zA-Z0-9_-]{11})\//);
+      const realVideoId = thumbMatch ? thumbMatch[1] : null;
+      return {
+        'Video title': video.title,
+        'Video publish time': video.published_at,
+        'Views': video.view_count,
+        'Duration': video.duration_seconds,
+        'Impressions': video.impressions,
+        'Impressions click-through rate (%)': video.ctr ? video.ctr * 100 : null,
+        'Average percentage viewed (%)': video.avg_view_percentage ? video.avg_view_percentage * 100 : null,
+        'Subscribers gained': video.subscribers_gained,
+        'Content': contentSource,
+        videoId: realVideoId,
+        title: video.title,
+        publishDate: video.published_at,
+        views: video.view_count,
+        duration: video.duration_seconds,
+        type: video.video_type,
+        impressions: video.impressions,
+        ctr: video.ctr,
+        retention: video.avg_view_percentage,
+        avgViewPct: video.avg_view_percentage,
+        subscribers: video.subscribers_gained,
+        watchHours: video.watch_hours,
+        channel: contentSource,
+      };
+    });
+  }
+
+  return { rows, reportPeriods, activePeriod };
+}
+
 export async function getClientsFromSupabase() {
   if (!supabase) throw new Error('Supabase not configured');
 
   // Fetch all client channels (explicitly marked as is_client = true)
   // This excludes audit-only channels which have is_client = false/null
-  const { data: channels, error: channelsError } = await supabase
+  const { data: allChannels, error: channelsError } = await supabase
     .from('channels')
     .select('*')
     .eq('is_client', true)
@@ -201,165 +330,109 @@ export async function getClientsFromSupabase() {
     throw channelsError;
   }
 
-  if (!channels || channels.length === 0) {
+  if (!allChannels || allChannels.length === 0) {
     return [];
   }
 
-  // Fetch videos and report periods for each channel
-  const clients = await Promise.all(
-    channels.map(async (channel) => {
-      // Fetch report periods (without full video_data for performance)
-      const { data: periods, error: periodsError } = await supabase
-        .from('report_periods')
-        .select(`
-          id,
-          name,
-          period_type,
-          start_date,
-          end_date,
-          video_count,
-          total_views,
-          total_watch_hours,
-          total_impressions,
-          subscribers_gained,
-          is_baseline,
-          is_active,
-          uploaded_at
-        `)
-        .eq('channel_id', channel.id)
-        .eq('is_active', true)
-        .order('uploaded_at', { ascending: false });
+  // Partition channels into network parents, members, and standalone
+  const networkMemberIds = new Set(
+    allChannels.filter(c => c.network_id).map(c => c.network_id)
+  );
+  const networkMembers = allChannels.filter(c => c.network_id);
+  const networkParents = allChannels.filter(c => !c.network_id && networkMemberIds.has(c.id));
+  const standalone = allChannels.filter(c => !c.network_id && !networkMemberIds.has(c.id));
 
-      if (periodsError) {
-        console.error(`Error fetching periods for channel ${channel.id}:`, periodsError);
+  const clients = [];
+
+  // Process network parents — aggregate all member channel data
+  for (const parent of networkParents) {
+    const members = networkMembers.filter(m => m.network_id === parent.id);
+    const allNetworkChannels = [parent, ...members];
+
+    // Load videos from all channels in the network in parallel
+    const channelDataResults = await Promise.all(
+      allNetworkChannels.map(ch => loadChannelData(ch))
+    );
+
+    const allRows = [];
+    const mergedUrlsMap = {};
+    let allReportPeriods = [];
+    let networkActivePeriod = null;
+
+    for (let i = 0; i < allNetworkChannels.length; i++) {
+      const ch = allNetworkChannels[i];
+      const data = channelDataResults[i];
+      if (!data) continue;
+
+      allRows.push(...data.rows);
+      Object.assign(mergedUrlsMap, ch.channel_urls_map || {});
+
+      // Use the parent's report periods and active period for the network
+      if (ch.id === parent.id) {
+        allReportPeriods = data.reportPeriods;
+        networkActivePeriod = data.activePeriod;
       }
+    }
 
-      const reportPeriods = periods || [];
-      const hasReportPeriods = reportPeriods.length > 0;
+    const totalSubs = allNetworkChannels.reduce((sum, ch) => sum + (ch.subscriber_count || 0), 0);
+    const uniqueChannels = [...new Set(allRows.map(r => r.channel).filter(Boolean))];
 
-      // Determine which data to load:
-      // - If there's an active_period_id, load that period's data
-      // - Otherwise, fall back to videos table (legacy behavior)
-      let rows = [];
-      let activePeriod = null;
+    clients.push({
+      id: parent.id,
+      supabaseId: parent.id,
+      name: parent.network_name || parent.name,
+      uploadDate: parent.last_synced_at || parent.created_at,
+      rows: allRows,
+      subscriberCount: totalSubs,
+      channels: uniqueChannels.length > 0 ? uniqueChannels : [parent.name],
+      youtubeChannelUrl: parent.custom_url || '',
+      channelUrlsMap: mergedUrlsMap,
+      backgroundImageUrl: parent.background_image_url || null,
+      syncedToSupabase: true,
+      reportPeriods: allReportPeriods,
+      activePeriod: networkActivePeriod,
+      activePeriodId: parent.active_period_id,
+      // Network metadata
+      isNetwork: true,
+      networkMembers: allNetworkChannels.map(ch => ({
+        id: ch.id,
+        name: ch.name,
+        youtubeChannelId: ch.youtube_channel_id,
+        subscriberCount: ch.subscriber_count || 0,
+      })),
+    });
+  }
 
-      if (hasReportPeriods && channel.active_period_id) {
-        // Load active period's video data
-        const { data: periodData, error: periodError } = await supabase
-          .from('report_periods')
-          .select('*, video_data')
-          .eq('id', channel.active_period_id)
-          .single();
+  // Process standalone channels — unchanged from original logic
+  const standaloneResults = await Promise.all(
+    standalone.map(async (channel) => {
+      const data = await loadChannelData(channel);
+      if (!data) return null;
 
-        if (!periodError && periodData?.video_data) {
-          activePeriod = {
-            id: periodData.id,
-            name: periodData.name,
-            periodType: periodData.period_type,
-            startDate: periodData.start_date,
-            endDate: periodData.end_date,
-            isBaseline: periodData.is_baseline,
-          };
-
-          // Convert period video_data to rows format
-          rows = (periodData.video_data || []).map(video => ({
-            'Video title': video.title,
-            'Video publish time': video.publishDate,
-            'Views': video.views,
-            'Duration': video.duration,
-            'Impressions': video.impressions,
-            'Impressions click-through rate (%)': video.ctr ? video.ctr * 100 : null,
-            'Average percentage viewed (%)': video.retention ? video.retention * 100 : null,
-            'Subscribers gained': video.subscribers,
-            'Content': video.channel,
-            videoId: video.youtubeVideoId || null,
-            thumbnailUrl: video.thumbnailUrl || null,
-            title: video.title,
-            publishDate: video.publishDate,
-            views: video.views || 0,
-            duration: video.duration || 0,
-            type: video.type,
-            impressions: video.impressions || 0,
-            ctr: video.ctr,
-            retention: video.retention,
-            avgViewPct: video.retention,
-            subscribers: video.subscribers || 0,
-            watchHours: video.watchHours || 0,
-            channel: video.channel,
-          }));
-        }
-      }
-
-      // Fall back to legacy videos table if no period data
-      if (rows.length === 0) {
-        const { data: videos, error: videosError } = await supabase
-          .from('videos')
-          .select('*')
-          .eq('channel_id', channel.id)
-          .order('published_at', { ascending: false });
-
-        if (videosError) {
-          console.error(`Error fetching videos for channel ${channel.id}:`, videosError);
-          return null;
-        }
-
-        // Convert Supabase videos back to ClientManager row format
-        rows = (videos || []).map(video => {
-          const contentSource = video.content_source || channel.name;
-          const thumbMatch = video.thumbnail_url?.match(/\/vi\/([a-zA-Z0-9_-]{11})\//);
-          const realVideoId = thumbMatch ? thumbMatch[1] : null;
-          return {
-            'Video title': video.title,
-            'Video publish time': video.published_at,
-            'Views': video.view_count,
-            'Duration': video.duration_seconds,
-            'Impressions': video.impressions,
-            'Impressions click-through rate (%)': video.ctr ? video.ctr * 100 : null,
-            'Average percentage viewed (%)': video.avg_view_percentage ? video.avg_view_percentage * 100 : null,
-            'Subscribers gained': video.subscribers_gained,
-            'Content': contentSource,
-            videoId: realVideoId,
-            title: video.title,
-            publishDate: video.published_at,
-            views: video.view_count,
-            duration: video.duration_seconds,
-            type: video.video_type,
-            impressions: video.impressions,
-            ctr: video.ctr,
-            retention: video.avg_view_percentage,
-            avgViewPct: video.avg_view_percentage,
-            subscribers: video.subscribers_gained,
-            watchHours: video.watch_hours,
-            channel: contentSource,
-          };
-        });
-      }
-
-      // Extract unique channel names from content_source for multi-channel support
-      const uniqueChannels = [...new Set(rows.map(r => r.channel).filter(Boolean))];
+      const uniqueChannels = [...new Set(data.rows.map(r => r.channel).filter(Boolean))];
 
       return {
         id: channel.id,
         supabaseId: channel.id,
         name: channel.name,
         uploadDate: channel.last_synced_at || channel.created_at,
-        rows: rows,
+        rows: data.rows,
         subscriberCount: channel.subscriber_count || 0,
         channels: uniqueChannels.length > 0 ? uniqueChannels : [channel.name],
         youtubeChannelUrl: channel.custom_url || '',
         channelUrlsMap: channel.channel_urls_map || {},
         backgroundImageUrl: channel.background_image_url || null,
         syncedToSupabase: true,
-        // New period-related fields
-        reportPeriods: reportPeriods,
-        activePeriod: activePeriod,
+        reportPeriods: data.reportPeriods,
+        activePeriod: data.activePeriod,
         activePeriodId: channel.active_period_id,
       };
     })
   );
 
-  // Filter out any null results from errors
-  return clients.filter(Boolean);
+  clients.push(...standaloneResults.filter(Boolean));
+
+  return clients;
 }
 
 /**
