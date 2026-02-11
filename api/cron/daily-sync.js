@@ -260,6 +260,120 @@ async function fetchReportingData(accessToken, jobId) {
   return { videoData, reportDate: latestReport.createTime };
 }
 
+// Parse ISO 8601 duration (PT4M13S) to seconds
+function parseDuration(iso8601) {
+  if (!iso8601) return 0;
+  const match = iso8601.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return 0;
+  return (parseInt(match[1]) || 0) * 3600 + (parseInt(match[2]) || 0) * 60 + (parseInt(match[3]) || 0);
+}
+
+// Discover and upsert videos from YouTube Data API
+async function discoverVideos(accessToken, youtubeChannelId, dbChannelId, channelName) {
+  // Step 1: Get the uploads playlist ID
+  const channelResponse = await fetch(
+    `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${youtubeChannelId}`,
+    { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
+  );
+
+  if (!channelResponse.ok) {
+    throw new Error('Failed to fetch channel details from Data API');
+  }
+
+  const channelData = await channelResponse.json();
+  const uploadsPlaylistId = channelData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+
+  if (!uploadsPlaylistId) {
+    throw new Error('No uploads playlist found');
+  }
+
+  // Step 2: Fetch recent videos from uploads playlist (up to 200)
+  const allVideoIds = [];
+  let nextPageToken = null;
+  let pages = 0;
+  const MAX_PAGES = 4;
+
+  do {
+    const playlistUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
+    playlistUrl.searchParams.append('part', 'snippet');
+    playlistUrl.searchParams.append('playlistId', uploadsPlaylistId);
+    playlistUrl.searchParams.append('maxResults', '50');
+    if (nextPageToken) {
+      playlistUrl.searchParams.append('pageToken', nextPageToken);
+    }
+
+    const playlistResponse = await fetch(playlistUrl.toString(), {
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' }
+    });
+
+    if (!playlistResponse.ok) break;
+
+    const playlistData = await playlistResponse.json();
+    for (const item of (playlistData.items || [])) {
+      allVideoIds.push(item.snippet.resourceId.videoId);
+    }
+
+    nextPageToken = playlistData.nextPageToken;
+    pages++;
+  } while (nextPageToken && pages < MAX_PAGES);
+
+  if (allVideoIds.length === 0) return 0;
+
+  // Step 3: Fetch video details in batches of 50
+  const videosToUpsert = [];
+
+  for (let i = 0; i < allVideoIds.length; i += 50) {
+    const batch = allVideoIds.slice(i, i + 50);
+    const videosUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
+    videosUrl.searchParams.append('part', 'snippet,contentDetails,statistics');
+    videosUrl.searchParams.append('id', batch.join(','));
+
+    const videosResponse = await fetch(videosUrl.toString(), {
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' }
+    });
+
+    if (!videosResponse.ok) continue;
+
+    const videosData = await videosResponse.json();
+
+    for (const video of (videosData.items || [])) {
+      const durationSeconds = parseDuration(video.contentDetails?.duration);
+      const isShort = durationSeconds > 0 && durationSeconds <= 180;
+      const views = parseInt(video.statistics?.viewCount) || 0;
+      const likes = parseInt(video.statistics?.likeCount) || 0;
+      const comments = parseInt(video.statistics?.commentCount) || 0;
+
+      videosToUpsert.push({
+        youtube_video_id: video.id,
+        channel_id: dbChannelId,
+        title: video.snippet?.title,
+        published_at: video.snippet?.publishedAt,
+        thumbnail_url: `https://i.ytimg.com/vi/${video.id}/mqdefault.jpg`,
+        view_count: views,
+        like_count: likes,
+        comment_count: comments,
+        duration_seconds: durationSeconds,
+        video_type: isShort ? 'short' : 'long',
+        engagement_rate: views > 0 ? (likes + comments) / views : 0,
+        content_source: channelName,
+      });
+    }
+  }
+
+  // Step 4: Upsert to database (only updates columns present in data — preserves impressions/ctr)
+  if (videosToUpsert.length > 0) {
+    const { error } = await supabase
+      .from('videos')
+      .upsert(videosToUpsert, { onConflict: 'youtube_video_id' });
+
+    if (error) {
+      throw new Error(`Failed to upsert videos: ${error.message}`);
+    }
+  }
+
+  return videosToUpsert.length;
+}
+
 // Sync a single connection
 async function syncConnection(connection) {
   const results = {
@@ -278,7 +392,7 @@ async function syncConnection(connection) {
     // Find the client channel in our database
     const { data: dbChannel } = await supabase
       .from('channels')
-      .select('id')
+      .select('id, name')
       .eq('youtube_channel_id', channelId)
       .eq('is_client', true)
       .single();
@@ -286,6 +400,15 @@ async function syncConnection(connection) {
     if (!dbChannel) {
       results.errors.push('No matching client channel in database');
       return results;
+    }
+
+    // Discover and upsert videos from YouTube Data API
+    try {
+      const discovered = await discoverVideos(accessToken, channelId, dbChannel.id, dbChannel.name);
+      console.log(`[Daily Sync] Discovered/updated ${discovered} videos for ${connection.youtube_channel_title}`);
+      results.videosDiscovered = discovered;
+    } catch (e) {
+      results.errors.push(`Video discovery: ${e.message}`);
     }
 
     // Fetch analytics (yesterday's data, as today's isn't complete)

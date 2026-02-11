@@ -222,7 +222,55 @@ async function loadChannelData(channel) {
   let rows = [];
   let activePeriod = null;
 
-  if (hasReportPeriods && channel.active_period_id) {
+  // Helper to map a videos-table row to the normalized row format
+  const mapVideoRow = (video) => {
+    const contentSource = video.content_source || channel.name;
+    const thumbMatch = video.thumbnail_url?.match(/\/vi\/([a-zA-Z0-9_-]{11})\//);
+    const realVideoId = thumbMatch ? thumbMatch[1] : null;
+    return {
+      'Video title': video.title,
+      'Video publish time': video.published_at,
+      'Views': video.view_count,
+      'Duration': video.duration_seconds,
+      'Impressions': video.impressions,
+      'Impressions click-through rate (%)': video.ctr ? video.ctr * 100 : null,
+      'Average percentage viewed (%)': video.avg_view_percentage ? video.avg_view_percentage * 100 : null,
+      'Subscribers gained': video.subscribers_gained,
+      'Content': contentSource,
+      videoId: realVideoId,
+      title: video.title,
+      publishDate: video.published_at,
+      views: video.view_count,
+      duration: video.duration_seconds,
+      type: video.video_type,
+      impressions: video.impressions,
+      ctr: video.ctr,
+      retention: video.avg_view_percentage,
+      avgViewPct: video.avg_view_percentage,
+      subscribers: video.subscribers_gained,
+      watchHours: video.watch_hours,
+      channel: contentSource,
+    };
+  };
+
+  // Priority 1: Check if the videos table has live synced data (from daily-sync cron)
+  const { data: liveVideos, error: videosError } = await supabase
+    .from('videos')
+    .select('*')
+    .eq('channel_id', channel.id)
+    .order('published_at', { ascending: false });
+
+  if (videosError) {
+    console.error(`Error fetching videos for channel ${channel.id}:`, videosError);
+  }
+
+  const hasLiveSyncData = liveVideos?.some(v => v.last_synced_at);
+
+  if (hasLiveSyncData && liveVideos.length > 0) {
+    // Use live data from videos table — kept fresh by the daily-sync cron
+    rows = liveVideos.map(mapVideoRow);
+  } else if (hasReportPeriods && channel.active_period_id) {
+    // Priority 2: Use report period JSONB (from CSV uploads)
     const { data: periodData, error: periodError } = await supabase
       .from('report_periods')
       .select('*, video_data')
@@ -267,48 +315,9 @@ async function loadChannelData(channel) {
     }
   }
 
-  // Fall back to legacy videos table if no period data
-  if (rows.length === 0) {
-    const { data: videos, error: videosError } = await supabase
-      .from('videos')
-      .select('*')
-      .eq('channel_id', channel.id)
-      .order('published_at', { ascending: false });
-
-    if (videosError) {
-      console.error(`Error fetching videos for channel ${channel.id}:`, videosError);
-      return null;
-    }
-
-    rows = (videos || []).map(video => {
-      const contentSource = video.content_source || channel.name;
-      const thumbMatch = video.thumbnail_url?.match(/\/vi\/([a-zA-Z0-9_-]{11})\//);
-      const realVideoId = thumbMatch ? thumbMatch[1] : null;
-      return {
-        'Video title': video.title,
-        'Video publish time': video.published_at,
-        'Views': video.view_count,
-        'Duration': video.duration_seconds,
-        'Impressions': video.impressions,
-        'Impressions click-through rate (%)': video.ctr ? video.ctr * 100 : null,
-        'Average percentage viewed (%)': video.avg_view_percentage ? video.avg_view_percentage * 100 : null,
-        'Subscribers gained': video.subscribers_gained,
-        'Content': contentSource,
-        videoId: realVideoId,
-        title: video.title,
-        publishDate: video.published_at,
-        views: video.view_count,
-        duration: video.duration_seconds,
-        type: video.video_type,
-        impressions: video.impressions,
-        ctr: video.ctr,
-        retention: video.avg_view_percentage,
-        avgViewPct: video.avg_view_percentage,
-        subscribers: video.subscribers_gained,
-        watchHours: video.watch_hours,
-        channel: contentSource,
-      };
-    });
+  // Priority 3: Fall back to all videos in table (no sync, no report period)
+  if (rows.length === 0 && liveVideos && liveVideos.length > 0) {
+    rows = liveVideos.map(mapVideoRow);
   }
 
   return { rows, reportPeriods, activePeriod };
