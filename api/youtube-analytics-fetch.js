@@ -166,28 +166,30 @@ export default async function handler(req, res) {
     const end = endDate || new Date().toISOString().split('T')[0];
     const start = startDate || new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    // Fetch video-level analytics
-    // The Analytics API returns data per video when using video dimension
-    const analyticsUrl = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
-    analyticsUrl.searchParams.append('ids', `channel==${channelId}`);
-    analyticsUrl.searchParams.append('startDate', start);
-    analyticsUrl.searchParams.append('endDate', end);
-    analyticsUrl.searchParams.append('dimensions', 'video');
-    analyticsUrl.searchParams.append('metrics', 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained,videoThumbnailImpressions,videoThumbnailImpressionsClickRate');
-    analyticsUrl.searchParams.append('sort', '-views');
-    analyticsUrl.searchParams.append('maxResults', '200');
+    // Fetch video-level analytics — two separate calls to ensure base metrics
+    // always succeed even if impressions metrics aren't available
+    const baseMetrics = 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained';
+    const impressionMetrics = 'videoThumbnailImpressions,videoThumbnailImpressionsClickRate';
 
-    // If specific video IDs provided, filter to those
-    if (videoIds && videoIds.length > 0) {
-      analyticsUrl.searchParams.append('filters', `video==${videoIds.join(',')}`);
-    }
-
-    const analyticsResponse = await fetch(analyticsUrl.toString(), {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
+    const buildAnalyticsUrl = (metrics) => {
+      const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
+      url.searchParams.append('ids', `channel==${channelId}`);
+      url.searchParams.append('startDate', start);
+      url.searchParams.append('endDate', end);
+      url.searchParams.append('dimensions', 'video');
+      url.searchParams.append('metrics', metrics);
+      url.searchParams.append('sort', '-views');
+      url.searchParams.append('maxResults', '200');
+      if (videoIds && videoIds.length > 0) {
+        url.searchParams.append('filters', `video==${videoIds.join(',')}`);
       }
-    });
+      return url;
+    };
+
+    const headers = { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' };
+
+    // Call 1: Base analytics (views, watch time, retention, subs)
+    const analyticsResponse = await fetch(buildAnalyticsUrl(baseMetrics).toString(), { headers });
 
     if (!analyticsResponse.ok) {
       const errorData = await analyticsResponse.json();
@@ -200,17 +202,8 @@ export default async function handler(req, res) {
     }
 
     const analyticsData = await analyticsResponse.json();
-
-    // Note: Impressions/CTR are not available via YouTube Analytics API
-    // Use the YouTube Reporting API (/api/youtube-reporting-fetch) instead
-
-    // Combine the data by video ID
-    // analyticsData columns: video, views, estimatedMinutesWatched, averageViewPercentage, subscribersGained
-    // impressionsData columns: video, views, videoThumbnailImpressions, videoThumbnailImpressionsClickRate
-
     const videoAnalytics = {};
 
-    // Process main analytics data
     if (analyticsData.rows) {
       for (const row of analyticsData.rows) {
         const videoId = row[0];
@@ -220,13 +213,40 @@ export default async function handler(req, res) {
           watchHours: (row[2] ?? 0) / 60,
           avgViewPercentage: row[3] ?? 0,
           subscribersGained: row[4] ?? 0,
-          impressions: row[5] ?? 0,
-          ctr: row[6] ?? 0
+          impressions: 0,
+          ctr: 0
         };
       }
     }
 
-    // Note: Impressions/CTR not available via Analytics API - use CSV export instead
+    // Call 2: Impressions/CTR (separate call — fails gracefully if not available)
+    try {
+      const impressionsResponse = await fetch(buildAnalyticsUrl(impressionMetrics).toString(), { headers });
+      if (impressionsResponse.ok) {
+        const impressionsData = await impressionsResponse.json();
+        if (impressionsData.rows) {
+          for (const row of impressionsData.rows) {
+            const videoId = row[0];
+            if (videoAnalytics[videoId]) {
+              videoAnalytics[videoId].impressions = row[1] ?? 0;
+              videoAnalytics[videoId].ctr = row[2] ?? 0;
+            } else {
+              videoAnalytics[videoId] = {
+                views: 0, watchMinutes: 0, watchHours: 0,
+                avgViewPercentage: 0, subscribersGained: 0,
+                impressions: row[1] ?? 0, ctr: row[2] ?? 0
+              };
+            }
+          }
+        }
+        console.log(`[Analytics] Impressions data fetched for ${impressionsData.rows?.length || 0} videos`);
+      } else {
+        const errData = await impressionsResponse.json().catch(() => ({}));
+        console.warn('[Analytics] Impressions metrics not available:', errData.error?.message || impressionsResponse.status);
+      }
+    } catch (impErr) {
+      console.warn('[Analytics] Impressions fetch failed:', impErr.message);
+    }
 
     // Update videos in the database with analytics data
     // This is done server-side to bypass RLS restrictions
