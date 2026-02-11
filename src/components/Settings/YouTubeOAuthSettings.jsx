@@ -1215,8 +1215,8 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                           <input
                             type="checkbox"
                             checked={selectedMembers.has(conn.youtube_channel_id)}
-                            onChange={() => toggleMember(conn.youtube_channel_id)}
-                            style={{ accentColor: "#a78bfa" }}
+                            readOnly
+                            style={{ accentColor: "#a78bfa", pointerEvents: "none" }}
                           />
                           <img
                             src={conn.youtube_channel_thumbnail || ''}
