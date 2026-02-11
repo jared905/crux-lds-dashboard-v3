@@ -120,7 +120,7 @@ Provide recommendations in this JSON format:
       prompt,
       systemPrompt,
       'audit_recommendations',
-      2000
+      4000
     );
 
     // Track cost
@@ -131,22 +131,56 @@ Provide recommendations in this JSON format:
       });
     }
 
-    const parsed = parseClaudeJSON(result.text, { stop: [], start: [], optimize: [] });
+    let parsed = parseClaudeJSON(result.text, { stop: [], start: [], optimize: [] });
 
-    const recommendationData = {
+    let recommendationData = {
       stop: parsed.stop || [],
       start: parsed.start || [],
       optimize: parsed.optimize || [],
     };
 
-    if (recommendationData.stop.length === 0 && recommendationData.start.length === 0 && recommendationData.optimize.length === 0) {
-      console.warn('[auditRecommendations] Parsed result has zero recommendations. Claude response (first 500 chars):', (result.text || '').slice(0, 500));
+    const isEmpty = recommendationData.stop.length === 0 && recommendationData.start.length === 0 && recommendationData.optimize.length === 0;
+
+    // Retry once if parsing returned nothing (likely truncated response)
+    if (isEmpty) {
+      console.warn('[auditRecommendations] First attempt returned zero recommendations, retrying...');
+      try {
+        const retry = await claudeAPI.call(
+          prompt + '\n\nIMPORTANT: Keep each recommendation concise (1-2 sentences per field). Return valid JSON only.',
+          systemPrompt,
+          'audit_recommendations_retry',
+          4000
+        );
+        if (retry.usage) {
+          await addAuditCost(auditId, {
+            tokens: (retry.usage.input_tokens || 0) + (retry.usage.output_tokens || 0),
+            cost: retry.cost || 0,
+          });
+        }
+        const retryParsed = parseClaudeJSON(retry.text, { stop: [], start: [], optimize: [] });
+        const retryData = {
+          stop: retryParsed.stop || [],
+          start: retryParsed.start || [],
+          optimize: retryParsed.optimize || [],
+        };
+        if (retryData.stop.length > 0 || retryData.start.length > 0 || retryData.optimize.length > 0) {
+          recommendationData = retryData;
+        }
+      } catch (retryErr) {
+        console.warn('[auditRecommendations] Retry also failed:', retryErr.message);
+      }
+    }
+
+    const stillEmpty = recommendationData.stop.length === 0 && recommendationData.start.length === 0 && recommendationData.optimize.length === 0;
+    if (stillEmpty) {
+      console.warn('[auditRecommendations] All attempts returned zero recommendations. Claude response (first 500 chars):', (result.text || '').slice(0, 500));
     }
 
     await updateAuditProgress(auditId, { step: 'recommendations', pct: 83, message: 'Recommendations complete' });
     await updateAuditSection(auditId, 'recommendations', {
-      status: 'completed',
+      status: stillEmpty ? 'warning' : 'completed',
       result_data: recommendationData,
+      ...(stillEmpty && { error_message: 'Recommendations could not be generated — the AI response was incomplete. Try re-running.' }),
     });
 
     return recommendationData;

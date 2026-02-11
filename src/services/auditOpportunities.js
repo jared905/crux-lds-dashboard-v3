@@ -123,7 +123,7 @@ Identify opportunities in this JSON format:
       prompt,
       systemPrompt,
       'audit_opportunities',
-      2500
+      3500
     );
 
     // Track cost
@@ -134,26 +134,64 @@ Identify opportunities in this JSON format:
       });
     }
 
-    const parsed = parseClaudeJSON(result.text, {
+    let parsed = parseClaudeJSON(result.text, {
       content_gaps: [],
       growth_levers: [],
       market_potential: null,
     });
 
-    const opportunityData = {
+    let opportunityData = {
       content_gaps: parsed.content_gaps || [],
       growth_levers: parsed.growth_levers || [],
       market_potential: parsed.market_potential || null,
     };
 
-    if (opportunityData.content_gaps.length === 0 && opportunityData.growth_levers.length === 0) {
-      console.warn('[auditOpportunities] Parsed result has zero opportunities. Claude response (first 500 chars):', (result.text || '').slice(0, 500));
+    const isEmpty = opportunityData.content_gaps.length === 0 && opportunityData.growth_levers.length === 0;
+
+    // Retry once if parsing returned nothing (likely truncated response)
+    if (isEmpty) {
+      console.warn('[auditOpportunities] First attempt returned zero opportunities, retrying...');
+      try {
+        const retry = await claudeAPI.call(
+          prompt + '\n\nIMPORTANT: Keep each item concise (1-2 sentences per field). Return valid JSON only.',
+          systemPrompt,
+          'audit_opportunities_retry',
+          3500
+        );
+        if (retry.usage) {
+          await addAuditCost(auditId, {
+            tokens: (retry.usage.input_tokens || 0) + (retry.usage.output_tokens || 0),
+            cost: retry.cost || 0,
+          });
+        }
+        const retryParsed = parseClaudeJSON(retry.text, {
+          content_gaps: [],
+          growth_levers: [],
+          market_potential: null,
+        });
+        const retryData = {
+          content_gaps: retryParsed.content_gaps || [],
+          growth_levers: retryParsed.growth_levers || [],
+          market_potential: retryParsed.market_potential || null,
+        };
+        if (retryData.content_gaps.length > 0 || retryData.growth_levers.length > 0) {
+          opportunityData = retryData;
+        }
+      } catch (retryErr) {
+        console.warn('[auditOpportunities] Retry also failed:', retryErr.message);
+      }
+    }
+
+    const stillEmpty = opportunityData.content_gaps.length === 0 && opportunityData.growth_levers.length === 0;
+    if (stillEmpty) {
+      console.warn('[auditOpportunities] All attempts returned zero opportunities. Claude response (first 500 chars):', (result.text || '').slice(0, 500));
     }
 
     await updateAuditProgress(auditId, { step: 'opportunity_analysis', pct: 68, message: 'Opportunity analysis complete' });
     await updateAuditSection(auditId, 'opportunity_analysis', {
-      status: 'completed',
+      status: stillEmpty ? 'warning' : 'completed',
       result_data: opportunityData,
+      ...(stillEmpty && { error_message: 'Opportunities could not be generated — the AI response was incomplete. Try re-running.' }),
     });
 
     return opportunityData;
