@@ -19,7 +19,7 @@ export default function FilterBar({
   const hasPeriods = reportPeriods && reportPeriods.length > 0;
 
   return (
-    <div style={{ position: "sticky", top: "110px", zIndex: 99, background: "transparent", paddingTop: "20px", paddingBottom: "10px" }}>
+    <div style={{ position: "sticky", top: "110px", zIndex: 99, background: "rgba(18, 18, 18, 0.92)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", paddingTop: "20px", paddingBottom: "10px" }}>
       <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "0 24px" }}>
         <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px", padding: "20px" }}>
           <div style={{ display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>

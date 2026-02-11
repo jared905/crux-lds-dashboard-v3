@@ -26,9 +26,9 @@ export default function ClientBackground({ imageUrl }) {
         backgroundPosition: "center center",
         backgroundRepeat: "no-repeat",
 
-        // Dissolve effect - stays solid longer, fades near the bottom
-        maskImage: "linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.7) 60%, rgba(0,0,0,0.4) 85%, rgba(0,0,0,0) 100%)",
-        WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.7) 60%, rgba(0,0,0,0.4) 85%, rgba(0,0,0,0) 100%)",
+        // Dissolve effect - subtle at top (behind header), stronger in the hero zone, fades at bottom
+        maskImage: "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.55) 20%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.25) 80%, rgba(0,0,0,0) 100%)",
+        WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.55) 20%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.25) 80%, rgba(0,0,0,0) 100%)",
       }}
     />
   );
