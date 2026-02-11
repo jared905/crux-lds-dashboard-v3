@@ -6,6 +6,7 @@
 
 import claudeAPI from './claudeAPI';
 import { addAuditCost, updateAuditSection, updateAuditProgress } from './auditDatabase';
+import { getCurrentBrandContext, buildBrandContextForTask } from './brandContextService';
 
 const SUMMARY_SYSTEM_PROMPT_PROSPECT = `You are a YouTube growth consultant writing an executive summary for a prospective client audit. The summary should position the agency as knowledgeable about the channel's strengths and weaknesses, and make a compelling case for how the agency can help.
 
@@ -24,6 +25,7 @@ export async function generateExecutiveSummary(auditId, context) {
 
   try {
     const {
+      channelId,
       auditType,
       channelSnapshot,
       seriesSummary,
@@ -33,6 +35,17 @@ export async function generateExecutiveSummary(auditId, context) {
     } = context;
 
     const isProspect = auditType === 'prospect';
+
+    // Fetch brand context for prompt enrichment (non-blocking — returns '' if none)
+    let brandContextBlock = '';
+    if (channelId) {
+      try {
+        const bc = await getCurrentBrandContext(channelId);
+        if (bc) brandContextBlock = buildBrandContextForTask(bc, 'audit_summary');
+      } catch (e) {
+        console.warn('[auditSummary] Brand context fetch failed, proceeding without:', e.message);
+      }
+    }
 
     const prompt = `Write an executive summary for this ${isProspect ? 'prospect' : 'client baseline'} YouTube channel audit:
 
@@ -74,9 +87,10 @@ ${isProspect
   ? 'Frame this as a pitch — highlight what the agency can unlock for this channel.'
   : 'Frame this as a baseline — establish measurable starting points and realistic growth targets.'}`;
 
-    const systemPrompt = isProspect
+    const basePrompt = isProspect
       ? SUMMARY_SYSTEM_PROMPT_PROSPECT
       : SUMMARY_SYSTEM_PROMPT_BASELINE;
+    const systemPrompt = basePrompt + (brandContextBlock ? '\n\n' + brandContextBlock : '');
 
     const result = await claudeAPI.call(
       prompt,

@@ -110,6 +110,7 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
     // ── Step 5: Opportunity Analysis ──
     notify({ step: 'opportunity_analysis', pct: 57, message: 'Analyzing opportunities...' });
     const opportunities = await analyzeOpportunities(auditId, {
+      channelId: channel.id,
       channelSnapshot,
       seriesSummary,
       benchmarkData,
@@ -122,6 +123,7 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
     // ── Step 6: Recommendations ──
     notify({ step: 'recommendations', pct: 72, message: 'Generating recommendations...' });
     const recommendations = await generateRecommendations(auditId, {
+      channelId: channel.id,
       channelSnapshot,
       seriesSummary,
       benchmarkData,
@@ -135,6 +137,7 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
     // ── Step 7: Executive Summary ──
     notify({ step: 'executive_summary', pct: 87, message: 'Writing executive summary...' });
     const executiveSummary = await generateExecutiveSummary(auditId, {
+      channelId: channel.id,
       auditType,
       channelSnapshot,
       seriesSummary,

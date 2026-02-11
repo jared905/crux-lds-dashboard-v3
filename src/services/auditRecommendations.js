@@ -6,6 +6,7 @@
 import claudeAPI from './claudeAPI';
 import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 import { addAuditCost, updateAuditSection, updateAuditProgress } from './auditDatabase';
+import { getCurrentBrandContext, buildBrandContextForTask } from './brandContextService';
 
 const RECOMMENDATIONS_SYSTEM_PROMPT = `You are a YouTube growth strategist delivering actionable recommendations based on a comprehensive channel audit. Organize recommendations into three categories: Stop (things to stop doing), Start (new things to begin), and Optimize (existing things to improve).
 
@@ -26,7 +27,20 @@ export async function generateRecommendations(auditId, context) {
   await updateAuditProgress(auditId, { step: 'recommendations', pct: 72, message: 'Generating recommendations...' });
 
   try {
-    const { channelSnapshot, seriesSummary, benchmarkData, opportunities, videos } = context;
+    const { channelId, channelSnapshot, seriesSummary, benchmarkData, opportunities, videos } = context;
+
+    // Fetch brand context for prompt enrichment
+    let brandContextBlock = '';
+    if (channelId) {
+      try {
+        const bc = await getCurrentBrandContext(channelId);
+        if (bc) brandContextBlock = buildBrandContextForTask(bc, 'audit_recommendations');
+      } catch (e) {
+        console.warn('[auditRecommendations] Brand context fetch failed, proceeding without:', e.message);
+      }
+    }
+
+    const systemPrompt = RECOMMENDATIONS_SYSTEM_PROMPT + (brandContextBlock ? '\n\n' + brandContextBlock : '');
 
     // Identify underperforming content
     const avgViews = channelSnapshot?.avg_views_recent || 0;
@@ -104,7 +118,7 @@ Provide recommendations in this JSON format:
 
     const result = await claudeAPI.call(
       prompt,
-      RECOMMENDATIONS_SYSTEM_PROMPT,
+      systemPrompt,
       'audit_recommendations',
       2000
     );

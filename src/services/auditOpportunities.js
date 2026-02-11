@@ -6,6 +6,7 @@
 import claudeAPI from './claudeAPI';
 import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 import { addAuditCost, updateAuditSection, updateAuditProgress } from './auditDatabase';
+import { getCurrentBrandContext, buildBrandContextForTask } from './brandContextService';
 
 const OPPORTUNITIES_SYSTEM_PROMPT = `You are a YouTube content strategist conducting an opportunity analysis for a channel audit. Given channel data, series performance, and competitive benchmarks, identify actionable growth opportunities.
 
@@ -25,7 +26,20 @@ export async function analyzeOpportunities(auditId, context) {
   await updateAuditProgress(auditId, { step: 'opportunity_analysis', pct: 57, message: 'Analyzing opportunities...' });
 
   try {
-    const { channelSnapshot, seriesSummary, benchmarkData, videos } = context;
+    const { channelId, channelSnapshot, seriesSummary, benchmarkData, videos } = context;
+
+    // Fetch brand context for prompt enrichment
+    let brandContextBlock = '';
+    if (channelId) {
+      try {
+        const bc = await getCurrentBrandContext(channelId);
+        if (bc) brandContextBlock = buildBrandContextForTask(bc, 'audit_opportunities');
+      } catch (e) {
+        console.warn('[auditOpportunities] Brand context fetch failed, proceeding without:', e.message);
+      }
+    }
+
+    const systemPrompt = OPPORTUNITIES_SYSTEM_PROMPT + (brandContextBlock ? '\n\n' + brandContextBlock : '');
 
     // Build context summary for the prompt
     const topVideos = (videos || [])
@@ -107,7 +121,7 @@ Identify opportunities in this JSON format:
 
     const result = await claudeAPI.call(
       prompt,
-      OPPORTUNITIES_SYSTEM_PROMPT,
+      systemPrompt,
       'audit_opportunities',
       2500
     );

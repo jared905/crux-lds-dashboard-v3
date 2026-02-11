@@ -33,8 +33,9 @@ import UserManagement from "./components/Admin/UserManagement.jsx";
 import APISettings from "./components/Settings/APISettings.jsx";
 import SecurityDocs from "./components/Settings/SecurityDocs.jsx";
 
-// Lazy-loaded audit feature
+// Lazy-loaded features
 const AuditPage = lazy(() => import("./components/Audit/AuditPage.jsx"));
+const BrandContext = lazy(() => import("./components/Onboarding/BrandContext.jsx"));
 
 export default function App() {
   // Auth state
@@ -965,6 +966,13 @@ export default function App() {
         {tab === "audits" && (
           <Suspense fallback={<div style={{ padding: "40px", textAlign: "center", color: "#9E9E9E" }}>Loading Audits...</div>}>
             <AuditPage activeClient={activeClient} />
+          </Suspense>
+        )}
+
+        {/* Brand Context */}
+        {tab === "brand-context" && (
+          <Suspense fallback={<div style={{ padding: "40px", textAlign: "center", color: "#9E9E9E" }}>Loading Brand Context...</div>}>
+            <BrandContext activeClient={activeClient} />
           </Suspense>
         )}
 

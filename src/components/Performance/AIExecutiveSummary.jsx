@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, FileText, Loader2, AlertCircle, Copy, Check, TrendingUp } from 'lucide-react';
 import claudeAPI from '../../services/claudeAPI';
+import { getCurrentBrandContext, buildBrandContextForTask } from '../../services/brandContextService';
 
 /**
  * AI-Powered Executive Summary Generator
@@ -311,6 +312,19 @@ Please write a comprehensive executive summary with these sections:
 [1-2 sentences about what to watch for next month]
 
 Write in a professional narrative style. Use specific numbers. Focus on insights, not just data reporting. IMPORTANT: Keep CTR and retention analysis separate - they measure different things (CTR = packaging appeal, Retention = content quality).`;
+
+      // Inject brand context if available
+      if (activeClient?.id) {
+        try {
+          const bc = await getCurrentBrandContext(activeClient.id);
+          if (bc) {
+            const brandBlock = buildBrandContextForTask(bc, 'executive_narrative');
+            if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+          }
+        } catch (e) {
+          console.warn('[AIExecutiveSummary] Brand context fetch failed, proceeding without:', e.message);
+        }
+      }
 
       const result = await claudeAPI.call(userPrompt, systemPrompt, 'executive-summary', 4096);
 

@@ -390,14 +390,14 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     setInsightData(null);
     setInsightLoading(true);
     try {
-      const data = await analyzeCompetitorVideo(video);
+      const data = await analyzeCompetitorVideo(video, activeClient?.id);
       setInsightData(data);
     } catch (err) {
       setInsightData({ error: err.message });
     } finally {
       setInsightLoading(false);
     }
-  }, []);
+  }, [activeClient?.id]);
 
   // Save API key
   const saveApiKey = () => {

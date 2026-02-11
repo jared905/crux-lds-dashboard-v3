@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Table,
   ClipboardCheck,
+  Palette,
   // Section icons
   BarChart3,
   Search,
@@ -78,6 +79,7 @@ const SECTIONS = [
     icon: Briefcase,
     tabs: [
       { id: "audits", label: "Audits", icon: ClipboardCheck },
+      { id: "brand-context", label: "Brand Context", icon: Palette },
     ],
   },
   {

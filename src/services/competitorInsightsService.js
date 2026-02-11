@@ -8,6 +8,7 @@
 
 import { supabase } from './supabaseClient';
 import { claudeAPI } from './claudeAPI';
+import { getCurrentBrandContext, buildBrandContextForTask } from './brandContextService';
 
 // ============================================
 // OUTLIER DETECTION
@@ -113,7 +114,7 @@ Respond with ONLY a JSON object (no markdown, no code fences) with these fields:
  * @param {Object} video - Video object with id, title, view_count, channel info, etc.
  * @returns {Promise<Object>} Parsed insight data
  */
-export async function analyzeCompetitorVideo(video) {
+export async function analyzeCompetitorVideo(video, clientChannelId = null) {
   if (!supabase) throw new Error('Supabase not configured');
 
   // Check cache first
@@ -125,6 +126,20 @@ export async function analyzeCompetitorVideo(video) {
     .maybeSingle();
 
   if (cached) return cached.insight_data;
+
+  // Fetch brand context for the client (if provided) to evaluate tactics relative to brand
+  let systemPrompt = INSIGHT_SYSTEM_PROMPT;
+  if (clientChannelId) {
+    try {
+      const bc = await getCurrentBrandContext(clientChannelId);
+      if (bc) {
+        const brandBlock = buildBrandContextForTask(bc, 'competitor_insight');
+        if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+      }
+    } catch (e) {
+      console.warn('[competitorInsights] Brand context fetch failed, proceeding without:', e.message);
+    }
+  }
 
   // Build prompt
   const prompt = `Analyze this competitor YouTube video:
@@ -139,7 +154,7 @@ Published: ${video.published_at || 'Unknown'}
 Likes: ${(video.like_count || 0).toLocaleString()}
 Comments: ${(video.comment_count || 0).toLocaleString()}`;
 
-  const result = await claudeAPI.call(prompt, INSIGHT_SYSTEM_PROMPT, 'competitor_insight', 1024);
+  const result = await claudeAPI.call(prompt, systemPrompt, 'competitor_insight', 1024);
 
   // Parse JSON response (handle markdown code block wrapping)
   let insightData;
