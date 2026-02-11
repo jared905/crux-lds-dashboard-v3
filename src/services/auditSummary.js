@@ -10,11 +10,13 @@ import { getCurrentBrandContext, buildBrandContextForTask } from './brandContext
 
 const SUMMARY_SYSTEM_PROMPT_PROSPECT = `You are a YouTube growth consultant writing an executive summary for a prospective client audit. The summary should position the agency as knowledgeable about the channel's strengths and weaknesses, and make a compelling case for how the agency can help.
 
-Write in professional but approachable tone. Use markdown formatting. Include specific data points. Keep it to 400-600 words.`;
+Write in professional but approachable tone. Use markdown formatting. Include specific data points. Keep it to 400-600 words.
+When the channel produces both Shorts and long-form content, include a brief section comparing performance across formats. When only one format is used, note whether the other format represents an opportunity.`;
 
 const SUMMARY_SYSTEM_PROMPT_BASELINE = `You are a YouTube growth consultant writing an executive summary for a new client baseline audit. The summary should establish current performance benchmarks, identify the biggest opportunities, and set expectations for growth. This will serve as the "before" snapshot.
 
-Write in professional but approachable tone. Use markdown formatting. Include specific data points. Keep it to 400-600 words.`;
+Write in professional but approachable tone. Use markdown formatting. Include specific data points. Keep it to 400-600 words.
+When the channel produces both Shorts and long-form content, include a brief section comparing performance across formats. When only one format is used, note whether the other format represents an opportunity.`;
 
 /**
  * Generate executive summary markdown.
@@ -32,6 +34,7 @@ export async function generateExecutiveSummary(auditId, context) {
       benchmarkData,
       opportunities,
       recommendations,
+      formatMix = {},
     } = context;
 
     const isProspect = auditType === 'prospect';
@@ -57,6 +60,15 @@ export async function generateExecutiveSummary(auditId, context) {
 - Recent Videos (90d): ${channelSnapshot?.recent_videos_90d || 0}
 - Avg Views (90d): ${(channelSnapshot?.avg_views_recent || 0).toLocaleString()}
 - Avg Engagement (90d): ${((channelSnapshot?.avg_engagement_recent || 0) * 100).toFixed(2)}%
+
+## Format Performance
+${formatMix.hasBothFormats
+  ? `- Long-form: ${formatMix.longCount} videos${benchmarkData?.benchmarks?.longForm?.median ? `, peer median: ${benchmarkData.benchmarks.longForm.median.toLocaleString()}` : ''}
+- Shorts: ${formatMix.shortCount} videos${benchmarkData?.benchmarks?.shortForm?.median ? `, peer median: ${benchmarkData.benchmarks.shortForm.median.toLocaleString()}` : ''}`
+  : formatMix.hasShortForm
+  ? `Shorts-only channel: ${formatMix.shortCount} videos`
+  : `Long-form only: ${formatMix.longCount || 0} videos, no Shorts published`}
+${opportunities?.format_insights?.format_balance || ''}
 
 ## Series (${seriesSummary?.total_series || 0} detected)
 ${seriesSummary?.series?.slice(0, 5).map(s =>
@@ -96,7 +108,7 @@ ${isProspect
       prompt,
       systemPrompt,
       'audit_summary',
-      1500
+      2000
     );
 
     // Track cost

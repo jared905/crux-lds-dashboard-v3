@@ -17,6 +17,8 @@ Rules:
 - Consider the channel's size tier when calibrating advice
 - You MUST provide at least 1 recommendation per category (stop, start, optimize) — every channel has something to improve
 - If benchmark data is unavailable, base recommendations on the channel's own performance patterns and YouTube best practices for the size tier
+- Provide format-specific recommendations where relevant — a recommendation about Shorts cadence should be tagged as short_form, a recommendation about long-form thumbnails should be tagged as long_form, cross-cutting advice should be tagged as both
+- When recommending starting or stopping an entire format, make the rationale data-driven
 - Return ONLY valid JSON (no markdown fences, no commentary), starting with { and ending with }`;
 
 /**
@@ -27,7 +29,7 @@ export async function generateRecommendations(auditId, context) {
   await updateAuditProgress(auditId, { step: 'recommendations', pct: 72, message: 'Generating recommendations...' });
 
   try {
-    const { channelId, channelSnapshot, seriesSummary, benchmarkData, opportunities, videos } = context;
+    const { channelId, channelSnapshot, seriesSummary, benchmarkData, opportunities, longFormVideos = [], shortFormVideos = [], formatMix = {} } = context;
 
     // Fetch brand context for prompt enrichment
     let brandContextBlock = '';
@@ -42,16 +44,17 @@ export async function generateRecommendations(auditId, context) {
 
     const systemPrompt = RECOMMENDATIONS_SYSTEM_PROMPT + (brandContextBlock ? '\n\n' + brandContextBlock : '');
 
-    // Identify underperforming content
+    // Identify underperforming content — split by format
     const avgViews = channelSnapshot?.avg_views_recent || 0;
-    const underperformers = (videos || [])
-      .filter(v => {
-        if (!v.published_at) return false;
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - 180);
-        return new Date(v.published_at) > cutoff && (v.view_count || 0) < avgViews * 0.3;
-      })
-      .slice(0, 10);
+    const cutoff180d = new Date();
+    cutoff180d.setDate(cutoff180d.getDate() - 180);
+
+    const underperformingLong = longFormVideos
+      .filter(v => v.published_at && new Date(v.published_at) > cutoff180d && (v.view_count || 0) < avgViews * 0.3)
+      .slice(0, 6);
+    const underperformingShort = shortFormVideos
+      .filter(v => v.published_at && new Date(v.published_at) > cutoff180d && (v.view_count || 0) < avgViews * 0.3)
+      .slice(0, 6);
 
     const prompt = `Generate strategic recommendations for this YouTube channel based on the full audit:
 
@@ -62,10 +65,20 @@ export async function generateRecommendations(auditId, context) {
 - Avg Views (recent 90d): ${(channelSnapshot?.avg_views_recent || 0).toLocaleString()}
 - Avg Engagement (recent): ${((channelSnapshot?.avg_engagement_recent || 0) * 100).toFixed(2)}%
 
+## Format Breakdown
+- Long-form: ${formatMix.longCount || 0} videos${benchmarkData?.benchmarks?.longForm?.median ? `, peer median views: ${benchmarkData.benchmarks.longForm.median.toLocaleString()}` : ''}
+- Shorts: ${formatMix.shortCount || 0} videos${benchmarkData?.benchmarks?.shortForm?.median ? `, peer median views: ${benchmarkData.benchmarks.shortForm.median.toLocaleString()}` : ''}
+${!formatMix.hasShortForm ? '(No Shorts published)' : ''}${!formatMix.hasLongForm ? '(No long-form videos published)' : ''}
+
+## Format Insights (from opportunity analysis)
+Long-form: ${opportunities?.format_insights?.long_form?.summary || 'N/A'}
+Shorts: ${opportunities?.format_insights?.short_form?.summary || 'N/A'}
+Balance: ${opportunities?.format_insights?.format_balance || 'N/A'}
+
 ## Series Analysis
 ${seriesSummary?.series?.length > 0
   ? seriesSummary.series.map(s =>
-      `- "${s.name}": ${s.videoCount} videos, ${s.avgViews.toLocaleString()} avg views, engagement: ${(s.avgEngagementRate * 100).toFixed(2)}%, trend: ${s.performanceTrend}, cadence: ${s.cadenceDays ? s.cadenceDays + ' days' : 'irregular'}`
+      `- "${s.name}": ${s.videoCount} videos, ${s.avgViews.toLocaleString()} avg views, engagement: ${(s.avgEngagementRate * 100).toFixed(2)}%, trend: ${s.performanceTrend}, cadence: ${s.cadenceDays ? s.cadenceDays + ' days' : 'irregular'}${s.formatBreakdown ? ` (${s.formatBreakdown.longCount} long / ${s.formatBreakdown.shortCount} shorts)` : ''}`
     ).join('\n')
   : 'No series detected'}
 
@@ -77,24 +90,30 @@ ${benchmarkData?.comparison?.overallScore ? `Overall benchmark score: ${benchmar
 
 ## Identified Opportunities
 Content Gaps:
-${opportunities?.content_gaps?.map(g => `- ${g.gap} (${g.potential_impact} impact)`).join('\n') || 'None identified'}
+${opportunities?.content_gaps?.map(g => `- ${g.gap} (${g.potential_impact} impact, ${g.format || 'both'})`).join('\n') || 'None identified'}
 
 Growth Levers:
-${opportunities?.growth_levers?.map(l => `- ${l.lever}: ${l.current_state} → ${l.target_state} (${l.priority} priority)`).join('\n') || 'None identified'}
+${opportunities?.growth_levers?.map(l => `- ${l.lever}: ${l.current_state} → ${l.target_state} (${l.priority} priority, ${l.format || 'both'})`).join('\n') || 'None identified'}
 
-## Underperforming Content (last 180 days, <30% of avg views)
-${underperformers.length > 0
-  ? underperformers.map(v => `- "${v.title}" — ${(v.view_count || 0).toLocaleString()} views (${v.video_type || 'long'})`).join('\n')
+## Underperforming Long-form (last 180 days, <30% of avg views)
+${underperformingLong.length > 0
+  ? underperformingLong.map(v => `- "${v.title}" — ${(v.view_count || 0).toLocaleString()} views`).join('\n')
   : 'None identified'}
 
-Provide recommendations in this JSON format:
+## Underperforming Shorts (last 180 days, <30% of avg views)
+${underperformingShort.length > 0
+  ? underperformingShort.map(v => `- "${v.title}" — ${(v.view_count || 0).toLocaleString()} views`).join('\n')
+  : 'None identified'}
+
+Provide recommendations in this JSON format. Tag each recommendation with the format it applies to:
 {
   "stop": [
     {
       "action": "What to stop doing",
       "rationale": "Why, with data references",
       "evidence": "Specific data point supporting this",
-      "impact": "high" | "medium" | "low"
+      "impact": "high" | "medium" | "low",
+      "format": "long_form" | "short_form" | "both"
     }
   ],
   "start": [
@@ -103,7 +122,8 @@ Provide recommendations in this JSON format:
       "rationale": "Why, with data references",
       "evidence": "Specific data point supporting this",
       "impact": "high" | "medium" | "low",
-      "effort": "high" | "medium" | "low"
+      "effort": "high" | "medium" | "low",
+      "format": "long_form" | "short_form" | "both"
     }
   ],
   "optimize": [
@@ -111,7 +131,8 @@ Provide recommendations in this JSON format:
       "action": "What to optimize",
       "rationale": "Why, with data references",
       "evidence": "Specific data point supporting this",
-      "impact": "high" | "medium" | "low"
+      "impact": "high" | "medium" | "low",
+      "format": "long_form" | "short_form" | "both"
     }
   ]
 }`;
@@ -120,7 +141,7 @@ Provide recommendations in this JSON format:
       prompt,
       systemPrompt,
       'audit_recommendations',
-      4000
+      5000
     );
 
     // Track cost
@@ -149,7 +170,7 @@ Provide recommendations in this JSON format:
           prompt + '\n\nIMPORTANT: Keep each recommendation concise (1-2 sentences per field). Return valid JSON only.',
           systemPrompt,
           'audit_recommendations_retry',
-          4000
+          5000
         );
         if (retry.usage) {
           await addAuditCost(auditId, {

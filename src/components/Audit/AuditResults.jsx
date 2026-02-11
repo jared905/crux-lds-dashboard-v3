@@ -76,6 +76,7 @@ const COLORS = {
 
 export default function AuditResults({ audit, onBack }) {
   const [activeTab, setActiveTab] = useState("summary");
+  const [formatFilter, setFormatFilter] = useState("all"); // 'all' | 'long_form' | 'short_form'
 
   const snapshot = audit.channel_snapshot || {};
   const series = audit.series_summary || {};
@@ -84,6 +85,13 @@ export default function AuditResults({ audit, onBack }) {
   const recommendations = audit.recommendations || {};
   const summary = audit.executive_summary || "";
   const videos = audit.videos || [];
+
+  // Format breakdown
+  const formatMix = useMemo(() => {
+    const longCount = videos.filter(v => v.video_type === "long").length;
+    const shortCount = videos.filter(v => v.video_type === "short").length;
+    return { longCount, shortCount, hasBoth: longCount > 0 && shortCount > 0 };
+  }, [videos]);
 
   // Video categorization
   const videoAnalysis = useMemo(() => {
@@ -725,6 +733,17 @@ export default function AuditResults({ audit, onBack }) {
       {/* ── Opportunities Tab ── */}
       {activeTab === "opportunities" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* Format Toggle + Insights */}
+          {formatMix.hasBoth && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <FormatToggle value={formatFilter} onChange={setFormatFilter} />
+            </div>
+          )}
+
+          {opportunities.format_insights && (
+            <FormatInsightsCard insights={opportunities.format_insights} />
+          )}
+
           {/* Content Gaps */}
           <div style={card()}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
@@ -740,11 +759,11 @@ export default function AuditResults({ audit, onBack }) {
                 <div style={{ fontSize: "12px", color: "#9E9E9E" }}>Opportunities to fill unmet audience needs</div>
               </div>
             </div>
-            {(opportunities.content_gaps || []).length === 0 ? (
-              <div style={{ color: "#666", fontSize: "13px", textAlign: "center", padding: "20px" }}>No content gaps identified.</div>
+            {filterByFormat(opportunities.content_gaps || [], formatFilter).length === 0 ? (
+              <div style={{ color: "#666", fontSize: "13px", textAlign: "center", padding: "20px" }}>No content gaps identified{formatFilter !== "all" ? " for this format" : ""}.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {opportunities.content_gaps.map((g, i) => (
+                {filterByFormat(opportunities.content_gaps, formatFilter).map((g, i) => (
                   <OpportunityCard key={i} item={g} type="gap" />
                 ))}
               </div>
@@ -766,11 +785,11 @@ export default function AuditResults({ audit, onBack }) {
                 <div style={{ fontSize: "12px", color: "#9E9E9E" }}>Actionable improvements to accelerate growth</div>
               </div>
             </div>
-            {(opportunities.growth_levers || []).length === 0 ? (
-              <div style={{ color: "#666", fontSize: "13px", textAlign: "center", padding: "20px" }}>No growth levers identified.</div>
+            {filterByFormat(opportunities.growth_levers || [], formatFilter).length === 0 ? (
+              <div style={{ color: "#666", fontSize: "13px", textAlign: "center", padding: "20px" }}>No growth levers identified{formatFilter !== "all" ? " for this format" : ""}.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {opportunities.growth_levers.map((l, i) => (
+                {filterByFormat(opportunities.growth_levers, formatFilter).map((l, i) => (
                   <OpportunityCard key={i} item={l} type="lever" />
                 ))}
               </div>
@@ -825,6 +844,13 @@ export default function AuditResults({ audit, onBack }) {
             </div>
           ) : (
             <>
+              {/* Format Toggle */}
+              {formatMix.hasBoth && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <FormatToggle value={formatFilter} onChange={setFormatFilter} />
+                </div>
+              )}
+
               {/* Impact Overview */}
               <RecommendationsOverview recommendations={recommendations} />
 
@@ -835,7 +861,7 @@ export default function AuditResults({ audit, onBack }) {
               title="Stop"
               color={COLORS.danger}
               icon="🛑"
-              items={recommendations.stop || []}
+              items={filterByFormat(recommendations.stop || [], formatFilter)}
               description="Discontinue or phase out"
             />
 
@@ -844,7 +870,7 @@ export default function AuditResults({ audit, onBack }) {
               title="Start"
               color={COLORS.success}
               icon="🚀"
-              items={recommendations.start || []}
+              items={filterByFormat(recommendations.start || [], formatFilter)}
               description="New initiatives to begin"
             />
 
@@ -853,7 +879,7 @@ export default function AuditResults({ audit, onBack }) {
               title="Optimize"
               color={COLORS.warning}
               icon="⚡"
-              items={recommendations.optimize || []}
+              items={filterByFormat(recommendations.optimize || [], formatFilter)}
               description="Improve existing processes"
             />
           </div>
@@ -1342,10 +1368,13 @@ function OpportunityCard({ item, type }) {
       borderLeft: `3px solid ${impactColor}`,
     }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "8px" }}>
-        <div style={{ fontSize: "14px", fontWeight: "600" }}>{isGap ? item.gap : item.lever}</div>
+        <div style={{ fontSize: "14px", fontWeight: "600" }}>
+          {isGap ? item.gap : item.lever}
+          <FormatBadge format={item.format} />
+        </div>
         <span style={{
           fontSize: "10px", fontWeight: "600", padding: "3px 8px", borderRadius: "4px",
-          color: impactColor, background: `${impactColor}15`, textTransform: "uppercase",
+          color: impactColor, background: `${impactColor}15`, textTransform: "uppercase", flexShrink: 0,
         }}>
           {impact} {isGap ? "impact" : "priority"}
         </span>
@@ -1429,7 +1458,10 @@ function RecommendationColumn({ title, color, icon, items, description }) {
               borderLeft: `3px solid ${color}`,
             }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "6px" }}>
-                <div style={{ fontSize: "13px", fontWeight: "600" }}>{r.action}</div>
+                <div style={{ fontSize: "13px", fontWeight: "600" }}>
+                  {r.action}
+                  <FormatBadge format={r.format} />
+                </div>
                 {r.impact && (
                   <span style={{
                     fontSize: "9px", fontWeight: "600", padding: "2px 6px", borderRadius: "4px",
@@ -1454,6 +1486,92 @@ function RecommendationColumn({ title, color, icon, items, description }) {
       )}
     </div>
   );
+}
+
+function FormatToggle({ value, onChange }) {
+  const options = [
+    { id: "all", label: "All" },
+    { id: "long_form", label: "Long-form" },
+    { id: "short_form", label: "Shorts" },
+  ];
+  return (
+    <div style={{ display: "flex", gap: "4px", background: "#252525", borderRadius: "8px", padding: "3px" }}>
+      {options.map(o => (
+        <button key={o.id} onClick={() => onChange(o.id)} style={{
+          padding: "6px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: "600",
+          border: "none", cursor: "pointer", transition: "all 0.15s",
+          background: value === o.id ? "#3b82f6" : "transparent",
+          color: value === o.id ? "#fff" : "#9E9E9E",
+        }}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function FormatBadge({ format }) {
+  if (!format || format === "both") return null;
+  const isShort = format === "short_form";
+  return (
+    <span style={{
+      fontSize: "9px", fontWeight: "600", padding: "2px 6px", borderRadius: "4px",
+      color: isShort ? "#ec4899" : "#3b82f6",
+      background: isShort ? "rgba(236, 72, 153, 0.15)" : "rgba(59, 130, 246, 0.15)",
+      marginLeft: "6px", textTransform: "uppercase",
+    }}>
+      {isShort ? "Shorts" : "Long-form"}
+    </span>
+  );
+}
+
+function FormatInsightsCard({ insights }) {
+  if (!insights) return null;
+  const healthColor = (h) =>
+    h === "strong" ? COLORS.success : h === "moderate" ? COLORS.warning : h === "weak" ? COLORS.danger : COLORS.gray;
+
+  return (
+    <div style={{
+      background: "#1E1E1E", borderRadius: "12px", border: "1px solid #333",
+      padding: "24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px",
+    }}>
+      {[
+        { label: "Long-form", data: insights.long_form, color: "#3b82f6" },
+        { label: "Shorts", data: insights.short_form, color: "#ec4899" },
+      ].map(({ label, data, color }) => (
+        <div key={label} style={{ padding: "16px", background: "#252525", borderRadius: "8px", borderTop: `3px solid ${color}` }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+            <div style={{ fontSize: "14px", fontWeight: "700" }}>{label}</div>
+            {data?.health && (
+              <span style={{
+                fontSize: "10px", fontWeight: "600", padding: "3px 8px", borderRadius: "4px",
+                color: healthColor(data.health), background: `${healthColor(data.health)}15`,
+                textTransform: "uppercase",
+              }}>
+                {data.health}
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: "12px", color: "#9E9E9E", lineHeight: "1.5" }}>
+            {data?.summary || "No data available"}
+          </div>
+        </div>
+      ))}
+      {insights.format_balance && (
+        <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#9E9E9E", padding: "8px 0 0" }}>
+          {insights.format_balance}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function filterByFormat(items, filter) {
+  if (filter === "all") return items;
+  return items.filter(item => {
+    const f = item.format || "both";
+    return f === filter || f === "both";
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

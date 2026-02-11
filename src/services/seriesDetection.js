@@ -148,7 +148,7 @@ export async function detectSeriesBySemantic(uncategorizedVideos, existingSeries
 Already-detected series (via pattern matching): ${existingSeriesNames.length > 0 ? existingSeriesNames.join(', ') : 'None'}
 
 Videos:
-${videosForPrompt.map((v, i) => `${i}. "${v.title}" (${(v.view_count || 0).toLocaleString()} views)`).join('\n')}
+${videosForPrompt.map((v, i) => `${i}. "${v.title}" (${(v.view_count || 0).toLocaleString()} views, ${v.video_type || 'long'})`).join('\n')}
 
 Identify implicit series/themes. For each, provide:
 {
@@ -280,6 +280,15 @@ export async function runSeriesDetection(auditId, channelId, videos) {
         if (daysSinceFirst < 180) performanceTrend = 'new';
       }
 
+      // Format breakdown
+      const longCount = seriesVideos.filter(v => v.video_type === 'long').length;
+      const shortCount = seriesVideos.filter(v => v.video_type === 'short').length;
+      const formatBreakdown = {
+        longCount,
+        shortCount,
+        dominantFormat: shortCount > longCount ? 'short' : 'long',
+      };
+
       return {
         ...series,
         videoCount: seriesVideos.length,
@@ -290,6 +299,7 @@ export async function runSeriesDetection(auditId, channelId, videos) {
         lastPublished: dates[dates.length - 1]?.toISOString() || null,
         cadenceDays,
         performanceTrend,
+        formatBreakdown,
       };
     });
 
@@ -323,6 +333,7 @@ export async function runSeriesDetection(auditId, channelId, videos) {
         lastPublished: s.lastPublished,
         cadenceDays: s.cadenceDays,
         performanceTrend: s.performanceTrend,
+        formatBreakdown: s.formatBreakdown,
       })),
       uncategorized_count: uncategorizedCount,
       total_series: seriesWithMetrics.length,

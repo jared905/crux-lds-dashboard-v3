@@ -98,6 +98,17 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
 
     notify({ step: 'ingestion', pct: 15, message: 'Ingestion complete' });
 
+    // ── Format split (used by all downstream stages) ──
+    const longFormVideos = videos.filter(v => v.video_type === 'long' || (!v.video_type && v.duration_seconds > 180));
+    const shortFormVideos = videos.filter(v => v.video_type === 'short' || (!v.video_type && v.duration_seconds && v.duration_seconds <= 180));
+    const formatMix = {
+      longCount: longFormVideos.length,
+      shortCount: shortFormVideos.length,
+      hasLongForm: longFormVideos.length > 0,
+      hasShortForm: shortFormVideos.length > 0,
+      hasBothFormats: longFormVideos.length > 0 && shortFormVideos.length > 0,
+    };
+
     // ── Step 2: Series Detection ──
     notify({ step: 'series_detection', pct: 17, message: 'Detecting series...' });
     const seriesSummary = await runSeriesDetection(auditId, channel.id, videos);
@@ -126,6 +137,9 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
       seriesSummary,
       benchmarkData,
       videos,
+      longFormVideos,
+      shortFormVideos,
+      formatMix,
     });
 
     await updateAudit(auditId, { opportunities });
@@ -140,6 +154,9 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
       benchmarkData,
       opportunities,
       videos,
+      longFormVideos,
+      shortFormVideos,
+      formatMix,
     });
 
     await updateAudit(auditId, { recommendations });
@@ -155,6 +172,7 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
       benchmarkData,
       opportunities,
       recommendations,
+      formatMix,
     });
 
     await updateAudit(auditId, { executive_summary: executiveSummary });
@@ -247,6 +265,17 @@ export async function resumeAudit(auditId, onProgress) {
     let opportunities = audit.opportunities;
     let recommendations = audit.recommendations;
 
+    // Format split for downstream stages
+    const longFormVideos = (videos || []).filter(v => v.video_type === 'long' || (!v.video_type && v.duration_seconds > 180));
+    const shortFormVideos = (videos || []).filter(v => v.video_type === 'short' || (!v.video_type && v.duration_seconds && v.duration_seconds <= 180));
+    const formatMix = {
+      longCount: longFormVideos.length,
+      shortCount: shortFormVideos.length,
+      hasLongForm: longFormVideos.length > 0,
+      hasShortForm: shortFormVideos.length > 0,
+      hasBothFormats: longFormVideos.length > 0 && shortFormVideos.length > 0,
+    };
+
     // Run remaining steps
     for (let i = resumeFromIndex; i < AUDIT_STEPS.length; i++) {
       const step = AUDIT_STEPS[i];
@@ -281,6 +310,9 @@ export async function resumeAudit(auditId, onProgress) {
           seriesSummary,
           benchmarkData,
           videos: videos || [],
+          longFormVideos,
+          shortFormVideos,
+          formatMix,
         });
         await updateAudit(auditId, { opportunities });
       }
@@ -294,6 +326,9 @@ export async function resumeAudit(auditId, onProgress) {
           benchmarkData,
           opportunities,
           videos: videos || [],
+          longFormVideos,
+          shortFormVideos,
+          formatMix,
         });
         await updateAudit(auditId, { recommendations });
       }
@@ -308,6 +343,7 @@ export async function resumeAudit(auditId, onProgress) {
           benchmarkData,
           opportunities,
           recommendations,
+          formatMix,
         });
         await updateAudit(auditId, { executive_summary: executiveSummary });
       }
