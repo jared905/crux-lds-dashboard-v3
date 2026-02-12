@@ -105,55 +105,29 @@ async function getAccessToken(connection) {
   }
 }
 
-// Fetch analytics data from YouTube Analytics API
-// Returns { base, impressions } — impressions may be null if not available
+// Fetch base analytics data from YouTube Analytics API
+// Note: Impressions/CTR are NOT available via Analytics API with video dimension.
+// They come from the Reporting API (fetchReportingData) instead.
 async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
   const headers = { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' };
 
-  const buildUrl = (metrics, sortField) => {
-    const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
-    url.searchParams.append('ids', `channel==${channelId}`);
-    url.searchParams.append('startDate', startDate);
-    url.searchParams.append('endDate', endDate);
-    url.searchParams.append('dimensions', 'video');
-    url.searchParams.append('metrics', metrics);
-    url.searchParams.append('sort', sortField || `-${metrics.split(',')[0]}`);
-    url.searchParams.append('maxResults', '200');
-    return url;
-  };
+  const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
+  url.searchParams.append('ids', `channel==${channelId}`);
+  url.searchParams.append('startDate', startDate);
+  url.searchParams.append('endDate', endDate);
+  url.searchParams.append('dimensions', 'video');
+  url.searchParams.append('metrics', 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained');
+  url.searchParams.append('sort', '-views');
+  url.searchParams.append('maxResults', '200');
 
-  // Call 1: Base analytics (guaranteed to work)
-  const baseResponse = await fetch(
-    buildUrl('views,estimatedMinutesWatched,averageViewPercentage,subscribersGained', '-views').toString(),
-    { headers }
-  );
+  const response = await fetch(url.toString(), { headers });
 
-  if (!baseResponse.ok) {
-    const error = await baseResponse.json();
+  if (!response.ok) {
+    const error = await response.json();
     throw new Error(error.error?.message || 'Analytics API failed');
   }
 
-  const base = await baseResponse.json();
-
-  // Call 2: Impressions/CTR (separate — fails gracefully)
-  let impressions = null;
-  try {
-    const impResponse = await fetch(
-      buildUrl('videoThumbnailImpressions,videoThumbnailImpressionsClickRate').toString(),
-      { headers }
-    );
-    if (impResponse.ok) {
-      impressions = await impResponse.json();
-      console.log(`[Daily Sync] Impressions data: ${impressions.rows?.length || 0} videos`);
-    } else {
-      const errData = await impResponse.json().catch(() => ({}));
-      console.warn('[Daily Sync] Impressions metrics not available:', errData.error?.message || impResponse.status);
-    }
-  } catch (e) {
-    console.warn('[Daily Sync] Impressions fetch failed:', e.message);
-  }
-
-  return { base, impressions };
+  return await response.json();
 }
 
 // Parse CSV content
@@ -441,10 +415,9 @@ async function syncConnection(connection) {
     let analyticsData = {};
 
     try {
-      const { base, impressions } = await fetchAnalytics(accessToken, channelId, yesterday, yesterday);
-      // Process base metrics (views, watch time, retention, subs)
-      if (base.rows) {
-        for (const row of base.rows) {
+      const analytics = await fetchAnalytics(accessToken, channelId, yesterday, yesterday);
+      if (analytics.rows) {
+        for (const row of analytics.rows) {
           analyticsData[row[0]] = {
             views: row[1] ?? 0,
             watchHours: (row[2] ?? 0) / 60,
@@ -454,22 +427,7 @@ async function syncConnection(connection) {
             ctr: 0
           };
         }
-      }
-      // Merge impressions/CTR data
-      if (impressions?.rows) {
-        for (const row of impressions.rows) {
-          const videoId = row[0];
-          if (analyticsData[videoId]) {
-            analyticsData[videoId].impressions = row[1] ?? 0;
-            analyticsData[videoId].ctr = row[2] ?? 0;
-          } else {
-            analyticsData[videoId] = {
-              views: 0, watchHours: 0, avgViewPercentage: 0,
-              subscribersGained: 0, impressions: row[1] ?? 0, ctr: row[2] ?? 0
-            };
-          }
-        }
-        console.log(`[Daily Sync] Merged impressions for ${impressions.rows.length} videos`);
+        console.log(`[Daily Sync] Analytics: ${analytics.rows.length} videos`);
       }
     } catch (e) {
       results.errors.push(`Analytics: ${e.message}`);
@@ -515,14 +473,7 @@ async function syncConnection(connection) {
       if (analytics.subscribersGained != null) {
         updateData.subscribers_gained = analytics.subscribersGained;
       }
-      // Impressions/CTR from Analytics API
-      if (analytics.impressions > 0) {
-        updateData.impressions = analytics.impressions;
-      }
-      if (analytics.ctr > 0) {
-        updateData.ctr = analytics.ctr;
-      }
-      // Reporting API overrides if available (aggregated historical data)
+      // Impressions/CTR from Reporting API (only source — Analytics API doesn't support per-video impressions)
       if (reporting.impressions != null && reporting.impressions > 0) {
         updateData.impressions = reporting.impressions;
       }

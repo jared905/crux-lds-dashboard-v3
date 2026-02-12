@@ -525,16 +525,16 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
           if (analyticsResult.updatedCount > 0) {
             summaryParts.push(`${analyticsResult.updatedCount} with analytics`);
           }
-          // Log impressions diagnostic info
+          // Log impressions diagnostic info (from Reporting API)
           if (analyticsResult.impressionsDiag) {
             const diag = analyticsResult.impressionsDiag;
             if (diag.success) {
-              console.log(`[Sync] Impressions: ${diag.videosWithData} videos with data (${diag.rowCount} total rows)`);
+              console.log(`[Sync] Impressions (Reporting API): ${diag.videosWithData} videos with data`);
               if (diag.videosWithData > 0) {
                 summaryParts.push(`${diag.videosWithData} with impressions`);
               }
             } else {
-              console.warn('[Sync] Impressions call failed:', diag.error);
+              console.warn('[Sync] Impressions not available:', diag.error);
             }
           }
         } else if (analyticsResult.errorCode === 'forbidden') {

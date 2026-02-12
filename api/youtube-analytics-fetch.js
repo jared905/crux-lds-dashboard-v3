@@ -1,7 +1,7 @@
 /**
  * Vercel Serverless Function - YouTube Analytics Fetch
- * Fetches analytics data (impressions, CTR, retention, watch hours) for videos
- * using the YouTube Analytics API.
+ * Fetches analytics data (retention, watch hours, subs) via YouTube Analytics API
+ * and impressions/CTR via YouTube Reporting API (bulk CSV reports).
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -166,30 +166,27 @@ export default async function handler(req, res) {
     const end = endDate || new Date().toISOString().split('T')[0];
     const start = startDate || new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    // Fetch video-level analytics — two separate calls to ensure base metrics
-    // always succeed even if impressions metrics aren't available
+    // Fetch video-level analytics from YouTube Analytics API
+    // Note: Impressions/CTR are NOT available via Analytics API with video dimension.
+    // They come from the YouTube Reporting API (bulk CSV reports) below.
     const baseMetrics = 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained';
-    const impressionMetrics = 'videoThumbnailImpressions,videoThumbnailImpressionsClickRate';
 
-    const buildAnalyticsUrl = (metrics, sortField) => {
-      const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
-      url.searchParams.append('ids', `channel==${channelId}`);
-      url.searchParams.append('startDate', start);
-      url.searchParams.append('endDate', end);
-      url.searchParams.append('dimensions', 'video');
-      url.searchParams.append('metrics', metrics);
-      url.searchParams.append('sort', sortField || `-${metrics.split(',')[0]}`);
-      url.searchParams.append('maxResults', '200');
-      if (videoIds && videoIds.length > 0) {
-        url.searchParams.append('filters', `video==${videoIds.join(',')}`);
-      }
-      return url;
-    };
+    const analyticsUrl = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
+    analyticsUrl.searchParams.append('ids', `channel==${channelId}`);
+    analyticsUrl.searchParams.append('startDate', start);
+    analyticsUrl.searchParams.append('endDate', end);
+    analyticsUrl.searchParams.append('dimensions', 'video');
+    analyticsUrl.searchParams.append('metrics', baseMetrics);
+    analyticsUrl.searchParams.append('sort', '-views');
+    analyticsUrl.searchParams.append('maxResults', '200');
+    if (videoIds && videoIds.length > 0) {
+      analyticsUrl.searchParams.append('filters', `video==${videoIds.join(',')}`);
+    }
 
     const headers = { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' };
 
-    // Call 1: Base analytics (views, watch time, retention, subs)
-    const analyticsResponse = await fetch(buildAnalyticsUrl(baseMetrics, '-views').toString(), { headers });
+    // Analytics API: Base metrics (views, watch time, retention, subs)
+    const analyticsResponse = await fetch(analyticsUrl.toString(), { headers });
 
     if (!analyticsResponse.ok) {
       const errorData = await analyticsResponse.json();
@@ -219,44 +216,94 @@ export default async function handler(req, res) {
       }
     }
 
-    // Call 2: Impressions/CTR (separate call — fails gracefully if not available)
-    let impressionsDiag = { attempted: true, success: false, videosWithData: 0, error: null };
-    try {
-      const impUrl = buildAnalyticsUrl(impressionMetrics).toString();
-      console.log('[Analytics] Impressions URL:', impUrl.replace(/Bearer [^ ]+/, 'Bearer ***'));
-      const impressionsResponse = await fetch(impUrl, { headers });
-      console.log('[Analytics] Impressions response status:', impressionsResponse.status);
-      if (impressionsResponse.ok) {
-        const impressionsData = await impressionsResponse.json();
-        impressionsDiag.rowCount = impressionsData.rows?.length || 0;
-        impressionsDiag.columnHeaders = impressionsData.columnHeaders?.map(h => h.name);
-        if (impressionsData.rows) {
-          for (const row of impressionsData.rows) {
-            const videoId = row[0];
-            if (videoAnalytics[videoId]) {
-              videoAnalytics[videoId].impressions = row[1] ?? 0;
-              videoAnalytics[videoId].ctr = row[2] ?? 0;
-            } else {
-              videoAnalytics[videoId] = {
-                views: 0, watchMinutes: 0, watchHours: 0,
-                avgViewPercentage: 0, subscribersGained: 0,
-                impressions: row[1] ?? 0, ctr: row[2] ?? 0
-              };
+    // Impressions/CTR: Fetch from YouTube Reporting API (bulk CSV reports)
+    // The Analytics API does NOT support per-video impressions — only the Reporting API does
+    let impressionsDiag = { source: 'reporting_api', success: false, videosWithData: 0, error: null };
+    if (connection.reporting_job_id) {
+      try {
+        const reportsResponse = await fetch(
+          `https://youtubereporting.googleapis.com/v1/jobs/${connection.reporting_job_id}/reports`,
+          { headers }
+        );
+
+        if (reportsResponse.ok) {
+          const reportsData = await reportsResponse.json();
+          const reports = (reportsData.reports || []).sort((a, b) => new Date(b.createTime) - new Date(a.createTime));
+
+          if (reports.length > 0) {
+            const reportResponse = await fetch(reports[0].downloadUrl, { headers });
+
+            if (reportResponse.ok) {
+              const csvContent = await reportResponse.text();
+              const lines = csvContent.trim().split('\n');
+
+              if (lines.length >= 2) {
+                const csvHeaders = lines[0].split(',').map(h => h.trim());
+                const videoIdCol = csvHeaders.find(h => h.toLowerCase().includes('video_id'));
+                const impressionsCol = csvHeaders.find(h => h.toLowerCase().includes('thumbnail_impressions') || h.toLowerCase() === 'impressions');
+                const ctrCol = csvHeaders.find(h => h.toLowerCase().includes('click_through_rate') || h.toLowerCase() === 'ctr');
+
+                if (videoIdCol) {
+                  // Aggregate daily rows by video
+                  const videoAgg = {};
+                  for (let i = 1; i < lines.length; i++) {
+                    const values = lines[i].split(',').map(v => v.trim());
+                    const row = {};
+                    csvHeaders.forEach((header, idx) => { row[header] = values[idx]; });
+
+                    const vid = row[videoIdCol];
+                    if (!vid) continue;
+
+                    if (!videoAgg[vid]) {
+                      videoAgg[vid] = { impressions: 0, ctrSum: 0, ctrCount: 0 };
+                    }
+                    if (impressionsCol && row[impressionsCol]) {
+                      videoAgg[vid].impressions += parseInt(row[impressionsCol]) || 0;
+                    }
+                    if (ctrCol && row[ctrCol]) {
+                      videoAgg[vid].ctrSum += parseFloat(row[ctrCol]) || 0;
+                      videoAgg[vid].ctrCount++;
+                    }
+                  }
+
+                  // Merge into videoAnalytics
+                  for (const [vid, agg] of Object.entries(videoAgg)) {
+                    const avgCtr = agg.ctrCount > 0 ? agg.ctrSum / agg.ctrCount : 0;
+                    if (videoAnalytics[vid]) {
+                      videoAnalytics[vid].impressions = agg.impressions;
+                      videoAnalytics[vid].ctr = avgCtr;
+                    } else {
+                      videoAnalytics[vid] = {
+                        views: 0, watchMinutes: 0, watchHours: 0,
+                        avgViewPercentage: 0, subscribersGained: 0,
+                        impressions: agg.impressions, ctr: avgCtr
+                      };
+                    }
+                    if (agg.impressions > 0) impressionsDiag.videosWithData++;
+                  }
+
+                  impressionsDiag.success = true;
+                  impressionsDiag.reportDate = reports[0].createTime;
+                  impressionsDiag.reportType = connection.reporting_job_type;
+                  impressionsDiag.csvColumns = csvHeaders;
+                  console.log(`[Analytics] Reporting API: ${impressionsDiag.videosWithData} videos with impressions data`);
+                } else {
+                  impressionsDiag.error = 'No video_id column in report CSV';
+                }
+              }
             }
-            if ((row[1] ?? 0) > 0) impressionsDiag.videosWithData++;
+          } else {
+            impressionsDiag.error = 'No reports available yet (reports take ~48h after job creation)';
           }
+        } else {
+          impressionsDiag.error = `Failed to list reports: HTTP ${reportsResponse.status}`;
         }
-        impressionsDiag.success = true;
-        console.log(`[Analytics] Impressions data fetched for ${impressionsData.rows?.length || 0} videos, ${impressionsDiag.videosWithData} with data`);
-      } else {
-        const errData = await impressionsResponse.json().catch(() => ({}));
-        impressionsDiag.error = errData.error?.message || `HTTP ${impressionsResponse.status}`;
-        impressionsDiag.errorDetails = errData.error;
-        console.warn('[Analytics] Impressions metrics not available:', impressionsDiag.error);
+      } catch (reportErr) {
+        impressionsDiag.error = reportErr.message;
+        console.warn('[Analytics] Reporting API fetch failed:', reportErr.message);
       }
-    } catch (impErr) {
-      impressionsDiag.error = impErr.message;
-      console.warn('[Analytics] Impressions fetch failed:', impErr.message);
+    } else {
+      impressionsDiag.error = 'No reporting job configured. Go to Settings > Reporting API > Setup to enable impressions tracking.';
     }
 
     // Update videos in the database with analytics data
@@ -294,7 +341,7 @@ export default async function handler(req, res) {
                 subscribers_gained: analytics.subscribersGained != null ? analytics.subscribersGained : null,
                 last_synced_at: new Date().toISOString()
             };
-            // Impressions/CTR from Analytics API (videoThumbnailImpressions)
+            // Impressions/CTR from Reporting API (bulk CSV reports)
             if (analytics.impressions > 0) {
               updateFields.impressions = analytics.impressions;
             }
