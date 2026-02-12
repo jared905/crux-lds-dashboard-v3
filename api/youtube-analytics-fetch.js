@@ -218,32 +218,72 @@ export default async function handler(req, res) {
 
     // Impressions/CTR: Fetch from YouTube Reporting API (bulk CSV reports)
     // The Analytics API does NOT support per-video impressions — only the Reporting API does
-    let impressionsDiag = { source: 'reporting_api', success: false, videosWithData: 0, error: null };
+    let impressionsDiag = {
+      source: 'reporting_api',
+      success: false,
+      videosWithData: 0,
+      error: null,
+      jobId: connection.reporting_job_id || null,
+      jobType: connection.reporting_job_type || null
+    };
+
     if (connection.reporting_job_id) {
       try {
+        // Step 1: List available reports for this job
         const reportsResponse = await fetch(
           `https://youtubereporting.googleapis.com/v1/jobs/${connection.reporting_job_id}/reports`,
           { headers }
         );
 
-        if (reportsResponse.ok) {
+        if (!reportsResponse.ok) {
+          impressionsDiag.error = `Failed to list reports: HTTP ${reportsResponse.status}`;
+        } else {
           const reportsData = await reportsResponse.json();
           const reports = (reportsData.reports || []).sort((a, b) => new Date(b.createTime) - new Date(a.createTime));
+          impressionsDiag.reportCount = reports.length;
 
-          if (reports.length > 0) {
+          if (reports.length === 0) {
+            impressionsDiag.error = 'No reports available yet (reports take ~48h after job creation)';
+          } else {
+            // Step 2: Download the most recent report CSV
+            impressionsDiag.reportDate = reports[0].createTime;
             const reportResponse = await fetch(reports[0].downloadUrl, { headers });
 
-            if (reportResponse.ok) {
+            if (!reportResponse.ok) {
+              impressionsDiag.error = `Failed to download report CSV: HTTP ${reportResponse.status}`;
+            } else {
               const csvContent = await reportResponse.text();
               const lines = csvContent.trim().split('\n');
 
-              if (lines.length >= 2) {
+              if (lines.length < 2) {
+                impressionsDiag.error = `Report CSV is empty (${lines.length} lines)`;
+              } else {
+                // Step 3: Parse CSV and extract impressions/CTR
                 const csvHeaders = lines[0].split(',').map(h => h.trim());
-                const videoIdCol = csvHeaders.find(h => h.toLowerCase().includes('video_id'));
-                const impressionsCol = csvHeaders.find(h => h.toLowerCase().includes('thumbnail_impressions') || h.toLowerCase() === 'impressions');
-                const ctrCol = csvHeaders.find(h => h.toLowerCase().includes('click_through_rate') || h.toLowerCase() === 'ctr');
+                impressionsDiag.csvColumns = csvHeaders;
 
-                if (videoIdCol) {
+                const videoIdCol = csvHeaders.find(h => h.toLowerCase().includes('video_id'));
+                const impressionsCol = csvHeaders.find(h =>
+                  h.toLowerCase().includes('thumbnail_impressions') ||
+                  (h.toLowerCase() === 'impressions')
+                );
+                const ctrCol = csvHeaders.find(h =>
+                  h.toLowerCase().includes('click_through_rate') ||
+                  h.toLowerCase().includes('impressions_ctr') ||
+                  h.toLowerCase() === 'ctr'
+                );
+
+                impressionsDiag.matchedColumns = {
+                  videoId: videoIdCol || null,
+                  impressions: impressionsCol || null,
+                  ctr: ctrCol || null
+                };
+
+                if (!videoIdCol) {
+                  impressionsDiag.error = `No video_id column found. Columns: ${csvHeaders.join(', ')}`;
+                } else if (!impressionsCol) {
+                  impressionsDiag.error = `No impressions column found. This report type (${connection.reporting_job_type}) may not include impressions. Columns: ${csvHeaders.join(', ')}. You may need to set up a channel_reach_basic_a1 report job.`;
+                } else {
                   // Aggregate daily rows by video
                   const videoAgg = {};
                   for (let i = 1; i < lines.length; i++) {
@@ -257,7 +297,7 @@ export default async function handler(req, res) {
                     if (!videoAgg[vid]) {
                       videoAgg[vid] = { impressions: 0, ctrSum: 0, ctrCount: 0 };
                     }
-                    if (impressionsCol && row[impressionsCol]) {
+                    if (row[impressionsCol]) {
                       videoAgg[vid].impressions += parseInt(row[impressionsCol]) || 0;
                     }
                     if (ctrCol && row[ctrCol]) {
@@ -283,20 +323,12 @@ export default async function handler(req, res) {
                   }
 
                   impressionsDiag.success = true;
-                  impressionsDiag.reportDate = reports[0].createTime;
-                  impressionsDiag.reportType = connection.reporting_job_type;
-                  impressionsDiag.csvColumns = csvHeaders;
-                  console.log(`[Analytics] Reporting API: ${impressionsDiag.videosWithData} videos with impressions data`);
-                } else {
-                  impressionsDiag.error = 'No video_id column in report CSV';
+                  impressionsDiag.totalVideosInReport = Object.keys(videoAgg).length;
+                  console.log(`[Analytics] Reporting API: ${impressionsDiag.videosWithData} of ${impressionsDiag.totalVideosInReport} videos with impressions`);
                 }
               }
             }
-          } else {
-            impressionsDiag.error = 'No reports available yet (reports take ~48h after job creation)';
           }
-        } else {
-          impressionsDiag.error = `Failed to list reports: HTTP ${reportsResponse.status}`;
         }
       } catch (reportErr) {
         impressionsDiag.error = reportErr.message;

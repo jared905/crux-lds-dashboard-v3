@@ -528,13 +528,14 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
           // Log impressions diagnostic info (from Reporting API)
           if (analyticsResult.impressionsDiag) {
             const diag = analyticsResult.impressionsDiag;
+            console.log('[Sync] Impressions diagnostics:', JSON.stringify(diag, null, 2));
             if (diag.success) {
-              console.log(`[Sync] Impressions (Reporting API): ${diag.videosWithData} videos with data`);
+              console.log(`[Sync] Impressions: ${diag.videosWithData} videos with data`);
               if (diag.videosWithData > 0) {
                 summaryParts.push(`${diag.videosWithData} with impressions`);
               }
             } else {
-              console.warn('[Sync] Impressions not available:', diag.error);
+              console.warn('[Sync] Impressions not available:', diag.error || 'Unknown error (check diagnostics above)');
             }
           }
         } else if (analyticsResult.errorCode === 'forbidden') {
