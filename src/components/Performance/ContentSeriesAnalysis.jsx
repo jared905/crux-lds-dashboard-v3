@@ -1,14 +1,47 @@
-import React, { useMemo, useState } from "react";
-import { Layers, TrendingUp, TrendingDown, Zap, AlertCircle, Lightbulb, Play, Minus } from "lucide-react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { Layers, TrendingUp, TrendingDown, Zap, AlertCircle, Lightbulb, Minus, Sparkles, Loader2, CheckCircle2 } from "lucide-react";
+import { runPatternDetection, runSemanticDetection, estimateAICost } from "../../services/seriesDetectionAdapter";
+import claudeAPI from "../../services/claudeAPI";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
 
-export default function ContentSeriesAnalysis({ rows }) {
+// Simple hash for cache key
+function hashTitles(rows) {
+  const str = rows.map(r => r.title || '').sort().join('|');
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  }
+  return 'series_ai_' + Math.abs(h).toString(36);
+}
+
+export default function ContentSeriesAnalysis({ rows, activeClient }) {
   const [viewMode, setViewMode] = useState("all"); // 'all' | 'winners' | 'opportunities'
+  const [aiSeries, setAiSeries] = useState(null); // null = not run, [] = run but empty
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+
+  // Load cached AI results on mount / when rows change
+  useEffect(() => {
+    if (!rows || rows.length === 0) return;
+    try {
+      const key = hashTitles(rows);
+      const cached = localStorage.getItem(key);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Re-hydrate: map cached video indices back to actual row objects
+        const hydrated = parsed.map(s => ({
+          ...s,
+          videos: (s.videoTitles || []).map(t => rows.find(r => r.title === t)).filter(Boolean),
+        })).filter(s => s.videos.length >= 3);
+        if (hydrated.length > 0) setAiSeries(hydrated);
+      }
+    } catch { /* cache miss is fine */ }
+  }, [rows]);
 
   const analysis = useMemo(() => {
-    if (!rows || rows.length === 0) return { series: [], oneHitWonders: [], avgViews: 0, avgCtr: 0, avgRet: 0 };
+    if (!rows || rows.length === 0) return { series: [], oneHitWonders: [], avgViews: 0, avgCtr: 0, avgRet: 0, uncategorizedCount: 0 };
 
     // Calculate channel baselines
     const validRows = rows.filter(r => r.views > 0);
@@ -16,78 +49,42 @@ export default function ContentSeriesAnalysis({ rows }) {
     const avgCtr = validRows.filter(r => r.ctr > 0).reduce((sum, r) => sum + r.ctr, 0) / Math.max(validRows.filter(r => r.ctr > 0).length, 1);
     const avgRet = validRows.filter(r => r.retention > 0).reduce((sum, r) => sum + r.retention, 0) / Math.max(validRows.filter(r => r.retention > 0).length, 1);
     const avgSubs = validRows.reduce((sum, r) => sum + (r.subscribers || 0), 0) / validRows.length;
-    
+
     // Channel-wide subscriber conversion rate
     const totalChannelViews = validRows.reduce((sum, r) => sum + r.views, 0);
     const totalChannelSubs = validRows.reduce((sum, r) => sum + (r.subscribers || 0), 0);
     const avgSubsPerKViews = totalChannelViews > 0 ? (totalChannelSubs / totalChannelViews) * 1000 : 0;
 
-    // === SERIES DETECTION ===
-    const seriesMap = {};
-    const ungroupedVideos = [];
+    // === SERIES DETECTION (two-pass via seriesDetection.js) ===
+    const { patternSeries, uncategorizedRows } = runPatternDetection(rows);
 
-    // Common series patterns to detect
-    const SERIES_PATTERNS = [
-      { regex: /^first time (hearing|listening|watching|reacting to)/i, name: "First Time Reactions" },
-      { regex: /^never heard of/i, name: "Never Heard Of Series" },
-      { regex: /reaction|reacts to/i, name: "Reaction Videos" },
-      { regex: /live performance|live in/i, name: "Live Performances" },
-      { regex: /^i show (my|the)/i, name: "Introduction Videos" },
-      { regex: /^who (is|tf is)/i, name: "Artist Discovery" },
-      { regex: /didn't know (about|of)/i, name: "Discovery Content" },
-      { regex: /vs\.|versus/i, name: "Comparison/VS Videos" },
-    ];
-
-    rows.forEach(r => {
-      if (!r.title) return;
-
-      let assigned = false;
-      
-      // Try pattern matching first
-      for (const pattern of SERIES_PATTERNS) {
-        if (pattern.regex.test(r.title)) {
-          if (!seriesMap[pattern.name]) {
-            seriesMap[pattern.name] = { name: pattern.name, videos: [], isPattern: true };
-          }
-          seriesMap[pattern.name].videos.push(r);
-          assigned = true;
-          break;
-        }
+    // Merge AI series if available
+    let allSeriesGroups = patternSeries.map(s => ({ ...s }));
+    if (aiSeries && aiSeries.length > 0) {
+      for (const semantic of aiSeries) {
+        // Check for >50% overlap with existing pattern series
+        const hasOverlap = allSeriesGroups.some(existing => {
+          const existingTitles = new Set(existing.videos.map(v => v.title));
+          const overlapCount = semantic.videos.filter(v => existingTitles.has(v.title)).length;
+          return overlapCount / semantic.videos.length > 0.5;
+        });
+        if (!hasOverlap) allSeriesGroups.push(semantic);
       }
+    }
 
-      // If no pattern match, try title structure detection
-      if (!assigned) {
-        // Check for colon/pipe/dash separators (common in series)
-        const separatorMatch = r.title.match(/^([^:|–—-]+)[:|\-–—]/);
-        if (separatorMatch) {
-          const seriesName = separatorMatch[1].trim();
-          
-          // Filter out generic prefixes (if it appears in >75% of videos, it's likely channel name)
-          if (seriesName.length > 3 && seriesName.length < 40) {
-            if (!seriesMap[seriesName]) {
-              seriesMap[seriesName] = { name: seriesName, videos: [], isPattern: false };
-            }
-            seriesMap[seriesName].videos.push(r);
-            assigned = true;
-          }
-        }
-      }
-
-      if (!assigned) {
-        ungroupedVideos.push(r);
-      }
-    });
-
-    // Filter out series that are likely just channel prefixes (appear in >75% of content)
+    // Filter: min 2 videos, max 75% of total
     const totalVideos = rows.length;
-    const validSeries = Object.values(seriesMap)
-      .filter(s => s.videos.length >= 2 && s.videos.length <= totalVideos * 0.75);
+    const validSeries = allSeriesGroups.filter(s => s.videos.length >= 2 && s.videos.length <= totalVideos * 0.75);
+
+    // Track uncategorized count (subtract videos claimed by AI series)
+    const aiClaimedCount = (aiSeries || []).reduce((sum, s) => sum + s.videos.length, 0);
+    const uncategorizedCount = Math.max(0, uncategorizedRows.length - aiClaimedCount);
 
     // === SERIES ANALYTICS ===
     const analyzedSeries = validSeries.map(series => {
       const videos = series.videos;
       const count = videos.length;
-      
+
       // Sort by publish date to detect trends
       const sortedByDate = [...videos]
         .filter(v => v.publishDate)
@@ -100,7 +97,7 @@ export default function ContentSeriesAnalysis({ rows }) {
       const seriesAvgCtr = videos.reduce((sum, v) => sum + (v.ctr || 0), 0) / count;
       const seriesAvgRet = videos.reduce((sum, v) => sum + (v.retention || 0), 0) / count;
       const seriesAvgSubs = totalSubs / count;
-      
+
       // Subscriber conversion rate (subs per 1000 views)
       const subsPerKViews = totalViews > 0 ? (totalSubs / totalViews) * 1000 : 0;
 
@@ -111,12 +108,12 @@ export default function ContentSeriesAnalysis({ rows }) {
         const midpoint = Math.floor(sortedByDate.length / 2);
         const firstHalf = sortedByDate.slice(0, midpoint);
         const secondHalf = sortedByDate.slice(midpoint);
-        
+
         const firstHalfAvg = firstHalf.reduce((sum, v) => sum + v.views, 0) / firstHalf.length;
         const secondHalfAvg = secondHalf.reduce((sum, v) => sum + v.views, 0) / secondHalf.length;
-        
+
         trendPct = (secondHalfAvg - firstHalfAvg) / firstHalfAvg;
-        
+
         if (trendPct > 0.15) trend = "growing";
         else if (trendPct < -0.15) trend = "declining";
       }
@@ -139,13 +136,13 @@ export default function ContentSeriesAnalysis({ rows }) {
       // Strategic recommendation
       let recommendation = "maintain";
       let recommendationText = "";
-      
+
       // High CTR + High Retention = Quality content (even if views are lower)
       const hasQualityEngagement = seriesAvgCtr > avgCtr * 1.1 && seriesAvgRet > avgRet * 1.1;
-      
+
       // Strong subscriber growth = Audience-building content
       const isAudienceBuilder = subsConversionLift > 0.3 || subsPerKViews > avgSubsPerKViews * 1.5;
-      
+
       // Strong overall performance
       if (performanceScore > 1.3 && trend !== "declining") {
         recommendation = "scale";
@@ -196,12 +193,14 @@ export default function ContentSeriesAnalysis({ rows }) {
       }
 
       // Recency check
-      const daysSinceLastEpisode = sortedByDate.length > 0 ? 
-        (new Date() - new Date(sortedByDate[sortedByDate.length - 1].publishDate)) / (1000 * 60 * 60 * 24) : 
+      const daysSinceLastEpisode = sortedByDate.length > 0 ?
+        (new Date() - new Date(sortedByDate[sortedByDate.length - 1].publishDate)) / (1000 * 60 * 60 * 24) :
         999;
 
       return {
         name: series.name,
+        detectionMethod: series.detectionMethod || 'pattern',
+        confidence: series.confidence,
         count,
         avgViews: seriesAvgViews,
         avgCtr: seriesAvgCtr,
@@ -228,8 +227,12 @@ export default function ContentSeriesAnalysis({ rows }) {
     }).sort((a, b) => b.performanceScore - a.performanceScore);
 
     // === ONE-HIT WONDERS (potential new series) ===
+    const ungroupedVideos = aiSeries ? uncategorizedRows.filter(r => {
+      return !(aiSeries || []).some(s => s.videos.some(v => v.title === r.title));
+    }) : uncategorizedRows;
+
     const oneHitWonders = ungroupedVideos
-      .filter(v => v.views > avgViews * 1.5) // Significantly outperformed average
+      .filter(v => v.views > avgViews * 1.5)
       .sort((a, b) => b.views - a.views)
       .slice(0, 5)
       .map(v => ({
@@ -246,9 +249,38 @@ export default function ContentSeriesAnalysis({ rows }) {
       avgViews,
       avgCtr,
       avgRet,
-      avgSubsPerKViews
+      avgSubsPerKViews,
+      uncategorizedCount
     };
-  }, [rows]);
+  }, [rows, aiSeries]);
+
+  // AI enhancement handler
+  const handleAIEnhance = useCallback(async () => {
+    if (aiLoading) return;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const { patternSeries, uncategorizedRows } = runPatternDetection(rows);
+      const existingNames = patternSeries.map(s => s.name);
+      const result = await runSemanticDetection(uncategorizedRows, existingNames);
+      setAiSeries(result);
+
+      // Cache with video titles for rehydration
+      try {
+        const key = hashTitles(rows);
+        const toCache = result.map(s => ({
+          ...s,
+          videoTitles: s.videos.map(v => v.title),
+          videos: undefined,
+        }));
+        localStorage.setItem(key, JSON.stringify(toCache));
+      } catch { /* cache write failure is non-critical */ }
+    } catch (err) {
+      setAiError(err.message);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [rows, aiLoading]);
 
   if (!rows || rows.length === 0) {
     return (
@@ -266,6 +298,10 @@ export default function ContentSeriesAnalysis({ rows }) {
       </div>
     );
   }
+
+  const hasApiKey = !!claudeAPI.loadAPIKey();
+  const budgetOk = hasApiKey && claudeAPI.checkBudget();
+  const aiDone = aiSeries !== null;
 
   const s = {
     section: {
@@ -289,7 +325,9 @@ export default function ContentSeriesAnalysis({ rows }) {
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      marginBottom: "20px"
+      marginBottom: "20px",
+      flexWrap: "wrap",
+      gap: "12px"
     },
     title: { fontSize: "20px", fontWeight: "700", color: "#fff" },
     subtitle: {
@@ -299,7 +337,7 @@ export default function ContentSeriesAnalysis({ rows }) {
       padding: "4px 10px",
       borderRadius: "6px"
     },
-    tabs: { display: "flex", gap: "8px" },
+    tabs: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" },
     tab: (active) => ({
       padding: "8px 16px",
       borderRadius: "8px",
@@ -312,6 +350,34 @@ export default function ContentSeriesAnalysis({ rows }) {
       color: active ? "#60a5fa" : "#9E9E9E",
       transition: "all 0.2s"
     }),
+    aiButton: {
+      padding: "8px 16px",
+      borderRadius: "8px",
+      fontSize: "13px",
+      fontWeight: "600",
+      cursor: (!hasApiKey || !budgetOk || aiLoading) ? "not-allowed" : "pointer",
+      border: "1px solid",
+      borderColor: aiDone ? "#10b981" : "#8b5cf6",
+      backgroundColor: aiDone ? "rgba(16, 185, 129, 0.15)" : "rgba(139, 92, 246, 0.15)",
+      color: aiDone ? "#10b981" : (!hasApiKey || !budgetOk) ? "#666" : "#c4b5fd",
+      opacity: (!hasApiKey || !budgetOk) && !aiDone ? 0.5 : 1,
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "6px",
+      transition: "all 0.2s",
+      marginLeft: "4px",
+    },
+    aiBadge: {
+      fontSize: "10px",
+      fontWeight: "700",
+      padding: "2px 6px",
+      borderRadius: "4px",
+      background: "rgba(139, 92, 246, 0.2)",
+      border: "1px solid #8b5cf6",
+      color: "#c4b5fd",
+      marginLeft: "8px",
+      textTransform: "uppercase",
+    },
     seriesCard: {
       background: "#252525",
       border: "1px solid #333",
@@ -329,7 +395,9 @@ export default function ContentSeriesAnalysis({ rows }) {
       fontSize: "16px",
       fontWeight: "700",
       color: "#fff",
-      marginBottom: "4px"
+      marginBottom: "4px",
+      display: "flex",
+      alignItems: "center",
     },
     episodeCount: {
       fontSize: "12px",
@@ -419,7 +487,7 @@ export default function ContentSeriesAnalysis({ rows }) {
     }
   };
 
-  const filteredSeries = viewMode === "winners" 
+  const filteredSeries = viewMode === "winners"
     ? analysis.series.filter(s => s.recommendation === "scale" || s.performanceScore > 1.2)
     : viewMode === "opportunities"
     ? analysis.series.filter(s => s.isAbandoned || s.recommendation === "optimize")
@@ -428,11 +496,18 @@ export default function ContentSeriesAnalysis({ rows }) {
   return (
     <div style={s.section}>
       <div style={s.gradientBar} />
-      
+
       <div style={s.header}>
         <div>
-          <div style={s.title}>📺 Content Series Analysis</div>
-          <div style={s.subtitle}>Recurring formats & strategic recommendations</div>
+          <div style={s.title}>Content Series Analysis</div>
+          <div style={s.subtitle}>
+            Recurring formats & strategic recommendations
+            {analysis.uncategorizedCount > 0 && !aiDone && (
+              <span style={{ color: "#f59e0b", marginLeft: "8px" }}>
+                ({analysis.uncategorizedCount} uncategorized videos)
+              </span>
+            )}
+          </div>
         </div>
         <div style={s.tabs}>
           <button style={s.tab(viewMode === 'all')} onClick={() => setViewMode('all')}>
@@ -444,22 +519,69 @@ export default function ContentSeriesAnalysis({ rows }) {
           <button style={s.tab(viewMode === 'opportunities')} onClick={() => setViewMode('opportunities')}>
             Opportunities
           </button>
+
+          {/* AI Enhance Button */}
+          <button
+            style={s.aiButton}
+            onClick={aiDone ? undefined : handleAIEnhance}
+            disabled={!hasApiKey || !budgetOk || aiLoading || aiDone}
+            title={
+              !hasApiKey ? "Add Claude API key in Settings to enable" :
+              !budgetOk ? "Monthly budget limit reached" :
+              aiDone ? `AI enhanced - found ${aiSeries.length} additional series` :
+              `Use AI to find hidden series among ${analysis.uncategorizedCount} uncategorized videos`
+            }
+          >
+            {aiLoading ? (
+              <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Analyzing...</>
+            ) : aiDone ? (
+              <><CheckCircle2 size={14} /> AI Enhanced{aiSeries.length > 0 ? ` (+${aiSeries.length})` : ''}</>
+            ) : (
+              <><Sparkles size={14} /> Enhance with AI {analysis.uncategorizedCount > 0 && `(${estimateAICost(analysis.uncategorizedCount)})`}</>
+            )}
+          </button>
         </div>
       </div>
+
+      {/* AI Error */}
+      {aiError && (
+        <div style={{
+          fontSize: "12px", color: "#ef4444", marginBottom: "12px", padding: "8px 12px",
+          background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "6px"
+        }}>
+          AI analysis failed: {aiError}
+          <button
+            onClick={handleAIEnhance}
+            style={{ marginLeft: "12px", color: "#60a5fa", background: "none", border: "none", cursor: "pointer", fontSize: "12px", textDecoration: "underline" }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Spinner keyframes */}
+      {aiLoading && (
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      )}
 
       {/* SERIES CARDS */}
       {filteredSeries.length === 0 ? (
         <div style={{ textAlign: "center", padding: "40px", color: "#666" }}>
           {viewMode === "winners" ? "No high-performing series detected yet." :
            viewMode === "opportunities" ? "No optimization opportunities or abandoned series." :
-           "No distinct series detected. Try more consistent title formatting."}
+           "No distinct series detected. Try using AI enhancement or use more consistent title formatting."}
         </div>
       ) : (
         filteredSeries.map(series => (
           <div key={series.name} style={s.seriesCard}>
             <div style={s.seriesHeader}>
               <div>
-                <div style={s.seriesName}>{series.name}</div>
+                <div style={s.seriesName}>
+                  {series.name}
+                  {series.detectionMethod === 'semantic' && (
+                    <span style={s.aiBadge}>AI</span>
+                  )}
+                </div>
                 <div style={s.episodeCount}>
                   <Layers size={12} />
                   {series.count} episodes
@@ -488,7 +610,7 @@ export default function ContentSeriesAnalysis({ rows }) {
                   Avg Views ({series.viewLift > 0 ? '+' : ''}{Math.round(series.viewLift * 100)}%)
                 </span>
               </div>
-              
+
               <div style={s.stat}>
                 <span style={s.statValue(series.avgCtr > analysis.avgCtr)}>
                   {fmtPct(series.avgCtr)}
@@ -497,7 +619,7 @@ export default function ContentSeriesAnalysis({ rows }) {
                   Avg CTR ({series.ctrLift > 0 ? '+' : ''}{Math.round(series.ctrLift * 100)}%)
                 </span>
               </div>
-              
+
               <div style={s.stat}>
                 <span style={s.statValue(series.avgRet > analysis.avgRet)}>
                   {fmtPct(series.avgRet)}
@@ -529,7 +651,7 @@ export default function ContentSeriesAnalysis({ rows }) {
                 </div>
                 <span style={s.statLabel}>Trend</span>
               </div>
-              
+
               <div style={s.stat}>
                 <span style={s.statValue(true)}>
                   {fmtInt(series.avgSubs)}
@@ -542,7 +664,7 @@ export default function ContentSeriesAnalysis({ rows }) {
 
             <div style={s.insightRow}>
               <div style={{ marginBottom: "8px", color: "#E0E0E0" }}>
-                <strong>💡 {series.recommendationText}</strong>
+                <strong>{series.recommendationText}</strong>
               </div>
               {series.bestVideo && (
                 <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px" }}>
@@ -551,7 +673,7 @@ export default function ContentSeriesAnalysis({ rows }) {
               )}
               {series.isAbandoned && series.viewLift > 0 && (
                 <div style={{ fontSize: "11px", color: "#f59e0b", marginTop: "8px" }}>
-                  ⚠️ This series was performing well but hasn't been updated in {Math.round(series.daysSinceLastEpisode)} days - consider reviving it
+                  This series was performing well but hasn't been updated in {Math.round(series.daysSinceLastEpisode)} days - consider reviving it
                 </div>
               )}
             </div>
@@ -563,13 +685,13 @@ export default function ContentSeriesAnalysis({ rows }) {
       {viewMode === "opportunities" && analysis.oneHitWonders.length > 0 && (
         <div style={{ marginTop: "32px" }}>
           <div style={{ fontSize: "16px", fontWeight: "700", color: "#3b82f6", marginBottom: "16px" }}>
-            💡 One-Hit Wonders (Consider Making Into Series)
+            One-Hit Wonders (Consider Making Into Series)
           </div>
           {analysis.oneHitWonders.map((video, i) => (
             <div key={i} style={s.opportunityCard}>
               <div style={s.opportunityTitle}>"{video.title}"</div>
               <div style={{ fontSize: "12px", color: "#9E9E9E" }}>
-                {fmtInt(video.views)} views ({Math.round(video.viewLift * 100)}% above average) • 
+                {fmtInt(video.views)} views ({Math.round(video.viewLift * 100)}% above average) •
                 {fmtPct(video.ctr)} CTR • {fmtPct(video.retention)} retention
               </div>
               <div style={{ fontSize: "12px", color: "#60a5fa", marginTop: "8px" }}>

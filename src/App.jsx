@@ -960,7 +960,7 @@ export default function App() {
             )}
 
             {tab === "series-analysis" && (
-              <ContentSeriesAnalysis rows={filtered} />
+              <ContentSeriesAnalysis rows={filtered} activeClient={activeClient} />
             )}
 
           </>
