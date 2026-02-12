@@ -519,10 +519,23 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
         });
 
         const analyticsResult = await analyticsResponse.json();
+        console.log('[Sync] Analytics result:', JSON.stringify(analyticsResult, null, 2));
 
         if (analyticsResult.success) {
           if (analyticsResult.updatedCount > 0) {
             summaryParts.push(`${analyticsResult.updatedCount} with analytics`);
+          }
+          // Log impressions diagnostic info
+          if (analyticsResult.impressionsDiag) {
+            const diag = analyticsResult.impressionsDiag;
+            if (diag.success) {
+              console.log(`[Sync] Impressions: ${diag.videosWithData} videos with data (${diag.rowCount} total rows)`);
+              if (diag.videosWithData > 0) {
+                summaryParts.push(`${diag.videosWithData} with impressions`);
+              }
+            } else {
+              console.warn('[Sync] Impressions call failed:', diag.error);
+            }
           }
         } else if (analyticsResult.errorCode === 'forbidden') {
           console.log('[Sync] Analytics API access not available for this channel');

@@ -220,10 +220,16 @@ export default async function handler(req, res) {
     }
 
     // Call 2: Impressions/CTR (separate call — fails gracefully if not available)
+    let impressionsDiag = { attempted: true, success: false, videosWithData: 0, error: null };
     try {
-      const impressionsResponse = await fetch(buildAnalyticsUrl(impressionMetrics).toString(), { headers });
+      const impUrl = buildAnalyticsUrl(impressionMetrics).toString();
+      console.log('[Analytics] Impressions URL:', impUrl.replace(/Bearer [^ ]+/, 'Bearer ***'));
+      const impressionsResponse = await fetch(impUrl, { headers });
+      console.log('[Analytics] Impressions response status:', impressionsResponse.status);
       if (impressionsResponse.ok) {
         const impressionsData = await impressionsResponse.json();
+        impressionsDiag.rowCount = impressionsData.rows?.length || 0;
+        impressionsDiag.columnHeaders = impressionsData.columnHeaders?.map(h => h.name);
         if (impressionsData.rows) {
           for (const row of impressionsData.rows) {
             const videoId = row[0];
@@ -237,14 +243,19 @@ export default async function handler(req, res) {
                 impressions: row[1] ?? 0, ctr: row[2] ?? 0
               };
             }
+            if ((row[1] ?? 0) > 0) impressionsDiag.videosWithData++;
           }
         }
-        console.log(`[Analytics] Impressions data fetched for ${impressionsData.rows?.length || 0} videos`);
+        impressionsDiag.success = true;
+        console.log(`[Analytics] Impressions data fetched for ${impressionsData.rows?.length || 0} videos, ${impressionsDiag.videosWithData} with data`);
       } else {
         const errData = await impressionsResponse.json().catch(() => ({}));
-        console.warn('[Analytics] Impressions metrics not available:', errData.error?.message || impressionsResponse.status);
+        impressionsDiag.error = errData.error?.message || `HTTP ${impressionsResponse.status}`;
+        impressionsDiag.errorDetails = errData.error;
+        console.warn('[Analytics] Impressions metrics not available:', impressionsDiag.error);
       }
     } catch (impErr) {
+      impressionsDiag.error = impErr.message;
       console.warn('[Analytics] Impressions fetch failed:', impErr.message);
     }
 
@@ -309,7 +320,8 @@ export default async function handler(req, res) {
       videoCount: Object.keys(videoAnalytics).length,
       analytics: videoAnalytics,
       updatedCount,
-      matchedCount
+      matchedCount,
+      impressionsDiag
     });
 
   } catch (error) {
