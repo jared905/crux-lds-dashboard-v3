@@ -110,21 +110,21 @@ async function getAccessToken(connection) {
 async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
   const headers = { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' };
 
-  const buildUrl = (metrics) => {
+  const buildUrl = (metrics, sortField) => {
     const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
     url.searchParams.append('ids', `channel==${channelId}`);
     url.searchParams.append('startDate', startDate);
     url.searchParams.append('endDate', endDate);
     url.searchParams.append('dimensions', 'video');
     url.searchParams.append('metrics', metrics);
-    url.searchParams.append('sort', '-views');
+    url.searchParams.append('sort', sortField || `-${metrics.split(',')[0]}`);
     url.searchParams.append('maxResults', '200');
     return url;
   };
 
   // Call 1: Base analytics (guaranteed to work)
   const baseResponse = await fetch(
-    buildUrl('views,estimatedMinutesWatched,averageViewPercentage,subscribersGained').toString(),
+    buildUrl('views,estimatedMinutesWatched,averageViewPercentage,subscribersGained', '-views').toString(),
     { headers }
   );
 

@@ -171,14 +171,14 @@ export default async function handler(req, res) {
     const baseMetrics = 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained';
     const impressionMetrics = 'videoThumbnailImpressions,videoThumbnailImpressionsClickRate';
 
-    const buildAnalyticsUrl = (metrics) => {
+    const buildAnalyticsUrl = (metrics, sortField) => {
       const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
       url.searchParams.append('ids', `channel==${channelId}`);
       url.searchParams.append('startDate', start);
       url.searchParams.append('endDate', end);
       url.searchParams.append('dimensions', 'video');
       url.searchParams.append('metrics', metrics);
-      url.searchParams.append('sort', '-views');
+      url.searchParams.append('sort', sortField || `-${metrics.split(',')[0]}`);
       url.searchParams.append('maxResults', '200');
       if (videoIds && videoIds.length > 0) {
         url.searchParams.append('filters', `video==${videoIds.join(',')}`);
@@ -189,7 +189,7 @@ export default async function handler(req, res) {
     const headers = { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' };
 
     // Call 1: Base analytics (views, watch time, retention, subs)
-    const analyticsResponse = await fetch(buildAnalyticsUrl(baseMetrics).toString(), { headers });
+    const analyticsResponse = await fetch(buildAnalyticsUrl(baseMetrics, '-views').toString(), { headers });
 
     if (!analyticsResponse.ok) {
       const errorData = await analyticsResponse.json();
