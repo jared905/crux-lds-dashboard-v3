@@ -26,6 +26,7 @@ import CompetitorAnalysis from "./components/Research/CompetitorAnalysis.jsx";
 import CommentAnalysis from "./components/Research/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContentIntelligence.jsx";
 import AIExecutiveSummary from "./components/Performance/AIExecutiveSummary.jsx";
+import ContentSeriesAnalysis from "./components/Performance/ContentSeriesAnalysis.jsx";
 import Atomizer from "./components/ContentLab/Atomizer.jsx";
 import VideoIdeaGenerator from "./components/ContentLab/VideoIdeaGenerator.jsx";
 import BriefsList from "./components/Strategy/BriefsList.jsx";
@@ -956,6 +957,10 @@ export default function App() {
                 })()}
                 activeClient={activeClient}
               />
+            )}
+
+            {tab === "series-analysis" && (
+              <ContentSeriesAnalysis rows={filtered} />
             )}
 
           </>
