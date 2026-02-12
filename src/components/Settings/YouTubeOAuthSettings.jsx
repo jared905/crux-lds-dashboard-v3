@@ -971,10 +971,17 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                 ) : (
                   <div style={{ fontSize: "12px", color: "#666" }}>
                     {conn.reporting_job_id ? (
-                      <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <FileText size={12} style={{ color: "#22c55e" }} />
-                        Reporting job active - sync for impressions/CTR
-                      </span>
+                      conn.reporting_job_type?.includes('channel_reach_') ? (
+                        <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                          <FileText size={12} style={{ color: "#22c55e" }} />
+                          Reporting job active - sync for impressions/CTR
+                        </span>
+                      ) : (
+                        <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "#f59e0b" }}>
+                          <FileText size={12} style={{ color: "#f59e0b" }} />
+                          Wrong report type ({conn.reporting_job_type}) — click "Fix Now" below
+                        </span>
+                      )
                     ) : (
                       "Setup reporting to get impressions & CTR data"
                     )}
@@ -1045,10 +1052,33 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                       </button>
                     </>
                   )}
-                  {/* Reporting job indicator */}
+                  {/* Reporting job indicator + re-setup option */}
                   {conn.reporting_job_id && (
-                    <span style={{ fontSize: "11px", color: "#a78bfa", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <FileText size={12} /> Job Active
+                    <span style={{ fontSize: "11px", color: conn.reporting_job_type?.includes('channel_reach_') ? "#a78bfa" : "#f59e0b", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <FileText size={12} />
+                      {conn.reporting_job_type?.includes('channel_reach_') ? (
+                        "Reach Report Active"
+                      ) : (
+                        <>
+                          Wrong type: {conn.reporting_job_type || "unknown"}
+                          <button
+                            onClick={() => handleSetupReporting(conn)}
+                            disabled={settingUpReporting === conn.id}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#f59e0b",
+                              cursor: settingUpReporting === conn.id ? "not-allowed" : "pointer",
+                              textDecoration: "underline",
+                              fontSize: "11px",
+                              padding: 0,
+                              marginLeft: "4px"
+                            }}
+                          >
+                            {settingUpReporting === conn.id ? "Setting up..." : "Fix Now"}
+                          </button>
+                        </>
+                      )}
                     </span>
                   )}
                 </div>
