@@ -11,7 +11,9 @@ import {
   X,
   AlertCircle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Copy,
+  CheckCircle
 } from 'lucide-react';
 
 const UserManagement = ({ clients = [] }) => {
@@ -27,6 +29,7 @@ const UserManagement = ({ clients = [] }) => {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('viewer');
   const [inviting, setInviting] = useState(false);
+  const [inviteSuccess, setInviteSuccess] = useState(null);
 
   // Fetch all users and their permissions
   const fetchUsers = async () => {
@@ -216,28 +219,33 @@ const UserManagement = ({ clients = [] }) => {
     setError(null);
 
     try {
-      // Create user via Supabase Auth admin API
-      // Note: This requires the service_role key or a server-side function
-      // For now, we'll create a pending invite in the database
-      const { data, error } = await supabase
+      const { data: invite, error: insertError } = await supabase
         .from('user_invites')
-        .insert([{
+        .upsert([{
           email: inviteEmail,
           role: inviteRole,
-          invited_at: new Date().toISOString()
-        }])
+          invited_at: new Date().toISOString(),
+          accepted_at: null
+        }], { onConflict: 'email' })
         .select()
         .single();
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
+      setInviteSuccess({
+        email: inviteEmail,
+        role: inviteRole
+      });
       setInviteEmail('');
       setInviteRole('viewer');
-      setShowInvite(false);
-      alert(`Invitation created for ${inviteEmail}. They can sign up and will be assigned the ${inviteRole} role.`);
     } catch (err) {
-      console.error('Error inviting user:', err);
-      setError('Failed to send invitation');
+      console.error('Error creating invite:', err);
+      const msg = err?.message || '';
+      if (msg.includes('row-level security') || msg.includes('policy')) {
+        setError('Permission denied — only admins can create invites.');
+      } else {
+        setError(`Failed to create invite: ${msg}`);
+      }
     } finally {
       setInviting(false);
     }
@@ -287,6 +295,31 @@ const UserManagement = ({ clients = [] }) => {
         </button>
       </div>
 
+      {/* Invite Success Banner - shown outside the form when invite panel is closed */}
+      {inviteSuccess && !showInvite && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '12px 16px',
+          background: 'rgba(0, 200, 83, 0.1)',
+          border: '1px solid rgba(0, 200, 83, 0.3)',
+          borderRadius: '8px',
+          marginBottom: '24px'
+        }}>
+          <CheckCircle size={18} color="#00C853" />
+          <span style={{ color: '#00C853', fontSize: '14px', flex: 1 }}>
+            Invite created for {inviteSuccess.email} ({inviteSuccess.role})
+          </span>
+          <button
+            onClick={() => setInviteSuccess(null)}
+            style={{ background: 'none', border: 'none', color: '#00C853', cursor: 'pointer' }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Error Message */}
       {error && (
         <div style={{
@@ -319,74 +352,158 @@ const UserManagement = ({ clients = [] }) => {
           padding: '24px',
           marginBottom: '24px'
         }}>
-          <h3 style={{ color: '#E0E0E0', fontSize: '16px', marginBottom: '16px' }}>
-            Invite New User
-          </h3>
-          <form onSubmit={handleInvite} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <input
-              type="email"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="Email address"
-              required
-              style={{
-                flex: '1 1 250px',
-                padding: '10px 14px',
+          {inviteSuccess ? (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <CheckCircle size={18} color="#00C853" />
+                <h3 style={{ color: '#E0E0E0', fontSize: '16px', margin: 0 }}>
+                  Invite created for {inviteSuccess.email}
+                </h3>
+              </div>
+              <p style={{ color: '#9E9E9E', fontSize: '13px', margin: '0 0 12px 0' }}>
+                They'll be assigned the <strong style={{ color: '#E0E0E0' }}>{inviteSuccess.role}</strong> role when they sign up. Share this link with them:
+              </p>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
                 background: '#121212',
                 border: '1px solid #333',
                 borderRadius: '8px',
-                color: '#E0E0E0',
-                fontSize: '14px'
-              }}
-            />
-            <select
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value)}
-              style={{
-                padding: '10px 14px',
-                background: '#121212',
-                border: '1px solid #333',
-                borderRadius: '8px',
-                color: '#E0E0E0',
-                fontSize: '14px',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="viewer">Viewer</option>
-              <option value="admin">Admin</option>
-            </select>
-            <button
-              type="submit"
-              disabled={inviting}
-              style={{
-                padding: '10px 20px',
-                background: inviting ? '#1a4bb8' : '#2962FF',
-                border: 'none',
-                borderRadius: '8px',
-                color: '#FFFFFF',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: inviting ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {inviting ? 'Sending...' : 'Send Invite'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowInvite(false)}
-              style={{
-                padding: '10px 20px',
-                background: 'transparent',
-                border: '1px solid #333',
-                borderRadius: '8px',
-                color: '#9E9E9E',
-                fontSize: '14px',
-                cursor: 'pointer'
-              }}
-            >
-              Cancel
-            </button>
-          </form>
+                padding: '10px 14px'
+              }}>
+                <span style={{ flex: 1, color: '#60a5fa', fontSize: '14px', userSelect: 'all' }}>
+                  https://fullviewstudio.com
+                </span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText('https://fullviewstudio.com');
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    background: '#2962FF',
+                    border: 'none',
+                    borderRadius: '6px',
+                    color: '#FFFFFF',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Copy size={14} />
+                  Copy Link
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+                <button
+                  onClick={() => { setInviteSuccess(null); }}
+                  style={{
+                    padding: '10px 20px',
+                    background: '#2962FF',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: '#FFFFFF',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Invite Another
+                </button>
+                <button
+                  onClick={() => { setInviteSuccess(null); setShowInvite(false); }}
+                  style={{
+                    padding: '10px 20px',
+                    background: 'transparent',
+                    border: '1px solid #333',
+                    borderRadius: '8px',
+                    color: '#9E9E9E',
+                    fontSize: '14px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <h3 style={{ color: '#E0E0E0', fontSize: '16px', marginBottom: '4px' }}>
+                Invite New User
+              </h3>
+              <p style={{ color: '#9E9E9E', fontSize: '13px', margin: '0 0 16px 0' }}>
+                Pre-register their email so they get the right role on sign-up. You'll need to share the sign-up link with them.
+              </p>
+              <form onSubmit={handleInvite} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="Email address"
+                  required
+                  style={{
+                    flex: '1 1 250px',
+                    padding: '10px 14px',
+                    background: '#121212',
+                    border: '1px solid #333',
+                    borderRadius: '8px',
+                    color: '#E0E0E0',
+                    fontSize: '14px'
+                  }}
+                />
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                  style={{
+                    padding: '10px 14px',
+                    background: '#121212',
+                    border: '1px solid #333',
+                    borderRadius: '8px',
+                    color: '#E0E0E0',
+                    fontSize: '14px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="viewer">Viewer</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <button
+                  type="submit"
+                  disabled={inviting}
+                  style={{
+                    padding: '10px 20px',
+                    background: inviting ? '#1a4bb8' : '#2962FF',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: '#FFFFFF',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: inviting ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {inviting ? 'Creating...' : 'Create Invite'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowInvite(false)}
+                  style={{
+                    padding: '10px 20px',
+                    background: 'transparent',
+                    border: '1px solid #333',
+                    borderRadius: '8px',
+                    color: '#9E9E9E',
+                    fontSize: '14px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       )}
 
