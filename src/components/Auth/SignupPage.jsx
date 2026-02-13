@@ -76,7 +76,7 @@ const SignupPage = ({ onSwitchToLogin }) => {
             Account Created!
           </h2>
           <p style={{ color: '#9E9E9E', fontSize: '14px', marginBottom: '24px' }}>
-            Please check your email to verify your account, then sign in.
+            Your account is ready. You can now sign in.
           </p>
           <button
             onClick={onSwitchToLogin}
