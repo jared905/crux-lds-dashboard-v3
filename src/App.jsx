@@ -446,6 +446,10 @@ export default function App() {
     const subs = filtered.reduce((s, r) => s + (r.subscribers || 0), 0);
     const imps = filtered.reduce((s, r) => s + (r.impressions || 0), 0);
     const avgCtr = imps > 0 ? filtered.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / imps : 0;
+    // DEBUG: CTR diagnostic — remove after confirming CTR works
+    const rowsWithCtr = filtered.filter(r => r.ctr > 0);
+    const rowsWithImps = filtered.filter(r => r.impressions > 0);
+    console.log('[KPI] CTR debug:', { totalRows: filtered.length, rowsWithImps: rowsWithImps.length, rowsWithCtr: rowsWithCtr.length, totalImps: imps, avgCtr, sampleCtrRows: rowsWithCtr.slice(0, 3).map(r => ({ title: r.title?.slice(0, 30), ctr: r.ctr, impressions: r.impressions })) });
     // Use weighted average for retention (matching funnel calculation)
     const avgRet = views > 0 ? filtered.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / views : 0;
 
