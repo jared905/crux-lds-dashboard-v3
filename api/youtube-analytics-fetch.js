@@ -320,11 +320,21 @@ export default async function handler(req, res) {
                       };
                     }
                     if (agg.impressions > 0) impressionsDiag.videosWithData++;
+                    if (avgCtr > 0) impressionsDiag.videosWithCtr = (impressionsDiag.videosWithCtr || 0) + 1;
                   }
 
                   impressionsDiag.success = true;
                   impressionsDiag.totalVideosInReport = Object.keys(videoAgg).length;
-                  console.log(`[Analytics] Reporting API: ${impressionsDiag.videosWithData} of ${impressionsDiag.totalVideosInReport} videos with impressions`);
+                  impressionsDiag.videosWithCtr = impressionsDiag.videosWithCtr || 0;
+                  // Sample a few CTR values for debugging
+                  const sampleEntries = Object.entries(videoAgg).slice(0, 3);
+                  impressionsDiag.sampleCtr = sampleEntries.map(([vid, agg]) => ({
+                    videoId: vid.slice(0, 8) + '...',
+                    impressions: agg.impressions,
+                    ctrSum: agg.ctrSum,
+                    ctrCount: agg.ctrCount
+                  }));
+                  console.log(`[Analytics] Reporting API: ${impressionsDiag.videosWithData} of ${impressionsDiag.totalVideosInReport} videos with impressions, ${impressionsDiag.videosWithCtr} with CTR`);
                 }
               }
             }
@@ -343,6 +353,7 @@ export default async function handler(req, res) {
     const { updateVideos } = req.body;
     let updatedCount = 0;
     let matchedCount = 0;
+    let ctrWrittenCount = 0;
 
     if (updateVideos !== false) {
       // Find the client channel in the database (prefer is_client=true)
@@ -387,6 +398,7 @@ export default async function handler(req, res) {
 
             if (!updateError) {
               updatedCount++;
+              if (updateFields.ctr) ctrWrittenCount++;
             }
           }
         }
@@ -400,6 +412,7 @@ export default async function handler(req, res) {
       analytics: videoAnalytics,
       updatedCount,
       matchedCount,
+      ctrWrittenCount,
       impressionsDiag
     });
 
