@@ -245,9 +245,10 @@ export default async function handler(req, res) {
           if (reports.length === 0) {
             impressionsDiag.error = 'No reports available yet (reports take ~48h after job creation)';
           } else {
-            // Step 2: Download ALL available reports (up to 30 days) and aggregate
+            // Step 2: Download recent reports (14 days) and aggregate
             // A single day's data is too sparse for meaningful CTR — need multi-day aggregation
-            const reportsToProcess = reports.slice(0, 30);
+            // Limited to 14 to stay under YouTube API rate limits when syncing multiple channels
+            const reportsToProcess = reports.slice(0, 14);
             impressionsDiag.reportDate = reports[0].createTime;
             impressionsDiag.reportsProcessed = reportsToProcess.length;
 
