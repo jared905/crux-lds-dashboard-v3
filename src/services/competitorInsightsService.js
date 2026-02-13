@@ -8,7 +8,7 @@
 
 import { supabase } from './supabaseClient';
 import { claudeAPI } from './claudeAPI';
-import { getCurrentBrandContext, buildBrandContextForTask } from './brandContextService';
+import { getBrandContextWithSignals } from './brandContextService';
 
 // ============================================
 // OUTLIER DETECTION
@@ -131,11 +131,8 @@ export async function analyzeCompetitorVideo(video, clientChannelId = null) {
   let systemPrompt = INSIGHT_SYSTEM_PROMPT;
   if (clientChannelId) {
     try {
-      const bc = await getCurrentBrandContext(clientChannelId);
-      if (bc) {
-        const brandBlock = buildBrandContextForTask(bc, 'competitor_insight');
-        if (brandBlock) systemPrompt += '\n\n' + brandBlock;
-      }
+      const brandBlock = await getBrandContextWithSignals(clientChannelId, 'competitor_insight');
+      if (brandBlock) systemPrompt += '\n\n' + brandBlock;
     } catch (e) {
       console.warn('[competitorInsights] Brand context fetch failed, proceeding without:', e.message);
     }

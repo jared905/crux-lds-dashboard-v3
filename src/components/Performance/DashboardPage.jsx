@@ -5,6 +5,7 @@ import Chart from "./Chart.jsx";
 import TopVideos from "./TopVideos.jsx";
 import PublishingTimeline from "./PublishingTimeline.jsx";
 import BrandFunnel from "./BrandFunnel.jsx";
+import AudienceSignals from "./AudienceSignals.jsx";
 
 /* ── tiny delta badge used on KPI cards ── */
 function DeltaBadge({ current, previous, isPct }) {
@@ -91,7 +92,7 @@ function KpiCard({ icon: Icon, label, value, allTimeLabel, allTimeValue, color, 
   );
 }
 
-export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric, channelStats }) {
+export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric, channelStats, activeClient }) {
   // Channel stats (subscribers, views, videoCount) are fetched by the parent (App.jsx)
   // which correctly handles per-channel resolution and "all channels" aggregation.
   const resolvedStats = channelStats;
@@ -1177,6 +1178,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
           </div>
         </div>
       </div>
+      {/* Audience Signals - Auto-computed from YouTube data */}
+      {activeClient?.id && <AudienceSignals channelId={activeClient.id} />}
     </>
   );
 }

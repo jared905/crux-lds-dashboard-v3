@@ -6,7 +6,7 @@
 
 import claudeAPI from './claudeAPI';
 import { addAuditCost, updateAuditSection, updateAuditProgress } from './auditDatabase';
-import { getCurrentBrandContext, buildBrandContextForTask } from './brandContextService';
+import { getBrandContextWithSignals } from './brandContextService';
 
 const SUMMARY_SYSTEM_PROMPT_PROSPECT = `You are a YouTube growth consultant writing an executive summary for a prospective client audit. The summary should position the agency as knowledgeable about the channel's strengths and weaknesses, and make a compelling case for how the agency can help.
 
@@ -43,8 +43,7 @@ export async function generateExecutiveSummary(auditId, context) {
     let brandContextBlock = '';
     if (channelId) {
       try {
-        const bc = await getCurrentBrandContext(channelId);
-        if (bc) brandContextBlock = buildBrandContextForTask(bc, 'audit_summary');
+        brandContextBlock = await getBrandContextWithSignals(channelId, 'audit_summary');
       } catch (e) {
         console.warn('[auditSummary] Brand context fetch failed, proceeding without:', e.message);
       }

@@ -21,7 +21,7 @@ import ClientBackground from "./components/Shared/ClientBackground.jsx";
 // Tab content
 import DashboardPage from "./components/Performance/DashboardPage.jsx";
 import DataStandardizer from "./components/Settings/DataStandardizer.jsx";
-import UnifiedStrategy from "./components/Strategy/UnifiedStrategy.jsx";
+import PerformanceFeedback from "./components/Strategy/PerformanceFeedback.jsx";
 import CompetitorAnalysis from "./components/Research/CompetitorAnalysis.jsx";
 import CommentAnalysis from "./components/Research/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContentIntelligence.jsx";
@@ -30,6 +30,8 @@ import ContentSeriesAnalysis from "./components/Performance/ContentSeriesAnalysi
 import Atomizer from "./components/ContentLab/Atomizer.jsx";
 import VideoIdeaGenerator from "./components/ContentLab/VideoIdeaGenerator.jsx";
 import BriefsList from "./components/Strategy/BriefsList.jsx";
+import OpportunitySynthesis from "./components/Strategy/OpportunitySynthesis.jsx";
+import GapDetection from "./components/Research/GapDetection.jsx";
 import UserManagement from "./components/Admin/UserManagement.jsx";
 import APISettings from "./components/Settings/APISettings.jsx";
 import SecurityDocs from "./components/Settings/SecurityDocs.jsx";
@@ -904,11 +906,12 @@ export default function App() {
                 chartMetric={chartMetric}
                 setChartMetric={setChartMetric}
                 channelStats={channelStats}
+                activeClient={activeClient}
               />
             )}
 
             {tab === "actions" && (
-              <UnifiedStrategy
+              <PerformanceFeedback
                 rows={filtered}
                 activeClient={activeClient}
                 channelSubscriberCount={
@@ -925,6 +928,10 @@ export default function App() {
               <CompetitorAnalysis rows={filtered} activeClient={activeClient} />
             )}
 
+            {tab === "gap-detection" && (
+              <GapDetection rows={filtered} activeClient={activeClient} />
+            )}
+
             {tab === "ideation" && (
               <VideoIdeaGenerator data={filtered} activeClient={activeClient} />
             )}
@@ -937,8 +944,12 @@ export default function App() {
               <Atomizer activeClient={activeClient} />
             )}
 
+            {tab === "opportunities" && (
+              <OpportunitySynthesis rows={filtered} activeClient={activeClient} />
+            )}
+
             {tab === "briefs" && (
-              <BriefsList activeClient={activeClient} />
+              <BriefsList activeClient={activeClient} clientVideos={filtered} />
             )}
 
             {tab === "comments" && (

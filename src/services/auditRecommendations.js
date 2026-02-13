@@ -6,7 +6,7 @@
 import claudeAPI from './claudeAPI';
 import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 import { addAuditCost, updateAuditSection, updateAuditProgress } from './auditDatabase';
-import { getCurrentBrandContext, buildBrandContextForTask } from './brandContextService';
+import { getBrandContextWithSignals } from './brandContextService';
 
 const RECOMMENDATIONS_SYSTEM_PROMPT = `You are a YouTube growth strategist delivering actionable recommendations based on a comprehensive channel audit. Organize recommendations into three categories: Stop (things to stop doing), Start (new things to begin), and Optimize (existing things to improve).
 
@@ -35,8 +35,7 @@ export async function generateRecommendations(auditId, context) {
     let brandContextBlock = '';
     if (channelId) {
       try {
-        const bc = await getCurrentBrandContext(channelId);
-        if (bc) brandContextBlock = buildBrandContextForTask(bc, 'audit_recommendations');
+        brandContextBlock = await getBrandContextWithSignals(channelId, 'audit_recommendations');
       } catch (e) {
         console.warn('[auditRecommendations] Brand context fetch failed, proceeding without:', e.message);
       }

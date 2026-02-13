@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Palette, Upload, Loader2, AlertCircle, Check, ChevronDown, ChevronRight,
   Megaphone, Users, Layers, Eye, Globe, Sparkles, Edit2, RotateCcw, Save,
-  Plus, X, Clock, Search, ArrowLeft
+  Plus, X, Clock, Search, ArrowLeft, Target, Settings2, ShieldCheck
 } from 'lucide-react';
 import {
   getCurrentBrandContext,
@@ -451,6 +451,143 @@ function renderReviewData(sectionTitle, data) {
     );
   }
 
+  if (sectionTitle === 'Strategic Goals') {
+    return (
+      <div>
+        {data.current_phase && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={styles.label}>Current Phase</div>
+            <span style={{ ...styles.tag, background: '#1a365d', color: '#90cdf4', textTransform: 'capitalize' }}>{data.current_phase}</span>
+            {data.phase_notes && <div style={{ color: '#aaa', fontSize: '13px', marginTop: '6px' }}>{data.phase_notes}</div>}
+          </div>
+        )}
+        {data.business_objectives?.length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={styles.label}>Business Objectives</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {data.business_objectives.map((o, i) => <span key={i} style={styles.tag}>{o}</span>)}
+            </div>
+          </div>
+        )}
+        {data.kpis?.length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={styles.label}>Key KPIs</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {data.kpis.map((k, i) => <span key={i} style={styles.tag}>{k}</span>)}
+            </div>
+          </div>
+        )}
+        {data.growth_targets?.length > 0 && (
+          <div>
+            <div style={styles.label}>Growth Targets</div>
+            {data.growth_targets.map((t, i) => (
+              <div key={i} style={{ background: '#252525', borderRadius: '8px', padding: '10px 12px', marginBottom: '6px' }}>
+                <div style={{ fontWeight: '600', color: '#E0E0E0' }}>
+                  {t.target} {t.metric} {t.timeframe && <span style={{ fontSize: '12px', color: '#9E9E9E' }}>within {t.timeframe}</span>}
+                </div>
+                {t.notes && <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>{t.notes}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (sectionTitle === 'Resource Constraints') {
+    return (
+      <div>
+        {data.publishing_cadence?.videos_per_period && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={styles.label}>Publishing Cadence</div>
+            <div style={{ color: '#E0E0E0' }}>{data.publishing_cadence.videos_per_period} videos per {data.publishing_cadence.period || 'week'}</div>
+          </div>
+        )}
+        {data.production_capability && (data.production_capability.team_size || data.production_capability.equipment_level || data.production_capability.editing) && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={styles.label}>Production Capability</div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {data.production_capability.team_size && <span style={styles.tag}>{data.production_capability.team_size}-person team</span>}
+              {data.production_capability.equipment_level && <span style={styles.tag}>{data.production_capability.equipment_level}</span>}
+              {data.production_capability.editing && <span style={styles.tag}>{data.production_capability.editing.replace(/_/g, ' ')}</span>}
+            </div>
+          </div>
+        )}
+        {data.budget_tier && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={styles.label}>Budget Tier</div>
+            <div style={{ color: '#E0E0E0', textTransform: 'capitalize' }}>{data.budget_tier.replace(/_/g, ' ')}</div>
+          </div>
+        )}
+        {data.talent?.length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={styles.label}>On-Camera Talent</div>
+            {data.talent.map((t, i) => (
+              <div key={i} style={{ background: '#252525', borderRadius: '8px', padding: '10px 12px', marginBottom: '6px' }}>
+                <div style={{ fontWeight: '600', color: '#E0E0E0' }}>{t.name}</div>
+                <div style={{ fontSize: '12px', color: '#9E9E9E' }}>{t.availability} &middot; {t.comfort_level}</div>
+                {t.notes && <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>{t.notes}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+        {data.turnaround?.concept_to_publish && (
+          <div>
+            <div style={styles.label}>Turnaround</div>
+            <div style={{ color: '#E0E0E0' }}>{data.turnaround.concept_to_publish}</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (sectionTitle === 'Content Boundaries') {
+    return (
+      <div>
+        {data.topics_to_avoid?.length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={styles.label}>Topics to Avoid</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {data.topics_to_avoid.map((t, i) => <span key={i} style={{ ...styles.tag, background: '#3b1c1c', color: '#fca5a5' }}>{t}</span>)}
+            </div>
+          </div>
+        )}
+        {data.format_constraints && (data.format_constraints.max_duration || data.format_constraints.min_duration || data.format_constraints.no_shorts || data.format_constraints.no_livestreams) && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={styles.label}>Format Constraints</div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {data.format_constraints.max_duration && <span style={styles.tag}>Max {data.format_constraints.max_duration} min</span>}
+              {data.format_constraints.min_duration && <span style={styles.tag}>Min {data.format_constraints.min_duration} min</span>}
+              {data.format_constraints.no_shorts && <span style={{ ...styles.tag, background: '#3b1c1c', color: '#fca5a5' }}>No Shorts</span>}
+              {data.format_constraints.no_livestreams && <span style={{ ...styles.tag, background: '#3b1c1c', color: '#fca5a5' }}>No Livestreams</span>}
+            </div>
+            {data.format_constraints.notes && <div style={{ color: '#aaa', fontSize: '13px', marginTop: '6px' }}>{data.format_constraints.notes}</div>}
+          </div>
+        )}
+        {data.compliance?.length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={styles.label}>Compliance / Legal</div>
+            {data.compliance.map((c, i) => <div key={i} style={{ marginBottom: '4px' }}>- {c}</div>)}
+          </div>
+        )}
+        {data.sponsorship_guidelines && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={styles.label}>Sponsorship Guidelines</div>
+            <div style={{ color: '#aaa' }}>{data.sponsorship_guidelines}</div>
+          </div>
+        )}
+        {data.tone_boundaries?.length > 0 && (
+          <div>
+            <div style={styles.label}>Tone Boundaries</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {data.tone_boundaries.map((t, i) => <span key={i} style={{ ...styles.tag, background: '#3b1c1c', color: '#fca5a5' }}>{t}</span>)}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // Fallback
   return <pre style={{ fontSize: '12px', color: '#9E9E9E', whiteSpace: 'pre-wrap' }}>{JSON.stringify(data, null, 2)}</pre>;
 }
@@ -576,7 +713,7 @@ export default function BrandContext({ activeClient }) {
 
       // Expand all sections
       const expanded = {};
-      ['brand_voice', 'messaging_priorities', 'audience_signals', 'content_themes', 'visual_identity', 'platform_presence'].forEach(k => {
+      ['brand_voice', 'messaging_priorities', 'audience_signals', 'content_themes', 'visual_identity', 'platform_presence', 'strategic_goals', 'resource_constraints', 'content_boundaries'].forEach(k => {
         expanded[k] = true;
       });
       setExpandedSections(expanded);
@@ -622,12 +759,15 @@ export default function BrandContext({ activeClient }) {
       content_themes: brandContext?.content_themes || {},
       visual_identity: brandContext?.visual_identity || {},
       platform_presence: brandContext?.platform_presence || {},
+      strategic_goals: brandContext?.strategic_goals || {},
+      resource_constraints: brandContext?.resource_constraints || {},
+      content_boundaries: brandContext?.content_boundaries || {},
       source_urls: brandContext?.source_urls || {},
       raw_extraction: brandContext?.raw_extraction || null,
       extraction_model: brandContext?.extraction_model || null,
     });
     const expanded = {};
-    ['brand_voice', 'messaging_priorities', 'audience_signals', 'content_themes', 'visual_identity', 'platform_presence'].forEach(k => {
+    ['brand_voice', 'messaging_priorities', 'audience_signals', 'content_themes', 'visual_identity', 'platform_presence', 'strategic_goals', 'resource_constraints', 'content_boundaries'].forEach(k => {
       expanded[k] = isSectionFilled(brandContext?.[k]);
     });
     setExpandedSections(expanded);
@@ -1129,6 +1269,318 @@ export default function BrandContext({ activeClient }) {
             </SectionPanel>
           </div>
 
+          {/* ─── Strategic Intake (Manual) ─────────────── */}
+          <div style={{ borderTop: '2px solid #2962FF', marginTop: '8px', paddingTop: '12px' }}>
+            <div style={{ fontSize: '11px', color: '#2962FF', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
+              Strategic Intake
+            </div>
+
+            {/* Strategic Goals */}
+            <SectionPanel
+              icon={Target}
+              title="Strategic Goals"
+              filled={isSectionFilled(formData.strategic_goals)}
+              expanded={expandedSections.strategic_goals}
+              onToggle={() => toggleSection('strategic_goals')}
+            >
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Current Phase</label>
+                <select
+                  value={formData.strategic_goals?.current_phase || ''}
+                  onChange={e => updateField('strategic_goals', 'current_phase', e.target.value)}
+                  style={{ ...styles.input, cursor: 'pointer' }}
+                >
+                  <option value="">Select phase...</option>
+                  <option value="launch">Launch</option>
+                  <option value="growth">Growth</option>
+                  <option value="optimization">Optimization</option>
+                  <option value="monetization">Monetization</option>
+                </select>
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Phase Notes</label>
+                <textarea
+                  value={formData.strategic_goals?.phase_notes || ''}
+                  onChange={e => updateField('strategic_goals', 'phase_notes', e.target.value)}
+                  placeholder="Where are they in their YouTube journey?"
+                  style={{ ...styles.textarea, minHeight: '60px' }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Business Objectives</label>
+                <TagInput
+                  tags={formData.strategic_goals?.business_objectives || []}
+                  onChange={v => updateField('strategic_goals', 'business_objectives', v)}
+                  placeholder="e.g. lead generation, brand awareness, thought leadership"
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Key KPIs</label>
+                <TagInput
+                  tags={formData.strategic_goals?.kpis || []}
+                  onChange={v => updateField('strategic_goals', 'kpis', v)}
+                  placeholder="e.g. views, subscriber growth, CTR, watch time"
+                />
+              </div>
+              <div>
+                <label style={styles.label}>Growth Targets</label>
+                <ListEditor
+                  items={formData.strategic_goals?.growth_targets || []}
+                  fields={[
+                    { key: 'metric', label: 'Metric', placeholder: 'e.g. subscribers' },
+                    { key: 'target', label: 'Target', placeholder: 'e.g. 10,000' },
+                    { key: 'timeframe', label: 'Timeframe', placeholder: 'e.g. 6 months' },
+                    { key: 'notes', label: 'Notes', placeholder: 'Any context...' },
+                  ]}
+                  onChange={v => updateField('strategic_goals', 'growth_targets', v)}
+                  addLabel="Add target"
+                />
+              </div>
+            </SectionPanel>
+
+            {/* Resource Constraints */}
+            <SectionPanel
+              icon={Settings2}
+              title="Resource Constraints"
+              filled={isSectionFilled(formData.resource_constraints)}
+              expanded={expandedSections.resource_constraints}
+              onToggle={() => toggleSection('resource_constraints')}
+            >
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Publishing Cadence</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div>
+                    <label style={{ ...styles.label, fontSize: '11px' }}>Videos per period</label>
+                    <input
+                      type="text"
+                      value={formData.resource_constraints?.publishing_cadence?.videos_per_period || ''}
+                      onChange={e => updateField('resource_constraints', 'publishing_cadence', {
+                        ...(formData.resource_constraints?.publishing_cadence || {}),
+                        videos_per_period: e.target.value,
+                      })}
+                      placeholder="e.g. 2"
+                      style={styles.input}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ ...styles.label, fontSize: '11px' }}>Period</label>
+                    <select
+                      value={formData.resource_constraints?.publishing_cadence?.period || 'week'}
+                      onChange={e => updateField('resource_constraints', 'publishing_cadence', {
+                        ...(formData.resource_constraints?.publishing_cadence || {}),
+                        period: e.target.value,
+                      })}
+                      style={{ ...styles.input, cursor: 'pointer' }}
+                    >
+                      <option value="week">Week</option>
+                      <option value="month">Month</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Production Capability</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  <div>
+                    <label style={{ ...styles.label, fontSize: '11px' }}>Team Size</label>
+                    <input
+                      type="text"
+                      value={formData.resource_constraints?.production_capability?.team_size || ''}
+                      onChange={e => updateField('resource_constraints', 'production_capability', {
+                        ...(formData.resource_constraints?.production_capability || {}),
+                        team_size: e.target.value,
+                      })}
+                      placeholder="e.g. 2"
+                      style={styles.input}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ ...styles.label, fontSize: '11px' }}>Equipment</label>
+                    <select
+                      value={formData.resource_constraints?.production_capability?.equipment_level || ''}
+                      onChange={e => updateField('resource_constraints', 'production_capability', {
+                        ...(formData.resource_constraints?.production_capability || {}),
+                        equipment_level: e.target.value,
+                      })}
+                      style={{ ...styles.input, cursor: 'pointer' }}
+                    >
+                      <option value="">Select...</option>
+                      <option value="smartphone">Smartphone</option>
+                      <option value="prosumer">Prosumer</option>
+                      <option value="professional">Professional</option>
+                      <option value="studio">Studio</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ ...styles.label, fontSize: '11px' }}>Editing</label>
+                    <select
+                      value={formData.resource_constraints?.production_capability?.editing || ''}
+                      onChange={e => updateField('resource_constraints', 'production_capability', {
+                        ...(formData.resource_constraints?.production_capability || {}),
+                        editing: e.target.value,
+                      })}
+                      style={{ ...styles.input, cursor: 'pointer' }}
+                    >
+                      <option value="">Select...</option>
+                      <option value="self">Self-edited</option>
+                      <option value="in_house">In-house editor</option>
+                      <option value="freelance">Freelance editor</option>
+                      <option value="agency">Production agency</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Budget Tier</label>
+                <select
+                  value={formData.resource_constraints?.budget_tier || ''}
+                  onChange={e => updateField('resource_constraints', 'budget_tier', e.target.value)}
+                  style={{ ...styles.input, cursor: 'pointer' }}
+                >
+                  <option value="">Select...</option>
+                  <option value="self_produced">Self-produced (minimal budget)</option>
+                  <option value="freelance_editors">Freelance editors</option>
+                  <option value="small_team">Small production team</option>
+                  <option value="full_production">Full production team</option>
+                </select>
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>On-Camera Talent</label>
+                <ListEditor
+                  items={formData.resource_constraints?.talent || []}
+                  fields={[
+                    { key: 'name', label: 'Name / Role', placeholder: 'e.g. CEO, Host' },
+                    { key: 'availability', label: 'Availability', placeholder: 'e.g. 2 days/week' },
+                    { key: 'comfort_level', label: 'Comfort', type: 'select', options: ['very comfortable', 'comfortable', 'developing', 'reluctant'] },
+                    { key: 'notes', label: 'Notes', placeholder: 'Any context...' },
+                  ]}
+                  onChange={v => updateField('resource_constraints', 'talent', v)}
+                  addLabel="Add talent"
+                />
+              </div>
+              <div>
+                <label style={styles.label}>Turnaround (concept to publish)</label>
+                <input
+                  type="text"
+                  value={formData.resource_constraints?.turnaround?.concept_to_publish || ''}
+                  onChange={e => updateField('resource_constraints', 'turnaround', {
+                    ...(formData.resource_constraints?.turnaround || {}),
+                    concept_to_publish: e.target.value,
+                  })}
+                  placeholder="e.g. 5 days, 2 weeks"
+                  style={styles.input}
+                />
+              </div>
+            </SectionPanel>
+
+            {/* Content Boundaries */}
+            <SectionPanel
+              icon={ShieldCheck}
+              title="Content Boundaries"
+              filled={isSectionFilled(formData.content_boundaries)}
+              expanded={expandedSections.content_boundaries}
+              onToggle={() => toggleSection('content_boundaries')}
+            >
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Topics to Avoid</label>
+                <TagInput
+                  tags={formData.content_boundaries?.topics_to_avoid || []}
+                  onChange={v => updateField('content_boundaries', 'topics_to_avoid', v)}
+                  placeholder="e.g. politics, competitor bashing, religion"
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Format Constraints</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                  <div>
+                    <label style={{ ...styles.label, fontSize: '11px' }}>Max Duration (minutes)</label>
+                    <input
+                      type="text"
+                      value={formData.content_boundaries?.format_constraints?.max_duration || ''}
+                      onChange={e => updateField('content_boundaries', 'format_constraints', {
+                        ...(formData.content_boundaries?.format_constraints || {}),
+                        max_duration: e.target.value,
+                      })}
+                      placeholder="e.g. 15"
+                      style={styles.input}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ ...styles.label, fontSize: '11px' }}>Min Duration (minutes)</label>
+                    <input
+                      type="text"
+                      value={formData.content_boundaries?.format_constraints?.min_duration || ''}
+                      onChange={e => updateField('content_boundaries', 'format_constraints', {
+                        ...(formData.content_boundaries?.format_constraints || {}),
+                        min_duration: e.target.value,
+                      })}
+                      placeholder="e.g. 5"
+                      style={styles.input}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '8px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#ccc', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.content_boundaries?.format_constraints?.no_shorts || false}
+                      onChange={e => updateField('content_boundaries', 'format_constraints', {
+                        ...(formData.content_boundaries?.format_constraints || {}),
+                        no_shorts: e.target.checked,
+                      })}
+                    />
+                    No Shorts
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#ccc', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={formData.content_boundaries?.format_constraints?.no_livestreams || false}
+                      onChange={e => updateField('content_boundaries', 'format_constraints', {
+                        ...(formData.content_boundaries?.format_constraints || {}),
+                        no_livestreams: e.target.checked,
+                      })}
+                    />
+                    No Livestreams
+                  </label>
+                </div>
+                <textarea
+                  value={formData.content_boundaries?.format_constraints?.notes || ''}
+                  onChange={e => updateField('content_boundaries', 'format_constraints', {
+                    ...(formData.content_boundaries?.format_constraints || {}),
+                    notes: e.target.value,
+                  })}
+                  placeholder="Other format notes..."
+                  style={{ ...styles.textarea, minHeight: '50px' }}
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Compliance / Legal Requirements</label>
+                <TagInput
+                  tags={formData.content_boundaries?.compliance || []}
+                  onChange={v => updateField('content_boundaries', 'compliance', v)}
+                  placeholder="e.g. FTC disclosure required, no performance guarantees"
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={styles.label}>Sponsorship Guidelines</label>
+                <textarea
+                  value={formData.content_boundaries?.sponsorship_guidelines || ''}
+                  onChange={e => updateField('content_boundaries', 'sponsorship_guidelines', e.target.value)}
+                  placeholder="Rules about brand partnerships, sponsored content..."
+                  style={{ ...styles.textarea, minHeight: '60px' }}
+                />
+              </div>
+              <div>
+                <label style={styles.label}>Tone Boundaries</label>
+                <TagInput
+                  tags={formData.content_boundaries?.tone_boundaries || []}
+                  onChange={v => updateField('content_boundaries', 'tone_boundaries', v)}
+                  placeholder="e.g. no sarcasm, no criticizing competitors"
+                />
+              </div>
+            </SectionPanel>
+          </div>
+
           {/* Save / Cancel Bar */}
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginBottom: '24px' }}>
             <button
@@ -1216,6 +1668,16 @@ export default function BrandContext({ activeClient }) {
             <ReviewSection icon={Layers} title="Content Themes" data={brandContext.content_themes} />
             <ReviewSection icon={Eye} title="Visual Identity" data={brandContext.visual_identity} />
             <ReviewSection icon={Globe} title="Platform Presence" data={brandContext.platform_presence} />
+          </div>
+
+          {/* Strategic Intake */}
+          <div style={styles.card}>
+            <div style={{ fontSize: '11px', color: '#2962FF', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
+              Strategic Intake
+            </div>
+            <ReviewSection icon={Target} title="Strategic Goals" data={brandContext.strategic_goals} />
+            <ReviewSection icon={Settings2} title="Resource Constraints" data={brandContext.resource_constraints} />
+            <ReviewSection icon={ShieldCheck} title="Content Boundaries" data={brandContext.content_boundaries} />
           </div>
         </>
       )}

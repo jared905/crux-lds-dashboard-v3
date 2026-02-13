@@ -6,7 +6,7 @@
 import claudeAPI from './claudeAPI';
 import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 import { addAuditCost, updateAuditSection, updateAuditProgress } from './auditDatabase';
-import { getCurrentBrandContext, buildBrandContextForTask } from './brandContextService';
+import { getBrandContextWithSignals } from './brandContextService';
 
 const OPPORTUNITIES_SYSTEM_PROMPT = `You are a YouTube content strategist conducting an opportunity analysis for a channel audit. Given channel data, series performance, and competitive benchmarks, identify actionable growth opportunities.
 
@@ -35,8 +35,7 @@ export async function analyzeOpportunities(auditId, context) {
     let brandContextBlock = '';
     if (channelId) {
       try {
-        const bc = await getCurrentBrandContext(channelId);
-        if (bc) brandContextBlock = buildBrandContextForTask(bc, 'audit_opportunities');
+        brandContextBlock = await getBrandContextWithSignals(channelId, 'audit_opportunities');
       } catch (e) {
         console.warn('[auditOpportunities] Brand context fetch failed, proceeding without:', e.message);
       }

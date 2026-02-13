@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Lightbulb, Sparkles, TrendingUp, Clock, AlertCircle, Loader2 } from 'lucide-react';
+import { Lightbulb, Sparkles, TrendingUp, Clock, AlertCircle, Loader2, FileText, Check } from 'lucide-react';
 import claudeAPI from '../../services/claudeAPI';
+import { getBrandContextWithSignals } from '../../services/brandContextService';
+import { getOutlierVideos } from '../../services/competitorInsightsService';
 
 /**
  * AI Video Idea Generator
@@ -117,6 +119,33 @@ Channel Performance Context:
 - Average CTR: ${(avgCTR * 100).toFixed(1)}%
 - Average retention: ${(avgRetention * 100).toFixed(1)}%`;
 
+      // Fetch competitor outliers for competitive landscape context
+      if (activeClient?.id) {
+        try {
+          const { getChannels } = await import('../../services/competitorDatabase');
+          const competitors = await getChannels({ clientId: activeClient.id, isCompetitor: true });
+          if (competitors && competitors.length > 0) {
+            const channelIds = competitors.map(c => c.id);
+            const outliers = await getOutlierVideos({ days: 90, minMultiplier: 2.0, limit: 10, channelIds });
+            if (outliers.length > 0) {
+              const outlierData = outliers.map(v => ({
+                title: v.title,
+                channel: v.channel?.name || 'Unknown',
+                views: v.view_count,
+                outlierScore: v.outlierScore,
+                channelAvg: v.channelAvgViews,
+              }));
+              userPrompt += `\n\n**Competitive Landscape — Top Outlier Videos from Competitors (last 90 days):**
+These videos significantly outperformed their channel averages. Use them to identify content gaps and opportunities this channel should exploit.
+
+${JSON.stringify(outlierData, null, 2)}`;
+            }
+          }
+        } catch (e) {
+          console.warn('[VideoIdeaGenerator] Competitor outlier fetch failed, proceeding without:', e.message);
+        }
+      }
+
       // Add optional context fields
       if (targetAudience && targetAudience.trim()) {
         userPrompt += `\n\n**Target Audience:** ${targetAudience.trim()}`;
@@ -130,13 +159,14 @@ Channel Performance Context:
         userPrompt += `\n\n**Topics to Avoid:** ${avoidTopics.trim()}\n\nDo NOT suggest ideas related to these topics.`;
       }
 
-      userPrompt += `\n\nBased on these successful videos, generate 10 new video ideas that:
+      userPrompt += `\n\nBased on this channel's successful videos and competitive landscape, generate 10 new video ideas that:
 1. Follow similar patterns and topics that already work for this audience
 2. Are specific and actionable (not generic)
 3. Are tailored to the channel's audience interests
 4. Include engaging, clickable titles
 5. Suggest a compelling thumbnail concept
 6. Provide a strong hook for the first 30 seconds
+7. Where relevant, exploit gaps or adapt formats that are working for competitors but this channel hasn't tried
 
 Format your response as a JSON array with this structure:
 [
@@ -151,6 +181,16 @@ Format your response as a JSON array with this structure:
 ]
 
 Be creative but data-driven. Focus on what actually performs for this channel.`;
+
+      // Inject brand context if available
+      if (activeClient?.id) {
+        try {
+          const brandBlock = await getBrandContextWithSignals(activeClient.id, 'video_ideation');
+          if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+        } catch (e) {
+          console.warn('[VideoIdeaGenerator] Brand context fetch failed, proceeding without:', e.message);
+        }
+      }
 
       const result = await claudeAPI.call(userPrompt, systemPrompt, 'video-idea-generator', 4096);
 
@@ -206,7 +246,17 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
 
       if (!refinementPrompt || !refinementPrompt.trim()) return;
 
-      const systemPrompt = `You are refining video ideas based on user feedback. Maintain the JSON format and structure, but adjust the ideas based on the specific request.`;
+      let systemPrompt = `You are refining video ideas based on user feedback. Maintain the JSON format and structure, but adjust the ideas based on the specific request.`;
+
+      // Inject brand context for refinements too
+      if (activeClient?.id) {
+        try {
+          const brandBlock = await getBrandContextWithSignals(activeClient.id, 'video_ideation');
+          if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+        } catch (e) {
+          // Proceed without brand context
+        }
+      }
 
       const result = await claudeAPI.call(
         `Original ideas:\n\n${JSON.stringify(ideas, null, 2)}\n\n---\n\nUser's request: ${refinementPrompt}\n\nPlease provide the refined ideas in the same JSON format:`,
@@ -276,8 +326,45 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
     setEstimatedCost(null);
     setConversationHistory([]);
     setError(null);
+    setSentToBrief({});
     if (activeClient?.id) {
       localStorage.removeItem(getStorageKey(activeClient.id));
+    }
+  };
+
+  // Track which ideas have been sent to briefs
+  const [sentToBrief, setSentToBrief] = useState({});
+
+  const sendToBrief = async (idea, index) => {
+    try {
+      const { supabase } = await import('../../services/supabaseClient');
+      if (!supabase) throw new Error('Supabase not configured');
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { error: insertError } = await supabase
+        .from('briefs')
+        .insert({
+          client_id: activeClient?.id || null,
+          title: idea.title,
+          status: 'draft',
+          source_type: 'creative_brief',
+          brief_data: {
+            topic: idea.topic,
+            hook: idea.hook,
+            thumbnail_concept: idea.thumbnailConcept,
+            why_it_works: idea.whyItWorks,
+            confidence: idea.confidence,
+            generated_from: 'video_ideation',
+          },
+          created_by: user?.id || null,
+        });
+
+      if (insertError) throw insertError;
+      setSentToBrief(prev => ({ ...prev, [index]: true }));
+    } catch (err) {
+      console.error('[VideoIdeaGenerator] Failed to create brief:', err);
+      setError('Failed to create brief: ' + err.message);
     }
   };
 
@@ -873,6 +960,33 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
                           </p>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Send to Brief */}
+                    <div style={{ marginTop: "12px", display: "flex", justifyContent: "flex-end" }}>
+                      <button
+                        onClick={() => sendToBrief(idea, index)}
+                        disabled={sentToBrief[index]}
+                        style={{
+                          background: sentToBrief[index] ? "rgba(16, 185, 129, 0.1)" : "#252525",
+                          border: `1px solid ${sentToBrief[index] ? "#10b981" : "#333"}`,
+                          borderRadius: "8px",
+                          padding: "8px 14px",
+                          color: sentToBrief[index] ? "#10b981" : "#9E9E9E",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          cursor: sentToBrief[index] ? "default" : "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        {sentToBrief[index] ? (
+                          <><Check size={14} /> Sent to Briefs</>
+                        ) : (
+                          <><FileText size={14} /> Send to Briefs</>
+                        )}
+                      </button>
                     </div>
                   </div>
                 </div>

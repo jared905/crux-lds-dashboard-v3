@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, FileText, Loader2, AlertCircle, Copy, Check, TrendingUp } from 'lucide-react';
 import claudeAPI from '../../services/claudeAPI';
-import { getCurrentBrandContext, buildBrandContextForTask } from '../../services/brandContextService';
+import { getBrandContextWithSignals } from '../../services/brandContextService';
 
 /**
  * AI-Powered Executive Summary Generator
@@ -316,11 +316,8 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
       // Inject brand context if available
       if (activeClient?.id) {
         try {
-          const bc = await getCurrentBrandContext(activeClient.id);
-          if (bc) {
-            const brandBlock = buildBrandContextForTask(bc, 'executive_narrative');
-            if (brandBlock) systemPrompt += '\n\n' + brandBlock;
-          }
+          const brandBlock = await getBrandContextWithSignals(activeClient.id, 'executive_narrative');
+          if (brandBlock) systemPrompt += '\n\n' + brandBlock;
         } catch (e) {
           console.warn('[AIExecutiveSummary] Brand context fetch failed, proceeding without:', e.message);
         }

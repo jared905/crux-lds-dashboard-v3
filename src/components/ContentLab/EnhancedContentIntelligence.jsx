@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, Zap, AlertCircle, Loader2 } from 'lucide-react';
 import ContentIntelligence from './ContentIntelligence';
 import claudeAPI from '../../services/claudeAPI';
+import { getBrandContextWithSignals } from '../../services/brandContextService';
 
 /**
  * Enhanced Content Intelligence with Claude AI (v2.2.3)
@@ -295,7 +296,7 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
         date: v.date
       }));
 
-      const systemPrompt = `You are a YouTube analytics expert helping analyze content performance.
+      let systemPrompt = `You are a YouTube analytics expert helping analyze content performance.
 
 You have access to data from ${rows.length} videos from ${clientName}'s YouTube channel.
 
@@ -312,6 +313,16 @@ Analyze the data and answer questions with:
 4. Clear, concise explanations
 
 Format your response in markdown for readability.`;
+
+      // Inject brand context if available
+      if (activeClient?.id) {
+        try {
+          const brandBlock = await getBrandContextWithSignals(activeClient.id, 'content_intelligence');
+          if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+        } catch (e) {
+          console.warn('[ContentIntelligence] Brand context fetch failed, proceeding without:', e.message);
+        }
+      }
 
       const userPrompt = `Based on this YouTube channel data for ${clientName}, please answer my question:
 

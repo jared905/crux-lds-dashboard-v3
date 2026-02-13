@@ -16,6 +16,7 @@ import {
   Zap,
   FileText,
   Target,
+  Activity,
   Calendar,
   Building,
   Key,
@@ -24,6 +25,8 @@ import {
   Table,
   ClipboardCheck,
   Palette,
+  Compass,
+  Crosshair,
   // Section icons
   BarChart3,
   Search,
@@ -50,6 +53,7 @@ const SECTIONS = [
     icon: Search,
     tabs: [
       { id: "competitors", label: "Competitors", icon: Users },
+      { id: "gap-detection", label: "Gap Detection", icon: Crosshair },
       { id: "comments", label: "Comments", icon: MessageSquare },
     ],
   },
@@ -68,8 +72,9 @@ const SECTIONS = [
     label: "Strategy",
     icon: Map,
     tabs: [
+      { id: "opportunities", label: "Opportunities", icon: Compass },
       { id: "briefs", label: "Briefs", icon: FileText },
-      { id: "actions", label: "Actions", icon: Target },
+      { id: "actions", label: "Feedback", icon: Activity },
       { id: "calendar", label: "Calendar", icon: Calendar },
     ],
   },

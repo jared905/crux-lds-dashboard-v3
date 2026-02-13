@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, lazy, Suspense } from "react";
-import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, Upload, Download, RefreshCw, X, Check, Zap, Loader, MoreVertical, Table2, LayoutGrid, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Crown, Target, Activity, Layers, Folder } from "lucide-react";
+import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, Upload, Download, RefreshCw, X, Check, Zap, Loader, MoreVertical, Table2, LayoutGrid, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Crown, Target, Activity, Layers, Folder, FileText } from "lucide-react";
 import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../../lib/competitorAnalysis";
 import { getOutlierVideos, analyzeCompetitorVideo } from '../../services/competitorInsightsService';
 import { importCompetitorDatabase } from '../../services/competitorImport';
@@ -98,6 +98,41 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   const [selectedOutlier, setSelectedOutlier] = useState(null);
   const [insightData, setInsightData] = useState(null);
   const [insightLoading, setInsightLoading] = useState(false);
+  const [sentCompetitorBrief, setSentCompetitorBrief] = useState({});
+
+  const sendOutlierToBrief = async (outlier, insight) => {
+    const key = outlier.id || outlier.title;
+    try {
+      const { supabase } = await import('../../services/supabaseClient');
+      if (!supabase) throw new Error('Supabase not configured');
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error: insertError } = await supabase
+        .from('briefs')
+        .insert({
+          client_id: activeClient?.id || null,
+          title: `Inspired by: ${outlier.title}`,
+          status: 'draft',
+          source_type: 'competitor_inspired',
+          brief_data: {
+            source_video_title: outlier.title,
+            source_channel: outlier.channel?.name || 'Unknown',
+            source_views: outlier.view_count,
+            outlier_score: outlier.outlierScore,
+            hook_analysis: insight.hookAnalysis,
+            why_it_worked: insight.whyItWorked,
+            applicable_tactics: insight.applicableTactics,
+            content_angle: insight.contentAngle,
+            replicability: insight.replicability,
+            generated_from: 'competitor_outlier',
+          },
+          created_by: user?.id || null,
+        });
+      if (insertError) throw insertError;
+      setSentCompetitorBrief(prev => ({ ...prev, [key]: true }));
+    } catch (err) {
+      console.error('[CompetitorAnalysis] Failed to create brief:', err);
+    }
+  };
 
   // Client-scoped Supabase state
   const [masterView, setMasterView] = useState(false);
@@ -2251,6 +2286,20 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                   <div style={{ fontSize: "13px", fontWeight: "600", textTransform: "capitalize", color: insightData.replicability === 'high' ? '#22c55e' : insightData.replicability === 'medium' ? '#f59e0b' : '#ef4444' }}>{insightData.replicability}</div>
                 </div>
               </div>
+              <button
+                onClick={() => sendOutlierToBrief(selectedOutlier, insightData)}
+                disabled={sentCompetitorBrief[selectedOutlier.id || selectedOutlier.title]}
+                style={{
+                  width: "100%", padding: "10px", borderRadius: "8px", border: "none",
+                  background: sentCompetitorBrief[selectedOutlier.id || selectedOutlier.title] ? "#065f46" : "#3b82f6",
+                  color: "#fff", fontSize: "13px", fontWeight: "600", cursor: sentCompetitorBrief[selectedOutlier.id || selectedOutlier.title] ? "default" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                }}
+              >
+                {sentCompetitorBrief[selectedOutlier.id || selectedOutlier.title]
+                  ? <><Check size={14} /> Sent to Briefs</>
+                  : <><FileText size={14} /> Create Brief from This</>}
+              </button>
             </div>
           ) : null}
         </div>
