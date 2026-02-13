@@ -245,29 +245,47 @@ export default async function handler(req, res) {
           if (reports.length === 0) {
             impressionsDiag.error = 'No reports available yet (reports take ~48h after job creation)';
           } else {
-            // Step 2: Download the most recent report CSV
+            // Step 2: Download ALL available reports (up to 30 days) and aggregate
+            // A single day's data is too sparse for meaningful CTR — need multi-day aggregation
+            const reportsToProcess = reports.slice(0, 30);
             impressionsDiag.reportDate = reports[0].createTime;
-            const reportResponse = await fetch(reports[0].downloadUrl, { headers });
+            impressionsDiag.reportsProcessed = reportsToProcess.length;
 
-            if (!reportResponse.ok) {
-              impressionsDiag.error = `Failed to download report CSV: HTTP ${reportResponse.status}`;
-            } else {
-              const csvContent = await reportResponse.text();
+            // Download all reports in parallel for speed
+            const reportContents = await Promise.all(
+              reportsToProcess.map(async (report) => {
+                try {
+                  const resp = await fetch(report.downloadUrl, { headers });
+                  if (!resp.ok) return null;
+                  return await resp.text();
+                } catch {
+                  return null;
+                }
+              })
+            );
+
+            const videoAgg = {};
+            let csvHeaders = null;
+            let videoIdCol = null, impressionsCol = null, ctrCol = null;
+            let reportsSuccessful = 0;
+
+            for (const csvContent of reportContents) {
+              if (!csvContent) continue;
               const lines = csvContent.trim().split('\n');
+              if (lines.length < 2) continue;
+              reportsSuccessful++;
 
-              if (lines.length < 2) {
-                impressionsDiag.error = `Report CSV is empty (${lines.length} lines)`;
-              } else {
-                // Step 3: Parse CSV and extract impressions/CTR
-                const csvHeaders = lines[0].split(',').map(h => h.trim());
+              // Parse headers from first successful report
+              if (!csvHeaders) {
+                csvHeaders = lines[0].split(',').map(h => h.trim());
                 impressionsDiag.csvColumns = csvHeaders;
 
-                const videoIdCol = csvHeaders.find(h => h.toLowerCase().includes('video_id'));
-                const impressionsCol = csvHeaders.find(h =>
+                videoIdCol = csvHeaders.find(h => h.toLowerCase().includes('video_id'));
+                impressionsCol = csvHeaders.find(h =>
                   h.toLowerCase().includes('thumbnail_impressions') ||
                   (h.toLowerCase() === 'impressions')
                 );
-                const ctrCol = csvHeaders.find(h =>
+                ctrCol = csvHeaders.find(h =>
                   h.toLowerCase().includes('click_through_rate') ||
                   h.toLowerCase().includes('impressions_ctr') ||
                   h.toLowerCase() === 'ctr'
@@ -281,62 +299,62 @@ export default async function handler(req, res) {
 
                 if (!videoIdCol) {
                   impressionsDiag.error = `No video_id column found. Columns: ${csvHeaders.join(', ')}`;
-                } else if (!impressionsCol) {
-                  impressionsDiag.error = `No impressions column found. This report type (${connection.reporting_job_type}) may not include impressions. Columns: ${csvHeaders.join(', ')}. You may need to set up a channel_reach_basic_a1 report job.`;
-                } else {
-                  // Aggregate daily rows by video
-                  const videoAgg = {};
-                  for (let i = 1; i < lines.length; i++) {
-                    const values = lines[i].split(',').map(v => v.trim());
-                    const row = {};
-                    csvHeaders.forEach((header, idx) => { row[header] = values[idx]; });
-
-                    const vid = row[videoIdCol];
-                    if (!vid) continue;
-
-                    if (!videoAgg[vid]) {
-                      videoAgg[vid] = { impressions: 0, ctrSum: 0, ctrCount: 0 };
-                    }
-                    if (row[impressionsCol]) {
-                      videoAgg[vid].impressions += parseInt(row[impressionsCol]) || 0;
-                    }
-                    if (ctrCol && row[ctrCol]) {
-                      videoAgg[vid].ctrSum += parseFloat(row[ctrCol]) || 0;
-                      videoAgg[vid].ctrCount++;
-                    }
-                  }
-
-                  // Merge into videoAnalytics
-                  for (const [vid, agg] of Object.entries(videoAgg)) {
-                    const avgCtr = agg.ctrCount > 0 ? agg.ctrSum / agg.ctrCount : 0;
-                    if (videoAnalytics[vid]) {
-                      videoAnalytics[vid].impressions = agg.impressions;
-                      videoAnalytics[vid].ctr = avgCtr;
-                    } else {
-                      videoAnalytics[vid] = {
-                        views: 0, watchMinutes: 0, watchHours: 0,
-                        avgViewPercentage: 0, subscribersGained: 0,
-                        impressions: agg.impressions, ctr: avgCtr
-                      };
-                    }
-                    if (agg.impressions > 0) impressionsDiag.videosWithData++;
-                    if (avgCtr > 0) impressionsDiag.videosWithCtr = (impressionsDiag.videosWithCtr || 0) + 1;
-                  }
-
-                  impressionsDiag.success = true;
-                  impressionsDiag.totalVideosInReport = Object.keys(videoAgg).length;
-                  impressionsDiag.videosWithCtr = impressionsDiag.videosWithCtr || 0;
-                  // Sample a few CTR values for debugging
-                  const sampleEntries = Object.entries(videoAgg).slice(0, 3);
-                  impressionsDiag.sampleCtr = sampleEntries.map(([vid, agg]) => ({
-                    videoId: vid.slice(0, 8) + '...',
-                    impressions: agg.impressions,
-                    ctrSum: agg.ctrSum,
-                    ctrCount: agg.ctrCount
-                  }));
-                  console.log(`[Analytics] Reporting API: ${impressionsDiag.videosWithData} of ${impressionsDiag.totalVideosInReport} videos with impressions, ${impressionsDiag.videosWithCtr} with CTR`);
+                  break;
+                }
+                if (!impressionsCol) {
+                  impressionsDiag.error = `No impressions column found. Columns: ${csvHeaders.join(', ')}`;
+                  break;
                 }
               }
+
+              // Aggregate rows from this report
+              for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim());
+                const row = {};
+                csvHeaders.forEach((header, idx) => { row[header] = values[idx]; });
+
+                const vid = row[videoIdCol];
+                if (!vid) continue;
+
+                if (!videoAgg[vid]) {
+                  videoAgg[vid] = { impressions: 0, clicks: 0 };
+                }
+
+                const dayImpressions = parseInt(row[impressionsCol]) || 0;
+                videoAgg[vid].impressions += dayImpressions;
+
+                // Compute clicks from CTR: clicks = impressions * ctr
+                // This lets us compute a properly weighted aggregate CTR
+                if (ctrCol && row[ctrCol]) {
+                  const dayCtr = parseFloat(row[ctrCol]) || 0;
+                  videoAgg[vid].clicks += dayImpressions * dayCtr;
+                }
+              }
+            }
+
+            if (!impressionsDiag.error && csvHeaders) {
+              // Merge into videoAnalytics with properly weighted CTR
+              for (const [vid, agg] of Object.entries(videoAgg)) {
+                const aggregateCtr = agg.impressions > 0 ? agg.clicks / agg.impressions : 0;
+                if (videoAnalytics[vid]) {
+                  videoAnalytics[vid].impressions = agg.impressions;
+                  videoAnalytics[vid].ctr = aggregateCtr;
+                } else {
+                  videoAnalytics[vid] = {
+                    views: 0, watchMinutes: 0, watchHours: 0,
+                    avgViewPercentage: 0, subscribersGained: 0,
+                    impressions: agg.impressions, ctr: aggregateCtr
+                  };
+                }
+                if (agg.impressions > 0) impressionsDiag.videosWithData++;
+                if (aggregateCtr > 0) impressionsDiag.videosWithCtr = (impressionsDiag.videosWithCtr || 0) + 1;
+              }
+
+              impressionsDiag.success = true;
+              impressionsDiag.reportsDownloaded = reportsSuccessful;
+              impressionsDiag.totalVideosInReport = Object.keys(videoAgg).length;
+              impressionsDiag.videosWithCtr = impressionsDiag.videosWithCtr || 0;
+              console.log(`[Analytics] Reporting API: ${reportsSuccessful} reports, ${impressionsDiag.videosWithData} videos with impressions, ${impressionsDiag.videosWithCtr} with CTR`);
             }
           }
         }
