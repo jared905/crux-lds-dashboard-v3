@@ -131,7 +131,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .insert([{ user_id: userId, email, role }])
+        .upsert([{ user_id: userId, email, role }], { onConflict: 'user_id' })
         .select()
         .single();
 
@@ -145,7 +145,7 @@ export const AuthProvider = ({ children }) => {
           has_access: true
         }));
 
-        await supabase.from('user_tab_permissions').insert(tabInserts);
+        await supabase.from('user_tab_permissions').upsert(tabInserts, { onConflict: 'user_id,tab_id' });
       }
 
       return data;
