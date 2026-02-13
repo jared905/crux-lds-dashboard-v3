@@ -203,7 +203,7 @@ async function handleFetch(connection, accessToken, res) {
 
   const videoIdCol = headers.find(h => h.toLowerCase().includes('video_id'));
   const impressionsCol = headers.find(h => h.toLowerCase() === 'impressions' || h.toLowerCase().includes('thumbnail_impressions'));
-  const ctrCol = headers.find(h => h.toLowerCase().includes('click_through_rate') || h.toLowerCase() === 'ctr');
+  const ctrCol = headers.find(h => h.toLowerCase().includes('click_through_rate') || h.toLowerCase() === 'ctr' || h.toLowerCase().endsWith('_ctr'));
 
   if (!videoIdCol) {
     return res.status(200).json({ success: true, message: 'Report downloaded but no video_id column found', headers });
@@ -326,7 +326,7 @@ async function handleBackfill(connection, accessToken, res) {
       const videoIdCol = headers.find(h => h.toLowerCase().includes('video_id'));
       const dateCol = headers.find(h => h.toLowerCase() === 'date');
       const impressionsCol = headers.find(h => h.toLowerCase() === 'impressions' || h.toLowerCase().includes('thumbnail_impressions'));
-      const ctrCol = headers.find(h => h.toLowerCase().includes('click_through_rate') || h.toLowerCase() === 'ctr');
+      const ctrCol = headers.find(h => h.toLowerCase().includes('click_through_rate') || h.toLowerCase() === 'ctr' || h.toLowerCase().endsWith('_ctr'));
       const viewsCol = headers.find(h => h.toLowerCase() === 'views');
       const watchTimeCol = headers.find(h => h.toLowerCase().includes('watch_time'));
       const avgDurationCol = headers.find(h => h.toLowerCase().includes('average_view_duration'));

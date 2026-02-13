@@ -193,7 +193,7 @@ async function fetchReportingData(accessToken, jobId) {
   // Find columns
   const videoIdCol = headers.find(h => h.toLowerCase().includes('video_id') || h === 'video_id');
   const impressionsCol = headers.find(h => h.toLowerCase() === 'impressions' || h.toLowerCase().includes('thumbnail_impressions'));
-  const ctrCol = headers.find(h => h.toLowerCase().includes('click_through_rate') || h.toLowerCase() === 'ctr');
+  const ctrCol = headers.find(h => h.toLowerCase().includes('click_through_rate') || h.toLowerCase() === 'ctr' || h.toLowerCase().endsWith('_ctr'));
   const likesCol = headers.find(h => h.toLowerCase() === 'likes');
   const commentsCol = headers.find(h => h.toLowerCase() === 'comments');
   const sharesCol = headers.find(h => h.toLowerCase() === 'shares');
