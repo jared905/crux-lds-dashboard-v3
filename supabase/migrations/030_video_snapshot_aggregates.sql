@@ -1,6 +1,11 @@
 -- 030: Video Snapshot Aggregates RPC
 -- Returns per-video performance aggregated from daily snapshots for a date range.
 -- Used by the dashboard to show actual period performance instead of lifetime stats.
+--
+-- Views are computed two ways (best available):
+--   1. SUM(view_count) — daily views from Analytics API (preferred, but may be NULL)
+--   2. MAX(total_view_count) - MIN(total_view_count) — delta from Data API cumulative counts
+-- This ensures views are available even when the Analytics API data is missing.
 
 CREATE OR REPLACE FUNCTION get_video_snapshot_aggregates(
   channel_ids UUID[],
@@ -39,7 +44,11 @@ AS $$
     v.duration_seconds,
     v.video_type,
     v.content_source,
-    COALESCE(SUM(vs.view_count), 0) AS views,
+    -- Views: prefer daily Analytics API sum, fall back to cumulative Data API delta
+    COALESCE(
+      NULLIF(SUM(vs.view_count), 0),
+      GREATEST(MAX(vs.total_view_count) - MIN(vs.total_view_count), 0)
+    ) AS views,
     COALESCE(SUM(vs.watch_hours), 0) AS watch_hours,
     COALESCE(SUM(vs.subscribers_gained), 0) AS subscribers_gained,
     COALESCE(SUM(vs.impressions), 0) AS impressions,
@@ -49,9 +58,9 @@ AS $$
       ELSE NULL
     END AS ctr,
     CASE
-      WHEN SUM(vs.view_count) > 0
+      WHEN COALESCE(SUM(vs.view_count), 0) > 0
       THEN SUM(vs.avg_view_percentage * vs.view_count) / SUM(vs.view_count)
-      ELSE NULL
+      ELSE v.avg_view_percentage
     END AS avg_view_percentage,
     COALESCE(SUM(vs.likes), 0) AS likes,
     COALESCE(SUM(vs.comments), 0) AS comments,
@@ -63,7 +72,12 @@ AS $$
     AND vs.snapshot_date >= start_date
     AND vs.snapshot_date <= end_date
   GROUP BY v.id, v.youtube_video_id, v.title, v.published_at,
-           v.thumbnail_url, v.duration_seconds, v.video_type, v.content_source
+           v.thumbnail_url, v.duration_seconds, v.video_type, v.content_source,
+           v.avg_view_percentage
   HAVING SUM(vs.view_count) > 0 OR SUM(vs.impressions) > 0
-  ORDER BY COALESCE(SUM(vs.view_count), 0) DESC;
+    OR (MAX(vs.total_view_count) - MIN(vs.total_view_count)) > 0
+  ORDER BY COALESCE(
+    NULLIF(SUM(vs.view_count), 0),
+    GREATEST(MAX(vs.total_view_count) - MIN(vs.total_view_count), 0)
+  ) DESC;
 $$;

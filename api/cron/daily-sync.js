@@ -443,10 +443,10 @@ async function syncConnection(connection) {
       }
     }
 
-    // Get all videos for this channel
+    // Get all videos for this channel (include Data API stats for cumulative snapshots)
     const { data: videos } = await supabase
       .from('videos')
-      .select('id, youtube_video_id')
+      .select('id, youtube_video_id, view_count, like_count, comment_count')
       .eq('channel_id', dbChannel.id);
 
     if (!videos || videos.length === 0) {
@@ -502,12 +502,18 @@ async function syncConnection(connection) {
         subscribers_lost: reporting.subscribersLost || null,
         likes: reporting.likes || null,
         comments: reporting.comments || null,
-        shares: reporting.shares || null
+        shares: reporting.shares || null,
+        // Cumulative Data API counts — always available from discoverVideos
+        // Period views = MAX(total_view_count) - MIN(total_view_count)
+        total_view_count: video.view_count || null,
+        total_like_count: video.like_count || null,
+        total_comment_count: video.comment_count || null,
       };
 
-      // Only create snapshot if we have some data
+      // Only create snapshot if we have some data (include cumulative counts)
       const hasData = snapshotData.view_count || snapshotData.impressions || snapshotData.watch_hours ||
-                      snapshotData.likes || snapshotData.comments || snapshotData.shares;
+                      snapshotData.likes || snapshotData.comments || snapshotData.shares ||
+                      snapshotData.total_view_count;
       if (hasData) {
         const { error: snapshotError } = await supabase
           .from('video_snapshots')
