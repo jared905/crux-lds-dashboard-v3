@@ -1,5 +1,5 @@
 import React from "react";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Activity } from "lucide-react";
 
 export default function FilterBar({
   dateRange,
@@ -14,9 +14,13 @@ export default function FilterBar({
   // New period props
   activePeriod,
   reportPeriods,
-  onPeriodChange
+  onPeriodChange,
+  // Snapshot data coverage
+  snapshotDays,
+  snapshotLoading
 }) {
   const hasPeriods = reportPeriods && reportPeriods.length > 0;
+  const hasSnapshotData = snapshotDays > 0 && dateRange !== "all";
 
   return (
     <div style={{ position: "sticky", top: "110px", zIndex: 99, background: "rgba(18, 18, 18, 0.92)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", paddingTop: "20px", paddingBottom: "10px" }}>
@@ -107,11 +111,11 @@ export default function FilterBar({
                     Date:
                   </div>
                   <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} style={{ border: "1px solid #333", background: "#252525", borderRadius: "8px", padding: "8px 12px", color: "#E0E0E0", fontSize: "13px", cursor: "pointer" }}>
-                    <option value="all">All Videos</option>
-                    <option value="ytd">YTD Published</option>
-                    <option value="90d">Last 90 Days Published</option>
-                    <option value="28d">Last 28 Days Published</option>
-                    <option value="7d">Last 7 Days Published</option>
+                    <option value="all">All Time (Lifetime Stats)</option>
+                    <option value="ytd">YTD</option>
+                    <option value="90d">Last 90 Days</option>
+                    <option value="28d">Last 28 Days</option>
+                    <option value="7d">Last 7 Days</option>
                     <option value="custom">Custom Range</option>
                   </select>
                 </div>
@@ -149,6 +153,34 @@ export default function FilterBar({
                         colorScheme: "dark"
                       }}
                     />
+                  </div>
+                )}
+
+                {/* Snapshot data coverage indicator */}
+                {hasSnapshotData && (
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    padding: "5px 10px",
+                    background: "#3b82f610",
+                    border: "1px solid #3b82f630",
+                    borderRadius: "6px",
+                    fontSize: "11px",
+                    color: "#60a5fa",
+                    fontWeight: "500"
+                  }}>
+                    <Activity size={11} />
+                    {snapshotDays} {snapshotDays === 1 ? 'day' : 'days'} of synced data
+                  </div>
+                )}
+                {snapshotLoading && dateRange !== "all" && (
+                  <div style={{
+                    fontSize: "11px",
+                    color: "#9E9E9E",
+                    fontStyle: "italic"
+                  }}>
+                    Loading performance data...
                   </div>
                 )}
               </>

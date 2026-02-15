@@ -879,6 +879,73 @@ export function periodVideoDataToRows(videoData) {
   }));
 }
 
+/**
+ * Fetch video performance aggregated from daily snapshots for a date range.
+ * Returns rows in the same normalized format the dashboard expects.
+ * Falls back gracefully — returns null if no snapshot data exists.
+ *
+ * @param {string[]} channelIds - Array of channel UUIDs to query
+ * @param {string} startDate - YYYY-MM-DD
+ * @param {string} endDate - YYYY-MM-DD
+ * @returns {Promise<{ rows: Array, snapshotDays: number } | null>}
+ */
+export async function getVideoSnapshotAggregates(channelIds, startDate, endDate) {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase.rpc('get_video_snapshot_aggregates', {
+    channel_ids: channelIds,
+    start_date: startDate,
+    end_date: endDate,
+  });
+
+  if (error) {
+    console.error('[Snapshots] RPC error:', error);
+    return null;
+  }
+
+  if (!data || data.length === 0) {
+    return null;
+  }
+
+  const maxDays = Math.max(...data.map(r => Number(r.snapshot_days) || 0));
+
+  const rows = data.map(row => {
+    const thumbMatch = row.thumbnail_url?.match(/\/vi\/([a-zA-Z0-9_-]{11})\//);
+    const realVideoId = thumbMatch ? thumbMatch[1] : null;
+    const contentSource = row.content_source || '';
+
+    return {
+      'Video title': row.title,
+      'Video publish time': row.published_at,
+      'Views': Number(row.views) || 0,
+      'Duration': row.duration_seconds,
+      'Impressions': Number(row.impressions) || 0,
+      'Impressions click-through rate (%)': row.ctr != null ? row.ctr * 100 : null,
+      'Average percentage viewed (%)': row.avg_view_percentage != null ? row.avg_view_percentage * 100 : null,
+      'Subscribers gained': Number(row.subscribers_gained) || 0,
+      'Content': contentSource,
+      videoId: realVideoId,
+      thumbnailUrl: row.thumbnail_url,
+      title: row.title,
+      publishDate: row.published_at,
+      views: Number(row.views) || 0,
+      duration: row.duration_seconds || 0,
+      type: row.video_type || (row.duration_seconds && row.duration_seconds <= 180 ? 'short' : 'long'),
+      impressions: Number(row.impressions) || 0,
+      ctr: row.ctr != null ? Number(row.ctr) : null,
+      retention: row.avg_view_percentage != null ? Number(row.avg_view_percentage) : null,
+      avgViewPct: row.avg_view_percentage != null ? Number(row.avg_view_percentage) : null,
+      subscribers: Number(row.subscribers_gained) || 0,
+      watchHours: Number(row.watch_hours) || 0,
+      channel: contentSource,
+      youtubeVideoId: row.youtube_video_id || realVideoId,
+      youtubeUrl: row.youtube_video_id ? `https://www.youtube.com/watch?v=${row.youtube_video_id}` : null,
+    };
+  });
+
+  return { rows, snapshotDays: maxDays };
+}
+
 export default {
   saveClientToSupabase,
   getClientsFromSupabase,
@@ -894,4 +961,5 @@ export default {
   deleteReportPeriod,
   setActivePeriod,
   periodVideoDataToRows,
+  getVideoSnapshotAggregates,
 };

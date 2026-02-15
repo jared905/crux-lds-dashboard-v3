@@ -8,7 +8,7 @@ import SignupPage from "./components/Auth/SignupPage.jsx";
 
 // Services
 import { youtubeAPI } from "./services/youtubeAPI.js";
-import { getClientsFromSupabase, checkSupabaseConnection, getReportPeriod, setActivePeriod, periodVideoDataToRows } from "./services/clientDataService.js";
+import { getClientsFromSupabase, checkSupabaseConnection, getReportPeriod, setActivePeriod, periodVideoDataToRows, getVideoSnapshotAggregates } from "./services/clientDataService.js";
 import { normalizeData } from "./lib/normalizeData.js";
 
 // Layout
@@ -91,6 +91,9 @@ export default function App() {
   const [channelStatsLoading, setChannelStatsLoading] = useState(false);
   const [allChannelStats, setAllChannelStats] = useState({});
   const [supabaseLoading, setSupabaseLoading] = useState(true);
+  const [snapshotRows, setSnapshotRows] = useState(null);
+  const [snapshotLoading, setSnapshotLoading] = useState(false);
+  const [snapshotDays, setSnapshotDays] = useState(0);
 
   // Load clients from Supabase on startup
   useEffect(() => {
@@ -397,9 +400,95 @@ export default function App() {
   };
 
   const channelOpts = useMemo(() => [...new Set(rows.map(r => r.channel).filter(Boolean))].sort(), [rows]);
-  
+
+  // Compute start/end dates from the dateRange for snapshot queries
+  const dateRangeDates = useMemo(() => {
+    if (dateRange === "all") return null;
+    const now = new Date();
+    let startDate, endDate = now.toISOString().split('T')[0];
+    if (dateRange === "custom") {
+      if (customDateRange.start && customDateRange.end) {
+        return { startDate: customDateRange.start, endDate: customDateRange.end };
+      }
+      return null;
+    } else if (dateRange === "ytd") {
+      startDate = `${now.getFullYear()}-01-01`;
+    } else if (dateRange === "7d") {
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    } else if (dateRange === "28d") {
+      startDate = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    } else if (dateRange === "90d") {
+      startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    }
+    return startDate ? { startDate, endDate } : null;
+  }, [dateRange, customDateRange]);
+
+  // Fetch snapshot-aggregated data when date range changes (for OAuth-synced channels)
+  useEffect(() => {
+    if (!activeClient || !dateRangeDates) {
+      setSnapshotRows(null);
+      setSnapshotDays(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchSnapshots = async () => {
+      // Build channel IDs array (handles network clients with multiple channels)
+      const channelIds = activeClient.isNetwork && activeClient.networkMembers
+        ? activeClient.networkMembers.map(m => m.id)
+        : [activeClient.id];
+
+      setSnapshotLoading(true);
+      try {
+        const result = await getVideoSnapshotAggregates(
+          channelIds,
+          dateRangeDates.startDate,
+          dateRangeDates.endDate
+        );
+
+        if (cancelled) return;
+
+        if (result) {
+          setSnapshotRows(result.rows);
+          setSnapshotDays(result.snapshotDays);
+          console.log(`[Snapshots] Loaded ${result.rows.length} videos with ${result.snapshotDays} days of data`);
+        } else {
+          setSnapshotRows(null);
+          setSnapshotDays(0);
+        }
+      } catch (err) {
+        console.error('[Snapshots] Fetch error:', err);
+        if (!cancelled) {
+          setSnapshotRows(null);
+          setSnapshotDays(0);
+        }
+      } finally {
+        if (!cancelled) setSnapshotLoading(false);
+      }
+    };
+
+    fetchSnapshots();
+    return () => { cancelled = true; };
+  }, [activeClient?.id, dateRangeDates]);
+
   const filtered = useMemo(() => {
-    // Always filter out Total rows from display data
+    // When snapshot data is available, use it (date range already applied by the DB query)
+    if (snapshotRows && snapshotRows.length > 0) {
+      let result = snapshotRows;
+
+      if (selectedChannel !== "all") {
+        result = result.filter(r => r.channel === selectedChannel);
+      }
+
+      if (query) {
+        result = result.filter(r => r.title?.toLowerCase().includes(query.toLowerCase()));
+      }
+
+      return result;
+    }
+
+    // Fallback: filter lifetime rows by publish date (original behavior)
     let result = rows.filter(r => !r.isTotal && r.views > 0);
 
     if (dateRange === "custom") {
@@ -438,7 +527,7 @@ export default function App() {
     }
 
     return result;
-  }, [rows, selectedChannel, query, dateRange, customDateRange]);
+  }, [rows, snapshotRows, selectedChannel, query, dateRange, customDateRange]);
 
   const kpis = useMemo(() => {
     const views = filtered.reduce((s, r) => s + (r.views || 0), 0);
@@ -847,6 +936,9 @@ export default function App() {
           activePeriod={activeClient.activePeriod}
           reportPeriods={activeClient.reportPeriods}
           onPeriodChange={handlePeriodChange}
+          // Snapshot data coverage
+          snapshotDays={snapshotDays}
+          snapshotLoading={snapshotLoading}
         />
       )}
 
