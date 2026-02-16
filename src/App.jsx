@@ -473,8 +473,9 @@ export default function App() {
   }, [activeClient?.id, dateRangeDates]);
 
   const filtered = useMemo(() => {
-    // When snapshot data is available, use it (date range already applied by the DB query)
-    if (snapshotRows && snapshotRows.length > 0) {
+    // When snapshot data is available AND has meaningful view data, use it
+    const snapshotTotalViews = snapshotRows?.reduce((s, r) => s + (r.views || 0), 0) || 0;
+    if (snapshotRows && snapshotRows.length > 0 && snapshotTotalViews > 0) {
       let result = snapshotRows;
 
       if (selectedChannel !== "all") {
