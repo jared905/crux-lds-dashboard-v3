@@ -943,6 +943,15 @@ export async function getVideoSnapshotAggregates(channelIds, startDate, endDate)
     };
   });
 
+  // Only use snapshot data if it has meaningful view information.
+  // Until total_view_count is populated by the daily-sync cron,
+  // views will be 0 — in that case, fall back to lifetime stats.
+  const totalViews = rows.reduce((sum, r) => sum + r.views, 0);
+  if (totalViews === 0) {
+    console.log('[Snapshots] No view data yet (total_view_count not populated), falling back to lifetime stats');
+    return null;
+  }
+
   return { rows, snapshotDays: maxDays };
 }
 
