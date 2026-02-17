@@ -150,7 +150,102 @@ function parseCSV(csvContent) {
   return { headers, rows };
 }
 
-// Fetch impressions data from YouTube Reporting API
+// Parse a single Reporting API CSV and extract per-video metrics
+function parseReportCSV(csvContent) {
+  const { headers, rows } = parseCSV(csvContent);
+
+  const videoIdCol = headers.find(h => h.toLowerCase().includes('video_id') || h === 'video_id');
+  const dateCol = headers.find(h => h.toLowerCase() === 'date');
+  const impressionsCol = headers.find(h => h.toLowerCase() === 'impressions' || h.toLowerCase().includes('thumbnail_impressions'));
+  const ctrCol = headers.find(h => h.toLowerCase().includes('click_through_rate') || h.toLowerCase() === 'ctr' || h.toLowerCase().endsWith('_ctr'));
+  const viewsCol = headers.find(h => h.toLowerCase() === 'views');
+  const watchTimeCol = headers.find(h => h.toLowerCase() === 'watch_time_minutes' || h.toLowerCase().includes('watch_time'));
+  const likesCol = headers.find(h => h.toLowerCase() === 'likes');
+  const commentsCol = headers.find(h => h.toLowerCase() === 'comments');
+  const sharesCol = headers.find(h => h.toLowerCase() === 'shares');
+  const subsGainedCol = headers.find(h => h.toLowerCase().includes('subscribers_gained'));
+  const subsLostCol = headers.find(h => h.toLowerCase().includes('subscribers_lost'));
+  const avgViewPercentageCol = headers.find(h => h.toLowerCase().includes('average_view_duration_percentage') || h.toLowerCase().includes('avg_view_percentage'));
+
+  if (!videoIdCol) return { headers, videoData: {}, byDate: {} };
+
+  console.log(`[Reporting] CSV columns: ${headers.join(', ')}`);
+  if (viewsCol) console.log(`[Reporting] Found views column: "${viewsCol}"`);
+  if (watchTimeCol) console.log(`[Reporting] Found watch_time column: "${watchTimeCol}"`);
+
+  const videoData = {};
+  const byDate = {}; // { [date]: { [videoId]: { views, impressions, ... } } }
+
+  for (const row of rows) {
+    const videoId = row[videoIdCol];
+    if (!videoId) continue;
+    const date = dateCol ? row[dateCol] : null;
+
+    const rowViews = viewsCol ? (parseInt(row[viewsCol]) || 0) : 0;
+    const rowWatchMins = watchTimeCol ? (parseFloat(row[watchTimeCol]) || 0) : 0;
+    const rowImpressions = impressionsCol ? (parseInt(row[impressionsCol]) || 0) : 0;
+    const rowCtr = ctrCol ? (parseFloat(row[ctrCol]) || 0) : 0;
+    const rowLikes = likesCol ? (parseInt(row[likesCol]) || 0) : 0;
+    const rowComments = commentsCol ? (parseInt(row[commentsCol]) || 0) : 0;
+    const rowShares = sharesCol ? (parseInt(row[sharesCol]) || 0) : 0;
+    const rowSubsGained = subsGainedCol ? (parseInt(row[subsGainedCol]) || 0) : 0;
+    const rowSubsLost = subsLostCol ? (parseInt(row[subsLostCol]) || 0) : 0;
+    const rowAvgViewPct = avgViewPercentageCol ? (parseFloat(row[avgViewPercentageCol]) || 0) : 0;
+
+    // Aggregate totals per video (backward compat)
+    if (!videoData[videoId]) {
+      videoData[videoId] = {
+        impressions: 0, ctrSum: 0, ctrCount: 0,
+        views: 0, watchMinutes: 0,
+        likes: 0, comments: 0, shares: 0,
+        subscribersGained: 0, subscribersLost: 0
+      };
+    }
+    videoData[videoId].impressions += rowImpressions;
+    videoData[videoId].views += rowViews;
+    videoData[videoId].watchMinutes += rowWatchMins;
+    videoData[videoId].likes += rowLikes;
+    videoData[videoId].comments += rowComments;
+    videoData[videoId].shares += rowShares;
+    videoData[videoId].subscribersGained += rowSubsGained;
+    videoData[videoId].subscribersLost += rowSubsLost;
+    if (rowCtr > 0) {
+      videoData[videoId].ctrSum += rowCtr;
+      videoData[videoId].ctrCount++;
+    }
+
+    // Per-day breakdown for historical backfill
+    if (date) {
+      if (!byDate[date]) byDate[date] = {};
+      byDate[date][videoId] = {
+        views: rowViews,
+        watchHours: rowWatchMins / 60,
+        impressions: rowImpressions,
+        ctr: rowCtr,
+        likes: rowLikes,
+        comments: rowComments,
+        shares: rowShares,
+        subscribersGained: rowSubsGained,
+        subscribersLost: rowSubsLost,
+        avgViewPercentage: rowAvgViewPct
+      };
+    }
+  }
+
+  // Finalize aggregated video data
+  for (const videoId of Object.keys(videoData)) {
+    if (videoData[videoId].ctrCount > 0) {
+      videoData[videoId].ctr = videoData[videoId].ctrSum / videoData[videoId].ctrCount;
+    }
+    delete videoData[videoId].ctrSum;
+    delete videoData[videoId].ctrCount;
+  }
+
+  return { headers, videoData, byDate };
+}
+
+// Fetch impressions/views data from YouTube Reporting API
+// Downloads up to 14 recent reports and returns per-day-per-video data
 async function fetchReportingData(accessToken, jobId) {
   // List reports
   const reportsResponse = await fetch(
@@ -174,89 +269,64 @@ async function fetchReportingData(accessToken, jobId) {
     return null; // No reports available yet
   }
 
-  // Get the most recent report
+  // Get the 14 most recent reports (each covers one day)
   reports.sort((a, b) => new Date(b.createTime) - new Date(a.createTime));
-  const latestReport = reports[0];
+  const recentReports = reports.slice(0, 14);
+  console.log(`[Reporting] Downloading ${recentReports.length} reports for historical backfill`);
 
-  // Download the report
-  const reportResponse = await fetch(latestReport.downloadUrl, {
-    headers: { 'Authorization': `Bearer ${accessToken}` }
-  });
+  // Merged results across all reports
+  const mergedVideoData = {};
+  const mergedByDate = {};
 
-  if (!reportResponse.ok) {
-    throw new Error('Failed to download report');
-  }
+  for (const report of recentReports) {
+    try {
+      const reportResponse = await fetch(report.downloadUrl, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
 
-  const csvContent = await reportResponse.text();
-  const { headers, rows } = parseCSV(csvContent);
+      if (!reportResponse.ok) {
+        console.warn(`[Reporting] Failed to download report from ${report.startTime}`);
+        continue;
+      }
 
-  // Find columns
-  const videoIdCol = headers.find(h => h.toLowerCase().includes('video_id') || h === 'video_id');
-  const impressionsCol = headers.find(h => h.toLowerCase() === 'impressions' || h.toLowerCase().includes('thumbnail_impressions'));
-  const ctrCol = headers.find(h => h.toLowerCase().includes('click_through_rate') || h.toLowerCase() === 'ctr' || h.toLowerCase().endsWith('_ctr'));
-  const likesCol = headers.find(h => h.toLowerCase() === 'likes');
-  const commentsCol = headers.find(h => h.toLowerCase() === 'comments');
-  const sharesCol = headers.find(h => h.toLowerCase() === 'shares');
-  const subsLostCol = headers.find(h => h.toLowerCase().includes('subscribers_lost'));
+      const csvContent = await reportResponse.text();
+      const { videoData, byDate } = parseReportCSV(csvContent);
 
-  if (!videoIdCol) return null;
+      // Merge per-day data
+      for (const [date, videos] of Object.entries(byDate)) {
+        if (!mergedByDate[date]) mergedByDate[date] = {};
+        Object.assign(mergedByDate[date], videos);
+      }
 
-  // Aggregate by video
-  const videoData = {};
-  for (const row of rows) {
-    const videoId = row[videoIdCol];
-    if (!videoId) continue;
-
-    if (!videoData[videoId]) {
-      videoData[videoId] = {
-        impressions: 0,
-        ctrSum: 0,
-        ctrCount: 0,
-        likes: 0,
-        comments: 0,
-        shares: 0,
-        subscribersLost: 0
-      };
-    }
-
-    if (impressionsCol && row[impressionsCol]) {
-      videoData[videoId].impressions += parseInt(row[impressionsCol]) || 0;
-    }
-
-    if (ctrCol && row[ctrCol]) {
-      const ctr = parseFloat(row[ctrCol]) || 0;
-      videoData[videoId].ctrSum += ctr;
-      videoData[videoId].ctrCount++;
-    }
-
-    if (likesCol && row[likesCol]) {
-      videoData[videoId].likes += parseInt(row[likesCol]) || 0;
-    }
-
-    if (commentsCol && row[commentsCol]) {
-      videoData[videoId].comments += parseInt(row[commentsCol]) || 0;
-    }
-
-    if (sharesCol && row[sharesCol]) {
-      videoData[videoId].shares += parseInt(row[sharesCol]) || 0;
-    }
-
-    if (subsLostCol && row[subsLostCol]) {
-      videoData[videoId].subscribersLost += parseInt(row[subsLostCol]) || 0;
+      // Merge aggregated video data
+      for (const [videoId, data] of Object.entries(videoData)) {
+        if (!mergedVideoData[videoId]) {
+          mergedVideoData[videoId] = { ...data };
+        } else {
+          mergedVideoData[videoId].impressions += data.impressions || 0;
+          mergedVideoData[videoId].views += data.views || 0;
+          mergedVideoData[videoId].watchMinutes += data.watchMinutes || 0;
+          mergedVideoData[videoId].likes += data.likes || 0;
+          mergedVideoData[videoId].comments += data.comments || 0;
+          mergedVideoData[videoId].shares += data.shares || 0;
+          mergedVideoData[videoId].subscribersGained += data.subscribersGained || 0;
+          mergedVideoData[videoId].subscribersLost += data.subscribersLost || 0;
+        }
+      }
+    } catch (e) {
+      console.warn(`[Reporting] Error processing report: ${e.message}`);
     }
   }
 
-  // Calculate average CTR and finalize data
-  for (const videoId of Object.keys(videoData)) {
-    if (videoData[videoId].ctrCount > 0) {
-      videoData[videoId].ctr = videoData[videoId].ctrSum / videoData[videoId].ctrCount;
-    }
-    // Clean up aggregation fields
-    delete videoData[videoId].ctrSum;
-    delete videoData[videoId].ctrCount;
-  }
+  const dateCount = Object.keys(mergedByDate).length;
+  const videoCount = Object.keys(mergedVideoData).length;
+  console.log(`[Reporting] Got data for ${videoCount} videos across ${dateCount} days`);
 
-  return { videoData, reportDate: latestReport.createTime };
+  return {
+    videoData: mergedVideoData,
+    byDate: mergedByDate,
+    reportDate: recentReports[0].createTime
+  };
 }
 
 // Parse ISO 8601 duration (PT4M13S) to seconds
@@ -490,15 +560,18 @@ async function syncConnection(connection) {
       }
 
       // Create daily snapshot (upsert to handle re-runs)
+      // Use reporting views as fallback when Analytics API views unavailable
+      const reportingViews = reporting.views || 0;
+      const reportingWatchHours = reporting.watchMinutes ? reporting.watchMinutes / 60 : null;
       const snapshotData = {
         video_id: video.id,
         snapshot_date: yesterday,
-        view_count: analytics.views || null,
+        view_count: analytics.views || reportingViews || null,
         impressions: reporting.impressions || analytics.impressions || null,
         ctr: reporting.ctr || analytics.ctr || null,
         avg_view_percentage: analytics.avgViewPercentage || null,
-        watch_hours: analytics.watchHours || null,
-        subscribers_gained: analytics.subscribersGained || null,
+        watch_hours: analytics.watchHours || reportingWatchHours || null,
+        subscribers_gained: analytics.subscribersGained || reporting.subscribersGained || null,
         subscribers_lost: reporting.subscribersLost || null,
         likes: reporting.likes || null,
         comments: reporting.comments || null,
@@ -523,6 +596,64 @@ async function syncConnection(connection) {
           results.snapshotsCreated++;
         }
       }
+    }
+
+    // Backfill historical snapshots from Reporting API per-day data
+    if (reportingData?.byDate && videos) {
+      const videoMap = {};
+      for (const v of videos) { videoMap[v.youtube_video_id] = v; }
+
+      const dates = Object.keys(reportingData.byDate).sort();
+      console.log(`[Daily Sync] Backfilling ${dates.length} days of historical snapshots`);
+
+      let backfillCount = 0;
+      const batchSize = 50;
+      let batch = [];
+
+      for (const date of dates) {
+        const dayData = reportingData.byDate[date];
+        for (const [ytVideoId, metrics] of Object.entries(dayData)) {
+          const dbVideo = videoMap[ytVideoId];
+          if (!dbVideo) continue;
+
+          const hasMetrics = metrics.views || metrics.impressions || metrics.watchHours || metrics.likes;
+          if (!hasMetrics) continue;
+
+          batch.push({
+            video_id: dbVideo.id,
+            snapshot_date: date,
+            view_count: metrics.views || null,
+            impressions: metrics.impressions || null,
+            ctr: metrics.ctr || null,
+            watch_hours: metrics.watchHours || null,
+            likes: metrics.likes || null,
+            comments: metrics.comments || null,
+            shares: metrics.shares || null,
+            subscribers_gained: metrics.subscribersGained || null,
+            subscribers_lost: metrics.subscribersLost || null,
+            avg_view_percentage: metrics.avgViewPercentage || null,
+          });
+
+          if (batch.length >= batchSize) {
+            const { error } = await supabase
+              .from('video_snapshots')
+              .upsert(batch, { onConflict: 'video_id,snapshot_date' });
+            if (!error) backfillCount += batch.length;
+            batch = [];
+          }
+        }
+      }
+
+      // Flush remaining batch
+      if (batch.length > 0) {
+        const { error } = await supabase
+          .from('video_snapshots')
+          .upsert(batch, { onConflict: 'video_id,snapshot_date' });
+        if (!error) backfillCount += batch.length;
+      }
+
+      console.log(`[Daily Sync] Backfilled ${backfillCount} historical snapshots across ${dates.length} days`);
+      results.historicalBackfill = backfillCount;
     }
 
     // Update connection last sync time
