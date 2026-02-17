@@ -522,9 +522,10 @@ async function syncConnection(connection) {
         console.log(`[Daily Sync] Analytics 30d: ${analytics30.rows.length} videos with watch hours/subs`);
       }
     } catch (e) {
-      // Non-fatal — backfill will just lack watch hours
+      results.errors.push(`Analytics30d: ${e.message}`);
       console.warn(`[Daily Sync] Analytics 30d failed (backfill will lack watch hours): ${e.message}`);
     }
+    results.analytics30dVideos = Object.keys(analytics30d).length;
 
     // Fetch reporting data (impressions/CTR)
     let reportingData = null;
@@ -583,22 +584,21 @@ async function syncConnection(connection) {
       }
 
       // Create daily snapshot (upsert to handle re-runs)
-      // Use reporting views as fallback when Analytics API views unavailable
-      const reportingViews = reporting.views || 0;
-      const reportingWatchHours = reporting.watchMinutes ? reporting.watchMinutes / 60 : null;
+      // Use per-day reporting data for yesterday (not the 30-day aggregate)
+      const reportingDay = reportingData?.byDate?.[yesterday]?.[videoId] || {};
       const snapshotData = {
         video_id: video.id,
         snapshot_date: yesterday,
-        view_count: analytics.views || reportingViews || null,
-        impressions: reporting.impressions || analytics.impressions || null,
-        ctr: reporting.ctr || analytics.ctr || null,
+        view_count: analytics.views || reportingDay.views || null,
+        impressions: reportingDay.impressions || reporting.impressions || analytics.impressions || null,
+        ctr: reportingDay.ctr || reporting.ctr || analytics.ctr || null,
         avg_view_percentage: analytics.avgViewPercentage || null,
-        watch_hours: analytics.watchHours || reportingWatchHours || null,
-        subscribers_gained: analytics.subscribersGained || reporting.subscribersGained || null,
-        subscribers_lost: reporting.subscribersLost || null,
-        likes: reporting.likes || null,
-        comments: reporting.comments || null,
-        shares: reporting.shares || null,
+        watch_hours: analytics.watchHours || reportingDay.watchHours || null,
+        subscribers_gained: analytics.subscribersGained || reportingDay.subscribersGained || null,
+        subscribers_lost: reportingDay.subscribersLost || reporting.subscribersLost || null,
+        likes: reportingDay.likes || reporting.likes || null,
+        comments: reportingDay.comments || reporting.comments || null,
+        shares: reportingDay.shares || reporting.shares || null,
         // Cumulative Data API counts — always available from discoverVideos
         // Period views = MAX(total_view_count) - MIN(total_view_count)
         total_view_count: video.view_count || null,
