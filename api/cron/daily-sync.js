@@ -503,6 +503,29 @@ async function syncConnection(connection) {
       results.errors.push(`Analytics: ${e.message}`);
     }
 
+    // Fetch 30-day Analytics API totals for watch hours, subscribers, retention
+    // (Analytics API doesn't support video+day dimensions together, so we get per-video period totals
+    //  and distribute proportionally across daily snapshots based on views)
+    let analytics30d = {};
+    try {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const analytics30 = await fetchAnalytics(accessToken, channelId, thirtyDaysAgo, yesterday);
+      if (analytics30.rows) {
+        for (const row of analytics30.rows) {
+          analytics30d[row[0]] = {
+            views: row[1] ?? 0,
+            watchHours: (row[2] ?? 0) / 60,
+            avgViewPercentage: (row[3] ?? 0) / 100,
+            subscribersGained: row[4] ?? 0,
+          };
+        }
+        console.log(`[Daily Sync] Analytics 30d: ${analytics30.rows.length} videos with watch hours/subs`);
+      }
+    } catch (e) {
+      // Non-fatal — backfill will just lack watch hours
+      console.warn(`[Daily Sync] Analytics 30d failed (backfill will lack watch hours): ${e.message}`);
+    }
+
     // Fetch reporting data (impressions/CTR)
     let reportingData = null;
     if (connection.reporting_job_id) {
@@ -599,12 +622,22 @@ async function syncConnection(connection) {
     }
 
     // Backfill historical snapshots from Reporting API per-day data
+    // Enriched with Analytics API 30-day totals (watch hours, subs, retention)
     if (reportingData?.byDate && videos) {
       const videoMap = {};
       for (const v of videos) { videoMap[v.youtube_video_id] = v; }
 
       const dates = Object.keys(reportingData.byDate).sort();
       console.log(`[Daily Sync] Backfilling ${dates.length} days of historical snapshots`);
+
+      // Pre-compute total views per video across all reporting days
+      // so we can distribute Analytics API watch hours proportionally
+      const totalViewsByVideo = {};
+      for (const date of dates) {
+        for (const [ytVideoId, metrics] of Object.entries(reportingData.byDate[date])) {
+          totalViewsByVideo[ytVideoId] = (totalViewsByVideo[ytVideoId] || 0) + (metrics.views || 0);
+        }
+      }
 
       let backfillCount = 0;
       const batchSize = 50;
@@ -619,19 +652,29 @@ async function syncConnection(connection) {
           const hasMetrics = metrics.views || metrics.impressions || metrics.watchHours || metrics.likes;
           if (!hasMetrics) continue;
 
+          // Distribute Analytics API 30-day totals proportionally by daily views
+          const a30 = analytics30d[ytVideoId];
+          const dailyViews = metrics.views || 0;
+          const totalViews = totalViewsByVideo[ytVideoId] || 1;
+          const viewShare = totalViews > 0 ? dailyViews / totalViews : 0;
+
+          const watchHours = metrics.watchHours || (a30 ? a30.watchHours * viewShare : null);
+          const subsGained = metrics.subscribersGained || (a30 && a30.subscribersGained ? Math.round(a30.subscribersGained * viewShare) : null);
+          const avgViewPct = metrics.avgViewPercentage || (a30 ? a30.avgViewPercentage : null);
+
           batch.push({
             video_id: dbVideo.id,
             snapshot_date: date,
             view_count: metrics.views || null,
             impressions: metrics.impressions || null,
             ctr: metrics.ctr || null,
-            watch_hours: metrics.watchHours || null,
+            watch_hours: watchHours || null,
             likes: metrics.likes || null,
             comments: metrics.comments || null,
             shares: metrics.shares || null,
-            subscribers_gained: metrics.subscribersGained || null,
+            subscribers_gained: subsGained || null,
             subscribers_lost: metrics.subscribersLost || null,
-            avg_view_percentage: metrics.avgViewPercentage || null,
+            avg_view_percentage: avgViewPct || null,
           });
 
           if (batch.length >= batchSize) {
