@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   Smartphone, MonitorPlay, Eye, BarChart3,
-  MousePointerClick, Clock, ExternalLink, ChevronDown, ChevronUp
+  MousePointerClick, UserPlus, Clock, ExternalLink, ChevronDown, ChevronUp
 } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/utils";
 import { getYouTubeThumbnailUrl } from "../../lib/schema";
@@ -371,9 +371,9 @@ export default function TopVideos({ rows, n = 10 }) {
                 <div style={s.metricValue(ctrColor)}>{fmtPct(video.ctr || 0, 1)}</div>
               </div>
 
-              <div style={s.metricCol("85px")}>
-                <div style={s.metricLabel}><Clock size={12} /> Hours</div>
-                <div style={s.metricValue()}>{(video.watchHours || 0) < 10 ? (video.watchHours || 0).toFixed(1) : fmtInt(Math.round(video.watchHours || 0))}</div>
+              <div style={s.metricCol()}>
+                <div style={s.metricLabel}><UserPlus size={12} /> Subs</div>
+                <div style={s.metricValue()}>{fmtInt(video.subscribers || 0)}</div>
               </div>
 
             </div>
