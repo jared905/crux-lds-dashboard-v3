@@ -655,6 +655,8 @@ async function syncConnection(connection) {
         keyMatch: reportingKeys.length > 0 && analyticsKeys.length > 0 ? reportingKeys.some(k => analytics30d[k] !== undefined) : 'no data',
       };
 
+      let firstVideoDebug = null;
+
       for (const date of dates) {
         const dayData = reportingData.byDate[date];
         for (const [ytVideoId, metrics] of Object.entries(dayData)) {
@@ -674,6 +676,23 @@ async function syncConnection(connection) {
           const subsGained = metrics.subscribersGained || (a30 && a30.subscribersGained ? Math.round(a30.subscribersGained * viewShare) : null);
           const avgViewPct = metrics.avgViewPercentage || (a30 ? a30.avgViewPercentage : null);
           if (watchHours && watchHours > 0) watchHoursCount++;
+
+          // Capture debug for first video processed
+          if (!firstVideoDebug) {
+            firstVideoDebug = {
+              ytVideoId,
+              date,
+              metricsWatchHours: metrics.watchHours,
+              metricsViews: metrics.views,
+              a30Exists: !!a30,
+              a30WatchHours: a30?.watchHours,
+              dailyViews,
+              totalViews,
+              viewShare,
+              computedWatchHours: watchHours,
+              computedSubs: subsGained,
+            };
+          }
 
           batch.push({
             video_id: dbVideo.id,
@@ -711,6 +730,7 @@ async function syncConnection(connection) {
       console.log(`[Daily Sync] Backfilled ${backfillCount} historical snapshots (${watchHoursCount} with watch hours) across ${dates.length} days`);
       results.historicalBackfill = backfillCount;
       results.backfillWithWatchHours = watchHoursCount;
+      results.firstVideoDebug = firstVideoDebug;
     }
 
     // Update connection last sync time
