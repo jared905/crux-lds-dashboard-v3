@@ -640,8 +640,20 @@ async function syncConnection(connection) {
       }
 
       let backfillCount = 0;
+      let watchHoursCount = 0;
       const batchSize = 50;
       let batch = [];
+
+      // Debug: sample keys from both sources to check for mismatch
+      const reportingKeys = Object.keys(Object.values(reportingData.byDate)[0] || {}).slice(0, 3);
+      const analyticsKeys = Object.keys(analytics30d).slice(0, 3);
+      const a30Sample = analyticsKeys.length > 0 ? analytics30d[analyticsKeys[0]] : null;
+      results.backfillDebug = {
+        reportingVideoIdSamples: reportingKeys,
+        analyticsVideoIdSamples: analyticsKeys,
+        analytics30dSample: a30Sample,
+        keyMatch: reportingKeys.length > 0 && analyticsKeys.length > 0 ? reportingKeys.some(k => analytics30d[k] !== undefined) : 'no data',
+      };
 
       for (const date of dates) {
         const dayData = reportingData.byDate[date];
@@ -661,6 +673,7 @@ async function syncConnection(connection) {
           const watchHours = metrics.watchHours || (a30 ? a30.watchHours * viewShare : null);
           const subsGained = metrics.subscribersGained || (a30 && a30.subscribersGained ? Math.round(a30.subscribersGained * viewShare) : null);
           const avgViewPct = metrics.avgViewPercentage || (a30 ? a30.avgViewPercentage : null);
+          if (watchHours && watchHours > 0) watchHoursCount++;
 
           batch.push({
             video_id: dbVideo.id,
@@ -695,8 +708,9 @@ async function syncConnection(connection) {
         if (!error) backfillCount += batch.length;
       }
 
-      console.log(`[Daily Sync] Backfilled ${backfillCount} historical snapshots across ${dates.length} days`);
+      console.log(`[Daily Sync] Backfilled ${backfillCount} historical snapshots (${watchHoursCount} with watch hours) across ${dates.length} days`);
       results.historicalBackfill = backfillCount;
+      results.backfillWithWatchHours = watchHoursCount;
     }
 
     // Update connection last sync time
