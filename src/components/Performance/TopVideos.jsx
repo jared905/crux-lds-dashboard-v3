@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
-  Smartphone, MonitorPlay, Eye, BarChart3,
-  MousePointerClick, UserPlus, Clock, ExternalLink, ChevronDown, ChevronUp
+  Smartphone, MonitorPlay, Eye,
+  Percent, MousePointerClick, UserPlus, Clock, ExternalLink, ChevronDown, ChevronUp
 } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/utils";
 import { getYouTubeThumbnailUrl } from "../../lib/schema";
@@ -254,6 +254,7 @@ export default function TopVideos({ rows, n = 10 }) {
           const isShort = video.type === "short";
           const viewPct = Math.max(2, ((video.views || 0) / maxViews) * 100);
 
+          const retColor = (video.avgViewPct || 0) > 1.0 && isShort ? "#FFD700" : (video.avgViewPct || 0) > 0.6 ? "#00C853" : "#E0E0E0";
           const ctrColor = (video.ctr || 0) > 0.055 ? "#00C853" : "#E0E0E0";
 
           return (
@@ -362,8 +363,10 @@ export default function TopVideos({ rows, n = 10 }) {
               </div>
 
               <div style={s.metricCol()}>
-                <div style={s.metricLabel}><BarChart3 size={12} /> Impr</div>
-                <div style={s.metricValue()}>{fmtInt(video.impressions || 0)}</div>
+                <div style={s.metricLabel}><Percent size={12} /> Ret</div>
+                <div style={s.metricValue(retColor)}>
+                  {fmtPct(video.avgViewPct || 0, 0)}
+                </div>
               </div>
 
               <div style={s.metricCol()}>
