@@ -189,3 +189,25 @@ textarea.input { min-height: 120px; resize: vertical; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* ========= RESPONSIVE OVERRIDES ========= */
+
+@media (max-width: 768px) {
+  .container { padding: 20px 12px 40px; }
+  .kpi .value { font-size: 24px; }
+  .kpi { padding: 14px 16px; }
+  .h1 { font-size: 20px; }
+  .h2 { font-size: 16px; }
+  .table th, .table td { padding: 10px 8px; font-size: 12px; }
+  .btn { padding: 8px 12px; font-size: 12px; }
+  .drawer { width: min(520px, 95vw); padding: 20px; }
+  .mobile-hide { display: none !important; }
+  .mobile-only { display: block !important; }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .container { padding: 30px 16px 48px; }
+  .kpi .value { font-size: 28px; }
+}
+
+.mobile-only { display: none; }

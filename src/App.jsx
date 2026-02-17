@@ -17,6 +17,7 @@ import FilterBar from "./components/Shared/FilterBar.jsx";
 import PDFExport from "./components/Shared/PDFExport.jsx";
 import ClientManager from "./ClientManager.jsx";
 import ClientBackground from "./components/Shared/ClientBackground.jsx";
+import { useMediaQuery } from "./hooks/useMediaQuery.js";
 
 // Tab content
 import DashboardPage from "./components/Performance/DashboardPage.jsx";
@@ -48,6 +49,7 @@ export default function App() {
   // Debug auth state
   console.log('[Auth] State:', { user: user?.email || null, authLoading, isAdmin });
 
+  const { isMobile } = useMediaQuery();
   const [sidebar, setSidebar] = useState(false);
   const [tab, setTab] = useState(() => {
     // Check URL params for tab (used by OAuth callback redirect)
@@ -847,31 +849,34 @@ export default function App() {
         userEmail={user?.email || ""}
       />
       
-      <div style={{ background: "#1E1E1E", borderBottom: "1px solid #333", padding: "16px 24px", display: "flex", alignItems: "center", gap: "16px", position: "sticky", top: 0, zIndex: 100 }}>
+      <div style={{ background: "#1E1E1E", borderBottom: "1px solid #333", padding: isMobile ? "10px 12px" : "16px 24px", display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", alignItems: "center", gap: isMobile ? "8px" : "16px", position: "sticky", top: 0, zIndex: 100 }}>
         <button onClick={() => setSidebar(true)} style={{ background: "transparent", border: "none", color: "#E0E0E0", cursor: "pointer" }}><Menu size={24} /></button>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <img src="/Full_View_Logo.png" alt="Full View Analytics" style={{ height: "72px", objectFit: "contain" }} />
-          <div style={{ fontSize: "11px", color: "#666", fontWeight: "500", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "4px", marginLeft: "40px" }}>
-            POWERED BY <a href="https://crux.media/" target="_blank" rel="noopener noreferrer"><img src="/crux-logo.png" alt="CRUX" style={{ height: "18px", objectFit: "contain", opacity: 0.7 }} /></a>
-          </div>
+          <img src="/Full_View_Logo.png" alt="Full View Analytics" style={{ height: isMobile ? "40px" : "72px", objectFit: "contain" }} />
+          {!isMobile && (
+            <div style={{ fontSize: "11px", color: "#666", fontWeight: "500", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "4px", marginLeft: "40px" }}>
+              POWERED BY <a href="https://crux.media/" target="_blank" rel="noopener noreferrer"><img src="/crux-logo.png" alt="CRUX" style={{ height: "18px", objectFit: "contain", opacity: 0.7 }} /></a>
+            </div>
+          )}
         </div>
-        <div style={{ flex: 1 }} />
+        <div style={{ flex: isMobile ? 1 : 1 }} />
         {activeClient && (
           <>
             {/* Client Selector Dropdown */}
-            <div style={{ position: "relative" }}>
-              <select 
-                value={activeClient?.id || ""} 
+            <div style={{ position: "relative", ...(isMobile ? { width: "100%", order: 10 } : {}) }}>
+              <select
+                value={activeClient?.id || ""}
                 onChange={(e) => {
                   const client = clients.find(c => c.id === e.target.value);
                   if (client) handleClientChange(client);
                 }}
-                style={{ 
-                  minWidth: "250px", 
-                  border: "1px solid #2962FF", 
-                  borderRadius: "8px", 
-                  padding: "12px 40px 12px 14px", 
-                  background: "#252525", 
+                style={{
+                  minWidth: isMobile ? 0 : "250px",
+                  width: isMobile ? "100%" : "auto",
+                  border: "1px solid #2962FF",
+                  borderRadius: "8px",
+                  padding: isMobile ? "10px 36px 10px 12px" : "12px 40px 12px 14px",
+                  background: "#252525",
                   color: "#E0E0E0",
                   fontSize: "14px",
                   fontWeight: "600",
@@ -887,9 +892,9 @@ export default function App() {
               </select>
               <ChevronDown size={18} style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", color: "#9E9E9E", pointerEvents: "none" }} />
             </div>
-            
+
             {/* Last Updated */}
-            {activeClient && (
+            {!isMobile && activeClient && (
               <div style={{ fontSize: "12px", color: "#666", display: "flex", alignItems: "center", gap: "6px" }}>
                 <span>Updated:</span>
                 <span style={{ color: "#9E9E9E", fontWeight: "600" }}>
@@ -910,9 +915,9 @@ export default function App() {
               allTimeKpis={allTimeKpis}
               channelStats={channelStats}
             />
-            
+
             {/* Client Manager Button */}
-            <ClientManager 
+            <ClientManager
               clients={clients}
               activeClient={activeClient}
               onClientChange={handleClientChange}
@@ -953,7 +958,7 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "80px 24px 40px" }}>
+      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: isMobile ? "20px 10px 24px" : "80px 24px 40px" }}>
         {/* Welcome Screen - No Clients */}
         {!activeClient && (
           <div style={{

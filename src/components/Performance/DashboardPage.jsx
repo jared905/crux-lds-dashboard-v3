@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useMediaQuery } from "../../hooks/useMediaQuery.js";
 import { Eye, Clock, Users, Target, BarChart3, TrendingUp, TrendingDown, Video, PlaySquare, Activity, ChevronDown, ChevronUp } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/formatters.js";
 import Chart from "./Chart.jsx";
@@ -93,6 +94,7 @@ function KpiCard({ icon: Icon, label, value, allTimeLabel, allTimeValue, color, 
 }
 
 export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric, channelStats, activeClient }) {
+  const { isMobile } = useMediaQuery();
   // Channel stats (subscribers, views, videoCount) are fetched by the parent (App.jsx)
   // which correctly handles per-channel resolution and "all channels" aggregation.
   const resolvedStats = channelStats;
@@ -144,8 +146,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
       {/* Top Level KPIs - Period + All Time — now with deltas & click-to-expand */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-        gap: "16px",
+        gridTemplateColumns: isMobile ? "repeat(auto-fit, minmax(140px, 1fr))" : "repeat(auto-fit, minmax(180px, 1fr))",
+        gap: isMobile ? "10px" : "16px",
         marginBottom: "24px"
       }}>
         {/* Videos */}
@@ -224,7 +226,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         background: "#1E1E1E",
         border: "1px solid #333",
         borderRadius: "12px",
-        padding: "24px",
+        padding: isMobile ? "16px" : "24px",
         marginBottom: "24px",
         position: "relative",
         overflow: "hidden"
@@ -246,7 +248,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? "16px" : "20px" }}>
           {/* Shorts Column */}
           <div style={{
             background: "#252525",
@@ -645,7 +647,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
           <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff", marginBottom: "12px" }}>
             Individual Format Metrics
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? "16px" : "20px" }}>
             {/* Shorts Individual Metrics */}
             <div style={{
               background: "#252525",
@@ -769,7 +771,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
           }}>
 
             {/* Top Row: Production Mix + 3 Donut Charts */}
-            <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 1fr 1fr", gap: "24px", marginBottom: "24px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "200px 1fr 1fr 1fr", gap: isMobile ? "16px" : "24px", marginBottom: "24px" }}>
 
               {/* Production Mix - Color Outlined Box */}
               <div style={{
@@ -1015,8 +1017,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
             {/* Bottom Row: Insights */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr 1fr",
-              gap: "16px",
+              gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr 1fr",
+              gap: isMobile ? "12px" : "16px",
               paddingTop: "16px",
               borderTop: "1px solid #333"
             }}>

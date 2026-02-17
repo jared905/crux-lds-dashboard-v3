@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useMediaQuery } from "../../hooks/useMediaQuery.js";
 import {
   X,
   Upload,
@@ -114,6 +115,7 @@ function sectionForTab(tabId) {
 }
 
 const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, onSignOut, userEmail }) => {
+  const { isMobile } = useMediaQuery();
   // All sections start expanded
   const [expanded, setExpanded] = useState(() => {
     const initial = {};
@@ -154,9 +156,9 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
       <div
         style={{
           position: "fixed",
-          left: open ? 0 : "-280px",
+          left: open ? 0 : isMobile ? "-85vw" : "-280px",
           top: 0,
-          width: "280px",
+          width: isMobile ? "min(280px, 85vw)" : "280px",
           height: "100vh",
           background: "#1E1E1E",
           borderRight: "1px solid #333",
@@ -272,7 +274,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
                           display: "flex",
                           alignItems: "center",
                           gap: "12px",
-                          padding: "12px 28px",
+                          padding: isMobile ? "14px 20px" : "12px 28px",
                           marginBottom: "4px",
                           background: isActive ? "rgba(41, 98, 255, 0.15)" : "transparent",
                           border: "none",
@@ -282,6 +284,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
                           fontWeight: "600",
                           fontSize: "14px",
                           textAlign: "left",
+                          minHeight: isMobile ? "44px" : "auto",
                         }}
                       >
                         <TabIcon size={18} />
