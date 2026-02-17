@@ -536,7 +536,7 @@ export async function detectAllGaps(clientVideos, clientId) {
   const { supabase } = await import('./supabaseClient');
   if (!supabase) return { gaps: [], summary: { total: 0, byType: {}, topGapType: null } };
 
-  const { data: compChannels } = await getChannels({ clientId, isCompetitor: true });
+  const compChannels = await getChannels({ clientId, isCompetitor: true });
   if (!compChannels || compChannels.length === 0) {
     return { gaps: [], summary: { total: 0, byType: {}, topGapType: null }, noCompetitors: true };
   }
