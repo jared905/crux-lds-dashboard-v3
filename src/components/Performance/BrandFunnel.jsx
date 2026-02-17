@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useState } from "react";
 import { TrendingUp, TrendingDown, Minus, AlertCircle, CheckCircle, Zap, Clock } from "lucide-react";
+import { useMediaQuery } from "../../hooks/useMediaQuery.js";
 
 // 2026 YouTube Retention Benchmarks by video duration
 // Source: YouTube Retention Benchmark Report 2026
@@ -20,6 +21,7 @@ const getExpectedRetention = (durationSeconds) => {
 const ENGAGEMENT_THRESHOLD = 0.50;
 
 export default function BrandFunnel({ rows, dateRange }) {
+  const { isMobile } = useMediaQuery();
   const [particles, setParticles] = useState([]);
 
   const funnelData = useMemo(() => {
@@ -339,37 +341,39 @@ export default function BrandFunnel({ rows, dateRange }) {
                         "Last 28 Days";
 
   return (
-    <div style={{ 
-      background: "linear-gradient(135deg, #1E1E1E 0%, #2A2A2A 100%)", 
-      border: "2px solid #333", 
-      borderRadius: "12px", 
-      padding: "28px", 
+    <div style={{
+      background: "linear-gradient(135deg, #1E1E1E 0%, #2A2A2A 100%)",
+      border: "2px solid #333",
+      borderRadius: "12px",
+      padding: isMobile ? "16px" : "28px",
       marginBottom: "20px",
       position: "relative",
       overflow: "hidden"
     }}>
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "4px", background: "linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899)" }} />
-      
+
       {/* Header */}
-      <div style={{ marginBottom: "28px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
-          <Zap size={22} style={{ color: "#8b5cf6" }} />
-          <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff" }}>Impact Funnel</div>
-          <div style={{ fontSize: "13px", color: "#9E9E9E", background: "#252525", padding: "5px 12px", borderRadius: "6px" }}>
+      <div style={{ marginBottom: isMobile ? "16px" : "28px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "8px" : "12px", marginBottom: "8px", flexWrap: "wrap" }}>
+          <Zap size={isMobile ? 18 : 22} style={{ color: "#8b5cf6" }} />
+          <div style={{ fontSize: isMobile ? "18px" : "22px", fontWeight: "700", color: "#fff" }}>Impact Funnel</div>
+          <div style={{ fontSize: isMobile ? "11px" : "13px", color: "#9E9E9E", background: "#252525", padding: isMobile ? "3px 8px" : "5px 12px", borderRadius: "6px" }}>
             {dateRangeLabel}
           </div>
         </div>
-        <div style={{ fontSize: "14px", color: "#9E9E9E", marginLeft: "34px" }}>
-          How your content converts passive viewers into engaged brand advocates
-        </div>
+        {!isMobile && (
+          <div style={{ fontSize: "14px", color: "#9E9E9E", marginLeft: "34px" }}>
+            How your content converts passive viewers into engaged brand advocates
+          </div>
+        )}
       </div>
 
       {/* Main Content */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 400px", gap: "40px", alignItems: "start" }}>
-        
-        {/* Left: SVG Funnel - MUCH WIDER */}
-        <div style={{ position: "relative", minHeight: "560px" }}>
-          <svg width="100%" height="560" viewBox="0 0 700 560" style={{ display: "block" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.4fr 400px", gap: isMobile ? "20px" : "40px", alignItems: "start" }}>
+
+        {/* Left: SVG Funnel */}
+        <div style={{ position: "relative", minHeight: isMobile ? "320px" : "560px" }}>
+          <svg width="100%" height={isMobile ? "320" : "560"} viewBox="0 0 700 560" preserveAspectRatio="xMidYMid meet" style={{ display: "block" }}>
             <defs>
               {/* Gradients */}
               {stages.map((stage, idx) => (
@@ -653,7 +657,7 @@ export default function BrandFunnel({ rows, dateRange }) {
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "6px" }}>
               <div style={{
-                fontSize: "38px",
+                fontSize: isMobile ? "28px" : "38px",
                 fontWeight: "700",
                 color: funnelData.engagementQualityRatio >= 1.3 ? "#10b981"
                   : funnelData.engagementQualityRatio >= 1.0 ? "#8b5cf6"
