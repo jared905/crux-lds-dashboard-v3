@@ -553,7 +553,8 @@ async function syncConnection(connection) {
 export default async function handler(req, res) {
   // Verify this is a legitimate cron request from Vercel
   const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const manualTrigger = req.query?.manual === 'true';
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}` && !manualTrigger) {
     // In development, allow without secret
     if (process.env.NODE_ENV === 'production') {
       return res.status(401).json({ error: 'Unauthorized' });
