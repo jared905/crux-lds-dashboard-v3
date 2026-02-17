@@ -98,23 +98,32 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
   const resolvedStats = channelStats;
   const isDateFiltered = dateRange !== "all";
 
-  // Count videos uploaded within the selected date range
-  const uploadedInPeriod = useMemo(() => {
-    if (!isDateFiltered) return filtered.length;
+  // Compute the start date for the active period (reused for upload counts)
+  const periodStartDate = useMemo(() => {
+    if (!isDateFiltered) return null;
     const now = new Date();
-    let startDate;
-    if (dateRange === "ytd") {
-      startDate = new Date(now.getFullYear(), 0, 1);
-    } else if (dateRange === "7d") {
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    } else if (dateRange === "28d") {
-      startDate = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
-    } else if (dateRange === "90d") {
-      startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-    }
-    if (!startDate) return filtered.length;
-    return filtered.filter(r => r.publishDate && new Date(r.publishDate) >= startDate).length;
-  }, [filtered, dateRange, isDateFiltered]);
+    if (dateRange === "ytd") return new Date(now.getFullYear(), 0, 1);
+    if (dateRange === "7d") return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    if (dateRange === "28d") return new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+    if (dateRange === "90d") return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    return null;
+  }, [dateRange, isDateFiltered]);
+
+  // Count videos uploaded within the selected date range, split by type
+  const uploadCounts = useMemo(() => {
+    const publishedInPeriod = periodStartDate
+      ? filtered.filter(r => r.publishDate && new Date(r.publishDate) >= periodStartDate)
+      : filtered;
+    const shorts = publishedInPeriod.filter(r => r.type === 'short');
+    const longs = publishedInPeriod.filter(r => r.type !== 'short');
+    return {
+      total: publishedInPeriod.length,
+      shorts: shorts.length,
+      longs: longs.length,
+    };
+  }, [filtered, periodStartDate]);
+
+  const uploadedInPeriod = uploadCounts.total;
 
   return (
     <>
@@ -260,7 +269,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
                 </div>
               </div>
               <div style={{ fontSize: "11px", color: "#888" }}>
-                {kpis.shortsMetrics.count} videos in period
+                {isDateFiltered ? `${uploadCounts.shorts} uploaded, ${kpis.shortsMetrics.count} active` : `${kpis.shortsMetrics.count} videos`}
               </div>
             </div>
 
@@ -283,13 +292,14 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
                   }
                 }
                 const monthsInPeriod = daysInPeriod / 30;
-                const uploadsPerMonth = monthsInPeriod > 0 ? kpis.shortsMetrics.count / monthsInPeriod : 0;
+                const shortsUploadCount = isDateFiltered ? uploadCounts.shorts : kpis.shortsMetrics.count;
+                const uploadsPerMonth = monthsInPeriod > 0 ? shortsUploadCount / monthsInPeriod : 0;
 
                 const metrics = [
                   {
                     icon: Activity,
-                    label: "Total Uploads",
-                    value: kpis.shortsMetrics.count,
+                    label: isDateFiltered ? "Uploaded" : "Total Uploads",
+                    value: shortsUploadCount,
                     prevValue: previousKpis.shortsMetrics.count,
                     color: "#f97316",
                     format: fmtInt,
@@ -418,7 +428,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
                 </div>
               </div>
               <div style={{ fontSize: "11px", color: "#888" }}>
-                {kpis.longsMetrics.count} videos in period
+                {isDateFiltered ? `${uploadCounts.longs} uploaded, ${kpis.longsMetrics.count} active` : `${kpis.longsMetrics.count} videos`}
               </div>
             </div>
 
@@ -441,13 +451,14 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
                   }
                 }
                 const monthsInPeriod = daysInPeriod / 30;
-                const uploadsPerMonth = monthsInPeriod > 0 ? kpis.longsMetrics.count / monthsInPeriod : 0;
+                const longsUploadCount = isDateFiltered ? uploadCounts.longs : kpis.longsMetrics.count;
+                const uploadsPerMonth = monthsInPeriod > 0 ? longsUploadCount / monthsInPeriod : 0;
 
                 const metrics = [
                   {
                     icon: PlaySquare,
-                    label: "Total Uploads",
-                    value: kpis.longsMetrics.count,
+                    label: isDateFiltered ? "Uploaded" : "Total Uploads",
+                    value: longsUploadCount,
                     prevValue: previousKpis.longsMetrics.count,
                     color: "#0ea5e9",
                     format: fmtInt,
