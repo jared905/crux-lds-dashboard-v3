@@ -269,9 +269,9 @@ async function fetchReportingData(accessToken, jobId) {
     return null; // No reports available yet
   }
 
-  // Get the 14 most recent reports (each covers one day)
+  // Get the 30 most recent reports (each covers one day)
   reports.sort((a, b) => new Date(b.createTime) - new Date(a.createTime));
-  const recentReports = reports.slice(0, 14);
+  const recentReports = reports.slice(0, 30);
   console.log(`[Reporting] Downloading ${recentReports.length} reports for historical backfill`);
 
   // Merged results across all reports
