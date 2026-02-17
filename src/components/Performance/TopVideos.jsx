@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/utils";
 import { getYouTubeThumbnailUrl } from "../../lib/schema";
+import { useMediaQuery } from "../../hooks/useMediaQuery.js";
 
 /**
  * Robust helper to parse duration from various inputs (Seconds, Strings, ISO 8601)
@@ -50,6 +51,7 @@ const getDurationString = (video) => {
 };
 
 export default function TopVideos({ rows, n = 10 }) {
+  const { isMobile } = useMediaQuery();
   const [expanded, setExpanded] = useState(false);
   const safeRows = rows || [];
   const displayCount = expanded ? n * 2 : n;
@@ -258,125 +260,136 @@ export default function TopVideos({ rows, n = 10 }) {
           const ctrColor = (video.ctr || 0) > 0.055 ? "#00C853" : "#E0E0E0";
 
           return (
-            <div key={idx} style={{ 
-              ...s.row, 
-              borderBottom: idx === sorted.length - 1 ? "none" : "1px solid #334155" 
+            <div key={idx} style={{
+              ...s.row,
+              flexDirection: isMobile ? "column" : "row",
+              alignItems: isMobile ? "stretch" : "center",
+              gap: isMobile ? "10px" : "16px",
+              borderBottom: idx === sorted.length - 1 ? "none" : "1px solid #334155"
             }}>
-              
-              <div style={s.rank(idx)}>#{idx + 1}</div>
 
-              {/* Thumbnail - use YouTube thumbnail if video ID available */}
-              {video.youtubeVideoId ? (
-                <a
-                  href={video.youtubeUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ flexShrink: 0 }}
-                >
-                  <img
-                    src={video.thumbnailUrl || getYouTubeThumbnailUrl(video.youtubeVideoId)}
-                    alt={video.title}
-                    style={s.thumbnail}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      e.target.nextSibling && (e.target.nextSibling.style.display = 'flex');
-                    }}
-                  />
-                </a>
-              ) : (
-                <div style={s.thumbnailPlaceholder}>
-                  {isShort ? <Smartphone size={18} /> : <MonitorPlay size={18} />}
-                </div>
-              )}
+              {/* Top section: rank + thumbnail + title/meta */}
+              <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "10px" : "16px", minWidth: 0 }}>
+                <div style={s.rank(idx)}>#{idx + 1}</div>
 
-              <div style={s.info}>
-                {/* Title - clickable link if YouTube URL available */}
-                {video.youtubeUrl ? (
+                {/* Thumbnail - use YouTube thumbnail if video ID available */}
+                {video.youtubeVideoId ? (
                   <a
                     href={video.youtubeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={s.videoTitleLink}
-                    title={video.title}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = '#60a5fa';
-                      e.currentTarget.querySelector('svg').style.color = '#60a5fa';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = '#E0E0E0';
-                      e.currentTarget.querySelector('svg').style.color = '#666';
-                    }}
+                    style={{ flexShrink: 0 }}
                   >
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {video.title || "Untitled Video"}
-                    </span>
-                    <ExternalLink size={12} style={s.linkIcon} />
+                    <img
+                      src={video.thumbnailUrl || getYouTubeThumbnailUrl(video.youtubeVideoId)}
+                      alt={video.title}
+                      style={{ ...s.thumbnail, ...(isMobile ? { width: "64px", height: "36px" } : {}) }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling && (e.target.nextSibling.style.display = 'flex');
+                      }}
+                    />
                   </a>
                 ) : (
-                  <div style={s.videoTitle} title={video.title}>{video.title || "Untitled Video"}</div>
+                  <div style={s.thumbnailPlaceholder}>
+                    {isShort ? <Smartphone size={18} /> : <MonitorPlay size={18} />}
+                  </div>
                 )}
-                
-                <div style={s.meta}>
-                  {/* Format indicator (Shorts vs Long-form) */}
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    backgroundColor: isShort ? "rgba(245, 158, 11, 0.15)" : "rgba(59, 130, 246, 0.15)",
-                    padding: "3px 8px",
-                    borderRadius: "4px",
-                    color: isShort ? "#fbbf24" : "#60a5fa",
-                    fontSize: "10px",
-                    fontWeight: "700",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    border: isShort ? "1px solid rgba(245, 158, 11, 0.3)" : "1px solid rgba(59, 130, 246, 0.3)",
-                  }}>
-                    {isShort ? <Smartphone size={11} /> : <MonitorPlay size={11} />}
-                    {isShort ? "Short" : "Long"}
+
+                <div style={s.info}>
+                  {/* Title - clickable link if YouTube URL available */}
+                  {video.youtubeUrl ? (
+                    <a
+                      href={video.youtubeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={s.videoTitleLink}
+                      title={video.title}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = '#60a5fa';
+                        e.currentTarget.querySelector('svg').style.color = '#60a5fa';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = '#E0E0E0';
+                        e.currentTarget.querySelector('svg').style.color = '#666';
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {video.title || "Untitled Video"}
+                      </span>
+                      <ExternalLink size={12} style={s.linkIcon} />
+                    </a>
+                  ) : (
+                    <div style={s.videoTitle} title={video.title}>{video.title || "Untitled Video"}</div>
+                  )}
+
+                  <div style={{ ...s.meta, flexWrap: "wrap" }}>
+                    {/* Format indicator (Shorts vs Long-form) */}
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      backgroundColor: isShort ? "rgba(245, 158, 11, 0.15)" : "rgba(59, 130, 246, 0.15)",
+                      padding: "3px 8px",
+                      borderRadius: "4px",
+                      color: isShort ? "#fbbf24" : "#60a5fa",
+                      fontSize: "10px",
+                      fontWeight: "700",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      border: isShort ? "1px solid rgba(245, 158, 11, 0.3)" : "1px solid rgba(59, 130, 246, 0.3)",
+                    }}>
+                      {isShort ? <Smartphone size={11} /> : <MonitorPlay size={11} />}
+                      {isShort ? "Short" : "Long"}
+                    </div>
+
+                    <span style={{color: "#666"}}>•</span>
+
+                    {/* Robust Duration Badge */}
+                    <div style={s.durationBadge}>
+                      <Clock size={11} />
+                      {getDurationString(video)}
+                    </div>
+
+                    {!isMobile && <span style={{color: "#666"}}>•</span>}
+                    {!isMobile && <span style={{color: "#9E9E9E"}}>{video.channel || "Unknown"}</span>}
+                    {!isMobile && <span style={{color: "#666"}}>•</span>}
+                    {!isMobile && <span>{video.publishDate ? new Date(video.publishDate).toLocaleDateString() : "No Date"}</span>}
                   </div>
+                </div>
+              </div>
 
-                  <span style={{color: "#666"}}>•</span>
+              {/* Metrics — grid row on mobile, inline on desktop */}
+              <div style={isMobile
+                ? { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px", paddingLeft: "34px" }
+                : { display: "flex", alignItems: "center", gap: "16px" }
+              }>
+                <div style={s.metricCol(isMobile ? "auto" : "100px")}>
+                  <div style={s.metricLabel}><Eye size={12} /> Views</div>
+                  <div style={s.metricValue("#fff")}>{fmtInt(video.views || 0)}</div>
+                  {!isMobile && (
+                    <div style={s.barContainer}>
+                      <div style={s.barFill(viewPct)}></div>
+                    </div>
+                  )}
+                </div>
 
-                  {/* Robust Duration Badge */}
-                  <div style={s.durationBadge}>
-                    <Clock size={11} />
-                    {getDurationString(video)}
+                <div style={s.metricCol(isMobile ? "auto" : "75px")}>
+                  <div style={s.metricLabel}><Percent size={12} /> Ret</div>
+                  <div style={s.metricValue(retColor)}>
+                    {fmtPct(video.avgViewPct || 0, 0)}
                   </div>
-
-                  <span style={{color: "#666"}}>•</span>
-
-                  <span style={{color: "#9E9E9E"}}>{video.channel || "Unknown"}</span>
-
-                  <span style={{color: "#666"}}>•</span>
-
-                  <span>{video.publishDate ? new Date(video.publishDate).toLocaleDateString() : "No Date"}</span>
                 </div>
-              </div>
 
-              <div style={s.metricCol("100px")}>
-                <div style={s.metricLabel}><Eye size={12} /> Views</div>
-                <div style={s.metricValue("#fff")}>{fmtInt(video.views || 0)}</div>
-                <div style={s.barContainer}>
-                  <div style={s.barFill(viewPct)}></div>
+                <div style={s.metricCol(isMobile ? "auto" : "75px")}>
+                  <div style={s.metricLabel}><MousePointerClick size={12} /> CTR</div>
+                  <div style={s.metricValue(ctrColor)}>{fmtPct(video.ctr || 0, 1)}</div>
                 </div>
-              </div>
 
-              <div style={s.metricCol()}>
-                <div style={s.metricLabel}><Percent size={12} /> Ret</div>
-                <div style={s.metricValue(retColor)}>
-                  {fmtPct(video.avgViewPct || 0, 0)}
+                <div style={s.metricCol(isMobile ? "auto" : "75px")}>
+                  <div style={s.metricLabel}><UserPlus size={12} /> Subs</div>
+                  <div style={s.metricValue()}>{fmtInt(video.subscribers || 0)}</div>
                 </div>
-              </div>
-
-              <div style={s.metricCol()}>
-                <div style={s.metricLabel}><MousePointerClick size={12} /> CTR</div>
-                <div style={s.metricValue(ctrColor)}>{fmtPct(video.ctr || 0, 1)}</div>
-              </div>
-
-              <div style={s.metricCol()}>
-                <div style={s.metricLabel}><UserPlus size={12} /> Subs</div>
-                <div style={s.metricValue()}>{fmtInt(video.subscribers || 0)}</div>
               </div>
 
             </div>
