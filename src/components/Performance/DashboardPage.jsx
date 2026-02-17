@@ -98,6 +98,24 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
   const resolvedStats = channelStats;
   const isDateFiltered = dateRange !== "all";
 
+  // Count videos uploaded within the selected date range
+  const uploadedInPeriod = useMemo(() => {
+    if (!isDateFiltered) return filtered.length;
+    const now = new Date();
+    let startDate;
+    if (dateRange === "ytd") {
+      startDate = new Date(now.getFullYear(), 0, 1);
+    } else if (dateRange === "7d") {
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } else if (dateRange === "28d") {
+      startDate = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+    } else if (dateRange === "90d") {
+      startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    }
+    if (!startDate) return filtered.length;
+    return filtered.filter(r => r.publishDate && new Date(r.publishDate) >= startDate).length;
+  }, [filtered, dateRange, isDateFiltered]);
+
   return (
     <>
       {/* Channel Stats Section Title */}
@@ -123,13 +141,15 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
       }}>
         {/* Videos */}
         <KpiCard
-          icon={Video} label={isDateFiltered ? "Active Videos" : "Videos"} color="#94a3b8" accentBg="rgba(148, 163, 184, 0.1)"
-          value={fmtInt(filtered.length)}
-          allTimeLabel={isDateFiltered ? "total videos" : "total"}
-          allTimeValue={resolvedStats?.videoCount
-            ? fmtInt(resolvedStats.videoCount)
-            : fmtInt(allTimeKpis.count)}
-          delta={<DeltaBadge current={filtered.length} previous={previousKpis.shortsMetrics.count + previousKpis.longsMetrics.count} />}
+          icon={Video} label={isDateFiltered ? "Uploaded Videos" : "Videos"} color="#94a3b8" accentBg="rgba(148, 163, 184, 0.1)"
+          value={isDateFiltered ? fmtInt(uploadedInPeriod) : fmtInt(filtered.length)}
+          allTimeLabel={isDateFiltered ? "active in period" : "total"}
+          allTimeValue={isDateFiltered
+            ? fmtInt(filtered.length)
+            : resolvedStats?.videoCount
+              ? fmtInt(resolvedStats.videoCount)
+              : fmtInt(allTimeKpis.count)}
+          delta={<DeltaBadge current={isDateFiltered ? uploadedInPeriod : filtered.length} previous={previousKpis.shortsMetrics.count + previousKpis.longsMetrics.count} />}
           filtered={filtered} metricKey="views"
         />
 
