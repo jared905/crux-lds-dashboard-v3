@@ -52,7 +52,16 @@ export default function App() {
   const [tab, setTab] = useState(() => {
     // Check URL params for tab (used by OAuth callback redirect)
     const params = new URLSearchParams(window.location.search);
-    return params.get('tab') || 'dashboard';
+    const urlTab = params.get('tab');
+    // Clear the tab param from URL so refreshes always return to dashboard
+    if (urlTab) {
+      params.delete('tab');
+      const newUrl = params.toString()
+        ? `${window.location.pathname}?${params}`
+        : window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+    return urlTab || 'dashboard';
   });
   
   // Multi-client state with localStorage persistence
