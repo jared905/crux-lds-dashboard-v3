@@ -96,6 +96,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
   // Channel stats (subscribers, views, videoCount) are fetched by the parent (App.jsx)
   // which correctly handles per-channel resolution and "all channels" aggregation.
   const resolvedStats = channelStats;
+  const isDateFiltered = dateRange !== "all";
 
   return (
     <>
@@ -122,9 +123,10 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
       }}>
         {/* Videos */}
         <KpiCard
-          icon={Video} label="Videos" color="#94a3b8" accentBg="rgba(148, 163, 184, 0.1)"
+          icon={Video} label={isDateFiltered ? "Active Videos" : "Videos"} color="#94a3b8" accentBg="rgba(148, 163, 184, 0.1)"
           value={fmtInt(filtered.length)}
-          allTimeLabel="total" allTimeValue={resolvedStats?.videoCount
+          allTimeLabel={isDateFiltered ? "total videos" : "total"}
+          allTimeValue={resolvedStats?.videoCount
             ? fmtInt(resolvedStats.videoCount)
             : fmtInt(allTimeKpis.count)}
           delta={<DeltaBadge current={filtered.length} previous={previousKpis.shortsMetrics.count + previousKpis.longsMetrics.count} />}
@@ -133,9 +135,10 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
 
         {/* Views */}
         <KpiCard
-          icon={Eye} label="Views" color="#818cf8" accentBg="rgba(129, 140, 248, 0.1)"
+          icon={Eye} label={isDateFiltered ? "Period Views" : "Views"} color="#818cf8" accentBg="rgba(129, 140, 248, 0.1)"
           value={fmtInt(kpis.views)}
-          allTimeLabel="total" allTimeValue={resolvedStats?.viewCount
+          allTimeLabel={isDateFiltered ? "lifetime" : "total"}
+          allTimeValue={resolvedStats?.viewCount
             ? fmtInt(resolvedStats.viewCount)
             : fmtInt(allTimeKpis.views)}
           delta={<DeltaBadge current={kpis.views} previous={previousKpis.views} />}
@@ -151,15 +154,17 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
           filtered={filtered} metricKey="watchHours"
         />
 
-        {/* Subscribers — uses parent-fetched channel stats */}
+        {/* Subscribers — show period-gained when date range is active */}
         <KpiCard
-          icon={Users} label="Subscribers" color="#f472b6" accentBg="rgba(244, 114, 182, 0.1)"
-          value={resolvedStats?.subscriberCount
+          icon={Users} label={isDateFiltered ? "Subscribers Gained" : "Subscribers"} color="#f472b6" accentBg="rgba(244, 114, 182, 0.1)"
+          value={isDateFiltered
+            ? `${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`
+            : resolvedStats?.subscriberCount
               ? fmtInt(resolvedStats.subscriberCount)
               : `${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`}
-          allTimeLabel={resolvedStats?.subscriberCount ? "gained in period" : "net gained"}
-          allTimeValue={resolvedStats?.subscriberCount
-            ? `${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`
+          allTimeLabel={isDateFiltered ? "total subscribers" : "net gained"}
+          allTimeValue={isDateFiltered && resolvedStats?.subscriberCount
+            ? fmtInt(resolvedStats.subscriberCount)
             : `${allTimeKpis.subs >= 0 ? "+" : ""}${fmtInt(allTimeKpis.subs)}`}
           delta={<DeltaBadge current={kpis.subs} previous={previousKpis.subs} />}
           filtered={filtered} metricKey="subscribers"
