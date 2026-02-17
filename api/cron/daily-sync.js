@@ -630,12 +630,12 @@ async function syncConnection(connection) {
       const dates = Object.keys(reportingData.byDate).sort();
       console.log(`[Daily Sync] Backfilling ${dates.length} days of historical snapshots`);
 
-      // Pre-compute total views per video across all reporting days
-      // so we can distribute Analytics API watch hours proportionally
-      const totalViewsByVideo = {};
+      // Pre-compute total impressions per video across all reporting days
+      // (reach report has impressions but NOT views, so we distribute by impressions)
+      const totalImpressionsByVideo = {};
       for (const date of dates) {
         for (const [ytVideoId, metrics] of Object.entries(reportingData.byDate[date])) {
-          totalViewsByVideo[ytVideoId] = (totalViewsByVideo[ytVideoId] || 0) + (metrics.views || 0);
+          totalImpressionsByVideo[ytVideoId] = (totalImpressionsByVideo[ytVideoId] || 0) + (metrics.impressions || 0);
         }
       }
 
@@ -643,19 +643,6 @@ async function syncConnection(connection) {
       let watchHoursCount = 0;
       const batchSize = 50;
       let batch = [];
-
-      // Debug: sample keys from both sources to check for mismatch
-      const reportingKeys = Object.keys(Object.values(reportingData.byDate)[0] || {}).slice(0, 3);
-      const analyticsKeys = Object.keys(analytics30d).slice(0, 3);
-      const a30Sample = analyticsKeys.length > 0 ? analytics30d[analyticsKeys[0]] : null;
-      results.backfillDebug = {
-        reportingVideoIdSamples: reportingKeys,
-        analyticsVideoIdSamples: analyticsKeys,
-        analytics30dSample: a30Sample,
-        keyMatch: reportingKeys.length > 0 && analyticsKeys.length > 0 ? reportingKeys.some(k => analytics30d[k] !== undefined) : 'no data',
-      };
-
-      let firstVideoDebug = null;
 
       for (const date of dates) {
         const dayData = reportingData.byDate[date];
@@ -666,38 +653,24 @@ async function syncConnection(connection) {
           const hasMetrics = metrics.views || metrics.impressions || metrics.watchHours || metrics.likes;
           if (!hasMetrics) continue;
 
-          // Distribute Analytics API 30-day totals proportionally by daily views
+          // Distribute Analytics API 30-day totals proportionally by daily impressions
+          // (channel_reach report has impressions but NOT views/watch_time)
           const a30 = analytics30d[ytVideoId];
-          const dailyViews = metrics.views || 0;
-          const totalViews = totalViewsByVideo[ytVideoId] || 1;
-          const viewShare = totalViews > 0 ? dailyViews / totalViews : 0;
+          const dailyImpressions = metrics.impressions || 0;
+          const totalImpressions = totalImpressionsByVideo[ytVideoId] || 1;
+          const dayShare = totalImpressions > 0 ? dailyImpressions / totalImpressions : 0;
 
-          const watchHours = metrics.watchHours || (a30 ? a30.watchHours * viewShare : null);
-          const subsGained = metrics.subscribersGained || (a30 && a30.subscribersGained ? Math.round(a30.subscribersGained * viewShare) : null);
+          // Also compute estimated daily views from Analytics API totals
+          const estDailyViews = a30 && dayShare > 0 ? Math.round(a30.views * dayShare) : null;
+          const watchHours = metrics.watchHours || (a30 && dayShare > 0 ? a30.watchHours * dayShare : null);
+          const subsGained = metrics.subscribersGained || (a30 && a30.subscribersGained && dayShare > 0 ? Math.round(a30.subscribersGained * dayShare) : null);
           const avgViewPct = metrics.avgViewPercentage || (a30 ? a30.avgViewPercentage : null);
           if (watchHours && watchHours > 0) watchHoursCount++;
-
-          // Capture debug for first video processed
-          if (!firstVideoDebug) {
-            firstVideoDebug = {
-              ytVideoId,
-              date,
-              metricsWatchHours: metrics.watchHours,
-              metricsViews: metrics.views,
-              a30Exists: !!a30,
-              a30WatchHours: a30?.watchHours,
-              dailyViews,
-              totalViews,
-              viewShare,
-              computedWatchHours: watchHours,
-              computedSubs: subsGained,
-            };
-          }
 
           batch.push({
             video_id: dbVideo.id,
             snapshot_date: date,
-            view_count: metrics.views || null,
+            view_count: metrics.views || estDailyViews || null,
             impressions: metrics.impressions || null,
             ctr: metrics.ctr || null,
             watch_hours: watchHours || null,
@@ -730,7 +703,6 @@ async function syncConnection(connection) {
       console.log(`[Daily Sync] Backfilled ${backfillCount} historical snapshots (${watchHoursCount} with watch hours) across ${dates.length} days`);
       results.historicalBackfill = backfillCount;
       results.backfillWithWatchHours = watchHoursCount;
-      results.firstVideoDebug = firstVideoDebug;
     }
 
     // Update connection last sync time
