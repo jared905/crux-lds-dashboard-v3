@@ -97,19 +97,25 @@ export async function invalidateCache(insightType, clientId) {
 
 // ─── Data Fetching Helpers ────────────────────────────────────────────────────
 
-async function getTopCompetitorVideos(channelIds, { days = 90, limit = 200 } = {}) {
+async function getTopCompetitorVideos(channelIds, { days = 90, limit = 200, excludeShorts = false } = {}) {
   if (!supabase || !channelIds.length) return [];
 
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('videos')
     .select('id, title, channel_id, view_count, like_count, comment_count, published_at, thumbnail_url, video_type, duration_seconds, detected_format, title_patterns, channels(name)')
     .in('channel_id', channelIds)
     .gte('published_at', cutoff.toISOString())
     .order('view_count', { ascending: false })
     .limit(limit);
+
+  if (excludeShorts) {
+    query = query.neq('video_type', 'short');
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
   return data || [];
@@ -288,11 +294,11 @@ export async function analyzeThumbnailPatterns(channelIds, clientId, { days = 90
     if (cached) return cached;
   }
 
-  const videos = await getTopCompetitorVideos(channelIds, { days, limit: 30 });
+  const videos = await getTopCompetitorVideos(channelIds, { days, limit: 30, excludeShorts: true });
   if (!videos.length) throw new Error('No competitor videos found');
 
   const videoSummary = videos.map((v, i) =>
-    `#${i + 1}: "${v.title}" — ${(v.view_count || 0).toLocaleString()} views, type: ${v.video_type || 'long'}, format: ${v.detected_format || 'unknown'}, channel: ${v.channels?.name || 'Unknown'}`
+    `#${i + 1}: "${v.title}" — ${(v.view_count || 0).toLocaleString()} views, format: ${v.detected_format || 'unknown'}, channel: ${v.channels?.name || 'Unknown'}`
   ).join('\n');
 
   const prompt = `Analyze thumbnail patterns from these top ${videos.length} competitor videos:\n\n${videoSummary}`;
@@ -464,7 +470,7 @@ export async function analyzeThumbnailsDeep(videoIds, clientId, { forceRefresh =
 
 // Get raw thumbnail grid data (no AI, instant)
 export async function getThumbnailGrid(channelIds, { days = 90, limit = 30 } = {}) {
-  const videos = await getTopCompetitorVideos(channelIds, { days, limit });
+  const videos = await getTopCompetitorVideos(channelIds, { days, limit, excludeShorts: true });
   return videos
     .filter(v => v.thumbnail_url)
     .map(v => ({
