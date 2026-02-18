@@ -1457,7 +1457,6 @@ function BenchmarkRadarChart({ benchmark }) {
             fillOpacity={0.3}
             strokeWidth={2}
           />
-          <ReferenceLine y={100} stroke="#666" strokeDasharray="3 3" />
           <Tooltip
             contentStyle={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px" }}
             formatter={(value) => [`${(value).toFixed(0)}% of peer median`]}
