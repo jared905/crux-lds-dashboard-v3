@@ -49,7 +49,7 @@ import { categorizeVideos, getQuadrantBreakdown } from "../../services/videoCate
 const TABS = [
   { id: "summary", label: "Summary", icon: FileText },
   { id: "overview", label: "Overview", icon: BarChart3 },
-  { id: "insights", label: "Video Insights", icon: Search },
+  { id: "insights", label: "Video Performance", icon: BarChart3 },
   { id: "series", label: "Series", icon: Layers },
   { id: "benchmarks", label: "Benchmarks", icon: Users },
   { id: "opportunities", label: "Opportunities", icon: Lightbulb },
@@ -506,17 +506,22 @@ export default function AuditResults({ audit, onBack }) {
         </div>
       )}
 
-      {/* ── Video Insights Tab ── */}
+      {/* ── Video Performance Tab ── */}
       {activeTab === "insights" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {!videoAnalysis || !videos.length ? (
             <div style={{ ...card(), color: "#666", textAlign: "center", padding: "60px" }}>
-              <Search size={32} style={{ color: "#444", marginBottom: "12px" }} />
+              <BarChart3 size={32} style={{ color: "#444", marginBottom: "12px" }} />
               <div>No video data available for analysis.</div>
             </div>
-          ) : (
+          ) : (() => {
+            const breakoutCount = videoAnalysis.highReachVideos?.filter(v => !v.is_low_engagement).length || 0;
+            const investigateCount = videoAnalysis.investigateVideos?.length || 0;
+            const totalVideos = videoAnalysis.summary?.totalVideos || videos.length;
+            const normalCount = totalVideos - breakoutCount - investigateCount;
+            return (
             <>
-              {/* Baselines Panel */}
+              {/* Performance Snapshot */}
               <div style={card()}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
                   <div style={{
@@ -526,57 +531,119 @@ export default function AuditResults({ audit, onBack }) {
                   }}>
                     <BarChart3 size={20} style={{ color: COLORS.primary }} />
                   </div>
-                  <div>
-                    <div style={{ fontSize: "16px", fontWeight: "700" }}>Channel Baselines</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "16px", fontWeight: "700" }}>Performance Snapshot</div>
                     <div style={{ fontSize: "12px", color: "#9E9E9E" }}>
-                      Calculated from {videoAnalysis.summary.totalVideos} videos
+                      {totalVideos} videos analyzed
                     </div>
                   </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
-                  <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
-                    <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Median Views</div>
-                    <div style={{ fontSize: "20px", fontWeight: "700" }}>{fmtNum(videoAnalysis.baselines.medianViews)}</div>
+
+                <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: COLORS.success }} />
+                    <span style={{ fontSize: "13px", color: "#E0E0E0" }}><strong>{breakoutCount}</strong> <span style={{ color: "#9E9E9E" }}>breakout performers</span></span>
                   </div>
-                  <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
-                    <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Median Engagement</div>
-                    <div style={{ fontSize: "20px", fontWeight: "700" }}>{fmtPct(videoAnalysis.baselines.medianEngagement)}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: COLORS.warning }} />
+                    <span style={{ fontSize: "13px", color: "#E0E0E0" }}><strong>{investigateCount}</strong> <span style={{ color: "#9E9E9E" }}>need attention</span></span>
                   </div>
-                  <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
-                    <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>High Reach Threshold</div>
-                    <div style={{ fontSize: "20px", fontWeight: "700", color: COLORS.success }}>&gt;{fmtNum(Math.round(videoAnalysis.baselines.highReachThreshold))}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: "#333" }} />
+                    <span style={{ fontSize: "13px", color: "#E0E0E0" }}><strong>{normalCount}</strong> <span style={{ color: "#9E9E9E" }}>performing as expected</span></span>
                   </div>
-                  <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
-                    <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Low Engagement Threshold</div>
-                    <div style={{ fontSize: "20px", fontWeight: "700", color: COLORS.danger }}>&lt;{fmtPct(videoAnalysis.baselines.lowEngagementThreshold)}</div>
+                </div>
+
+                {/* Stacked distribution bar */}
+                <div style={{ display: "flex", height: "28px", borderRadius: "8px", overflow: "hidden", background: "#252525" }}>
+                  {breakoutCount > 0 && (
+                    <div style={{
+                      width: `${(breakoutCount / totalVideos) * 100}%`,
+                      background: COLORS.success,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: "11px", fontWeight: "700", color: "#000",
+                      minWidth: breakoutCount > 0 ? "24px" : "0",
+                    }}>
+                      {breakoutCount}
+                    </div>
+                  )}
+                  {investigateCount > 0 && (
+                    <div style={{
+                      width: `${(investigateCount / totalVideos) * 100}%`,
+                      background: COLORS.warning,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: "11px", fontWeight: "700", color: "#000",
+                      minWidth: investigateCount > 0 ? "24px" : "0",
+                    }}>
+                      {investigateCount}
+                    </div>
+                  )}
+                  <div style={{
+                    flex: 1,
+                    background: "#333",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: "11px", fontWeight: "600", color: "#9E9E9E",
+                  }}>
+                    {normalCount}
                   </div>
                 </div>
               </div>
 
-              {/* Quadrant Summary */}
-              {quadrants && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
-                  {Object.entries(quadrants).map(([key, q]) => (
-                    <div key={key} style={{
-                      ...card({ padding: "16px" }),
-                      borderLeft: `3px solid ${q.color}`,
+              {/* Breakout Performers (the wins — shown first) */}
+              {breakoutCount > 0 && (
+                <div style={card()}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+                    <div style={{
+                      width: "40px", height: "40px", borderRadius: "10px",
+                      background: "rgba(34, 197, 94, 0.15)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
-                      <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>{q.description}</div>
-                      <div style={{ fontSize: "24px", fontWeight: "700", color: q.color }}>{q.count}</div>
-                      <div style={{ fontSize: "13px", fontWeight: "600", marginTop: "4px" }}>{q.label}</div>
+                      <Zap size={20} style={{ color: COLORS.success }} />
                     </div>
-                  ))}
+                    <div>
+                      <div style={{ fontSize: "16px", fontWeight: "700" }}>Breakout Performers</div>
+                      <div style={{ fontSize: "12px", color: "#9E9E9E" }}>
+                        High reach with strong engagement — replicate these
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {videoAnalysis.highReachVideos.filter(v => !v.is_low_engagement).slice(0, 5).map((video, i) => (
+                      <div key={i} style={{
+                        display: "flex", alignItems: "center", gap: "12px", padding: "12px",
+                        background: "#252525", borderRadius: "8px",
+                      }}>
+                        <div style={{
+                          width: "24px", height: "24px", borderRadius: "50%",
+                          background: COLORS.success, color: "#000",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontWeight: "700", fontSize: "12px", flexShrink: 0,
+                        }}>
+                          {i + 1}
+                        </div>
+                        {video.thumbnail_url && (
+                          <img src={video.thumbnail_url} alt="" style={{
+                            width: "80px", height: "45px", borderRadius: "4px", objectFit: "cover", flexShrink: 0,
+                          }} />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: "13px", fontWeight: "500", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{video.title}</div>
+                          <div style={{ fontSize: "11px", color: "#9E9E9E", marginTop: "2px" }}>{fmtNum(video.view_count)} views</div>
+                        </div>
+                        <div style={{
+                          fontSize: "14px", fontWeight: "700", color: COLORS.success, flexShrink: 0,
+                          background: "rgba(34, 197, 94, 0.1)", padding: "4px 10px", borderRadius: "6px",
+                        }}>
+                          {video.views_ratio}x
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {/* Scatter Plot */}
-              <div style={card()}>
-                {sectionTitle("Views vs Engagement", "Each dot is a video. Amber dots warrant investigation.")}
-                <VideoScatterPlot categorized={videoAnalysis.categorized} baselines={videoAnalysis.baselines} />
-              </div>
-
-              {/* Investigation Table */}
-              {videoAnalysis.investigateVideos.length > 0 && (
+              {/* Videos to Investigate (the opportunities) */}
+              {investigateCount > 0 && (
                 <div style={card()}>
                   <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
                     <div style={{
@@ -589,7 +656,7 @@ export default function AuditResults({ audit, onBack }) {
                     <div>
                       <div style={{ fontSize: "16px", fontWeight: "700" }}>Videos to Investigate</div>
                       <div style={{ fontSize: "12px", color: "#9E9E9E" }}>
-                        High reach but low engagement — ask about distribution strategy
+                        High reach but low engagement — worth a closer look
                       </div>
                     </div>
                   </div>
@@ -629,48 +696,14 @@ export default function AuditResults({ audit, onBack }) {
                 </div>
               )}
 
-              {/* Breakout Performers */}
-              {videoAnalysis.highReachVideos.filter(v => !v.is_low_engagement).length > 0 && (
-                <div style={card()}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
-                    <div style={{
-                      width: "40px", height: "40px", borderRadius: "10px",
-                      background: "rgba(34, 197, 94, 0.15)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
-                      <Zap size={20} style={{ color: COLORS.success }} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: "16px", fontWeight: "700" }}>Breakout Performers</div>
-                      <div style={{ fontSize: "12px", color: "#9E9E9E" }}>
-                        High reach with strong engagement — replicate these
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {videoAnalysis.highReachVideos.filter(v => !v.is_low_engagement).slice(0, 5).map((video, i) => (
-                      <div key={i} style={{
-                        display: "flex", alignItems: "center", gap: "12px", padding: "12px",
-                        background: "#252525", borderRadius: "8px",
-                      }}>
-                        <div style={{
-                          width: "24px", height: "24px", borderRadius: "50%",
-                          background: COLORS.success, color: "#000",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontWeight: "700", fontSize: "12px",
-                        }}>
-                          {i + 1}
-                        </div>
-                        <div style={{ flex: 1, fontSize: "13px", fontWeight: "500" }}>{video.title}</div>
-                        <div style={{ fontSize: "12px", color: "#9E9E9E" }}>{fmtNum(video.view_count)} views</div>
-                        <div style={{ fontSize: "12px", color: COLORS.success, fontWeight: "600" }}>{video.views_ratio}x</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Performance Map (scatter plot — supporting detail at bottom) */}
+              <div style={card()}>
+                {sectionTitle("Performance Map", "Each dot is a video plotted by views and engagement rate")}
+                <VideoScatterPlot categorized={videoAnalysis.categorized} baselines={videoAnalysis.baselines} />
+              </div>
             </>
-          )}
+            );
+          })()}
         </div>
       )}
 
