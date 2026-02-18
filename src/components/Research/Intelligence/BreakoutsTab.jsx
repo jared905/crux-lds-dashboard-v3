@@ -125,6 +125,9 @@ export default function BreakoutsTab({
                     <div style={{ display: 'flex', gap: '10px', marginTop: '4px', fontSize: '10px', color: '#b0b0b0' }}>
                       <span>{fmtInt(video.view_count)} views</span>
                       <span>Ch avg: {fmtInt(video.channelAvgViews)}</span>
+                      {video.published_at && (
+                        <span>{new Date(video.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      )}
                     </div>
                   </div>
                   <div style={{

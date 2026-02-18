@@ -192,6 +192,37 @@ export async function deleteChannel(channelId) {
   if (error) throw error;
 }
 
+/**
+ * Unlink a channel from a specific client (sets client_id to null).
+ * The channel and its videos remain in the database for other clients or master view.
+ */
+export async function unlinkChannelFromClient(channelId) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  const { error } = await supabase
+    .from('channels')
+    .update({ client_id: null })
+    .eq('id', channelId);
+
+  if (error) throw error;
+}
+
+/**
+ * Unlink all channels matching a category + client_id from that client.
+ */
+export async function unlinkCategoryFromClient(categorySlug, clientId) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  const { error } = await supabase
+    .from('channels')
+    .update({ client_id: null })
+    .eq('category', categorySlug)
+    .eq('client_id', clientId)
+    .eq('is_competitor', true);
+
+  if (error) throw error;
+}
+
 // ============================================
 // VIDEO OPERATIONS
 // ============================================
@@ -796,6 +827,8 @@ export default {
   getChannelByYouTubeId,
   upsertChannel,
   deleteChannel,
+  unlinkChannelFromClient,
+  unlinkCategoryFromClient,
 
   // Videos
   getVideos,

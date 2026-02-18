@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, lazy, Suspense } from "react";
-import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, Upload, Download, RefreshCw, X, Check, Zap, Loader, MoreVertical, Table2, LayoutGrid, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Crown, Target, Activity, Layers, Folder, FileText } from "lucide-react";
+import { Plus, Trash2, Search, TrendingUp, Users, Video, Eye, Settings, ChevronDown, ChevronUp, PlaySquare, Calendar, BarChart3, Type, Clock, Tag, Upload, Download, RefreshCw, X, Check, Zap, Loader, MoreVertical, Table2, LayoutGrid, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Crown, Target, Activity, Layers, Folder, FileText, Unlink } from "lucide-react";
 import { analyzeTitlePatterns, analyzeUploadSchedule, categorizeContentFormats } from "../../lib/competitorAnalysis";
 import { getOutlierVideos, analyzeCompetitorVideo } from '../../services/competitorInsightsService';
 import { importCompetitorDatabase } from '../../services/competitorImport';
@@ -735,6 +735,33 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       await reloadSupabaseCompetitors();
     } catch (dbErr) {
       console.warn('[Competitors] Supabase delete failed:', dbErr);
+    }
+  };
+
+  // Unlink a single channel from the current client (keeps channel in DB)
+  const unlinkCompetitorFromClient = async (id) => {
+    try {
+      const comp = activeCompetitors.find(c => c.id === id);
+      if (!comp?.supabaseId) return;
+      const { unlinkChannelFromClient } = await import('../../services/competitorDatabase');
+      await unlinkChannelFromClient(comp.supabaseId);
+      if (selectedChannelId === id) setSelectedChannelId(null);
+      await reloadSupabaseCompetitors();
+    } catch (err) {
+      console.warn('[Competitors] Unlink from client failed:', err);
+    }
+  };
+
+  // Unlink all channels in a category from the current client
+  const unlinkCategoryFromCurrentClient = async (categorySlug) => {
+    if (!activeClient?.id) return;
+    try {
+      const { unlinkCategoryFromClient } = await import('../../services/competitorDatabase');
+      await unlinkCategoryFromClient(categorySlug, activeClient.id);
+      setSelectedChannelId(null);
+      await reloadSupabaseCompetitors();
+    } catch (err) {
+      console.warn('[Competitors] Unlink category from client failed:', err);
     }
   };
 
@@ -1982,6 +2009,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               sortCol={sortCol}
               sortDir={sortDir}
               onSort={handleSort}
+              onUnlinkCategory={!masterView ? unlinkCategoryFromCurrentClient : null}
             />
           )}
         </div>
@@ -2030,6 +2058,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           onClose={() => setSelectedChannelId(null)}
           onRefresh={refreshCompetitor}
           onRemove={(id) => { removeCompetitor(id); setSelectedChannelId(null); }}
+          onUnlinkFromClient={!masterView ? unlinkCompetitorFromClient : null}
           onCategoryChange={updateChannelCategory}
           isRefreshing={refreshingId === selectedChannel.id}
           refreshError={refreshError[selectedChannel.id] || null}
@@ -2062,6 +2091,9 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "#b0b0b0" }}>
               <span>{fmtInt(selectedOutlier.view_count)} views</span>
               <span style={{ color: "#f59e0b", fontWeight: "600" }}>{selectedOutlier.outlierScore}x avg</span>
+              {selectedOutlier.published_at && (
+                <span>{new Date(selectedOutlier.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+              )}
             </div>
           </div>
           {insightLoading ? (
@@ -2416,7 +2448,7 @@ function BulkAssignModal({ categoryConfig, activeCompetitors, clients, loading, 
 }
 
 // Channel Detail Drawer — right-side slide-out panel
-function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefresh, onRemove, onCategoryChange, isRefreshing, refreshError, userTimezone, clients, masterView, onClientAssignmentUpdate, categoryConfig }) {
+function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefresh, onRemove, onUnlinkFromClient, onCategoryChange, isRefreshing, refreshError, userTimezone, clients, masterView, onClientAssignmentUpdate, categoryConfig }) {
   const titleAnalysis = useMemo(() => drawerTab === 'content' ? analyzeTitlePatterns(channel.videos) : null, [channel.videos, drawerTab]);
   const scheduleAnalysis = useMemo(() => drawerTab === 'schedule' ? analyzeUploadSchedule(channel.videos, userTimezone) : null, [channel.videos, userTimezone, drawerTab]);
   const formatAnalysis = useMemo(() => drawerTab === 'content' ? categorizeContentFormats(channel.videos) : null, [channel.videos, drawerTab]);
@@ -2488,9 +2520,17 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
             style={{ flex: 1, background: "transparent", border: "1px solid #555", borderRadius: "6px", padding: "6px", color: "#888", fontSize: "11px", fontWeight: "600", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
             <ExternalLink size={12} /> YouTube
           </a>
+          {onUnlinkFromClient && (
+            <button onClick={() => onUnlinkFromClient(channel.id)}
+              title="Remove from this client only — channel stays in database"
+              style={{ flex: 1, background: "transparent", border: "1px solid #f59e0b", borderRadius: "6px", padding: "6px 10px", color: "#f59e0b", cursor: "pointer", fontSize: "11px", fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+              <Unlink size={12} /> Unlink
+            </button>
+          )}
           <button onClick={() => onRemove(channel.id)}
+            title="Permanently delete channel and all its data"
             style={{ flex: 1, background: "transparent", border: "1px solid #ef4444", borderRadius: "6px", padding: "6px 10px", color: "#ef4444", cursor: "pointer", fontSize: "11px", fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
-            <Trash2 size={12} /> Remove
+            <Trash2 size={12} /> Delete
           </button>
         </div>
         {refreshError && (
@@ -3216,7 +3256,7 @@ function CategoryHubCard({ group, onClick }) {
 }
 
 // ─── HubDrilldown — category detail view with sortable channel table ───
-function HubDrilldown({ group, onChannelClick, selectedChannelId, sortCol, sortDir, onSort }) {
+function HubDrilldown({ group, onChannelClick, selectedChannelId, sortCol, sortDir, onSort, onUnlinkCategory }) {
   if (!group) return null;
   const { config } = group;
 
@@ -3243,7 +3283,7 @@ function HubDrilldown({ group, onChannelClick, selectedChannelId, sortCol, sortD
           }}>
             {config.icon}
           </div>
-          <div>
+          <div style={{ flex: 1 }}>
             <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff" }}>
               {config.label}
             </div>
@@ -3251,6 +3291,14 @@ function HubDrilldown({ group, onChannelClick, selectedChannelId, sortCol, sortD
               {group.channelCount} channels — {config.description}
             </div>
           </div>
+          {onUnlinkCategory && (
+            <button
+              onClick={() => { if (window.confirm(`Remove all ${group.channelCount} channels in "${config.label}" from this client?`)) onUnlinkCategory(group.key); }}
+              title="Unlink all channels in this category from current client"
+              style={{ background: "transparent", border: "1px solid #f59e0b", borderRadius: "6px", padding: "6px 12px", color: "#f59e0b", cursor: "pointer", fontSize: "11px", fontWeight: "600", display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+              <Unlink size={12} /> Remove Category
+            </button>
+          )}
         </div>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
