@@ -211,19 +211,171 @@ export default function AuditResults({ audit, onBack }) {
 
       {/* ── Summary Tab ── */}
       {activeTab === "summary" && (
-        <div style={card()}>
-          {typeof summary === "string" ? (
-            <div
-              style={{ fontSize: "14px", lineHeight: "1.8", color: "#E0E0E0" }}
-              dangerouslySetInnerHTML={{ __html: formatMarkdown(summary) }}
-            />
-          ) : summary?.summary ? (
-            <div
-              style={{ fontSize: "14px", lineHeight: "1.8", color: "#E0E0E0" }}
-              dangerouslySetInnerHTML={{ __html: formatMarkdown(summary.summary) }}
-            />
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* 1. Channel Hero Card */}
+          <div style={card()}>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              {snapshot.thumbnail_url && (
+                <img src={snapshot.thumbnail_url} alt="" style={{ width: "56px", height: "56px", borderRadius: "50%", border: "2px solid #333" }} />
+              )}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "20px", fontWeight: "700" }}>{snapshot.name || "Channel"}</div>
+                <div style={{ fontSize: "13px", color: "#9E9E9E", marginTop: "4px" }}>
+                  {new Date(audit.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                  {" · "}{videos.length} videos analyzed
+                  {videoDateRange && (
+                    <span>
+                      {" · "}{videoDateRange.oldest.toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                      {" – "}{videoDateRange.newest.toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {audit.audit_type && (
+                  <div style={{
+                    padding: "6px 14px",
+                    background: audit.audit_type === "prospect" ? "rgba(139, 92, 246, 0.15)" : "rgba(59, 130, 246, 0.15)",
+                    border: `1px solid ${audit.audit_type === "prospect" ? "#8b5cf6" : "#3b82f6"}`,
+                    borderRadius: "20px",
+                    color: audit.audit_type === "prospect" ? "#8b5cf6" : "#3b82f6",
+                    fontWeight: "600", fontSize: "12px",
+                  }}>
+                    {audit.audit_type === "prospect" ? "Prospect" : "Baseline"}
+                  </div>
+                )}
+                {snapshot.size_tier && (
+                  <div style={{
+                    padding: "6px 14px",
+                    background: getTierColor(snapshot.size_tier) + "20",
+                    border: `1px solid ${getTierColor(snapshot.size_tier)}`,
+                    borderRadius: "20px",
+                    color: getTierColor(snapshot.size_tier),
+                    fontWeight: "600", fontSize: "12px", textTransform: "capitalize",
+                  }}>
+                    {snapshot.size_tier}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Key Metrics Strip */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+            <MetricCard label="Subscribers" value={fmtNum(snapshot.subscriber_count)} icon={Users} color={COLORS.primary} />
+            <MetricCard label="Videos Analyzed" value={snapshot.total_videos_analyzed || videos.length} icon={BarChart3} color={COLORS.pink} />
+            <MetricCard label="Avg Views (90d)" value={fmtNum(snapshot.avg_views_recent)} icon={Eye} color={COLORS.success} />
+            <MetricCard label="Engagement Rate" value={fmtPct(snapshot.avg_engagement_recent)} icon={TrendingUp} color={COLORS.warning} />
+          </div>
+
+          {/* 3. Two-column: Score Gauge + At a Glance */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <div style={card()}>
+              {benchmark?.hasBenchmarks && benchmark.comparison?.overallScore ? (
+                <>
+                  {sectionTitle("Benchmark Score", `vs ${benchmark.peer_count} peer channels`)}
+                  <SummaryScoreGauge score={benchmark.comparison.overallScore} />
+                </>
+              ) : (
+                <>
+                  {sectionTitle("Content Mix", "Shorts vs Long-form")}
+                  <ContentMixChart videos={videos} />
+                </>
+              )}
+            </div>
+
+            <div style={card()}>
+              {sectionTitle("At a Glance")}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <GlanceItem icon={Layers} label="Series Detected" value={series.total_series || 0} color={COLORS.primary} />
+                <GlanceItem icon={Lightbulb} label="Content Gaps" value={(opportunities.content_gaps || []).length} color={COLORS.purple} />
+                <GlanceItem icon={TrendingUp} label="Growth Levers" value={(opportunities.growth_levers || []).length} color={COLORS.success} />
+                <GlanceItem icon={Target} label="Recommendations" value={
+                  (recommendations.stop || []).length +
+                  (recommendations.start || []).length +
+                  (recommendations.optimize || []).length
+                } color={COLORS.warning} />
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Highlights Grid */}
+          <SummaryHighlights
+            benchmark={benchmark}
+            opportunities={opportunities}
+            series={series}
+            videoAnalysis={videoAnalysis}
+            cardStyle={card}
+          />
+
+          {/* 5. Recommendations Summary Bar */}
+          {((recommendations.stop?.length || 0) + (recommendations.start?.length || 0) + (recommendations.optimize?.length || 0) > 0) && (
+            <div style={card()}>
+              {sectionTitle("Recommendations Overview")}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+                <div style={{ borderTop: `3px solid ${COLORS.danger}`, background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "14px" }}>🛑</span>
+                    <span style={{ fontSize: "13px", fontWeight: "700", color: COLORS.danger }}>Stop ({(recommendations.stop || []).length})</span>
+                  </div>
+                  {(recommendations.stop || []).slice(0, 3).map((r, i) => (
+                    <div key={i} style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "6px", paddingLeft: "8px", borderLeft: "2px solid #333" }}>
+                      {r.action}
+                    </div>
+                  ))}
+                  {!(recommendations.stop || []).length && <div style={{ fontSize: "12px", color: "#555" }}>None</div>}
+                </div>
+                <div style={{ borderTop: `3px solid ${COLORS.success}`, background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "14px" }}>🚀</span>
+                    <span style={{ fontSize: "13px", fontWeight: "700", color: COLORS.success }}>Start ({(recommendations.start || []).length})</span>
+                  </div>
+                  {(recommendations.start || []).slice(0, 3).map((r, i) => (
+                    <div key={i} style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "6px", paddingLeft: "8px", borderLeft: "2px solid #333" }}>
+                      {r.action}
+                    </div>
+                  ))}
+                  {!(recommendations.start || []).length && <div style={{ fontSize: "12px", color: "#555" }}>None</div>}
+                </div>
+                <div style={{ borderTop: `3px solid ${COLORS.warning}`, background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "14px" }}>⚡</span>
+                    <span style={{ fontSize: "13px", fontWeight: "700", color: COLORS.warning }}>Optimize ({(recommendations.optimize || []).length})</span>
+                  </div>
+                  {(recommendations.optimize || []).slice(0, 3).map((r, i) => (
+                    <div key={i} style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "6px", paddingLeft: "8px", borderLeft: "2px solid #333" }}>
+                      {r.action}
+                    </div>
+                  ))}
+                  {!(recommendations.optimize || []).length && <div style={{ fontSize: "12px", color: "#555" }}>None</div>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 6. AI Executive Narrative */}
+          {(typeof summary === "string" ? summary : summary?.summary) ? (
+            <div style={card({ borderLeft: "3px solid #3b82f6" })}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+                <div style={{
+                  width: "36px", height: "36px", borderRadius: "8px",
+                  background: "rgba(59, 130, 246, 0.15)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <FileText size={18} style={{ color: COLORS.primary }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: "16px", fontWeight: "700" }}>Executive Analysis</div>
+                  <div style={{ fontSize: "12px", color: "#9E9E9E" }}>AI-generated narrative summary</div>
+                </div>
+              </div>
+              <div
+                style={{ fontSize: "14px", lineHeight: "1.8", color: "#E0E0E0" }}
+                dangerouslySetInnerHTML={{ __html: formatMarkdown(typeof summary === "string" ? summary : summary.summary) }}
+              />
+            </div>
           ) : (
-            <div style={{ color: "#666", textAlign: "center", padding: "40px" }}>
+            <div style={{ ...card(), color: "#666", textAlign: "center", padding: "40px" }}>
               No executive summary available.
             </div>
           )}
@@ -899,6 +1051,147 @@ export default function AuditResults({ audit, onBack }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // SUBCOMPONENTS
 // ═══════════════════════════════════════════════════════════════════════════
+
+function SummaryScoreGauge({ score }) {
+  const value = Math.min(Math.max(score, 0), 2.5);
+  const percentage = (value / 2.5) * 100;
+  const gaugeColor = score >= 1.2 ? COLORS.success : score >= 0.8 ? COLORS.warning : COLORS.danger;
+  const data = [
+    { value: percentage, color: gaugeColor },
+    { value: 100 - percentage, color: "#252525" },
+  ];
+
+  return (
+    <div style={{ position: "relative", width: "100%", height: "180px" }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie
+            data={data}
+            cx="50%"
+            cy="85%"
+            startAngle={180}
+            endAngle={0}
+            innerRadius="60%"
+            outerRadius="85%"
+            paddingAngle={0}
+            dataKey="value"
+            stroke="none"
+          >
+            {data.map((entry, index) => (
+              <Cell key={`gauge-${index}`} fill={entry.color} />
+            ))}
+          </Pie>
+        </PieChart>
+      </ResponsiveContainer>
+      <div style={{
+        position: "absolute", bottom: "15px", left: "50%",
+        transform: "translateX(-50%)", textAlign: "center",
+      }}>
+        <div style={{ fontSize: "36px", fontWeight: "800", color: gaugeColor, lineHeight: 1 }}>{score}x</div>
+        <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "4px" }}>
+          {score >= 1.2 ? "Outperforming peers" : score >= 0.8 ? "On par with peers" : "Below peer average"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GlanceItem({ icon: Icon, label, value, color }) {
+  return (
+    <div style={{
+      background: "#252525", borderRadius: "8px", padding: "14px",
+      display: "flex", alignItems: "center", gap: "12px",
+    }}>
+      <div style={{
+        width: "36px", height: "36px", borderRadius: "8px",
+        background: `${color}15`, display: "flex",
+        alignItems: "center", justifyContent: "center",
+      }}>
+        <Icon size={18} style={{ color }} />
+      </div>
+      <div>
+        <div style={{ fontSize: "20px", fontWeight: "700" }}>{value}</div>
+        <div style={{ fontSize: "11px", color: "#9E9E9E" }}>{label}</div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryHighlights({ benchmark, opportunities, series, videoAnalysis, cardStyle }) {
+  const strengths = [];
+
+  if (benchmark?.comparison?.metrics) {
+    benchmark.comparison.metrics
+      .filter(m => m.status === "above")
+      .forEach(m => strengths.push(`${m.name}: ${m.ratio}x peer median`));
+  }
+
+  if (videoAnalysis?.highReachVideos) {
+    const breakouts = videoAnalysis.highReachVideos.filter(v => !v.is_low_engagement).length;
+    if (breakouts > 0) {
+      strengths.push(`${breakouts} breakout performer${breakouts > 1 ? "s" : ""} with high reach & engagement`);
+    }
+  }
+
+  if (series?.series) {
+    const growing = series.series.filter(s => s.performanceTrend === "growing");
+    if (growing.length > 0) {
+      strengths.push(`${growing.length} series with growing performance trend`);
+    }
+  }
+
+  const opps = [];
+  if (opportunities?.content_gaps) {
+    opportunities.content_gaps.slice(0, 3).forEach(g => opps.push(g.gap));
+  }
+  if (opps.length < 3 && opportunities?.growth_levers) {
+    opportunities.growth_levers.slice(0, 3 - opps.length).forEach(l => opps.push(l.lever));
+  }
+
+  if (!strengths.length && !opps.length) return null;
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+      <div style={cardStyle({ borderLeft: `3px solid ${COLORS.success}` })}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+          <Zap size={16} style={{ color: COLORS.success }} />
+          <div style={{ fontSize: "14px", fontWeight: "700", color: COLORS.success }}>Strengths</div>
+        </div>
+        {strengths.length === 0 ? (
+          <div style={{ fontSize: "12px", color: "#666" }}>Add peer benchmarks to identify strengths</div>
+        ) : (
+          strengths.slice(0, 3).map((s, i) => (
+            <div key={i} style={{
+              fontSize: "13px", color: "#E0E0E0", marginBottom: "8px",
+              paddingLeft: "12px", borderLeft: "2px solid rgba(34, 197, 94, 0.3)",
+            }}>
+              {s}
+            </div>
+          ))
+        )}
+      </div>
+
+      <div style={cardStyle({ borderLeft: `3px solid ${COLORS.purple}` })}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+          <Lightbulb size={16} style={{ color: COLORS.purple }} />
+          <div style={{ fontSize: "14px", fontWeight: "700", color: COLORS.purple }}>Key Opportunities</div>
+        </div>
+        {opps.length === 0 ? (
+          <div style={{ fontSize: "12px", color: "#666" }}>No opportunities identified yet</div>
+        ) : (
+          opps.slice(0, 3).map((o, i) => (
+            <div key={i} style={{
+              fontSize: "13px", color: "#E0E0E0", marginBottom: "8px",
+              paddingLeft: "12px", borderLeft: "2px solid rgba(139, 92, 246, 0.3)",
+            }}>
+              {o}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
 
 function MetricCard({ label, value, icon: Icon, color }) {
   return (
