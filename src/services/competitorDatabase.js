@@ -820,6 +820,104 @@ export async function migrateFromLocalStorage(clientId) {
   return results;
 }
 
+// ============================================
+// COMPETITOR GROUPS
+// ============================================
+
+/**
+ * Get all competitor groups for a client, with member channel IDs
+ */
+export async function getCompetitorGroups(clientId) {
+  if (!supabase) throw new Error('Supabase not configured');
+  if (!clientId) throw new Error('clientId is required');
+
+  const { data, error } = await supabase
+    .from('competitor_groups')
+    .select(`
+      *,
+      competitor_group_members ( channel_id )
+    `)
+    .eq('client_id', clientId)
+    .order('sort_order');
+
+  if (error) throw error;
+
+  return (data || []).map(g => ({
+    ...g,
+    channelIds: (g.competitor_group_members || []).map(m => m.channel_id),
+  }));
+}
+
+/**
+ * Create a new competitor group
+ */
+export async function createCompetitorGroup({ clientId, name, color }) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  const { data, error } = await supabase
+    .from('competitor_groups')
+    .insert({ client_id: clientId, name, color: color || '#3b82f6' })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { ...data, channelIds: [] };
+}
+
+/**
+ * Update a competitor group (name, color, sort_order)
+ */
+export async function updateCompetitorGroup(groupId, updates) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  const { data, error } = await supabase
+    .from('competitor_groups')
+    .update(updates)
+    .eq('id', groupId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Delete a competitor group (cascades to members)
+ */
+export async function deleteCompetitorGroup(groupId) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  const { error } = await supabase
+    .from('competitor_groups')
+    .delete()
+    .eq('id', groupId);
+
+  if (error) throw error;
+}
+
+/**
+ * Replace all members of a group
+ */
+export async function setCompetitorGroupMembers(groupId, channelIds) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  const { error: delError } = await supabase
+    .from('competitor_group_members')
+    .delete()
+    .eq('group_id', groupId);
+
+  if (delError) throw delError;
+
+  if (channelIds.length > 0) {
+    const rows = channelIds.map(cid => ({ group_id: groupId, channel_id: cid }));
+    const { error: insError } = await supabase
+      .from('competitor_group_members')
+      .insert(rows);
+
+    if (insError) throw insError;
+  }
+}
+
 export default {
   // Channels
   getChannels,
@@ -855,6 +953,13 @@ export default {
   // Aggregates
   getCompetitiveLandscape,
   getTitlePatternPerformance,
+
+  // Groups
+  getCompetitorGroups,
+  createCompetitorGroup,
+  updateCompetitorGroup,
+  deleteCompetitorGroup,
+  setCompetitorGroupMembers,
 
   // Migration
   migrateFromLocalStorage,
