@@ -18,6 +18,8 @@ import PDFExport from "./components/Shared/PDFExport.jsx";
 import ClientManager from "./ClientManager.jsx";
 import ClientBackground from "./components/Shared/ClientBackground.jsx";
 import { useMediaQuery } from "./hooks/useMediaQuery.js";
+import { ThemeProvider } from "./contexts/ThemeContext.jsx";
+import TopNav from "./components/Shared/TopNav.jsx";
 
 // Tab content
 import DashboardPage from "./components/Performance/DashboardPage.jsx";
@@ -815,7 +817,7 @@ export default function App() {
   // Show loading state while checking auth
   if (authLoading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#121212", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ minHeight: "100vh", background: "#181817", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ textAlign: "center" }}>
           <img src="/Full_View_Logo.png" alt="Full View Analytics" style={{ height: "80px", marginBottom: "24px" }} />
           <div style={{ color: "#9E9E9E", fontSize: "14px" }}>Loading...</div>
@@ -833,77 +835,106 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#121212", color: "#E0E0E0", position: "relative" }}>
+    <ThemeProvider activeClient={activeClient}>
+    <div style={{ minHeight: "100vh", color: "#E0E0E0", position: "relative" }}>
       {/* Client-specific background image with dissolve effect */}
       <ClientBackground imageUrl={activeClient?.backgroundImageUrl || null} />
 
-      <Sidebar
-        open={sidebar}
-        onClose={() => setSidebar(false)}
-        tab={tab}
-        setTab={setTab}
-        onUpload={() => {}}
-        canAccessTab={canAccessTab}
-        isAdmin={isAdmin}
-        onSignOut={signOut}
-        userEmail={user?.email || ""}
-      />
-      
-      <div style={{ background: "#1E1E1E", borderBottom: "1px solid #333", padding: isMobile ? "10px 12px" : "16px 24px", display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", alignItems: "center", gap: isMobile ? "8px" : "16px", position: "sticky", top: 0, zIndex: 100 }}>
-        <button onClick={() => setSidebar(true)} style={{ background: "transparent", border: "none", color: "#E0E0E0", cursor: "pointer" }}><Menu size={24} /></button>
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <img src="/Full_View_Logo.png" alt="Full View Analytics" style={{ height: isMobile ? "40px" : "72px", objectFit: "contain" }} />
-          {!isMobile && (
-            <div style={{ fontSize: "11px", color: "#666", fontWeight: "500", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "4px", marginLeft: "40px" }}>
-              POWERED BY <a href="https://crux.media/" target="_blank" rel="noopener noreferrer"><img src="/crux-logo.png" alt="CRUX" style={{ height: "18px", objectFit: "contain", opacity: 0.7 }} /></a>
-            </div>
-          )}
-        </div>
-        <div style={{ flex: isMobile ? 1 : 1 }} />
+      {/* Mobile sidebar (hidden on desktop) */}
+      {isMobile && (
+        <Sidebar
+          open={sidebar}
+          onClose={() => setSidebar(false)}
+          tab={tab}
+          setTab={setTab}
+          onUpload={() => {}}
+          canAccessTab={canAccessTab}
+          isAdmin={isAdmin}
+          onSignOut={signOut}
+          userEmail={user?.email || ""}
+        />
+      )}
+
+      {/* Header bar */}
+      <div style={{
+        background: "rgba(30, 30, 30, 0.85)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        borderBottom: "1px solid #2A2A2A",
+        padding: isMobile ? "10px 12px" : "12px 20px",
+        display: "flex",
+        flexWrap: isMobile ? "wrap" : "nowrap",
+        alignItems: "center",
+        gap: isMobile ? "8px" : "12px",
+        position: "sticky",
+        top: 0,
+        zIndex: 100,
+      }}>
+        {/* Mobile: hamburger */}
+        {isMobile && (
+          <button onClick={() => setSidebar(true)} style={{ background: "transparent", border: "none", color: "#E0E0E0", cursor: "pointer" }}>
+            <Menu size={24} />
+          </button>
+        )}
+
+        {/* Logo */}
+        <img
+          src="/Full_View_Logo.png"
+          alt="Full View Analytics"
+          style={{ height: isMobile ? "32px" : "40px", objectFit: "contain", flexShrink: 0 }}
+        />
+
+        {/* Desktop: Top navigation */}
+        {!isMobile && (
+          <TopNav
+            tab={tab}
+            setTab={setTab}
+            canAccessTab={canAccessTab}
+            isAdmin={isAdmin}
+            onSignOut={signOut}
+            userEmail={user?.email || ""}
+          />
+        )}
+
+        {/* Mobile: spacer + client selector */}
+        {isMobile && <div style={{ flex: 1 }} />}
+
+        {/* Client Selector */}
         {activeClient && (
+          <div style={{ position: "relative", ...(isMobile ? { width: "100%", order: 10 } : {}) }}>
+            <select
+              value={activeClient?.id || ""}
+              onChange={(e) => {
+                const client = clients.find(c => c.id === e.target.value);
+                if (client) handleClientChange(client);
+              }}
+              style={{
+                minWidth: isMobile ? 0 : "200px",
+                width: isMobile ? "100%" : "auto",
+                border: "1px solid var(--accent-border)",
+                borderRadius: "8px",
+                padding: isMobile ? "10px 36px 10px 12px" : "8px 32px 8px 12px",
+                background: "#252525",
+                color: "#E0E0E0",
+                fontSize: "13px",
+                fontWeight: "600",
+                cursor: "pointer",
+                appearance: "none",
+              }}
+            >
+              {accessibleClients.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.rows.length} videos)
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={16} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "#9E9E9E", pointerEvents: "none" }} />
+          </div>
+        )}
+
+        {/* PDF Export + Client Manager (desktop only, tucked into nav area) */}
+        {!isMobile && activeClient && (
           <>
-            {/* Client Selector Dropdown */}
-            <div style={{ position: "relative", ...(isMobile ? { width: "100%", order: 10 } : {}) }}>
-              <select
-                value={activeClient?.id || ""}
-                onChange={(e) => {
-                  const client = clients.find(c => c.id === e.target.value);
-                  if (client) handleClientChange(client);
-                }}
-                style={{
-                  minWidth: isMobile ? 0 : "250px",
-                  width: isMobile ? "100%" : "auto",
-                  border: "1px solid #2962FF",
-                  borderRadius: "8px",
-                  padding: isMobile ? "10px 36px 10px 12px" : "12px 40px 12px 14px",
-                  background: "#252525",
-                  color: "#E0E0E0",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  appearance: "none"
-                }}
-              >
-                {accessibleClients.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.rows.length} videos)
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={18} style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", color: "#9E9E9E", pointerEvents: "none" }} />
-            </div>
-
-            {/* Last Updated */}
-            {!isMobile && activeClient && (
-              <div style={{ fontSize: "12px", color: "#666", display: "flex", alignItems: "center", gap: "6px" }}>
-                <span>Updated:</span>
-                <span style={{ color: "#9E9E9E", fontWeight: "600" }}>
-                  {new Date(activeClient.uploadDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </span>
-              </div>
-            )}
-
-            {/* PDF Export Button */}
             <PDFExport
               kpis={kpisWithChanges}
               top={top}
@@ -915,8 +946,6 @@ export default function App() {
               allTimeKpis={allTimeKpis}
               channelStats={channelStats}
             />
-
-            {/* Client Manager Button */}
             <ClientManager
               clients={clients}
               activeClient={activeClient}
@@ -974,7 +1003,7 @@ export default function App() {
                 width: "400px", 
                 height: "auto", 
                 marginBottom: "48px",
-                filter: "drop-shadow(0 8px 24px rgba(41, 98, 255, 0.2))"
+                filter: "drop-shadow(0 8px 24px var(--accent-glow))"
               }} 
             />
             <div style={{ fontSize: "32px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>
@@ -1137,7 +1166,7 @@ export default function App() {
 
         {/* Footer */}
         <div style={{ marginTop: "60px", paddingTop: "32px", borderTop: "1px solid #333", position: "relative" }}>
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "linear-gradient(90deg, #ec4899, #8b5cf6, #6366f1, #3b82f6)" }} />
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: `linear-gradient(90deg, var(--accent-glow), var(--accent), var(--accent-glow))` }} />
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", paddingBottom: "40px" }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
               <img src="/Full_View_Logo.png" alt="Full View Analytics" style={{ height: "56px", objectFit: "contain" }} />
@@ -1155,5 +1184,6 @@ export default function App() {
         </div>
       </div>
     </div>
+    </ThemeProvider>
   );
 }

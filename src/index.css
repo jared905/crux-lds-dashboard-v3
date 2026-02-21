@@ -1,29 +1,39 @@
 :root {
-  /* --- EXECUTIVE DARK MODE PALETTE --- */
-  
+  /* --- INDUSTRIAL-PREMIUM PALETTE --- */
+
   /* BACKGROUNDS */
-  --bg: #121212;        /* The "Canvas" - Deepest Grey */
-  --card: #1E1E1E;      /* The "Surface" - Slightly lighter for cards */
-  --input-bg: #252525;  /* Inputs/Search bars - Distinct from cards */
-  
+  --bg: #181817;        /* Warm charcoal canvas */
+  --card: #1E1E1E;      /* Surface - slightly lighter for cards */
+  --input-bg: #252525;  /* Inputs/Search bars */
+
   /* TEXT */
-  --text: #E0E0E0;      /* Primary Text - High readability grey (not harsh white) */
-  --muted: #9E9E9E;     /* Secondary Text - Subtle details */
-  
+  --text: #E0E0E0;      /* Primary text */
+  --muted: #9E9E9E;     /* Secondary text */
+
   /* ACCENTS & BORDERS */
-  --border: #333333;    /* Subtle dividers */
+  --border: #2A2A2A;    /* Subtle dividers */
   --blue: #2962FF;      /* Electric Blue - Primary Action */
-  --blue-dim: rgba(41, 98, 255, 0.15); /* For hover states/backgrounds */
-  
-  /* STATUS COLORS (Adjusted for Dark Mode) */
+  --blue-dim: rgba(41, 98, 255, 0.15);
+
+  /* DYNAMIC ACCENT (overridden per-client by ThemeContext) */
+  --accent: #2962FF;
+  --accent-dim: rgba(41, 98, 255, 0.15);
+  --accent-glow: rgba(41, 98, 255, 0.3);
+  --accent-text: #60a5fa;
+  --accent-border: rgba(41, 98, 255, 0.4);
+
+  /* STATUS COLORS */
   --green: #00C853;
   --amber: #FFAB00;
   --red: #CF6679;
-  
+
   /* UTILITIES */
   --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-  --radius: 12px;
-  
+  --radius: 8px;
+
+  /* FONTS */
+  --font-display: 'Barlow Condensed', 'Inter', system-ui, sans-serif;
+
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
@@ -33,12 +43,49 @@ html, body { height: 100%; }
 
 body {
   margin: 0;
-  background: var(--bg);
+  background-color: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
-  /* Prevent white flash on scrollbars */
   color-scheme: dark;
+  position: relative;
 }
+
+/* Earth at night background */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: url('/bg-satellite.jpg');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  opacity: 0.7;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Gradient overlay that fades the image into the bg color */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(to bottom,
+    rgba(24, 24, 23, 0) 0%,
+    rgba(24, 24, 23, 0.4) 25%,
+    rgba(24, 24, 23, 0.8) 45%,
+    var(--bg) 65%
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
+#root { position: relative; z-index: 1; }
 
 a { color: inherit; text-decoration: none; }
 button, select, input, textarea { font-family: inherit; }
@@ -48,11 +95,16 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monos
 .container { max-width: 1400px; margin: 0 auto; padding: 40px 24px 64px; }
 
 /* Updated Card for Dark Mode */
-.card { 
-  background: var(--card); 
-  border: 1px solid var(--border); 
-  border-radius: var(--radius); 
-  box-shadow: none; /* Flat design looks cleaner in dark mode */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .row { display: flex; gap: 16px; align-items: stretch; }
@@ -69,7 +121,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monos
 /* KPI Cards */
 .kpi { padding: 20px 24px; }
 .kpi .label { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
-.kpi .value { font-size: 32px; font-weight: 700; margin-top: 8px; color: #fff; letter-spacing: -0.02em; }
+.kpi .value { font-size: 32px; font-weight: 700; margin-top: 8px; color: #fff; letter-spacing: -0.03em; font-family: var(--font-display); }
 .kpi .sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
 
 /* Badges */
@@ -94,10 +146,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monos
 }
 .pill:hover { background: var(--input-bg); color: var(--text); border-color: #555; }
 .pill.active {
-  border-color: var(--blue);
-  background: var(--blue-dim);
-  color: #60a5fa; /* Lighter blue for text readability */
-  box-shadow: 0 0 0 1px var(--blue);
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent-text);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 /* Buttons */
@@ -115,13 +167,13 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monos
 }
 .btn:hover { background: var(--input-bg); border-color: #666; }
 
-.btn.primary { 
-  background: var(--blue); 
-  border-color: var(--blue); 
-  color: #fff; 
-  box-shadow: 0 2px 8px rgba(41, 98, 255, 0.4);
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px var(--accent-glow);
 }
-.btn.primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+.btn.primary:hover { filter: brightness(0.85); }
 
 .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
 .btn.ghost:hover { background: rgba(255,255,255,0.05); color: var(--text); }
@@ -178,7 +230,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monos
   color: var(--text);
 }
 .input:focus {
-  border-color: var(--blue);
+  border-color: var(--accent);
   background: var(--bg); /* Slightly darker on focus */
 }
 .input::placeholder { color: #555; }
@@ -211,3 +263,89 @@ textarea.input { min-height: 120px; resize: vertical; }
 }
 
 .mobile-only { display: none; }
+
+/* --- SECTION CARD HOVER EFFECTS --- */
+.section-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.section-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 24px var(--accent-dim);
+}
+
+/* --- STAT HIGHLIGHT CHIPS --- */
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+.stat-chip.blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+.stat-chip.green { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+.stat-chip.amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.stat-chip.pink { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
+.stat-chip.purple { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+.stat-chip.red { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+.stat-chip.slate { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
+
+/* ========= ENTRANCE ANIMATIONS ========= */
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes skeleton {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes chartDraw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+.animate-in {
+  animation: fadeSlideUp 0.5s ease-out both;
+  opacity: 0;
+}
+
+.animate-fade {
+  animation: fadeIn 0.6s ease-out both;
+  opacity: 0;
+}
+
+.animate-skeleton {
+  animation: skeleton 1.5s ease-in-out infinite;
+}
+
+/* Stagger delays for card grids */
+.animate-delay-1 { animation-delay: 0.05s; }
+.animate-delay-2 { animation-delay: 0.10s; }
+.animate-delay-3 { animation-delay: 0.15s; }
+.animate-delay-4 { animation-delay: 0.20s; }
+.animate-delay-5 { animation-delay: 0.25s; }
+.animate-delay-6 { animation-delay: 0.30s; }
+.animate-delay-7 { animation-delay: 0.35s; }
+.animate-delay-8 { animation-delay: 0.40s; }
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  .animate-in,
+  .animate-fade {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

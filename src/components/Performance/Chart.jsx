@@ -55,7 +55,7 @@ const Chart = ({ rows, metric = "views" }) => {
               <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", marginBottom: "4px" }}>
                 {new Date(data[hoveredPoint].date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
               </div>
-              <div style={{ fontSize: "20px", fontWeight: "700", color: metricColor }}>
+              <div style={{ fontSize: "20px", fontWeight: "700", color: metricColor, fontFamily: "'Barlow Condensed', sans-serif" }}>
                 {fmtInt(data[hoveredPoint].value)}
               </div>
               <div style={{ fontSize: "11px", color: "#9E9E9E", marginTop: "2px" }}>
@@ -99,11 +99,29 @@ const Chart = ({ rows, metric = "views" }) => {
 
               return (
                 <>
-                  {/* Area fill */}
-                  <polygon points={areaPoints} fill="url(#areaGradient)" vectorEffect="non-scaling-stroke" />
+                  {/* Area fill — fades in after line draws */}
+                  <polygon
+                    points={areaPoints}
+                    fill="url(#areaGradient)"
+                    vectorEffect="non-scaling-stroke"
+                    style={{ opacity: 0, animation: "fadeIn 0.8s ease-out 1s forwards" }}
+                  />
 
-                  {/* Line */}
-                  <polyline points={points} fill="none" stroke={metricColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" filter="url(#chartGlow)" />
+                  {/* Line — draws itself on load */}
+                  <polyline
+                    points={points}
+                    fill="none"
+                    stroke={metricColor}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                    filter="url(#chartGlow)"
+                    pathLength="1"
+                    strokeDasharray="1"
+                    strokeDashoffset="1"
+                    style={{ animation: "chartDraw 1.2s ease-out 0.3s forwards" }}
+                  />
 
                   {/* Data points */}
                   {data.map((d, i) => {
@@ -159,15 +177,15 @@ const Chart = ({ rows, metric = "views" }) => {
           <div style={{ marginTop: "20px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
             <div style={{ background: "#252525", padding: "12px", borderRadius: "8px", borderLeft: `3px solid ${metricColor}` }}>
               <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", marginBottom: "4px" }}>TOTAL</div>
-              <div style={{ fontSize: "20px", fontWeight: "700", color: metricColor }}>{fmtInt(data.reduce((sum, d) => sum + d.value, 0))}</div>
+              <div style={{ fontSize: "20px", fontWeight: "700", color: metricColor, fontFamily: "'Barlow Condensed', sans-serif" }}>{fmtInt(data.reduce((sum, d) => sum + d.value, 0))}</div>
             </div>
             <div style={{ background: "#252525", padding: "12px", borderRadius: "8px", borderLeft: "3px solid #10b981" }}>
               <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", marginBottom: "4px" }}>PEAK</div>
-              <div style={{ fontSize: "20px", fontWeight: "700", color: "#10b981" }}>{fmtInt(max)}</div>
+              <div style={{ fontSize: "20px", fontWeight: "700", color: "#10b981", fontFamily: "'Barlow Condensed', sans-serif" }}>{fmtInt(max)}</div>
             </div>
             <div style={{ background: "#252525", padding: "12px", borderRadius: "8px", borderLeft: "3px solid #ec4899" }}>
               <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", marginBottom: "4px" }}>AVERAGE</div>
-              <div style={{ fontSize: "20px", fontWeight: "700", color: "#ec4899" }}>{fmtInt(data.reduce((sum, d) => sum + d.value, 0) / data.length)}</div>
+              <div style={{ fontSize: "20px", fontWeight: "700", color: "#ec4899", fontFamily: "'Barlow Condensed', sans-serif" }}>{fmtInt(data.reduce((sum, d) => sum + d.value, 0) / data.length)}</div>
             </div>
           </div>
         </div>

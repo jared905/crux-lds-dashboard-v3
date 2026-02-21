@@ -1,125 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useMediaQuery } from "../../hooks/useMediaQuery.js";
-import {
-  X,
-  Upload,
-  LogOut,
-  ChevronDown,
-  ChevronRight,
-  // Tab icons
-  Home,
-  Layers,
-  Sparkles,
-  Users,
-  MessageSquare,
-  Lightbulb,
-  Brain,
-  Zap,
-  FileText,
-  Target,
-  Activity,
-  Calendar,
-  Building,
-  Key,
-  Shield,
-  ShieldCheck,
-  Table,
-  ClipboardCheck,
-  Palette,
-  Compass,
-  Crosshair,
-  // Section icons
-  BarChart3,
-  Search,
-  FlaskConical,
-  Map,
-  Briefcase,
-  Settings,
-} from "lucide-react";
-
-const SECTIONS = [
-  {
-    id: "performance",
-    label: "Performance",
-    icon: BarChart3,
-    tabs: [
-      { id: "dashboard", label: "Dashboard", icon: Home },
-      { id: "series-analysis", label: "Series Analysis", icon: Layers },
-      { id: "channel-summary", label: "Channel Summary", icon: Sparkles },
-    ],
-  },
-  {
-    id: "research",
-    label: "Research",
-    icon: Search,
-    tabs: [
-      { id: "competitors", label: "Competitors", icon: Users },
-      { id: "gap-detection", label: "Gap Detection", icon: Crosshair },
-      { id: "comments", label: "Comments", icon: MessageSquare },
-    ],
-  },
-  {
-    id: "content-lab",
-    label: "Content Lab",
-    icon: FlaskConical,
-    tabs: [
-      { id: "ideation", label: "Ideation", icon: Lightbulb },
-      { id: "intelligence", label: "Intelligence", icon: Brain },
-      { id: "atomizer", label: "Atomizer", icon: Zap },
-    ],
-  },
-  {
-    id: "strategy",
-    label: "Strategy",
-    icon: Map,
-    tabs: [
-      { id: "opportunities", label: "Opportunities", icon: Compass },
-      { id: "briefs", label: "Briefs", icon: FileText },
-      { id: "actions", label: "Feedback", icon: Activity },
-      { id: "calendar", label: "Calendar", icon: Calendar },
-    ],
-  },
-  {
-    id: "onboarding",
-    label: "Onboarding",
-    icon: Briefcase,
-    tabs: [
-      { id: "audits", label: "Audits", icon: ClipboardCheck },
-      { id: "brand-context", label: "Brand Context", icon: Palette },
-    ],
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: Settings,
-    tabs: [
-      { id: "clients", label: "Clients", icon: Building },
-      { id: "api-keys", label: "API Keys", icon: Key },
-      { id: "security", label: "Security", icon: ShieldCheck },
-      { id: "standardizer", label: "Data Standardizer", icon: Table },
-      { id: "user-management", label: "User Management", icon: Shield, adminOnly: true },
-    ],
-  },
-];
-
-/**
- * Returns the section id that contains the given tab id, or null.
- */
-function sectionForTab(tabId) {
-  for (const section of SECTIONS) {
-    if (section.tabs.some((t) => t.id === tabId)) {
-      return section.id;
-    }
-  }
-  return null;
-}
+import { X, Upload, LogOut, ChevronDown, ChevronRight } from "lucide-react";
+import { ALL_SECTIONS, sectionForTab } from "../../lib/navigation.js";
 
 const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, onSignOut, userEmail }) => {
   const { isMobile } = useMediaQuery();
   // All sections start expanded
   const [expanded, setExpanded] = useState(() => {
     const initial = {};
-    SECTIONS.forEach((s) => {
+    ALL_SECTIONS.forEach((s) => {
       initial[s.id] = true;
     });
     return initial;
@@ -134,11 +23,8 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
   }, [tab]);
 
   const toggleSection = (sectionId) => {
-    // If this section contains the active tab, don't allow collapsing
     const activeSectionId = sectionForTab(tab);
-    if (sectionId === activeSectionId) {
-      return;
-    }
+    if (sectionId === activeSectionId) return;
     setExpanded((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }));
   };
 
@@ -161,7 +47,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
           width: isMobile ? "min(280px, 85vw)" : "280px",
           height: "100vh",
           background: "#1E1E1E",
-          borderRight: "1px solid #333",
+          borderRight: "1px solid #2A2A2A",
           transition: "left 0.3s",
           zIndex: 999,
           display: "flex",
@@ -172,7 +58,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
         <div
           style={{
             padding: "24px",
-            borderBottom: "1px solid #333",
+            borderBottom: "1px solid #2A2A2A",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -213,22 +99,19 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
 
         {/* Sectioned navigation */}
         <div style={{ flex: 1, padding: "16px", overflowY: "auto" }}>
-          {SECTIONS.map((section) => {
+          {ALL_SECTIONS.map((section) => {
             const SectionIcon = section.icon;
             const isExpanded = expanded[section.id];
 
-            // Filter tabs: respect canAccessTab, and hide adminOnly tabs for non-admins
             const visibleTabs = section.tabs.filter((t) => {
               if (t.adminOnly && !isAdmin) return false;
               return canAccessTab(t.id);
             });
 
-            // If no visible tabs in this section, skip rendering it entirely
             if (visibleTabs.length === 0) return null;
 
             return (
               <div key={section.id} style={{ marginBottom: "8px" }}>
-                {/* Section header */}
                 <button
                   onClick={() => toggleSection(section.id)}
                   style={{
@@ -242,7 +125,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
                     cursor: "pointer",
                     fontSize: "10px",
                     color: "#666",
-                    fontWeight: "600",
+                    fontWeight: "700",
                     letterSpacing: "0.5px",
                     textTransform: "uppercase",
                     textAlign: "left",
@@ -257,7 +140,6 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
                   )}
                 </button>
 
-                {/* Tab items */}
                 {isExpanded &&
                   visibleTabs.map((t) => {
                     const TabIcon = t.icon;
@@ -276,10 +158,10 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
                           gap: "12px",
                           padding: isMobile ? "14px 20px" : "12px 28px",
                           marginBottom: "4px",
-                          background: isActive ? "rgba(41, 98, 255, 0.15)" : "transparent",
+                          background: isActive ? "var(--accent-dim)" : "transparent",
                           border: "none",
                           borderRadius: "8px",
-                          color: isActive ? "#60a5fa" : "#9E9E9E",
+                          color: isActive ? "var(--accent-text)" : "#9E9E9E",
                           cursor: "pointer",
                           fontWeight: "600",
                           fontSize: "14px",
@@ -296,7 +178,6 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
             );
           })}
 
-          {/* Upload CSV button for admins */}
           {isAdmin && (
             <button
               onClick={() => {
@@ -311,7 +192,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
                 gap: "8px",
                 padding: "10px 16px",
                 background: "#1E1E1E",
-                border: "1px solid #333",
+                border: "1px solid #2A2A2A",
                 borderRadius: "8px",
                 color: "#E0E0E0",
                 cursor: "pointer",
@@ -326,7 +207,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
         </div>
 
         {/* User info and sign out */}
-        <div style={{ padding: "16px", borderTop: "1px solid #333" }}>
+        <div style={{ padding: "16px", borderTop: "1px solid #2A2A2A" }}>
           <div
             style={{
               fontSize: "12px",
@@ -346,8 +227,8 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
                 borderRadius: "4px",
                 fontSize: "10px",
                 fontWeight: "600",
-                background: isAdmin ? "rgba(41, 98, 255, 0.15)" : "rgba(158, 158, 158, 0.15)",
-                color: isAdmin ? "#60a5fa" : "#9E9E9E",
+                background: isAdmin ? "var(--accent-dim)" : "rgba(158, 158, 158, 0.15)",
+                color: isAdmin ? "var(--accent-text)" : "#9E9E9E",
               }}
             >
               {isAdmin ? "Admin" : "Viewer"}

@@ -1,12 +1,32 @@
 import { useState, useMemo } from "react";
 import { useMediaQuery } from "../../hooks/useMediaQuery.js";
-import { Eye, Clock, Users, Target, BarChart3, TrendingUp, TrendingDown, Video, PlaySquare, Activity, ChevronDown, ChevronUp } from "lucide-react";
+import { TrendingUp, TrendingDown, ChevronDown, ChevronUp, Activity, Eye, Clock, Users, Target, BarChart3, PlaySquare } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/formatters.js";
+import { useInView } from "../../hooks/useInView.js";
 import Chart from "./Chart.jsx";
 import TopVideos from "./TopVideos.jsx";
 import PublishingTimeline from "./PublishingTimeline.jsx";
 import BrandFunnel from "./BrandFunnel.jsx";
 import AudienceSignals from "./AudienceSignals.jsx";
+import HeroBanner from "./HeroBanner.jsx";
+import { generateNarrative } from "../../lib/narrativeGenerator.js";
+
+/* ── Animated section wrapper — fades in when scrolled into view ── */
+function AnimatedSection({ children, delay = 0, className = "" }) {
+  const [ref, isInView] = useInView();
+  return (
+    <div
+      ref={ref}
+      className={isInView ? `animate-in ${className}` : className}
+      style={{
+        ...(!isInView ? { opacity: 0 } : {}),
+        animationDelay: `${delay}s`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 /* ── tiny delta badge used on KPI cards ── */
 function DeltaBadge({ current, previous, isPct }) {
@@ -27,8 +47,27 @@ function DeltaBadge({ current, previous, isPct }) {
   );
 }
 
+/* ── progress ring for percentage KPIs ── */
+function ProgressRing({ value, color, size = 56, stroke = 5 }) {
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const pct = Math.min(Math.max(value, 0), 1);
+  const offset = circumference * (1 - pct);
+  return (
+    <svg width={size} height={size} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
+      <circle cx={size/2} cy={size/2} r={radius} fill="none"
+        stroke="#252525" strokeWidth={stroke} />
+      <circle cx={size/2} cy={size/2} r={radius} fill="none"
+        stroke={color} strokeWidth={stroke}
+        strokeDasharray={circumference} strokeDashoffset={offset}
+        strokeLinecap="round"
+        style={{ transition: "stroke-dashoffset 0.6s ease" }} />
+    </svg>
+  );
+}
+
 /* ── expandable KPI card wrapper ── */
-function KpiCard({ icon: Icon, label, value, allTimeLabel, allTimeValue, color, accentBg, delta, filtered, metricKey }) {
+function KpiCard({ icon: Icon, iconSrc, label, value, allTimeLabel, allTimeValue, color, accentBg, delta, filtered, metricKey, showRing, ringValue, animIndex = 0 }) {
   const [open, setOpen] = useState(false);
 
   // Build per-video mini-table when expanded
@@ -42,31 +81,41 @@ function KpiCard({ icon: Icon, label, value, allTimeLabel, allTimeValue, color, 
 
   return (
     <div
+      className="animate-in"
       onClick={() => setOpen(o => !o)}
       style={{
         background: "#1E1E1E",
-        border: open ? `1px solid ${color}55` : "1px solid #333",
-        borderRadius: "12px",
+        border: open ? `1px solid ${color}55` : "1px solid #2A2A2A",
+        borderRadius: "8px",
         padding: "20px",
         position: "relative",
         overflow: "hidden",
         cursor: "pointer",
-        transition: "border-color 0.2s"
+        transition: "border-color 0.2s",
+        animationDelay: `${animIndex * 0.06}s`,
       }}
     >
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: color }} />
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-        <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: accentBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon size={16} style={{ color }} />
+        <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: `linear-gradient(135deg, ${color}, ${color}cc)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 16px ${color}4d` }}>
+          {iconSrc ? <img src={iconSrc} width={24} height={24} alt={label} style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} /> : <Icon size={22} style={{ color: "#fff" }} />}
         </div>
         <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
         <div style={{ marginLeft: "auto" }}>
           {open ? <ChevronUp size={14} style={{ color: "#666" }} /> : <ChevronDown size={14} style={{ color: "#666" }} />}
         </div>
       </div>
-      <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
-        {value}
-      </div>
+      {showRing ? (
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "4px" }}>
+          <ProgressRing value={ringValue} color={color} />
+          <div style={{ fontSize: "32px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
+            {value}
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: "32px", fontWeight: "700", color: "#fff", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
+          {value}
+        </div>
+      )}
       {/* Delta badge */}
       {delta}
       <div style={{ fontSize: "13px", color: "#888", marginTop: "6px" }}>
@@ -100,6 +149,12 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
   const resolvedStats = channelStats;
   const isDateFiltered = dateRange !== "all";
 
+  // Generate narrative headline from KPI data
+  const narrative = useMemo(
+    () => generateNarrative(kpis, previousKpis, filtered),
+    [kpis, previousKpis, filtered]
+  );
+
   // Compute the start date for the active period (reused for upload counts)
   const periodStartDate = useMemo(() => {
     if (!isDateFiltered) return null;
@@ -129,19 +184,42 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
 
   return (
     <>
-      {/* Channel Stats Section Title */}
-      <div style={{
-        fontSize: "20px",
-        fontWeight: "700",
-        color: "#fff",
-        marginBottom: "16px",
-        display: "flex",
-        alignItems: "center",
-        gap: "10px"
-      }}>
-        <BarChart3 size={22} style={{ color: "#818cf8" }} />
-        Channel Stats
-      </div>
+      {/* Hero Banner with client branding + wow stat */}
+      <HeroBanner
+        activeClient={activeClient}
+        kpis={kpis}
+        previousKpis={previousKpis}
+        channelStats={channelStats}
+        filtered={filtered}
+      />
+
+      {/* Narrative headline — tells the story before showing numbers */}
+      {narrative.headline && (
+        <div className="animate-in" style={{
+          maxWidth: "700px",
+          marginBottom: isMobile ? "20px" : "28px",
+          animationDelay: "0.15s",
+        }}>
+          <div style={{
+            fontSize: isMobile ? "20px" : "26px",
+            fontWeight: "300",
+            color: "#fff",
+            lineHeight: 1.35,
+          }}>
+            {narrative.headline}
+          </div>
+          {narrative.subheadline && (
+            <div style={{
+              fontSize: "13px",
+              color: "#666",
+              marginTop: "8px",
+              letterSpacing: "0.03em",
+            }}>
+              {narrative.subheadline}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Top Level KPIs - Period + All Time — now with deltas & click-to-expand */}
       <div style={{
@@ -151,8 +229,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         marginBottom: "24px"
       }}>
         {/* Videos */}
-        <KpiCard
-          icon={Video} label={isDateFiltered ? "Uploaded Videos" : "Videos"} color="#94a3b8" accentBg="rgba(148, 163, 184, 0.1)"
+        <KpiCard animIndex={0}
+          iconSrc="/icons/videos.svg" label={isDateFiltered ? "Uploaded Videos" : "Videos"} color="#94a3b8" accentBg="rgba(148, 163, 184, 0.1)"
           value={isDateFiltered ? fmtInt(uploadedInPeriod) : fmtInt(filtered.length)}
           allTimeLabel={isDateFiltered ? "active in period" : "total"}
           allTimeValue={isDateFiltered
@@ -165,8 +243,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         />
 
         {/* Views */}
-        <KpiCard
-          icon={Eye} label={isDateFiltered ? "Period Views" : "Views"} color="#818cf8" accentBg="rgba(129, 140, 248, 0.1)"
+        <KpiCard animIndex={1}
+          iconSrc="/icons/views.svg" label={isDateFiltered ? "Period Views" : "Views"} color="#818cf8" accentBg="rgba(129, 140, 248, 0.1)"
           value={fmtInt(kpis.views)}
           allTimeLabel={isDateFiltered ? "lifetime" : "total"}
           allTimeValue={resolvedStats?.viewCount
@@ -177,8 +255,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         />
 
         {/* Watch Hours */}
-        <KpiCard
-          icon={Clock} label="Watch Hours" color="#a78bfa" accentBg="rgba(167, 139, 250, 0.1)"
+        <KpiCard animIndex={2}
+          iconSrc="/icons/clock.svg" label="Watch Hours" color="#a78bfa" accentBg="rgba(167, 139, 250, 0.1)"
           value={fmtInt(kpis.watchHours)}
           allTimeLabel="total" allTimeValue={fmtInt(allTimeKpis.watchHours)}
           delta={<DeltaBadge current={kpis.watchHours} previous={previousKpis.watchHours} />}
@@ -186,8 +264,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         />
 
         {/* Subscribers — show period-gained when date range is active */}
-        <KpiCard
-          icon={Users} label={isDateFiltered ? "Subscribers Gained" : "Subscribers"} color="#f472b6" accentBg="rgba(244, 114, 182, 0.1)"
+        <KpiCard animIndex={3}
+          iconSrc="/icons/subscribers.svg" label={isDateFiltered ? "Subscribers Gained" : "Subscribers"} color="#f472b6" accentBg="rgba(244, 114, 182, 0.1)"
           value={isDateFiltered
             ? `${kpis.subs >= 0 ? "+" : ""}${fmtInt(kpis.subs)}`
             : resolvedStats?.subscriberCount
@@ -202,48 +280,42 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         />
 
         {/* Avg Retention */}
-        <KpiCard
-          icon={BarChart3} label="Avg Retention" color="#34d399" accentBg="rgba(52, 211, 153, 0.1)"
+        <KpiCard animIndex={4}
+          iconSrc="/icons/retention.svg" label="Avg Retention" color="#34d399" accentBg="rgba(52, 211, 153, 0.1)"
           value={fmtPct(kpis.avgRet)}
           allTimeLabel="all-time avg" allTimeValue={fmtPct(allTimeKpis.avgRet)}
           delta={<DeltaBadge current={kpis.avgRet} previous={previousKpis.avgRet} isPct />}
           filtered={filtered} metricKey="retention"
+          showRing ringValue={kpis.avgRet}
         />
 
         {/* Avg CTR */}
-        <KpiCard
-          icon={Target} label="Avg CTR" color="#fbbf24" accentBg="rgba(251, 191, 36, 0.1)"
+        <KpiCard animIndex={5}
+          iconSrc="/icons/ctr.svg" label="Avg CTR" color="#fbbf24" accentBg="rgba(251, 191, 36, 0.1)"
           value={fmtPct(kpis.avgCtr)}
           allTimeLabel="all-time avg" allTimeValue={fmtPct(allTimeKpis.avgCtr)}
           delta={<DeltaBadge current={kpis.avgCtr} previous={previousKpis.avgCtr} isPct />}
           filtered={filtered} metricKey="ctr"
+          showRing ringValue={kpis.avgCtr}
         />
 
       </div>
 
       {/* KPI Cards - Shorts vs Long-form Side by Side */}
-      <div style={{
-        background: "#1E1E1E",
-        border: "1px solid #333",
-        borderRadius: "12px",
+      <div className="section-card" style={{
+        background: "linear-gradient(135deg, rgba(249, 115, 22, 0.05), rgba(14, 165, 233, 0.03))",
+        border: "1px solid rgba(249, 115, 22, 0.12)",
+        borderRadius: "8px",
         padding: isMobile ? "16px" : "24px",
         marginBottom: "24px",
-        position: "relative",
-        overflow: "hidden"
+        "--glow-color": "rgba(249, 115, 22, 0.2)",
       }}>
-        {/* Gradient top border */}
-        <div style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "4px",
-          background: "linear-gradient(90deg, #f97316 0%, #0ea5e9 100%)"
-        }} />
-
         {/* Header */}
-        <div style={{ marginBottom: "24px" }}>
-          <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
+          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #f97316, #0ea5e9)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(249, 115, 22, 0.3)" }}>
+            <img src="/icons/shorts.svg" width={24} height={24} alt="Shorts" style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
+          </div>
+          <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff" }}>
             Shorts & Long-Form Breakdown
           </div>
         </div>
@@ -253,7 +325,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
           <div style={{
             background: "#252525",
             border: "1px solid #f9731640",
-            borderRadius: "12px",
+            borderRadius: "8px",
             padding: "0",
             position: "relative",
             overflow: "hidden"
@@ -270,8 +342,12 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
                   Shorts
                 </div>
               </div>
-              <div style={{ fontSize: "11px", color: "#888" }}>
-                {isDateFiltered ? `${uploadCounts.shorts} uploaded, ${kpis.shortsMetrics.count} active` : `${kpis.shortsMetrics.count} videos`}
+              <div style={{ fontSize: "11px", color: "#888", display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                {isDateFiltered ? (
+                  <><span className="stat-chip amber">{uploadCounts.shorts} uploaded</span> <span className="stat-chip blue">{kpis.shortsMetrics.count} active</span></>
+                ) : (
+                  <span className="stat-chip amber">{kpis.shortsMetrics.count} videos</span>
+                )}
               </div>
             </div>
 
@@ -373,7 +449,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
                             <div style={{ fontSize: "10px", color: "#888", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                               {metric.label}
                             </div>
-                            <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+                            <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
                               {metric.format(metric.value)}
                             </div>
                             {/* Subtext: comparison or custom text */}
@@ -412,7 +488,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
           <div style={{
             background: "#252525",
             border: "1px solid #0ea5e940",
-            borderRadius: "12px",
+            borderRadius: "8px",
             padding: "0",
             position: "relative",
             overflow: "hidden"
@@ -429,8 +505,12 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
                   Long-form
                 </div>
               </div>
-              <div style={{ fontSize: "11px", color: "#888" }}>
-                {isDateFiltered ? `${uploadCounts.longs} uploaded, ${kpis.longsMetrics.count} active` : `${kpis.longsMetrics.count} videos`}
+              <div style={{ fontSize: "11px", color: "#888", display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                {isDateFiltered ? (
+                  <><span className="stat-chip blue">{uploadCounts.longs} uploaded</span> <span className="stat-chip purple">{kpis.longsMetrics.count} active</span></>
+                ) : (
+                  <span className="stat-chip blue">{kpis.longsMetrics.count} videos</span>
+                )}
               </div>
             </div>
 
@@ -532,7 +612,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
                             <div style={{ fontSize: "10px", color: "#888", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                               {metric.label}
                             </div>
-                            <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+                            <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
                               {metric.format(metric.value)}
                             </div>
                             {/* Subtext: comparison or custom text */}
@@ -589,21 +669,28 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
 
 
       {/* Top Videos */}
-      <TopVideos rows={filtered} n={10} />
+      <AnimatedSection>
+        <TopVideos rows={filtered} n={10} />
+      </AnimatedSection>
 
       {/* Upload Cadence Visualization */}
-      <PublishingTimeline rows={filtered} dateRange={dateRange} />
+      <AnimatedSection delay={0.05}>
+        <PublishingTimeline rows={filtered} dateRange={dateRange} />
+      </AnimatedSection>
 
       {/* Brand Funnel - Conversion Funnel Analysis */}
-      <BrandFunnel rows={filtered} dateRange={dateRange} />
+      <AnimatedSection delay={0.1}>
+        <BrandFunnel rows={filtered} dateRange={dateRange} />
+      </AnimatedSection>
 
       {/* Performance Timeline - MOVED UP */}
-      <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px", marginBottom: "20px", position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "4px", background: "linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899)" }} />
-        <div style={{ padding: "20px", borderBottom: "1px solid #333", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="section-card" style={{ background: "linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(99, 102, 241, 0.02))", border: "1px solid rgba(59, 130, 246, 0.12)", borderRadius: "8px", marginBottom: "20px", "--glow-color": "rgba(59, 130, 246, 0.2)" }}>
+        <div style={{ padding: "20px", borderBottom: "1px solid rgba(59, 130, 246, 0.1)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <TrendingUp size={20} style={{ color: "#3b82f6" }} />
-            <div style={{ fontSize: "18px", fontWeight: "700" }}>Performance Timeline</div>
+            <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #3b82f6, #6366f1)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(59, 130, 246, 0.3)" }}>
+              <img src="/icons/trending.svg" width={24} height={24} alt="Trending" style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
+            </div>
+            <div style={{ fontSize: "26px", fontWeight: "700" }}>Performance Timeline</div>
           </div>
           <select value={chartMetric} onChange={(e) => setChartMetric(e.target.value)} style={{ border: "1px solid #3b82f6", background: "#252525", borderRadius: "8px", padding: "8px 12px", color: "#E0E0E0", fontSize: "13px", cursor: "pointer", fontWeight: "600" }}>
             <option value="views">Views</option>
@@ -614,28 +701,22 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
       </div>
 
       {/* Format Performance Comparison - MOVED TO BOTTOM */}
-      <div style={{
-        background: "#1E1E1E",
-        border: "1px solid #333",
-        borderRadius: "12px",
+      <div className="section-card" style={{
+        background: "linear-gradient(135deg, rgba(249, 115, 22, 0.05), rgba(14, 165, 233, 0.03))",
+        border: "1px solid rgba(249, 115, 22, 0.12)",
+        borderRadius: "8px",
         padding: "24px",
         marginBottom: "20px",
-        position: "relative",
-        overflow: "hidden"
+        "--glow-color": "rgba(249, 115, 22, 0.2)",
       }}>
-        {/* Gradient top border */}
-        <div style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "4px",
-          background: "linear-gradient(90deg, #f97316 0%, #0ea5e9 100%)"
-        }} />
-
         <div style={{ marginBottom: "20px" }}>
-          <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginBottom: "6px" }}>
-            Format Performance Comparison
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "6px" }}>
+            <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #f97316, #0ea5e9)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(249, 115, 22, 0.3)" }}>
+              <img src="/icons/compare.svg" width={24} height={24} alt="Compare" style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
+            </div>
+            <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff" }}>
+              Format Performance Comparison
+            </div>
           </div>
           <div style={{ fontSize: "13px", color: "#9E9E9E" }}>
             Individual metrics and channel contribution by format
@@ -657,33 +738,31 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
                 <div style={{ fontSize: "16px", fontWeight: "700", color: "#f97316" }}>Shorts</div>
-                <div style={{ fontSize: "11px", color: "#666", background: "#1a1a1a", padding: "3px 8px", borderRadius: "4px" }}>
-                  {kpis.shortsMetrics.count} videos
-                </div>
+                <span className="stat-chip amber">{kpis.shortsMetrics.count} videos</span>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 <div>
                   <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Avg Views per Video</div>
-                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
                     {fmtInt(kpis.shortsMetrics.count > 0 ? kpis.shortsMetrics.views / kpis.shortsMetrics.count : 0)}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Avg Subs per Video</div>
-                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
                     {fmtInt(kpis.shortsMetrics.count > 0 ? kpis.shortsMetrics.subs / kpis.shortsMetrics.count : 0)}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Avg Watch Time per Video</div>
-                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
                     {(kpis.shortsMetrics.count > 0 ? (kpis.shortsMetrics.watchHours / kpis.shortsMetrics.count) * 60 : 0).toFixed(1)} min
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Avg Impressions per Video</div>
-                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
                     {fmtInt(kpis.shortsMetrics.count > 0 ? kpis.shortsMetrics.imps / kpis.shortsMetrics.count : 0)}
                   </div>
                 </div>
@@ -711,33 +790,31 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
                 <div style={{ fontSize: "16px", fontWeight: "700", color: "#0ea5e9" }}>Long-form</div>
-                <div style={{ fontSize: "11px", color: "#666", background: "#1a1a1a", padding: "3px 8px", borderRadius: "4px" }}>
-                  {kpis.longsMetrics.count} videos
-                </div>
+                <span className="stat-chip blue">{kpis.longsMetrics.count} videos</span>
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 <div>
                   <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Avg Views per Video</div>
-                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
                     {fmtInt(kpis.longsMetrics.count > 0 ? kpis.longsMetrics.views / kpis.longsMetrics.count : 0)}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Avg Subs per Video</div>
-                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
                     {fmtInt(kpis.longsMetrics.count > 0 ? kpis.longsMetrics.subs / kpis.longsMetrics.count : 0)}
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Avg Watch Time per Video</div>
-                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
                     {(kpis.longsMetrics.count > 0 ? (kpis.longsMetrics.watchHours / kpis.longsMetrics.count) * 60 : 0).toFixed(1)} min
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: "11px", color: "#888", marginBottom: "4px" }}>Avg Impressions per Video</div>
-                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
                     {fmtInt(kpis.longsMetrics.count > 0 ? kpis.longsMetrics.imps / kpis.longsMetrics.count : 0)}
                   </div>
                 </div>
@@ -788,7 +865,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
                 <div style={{ fontSize: "13px", color: "#888", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "700" }}>
                   Production Mix
                 </div>
-                <div style={{ fontSize: "42px", fontWeight: "700", color: "#fff", marginBottom: "8px", lineHeight: "1" }}>
+                <div style={{ fontSize: "42px", fontWeight: "700", color: "#fff", marginBottom: "8px", lineHeight: "1", fontFamily: "'Barlow Condensed', sans-serif" }}>
                   {kpis.longsMetrics.count > 0
                     ? (kpis.shortsMetrics.count / kpis.longsMetrics.count).toFixed(1)
                     : "0"
@@ -1062,7 +1139,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
                       fontWeight: "700",
                       color: advantageColor,
                       marginLeft: "16px",
-                      flexShrink: 0
+                      flexShrink: 0,
+                      fontFamily: "'Barlow Condensed', sans-serif"
                     }}>
                       {multiplier.toFixed(1)}x
                     </div>
@@ -1109,7 +1187,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
                       fontWeight: "700",
                       color: advantageColor,
                       marginLeft: "16px",
-                      flexShrink: 0
+                      flexShrink: 0,
+                      fontFamily: "'Barlow Condensed', sans-serif"
                     }}>
                       {multiplier.toFixed(1)}x
                     </div>
@@ -1156,7 +1235,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
                       fontWeight: "700",
                       color: advantageColor,
                       marginLeft: "16px",
-                      flexShrink: 0
+                      flexShrink: 0,
+                      fontFamily: "'Barlow Condensed', sans-serif"
                     }}>
                       {multiplier.toFixed(1)}x
                     </div>
@@ -1203,7 +1283,8 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
                       fontWeight: "700",
                       color: advantageColor,
                       marginLeft: "16px",
-                      flexShrink: 0
+                      flexShrink: 0,
+                      fontFamily: "'Barlow Condensed', sans-serif"
                     }}>
                       {multiplier.toFixed(1)}x
                     </div>
