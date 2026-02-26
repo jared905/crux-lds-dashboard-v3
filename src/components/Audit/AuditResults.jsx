@@ -121,7 +121,7 @@ export default function AuditResults({ audit, onBack }) {
   // Card style helper
   const card = (extra = {}) => ({
     background: "#1E1E1E",
-    borderRadius: "12px",
+    borderRadius: "8px",
     border: "1px solid #333",
     padding: "24px",
     ...extra,
@@ -454,11 +454,11 @@ export default function AuditResults({ audit, onBack }) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
                 <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
                   <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "6px" }}>Recent Videos</div>
-                  <div style={{ fontSize: "24px", fontWeight: "700", color: COLORS.primary }}>{snapshot.recent_videos_90d || 0}</div>
+                  <div style={{ fontSize: "24px", fontWeight: "700", color: COLORS.primary, fontFamily: "'Barlow Condensed', sans-serif" }}>{snapshot.recent_videos_90d || 0}</div>
                 </div>
                 <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
                   <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "6px" }}>Avg Views</div>
-                  <div style={{ fontSize: "24px", fontWeight: "700", color: COLORS.success }}>{fmtNum(snapshot.avg_views_recent)}</div>
+                  <div style={{ fontSize: "24px", fontWeight: "700", color: COLORS.success, fontFamily: "'Barlow Condensed', sans-serif" }}>{fmtNum(snapshot.avg_views_recent)}</div>
                 </div>
               </div>
               <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
@@ -479,7 +479,7 @@ export default function AuditResults({ audit, onBack }) {
                     </div>
                   </div>
                 </div>
-                <div style={{ fontSize: "24px", fontWeight: "700", color: COLORS.warning }}>{fmtPct(snapshot.avg_engagement_recent)}</div>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: COLORS.warning, fontFamily: "'Barlow Condensed', sans-serif" }}>{fmtPct(snapshot.avg_engagement_recent)}</div>
               </div>
             </div>
           </div>
@@ -525,11 +525,12 @@ export default function AuditResults({ audit, onBack }) {
               <div style={card()}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
                   <div style={{
-                    width: "40px", height: "40px", borderRadius: "10px",
-                    background: "rgba(59, 130, 246, 0.15)",
+                    width: "48px", height: "48px", borderRadius: "14px",
+                    background: "linear-gradient(135deg, #3b82f6, #6366f1)",
                     display: "flex", alignItems: "center", justifyContent: "center",
+                    boxShadow: "0 4px 16px rgba(59, 130, 246, 0.3)", flexShrink: 0,
                   }}>
-                    <BarChart3 size={20} style={{ color: COLORS.primary }} />
+                    <BarChart3 size={22} style={{ color: "#fff" }} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: "16px", fontWeight: "700" }}>Performance Snapshot</div>
@@ -594,11 +595,12 @@ export default function AuditResults({ audit, onBack }) {
                 <div style={card()}>
                   <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
                     <div style={{
-                      width: "40px", height: "40px", borderRadius: "10px",
-                      background: "rgba(34, 197, 94, 0.15)",
+                      width: "48px", height: "48px", borderRadius: "14px",
+                      background: "linear-gradient(135deg, #22c55e, #10b981)",
                       display: "flex", alignItems: "center", justifyContent: "center",
+                      boxShadow: "0 4px 16px rgba(34, 197, 94, 0.3)", flexShrink: 0,
                     }}>
-                      <Zap size={20} style={{ color: COLORS.success }} />
+                      <Zap size={22} style={{ color: "#fff" }} />
                     </div>
                     <div>
                       <div style={{ fontSize: "16px", fontWeight: "700" }}>Breakout Performers</div>
@@ -647,11 +649,12 @@ export default function AuditResults({ audit, onBack }) {
                 <div style={card()}>
                   <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
                     <div style={{
-                      width: "40px", height: "40px", borderRadius: "10px",
-                      background: "rgba(245, 158, 11, 0.15)",
+                      width: "48px", height: "48px", borderRadius: "14px",
+                      background: "linear-gradient(135deg, #f59e0b, #f97316)",
                       display: "flex", alignItems: "center", justifyContent: "center",
+                      boxShadow: "0 4px 16px rgba(245, 158, 11, 0.3)", flexShrink: 0,
                     }}>
-                      <AlertTriangle size={20} style={{ color: COLORS.warning }} />
+                      <AlertTriangle size={22} style={{ color: "#fff" }} />
                     </div>
                     <div>
                       <div style={{ fontSize: "16px", fontWeight: "700" }}>Videos to Investigate</div>
@@ -741,7 +744,7 @@ export default function AuditResults({ audit, onBack }) {
                         </div>
                         <div style={{
                           display: "flex", alignItems: "center", gap: "4px",
-                          padding: "4px 10px", borderRadius: "12px",
+                          padding: "4px 10px", borderRadius: "8px",
                           background: `${trend.color}15`,
                         }}>
                           <TrendIcon size={14} style={{ color: trend.color }} />
@@ -792,7 +795,7 @@ export default function AuditResults({ audit, onBack }) {
                 marginTop: "20px", padding: "20px",
                 background: "rgba(59, 130, 246, 0.05)",
                 border: "1px solid rgba(59, 130, 246, 0.15)",
-                borderRadius: "12px",
+                borderRadius: "8px",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
                   <Info size={18} style={{ color: COLORS.primary }} />
@@ -817,7 +820,7 @@ export default function AuditResults({ audit, onBack }) {
                 marginTop: "16px", padding: "20px",
                 background: "rgba(34, 197, 94, 0.05)",
                 border: "1px solid rgba(34, 197, 94, 0.15)",
-                borderRadius: "12px",
+                borderRadius: "8px",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
                   <UserPlus size={18} style={{ color: COLORS.success }} />
@@ -891,7 +894,7 @@ export default function AuditResults({ audit, onBack }) {
                 {benchmark.comparison?.overallScore && (
                   <div style={{
                     marginTop: "16px", padding: "20px", background: "#252525",
-                    borderRadius: "12px", textAlign: "center",
+                    borderRadius: "8px", textAlign: "center",
                   }}>
                     <div style={{ fontSize: "12px", color: "#9E9E9E" }}>Overall Benchmark Score</div>
                     <div style={{
@@ -933,11 +936,12 @@ export default function AuditResults({ audit, onBack }) {
           <div style={card()}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
               <div style={{
-                width: "40px", height: "40px", borderRadius: "10px",
-                background: "rgba(139, 92, 246, 0.15)",
+                width: "48px", height: "48px", borderRadius: "14px",
+                background: "linear-gradient(135deg, #8b5cf6, #6366f1)",
                 display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: "0 4px 16px rgba(139, 92, 246, 0.3)", flexShrink: 0,
               }}>
-                <Lightbulb size={20} style={{ color: COLORS.purple }} />
+                <Lightbulb size={22} style={{ color: "#fff" }} />
               </div>
               <div>
                 <div style={{ fontSize: "16px", fontWeight: "700" }}>Content Gaps</div>
@@ -959,11 +963,12 @@ export default function AuditResults({ audit, onBack }) {
           <div style={card()}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
               <div style={{
-                width: "40px", height: "40px", borderRadius: "10px",
-                background: "rgba(34, 197, 94, 0.15)",
+                width: "48px", height: "48px", borderRadius: "14px",
+                background: "linear-gradient(135deg, #22c55e, #10b981)",
                 display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: "0 4px 16px rgba(34, 197, 94, 0.3)", flexShrink: 0,
               }}>
-                <TrendingUp size={20} style={{ color: COLORS.success }} />
+                <TrendingUp size={22} style={{ color: "#fff" }} />
               </div>
               <div>
                 <div style={{ fontSize: "16px", fontWeight: "700" }}>Growth Levers</div>
@@ -1120,7 +1125,7 @@ function SummaryScoreGauge({ score }) {
         position: "absolute", bottom: "15px", left: "50%",
         transform: "translateX(-50%)", textAlign: "center",
       }}>
-        <div style={{ fontSize: "36px", fontWeight: "800", color: gaugeColor, lineHeight: 1 }}>{score}x</div>
+        <div style={{ fontSize: "36px", fontWeight: "800", color: gaugeColor, lineHeight: 1, fontFamily: "'Barlow Condensed', sans-serif" }}>{score}x</div>
         <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "4px" }}>
           {score >= 1.2 ? "Outperforming peers" : score >= 0.8 ? "On par with peers" : "Below peer average"}
         </div>
@@ -1143,7 +1148,7 @@ function GlanceItem({ icon: Icon, label, value, color }) {
         <Icon size={18} style={{ color }} />
       </div>
       <div>
-        <div style={{ fontSize: "20px", fontWeight: "700" }}>{value}</div>
+        <div style={{ fontSize: "20px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif" }}>{value}</div>
         <div style={{ fontSize: "11px", color: "#9E9E9E" }}>{label}</div>
       </div>
     </div>
@@ -1233,15 +1238,16 @@ function MetricCard({ label, value, icon: Icon, color }) {
       display: "flex", alignItems: "center", gap: "12px",
     }}>
       <div style={{
-        width: "40px", height: "40px", borderRadius: "10px",
-        background: `${color}20`,
+        width: "48px", height: "48px", borderRadius: "14px",
+        background: `linear-gradient(135deg, ${color}, ${color}cc)`,
         display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: `0 4px 16px ${color}4d`, flexShrink: 0,
       }}>
-        <Icon size={20} style={{ color }} />
+        <Icon size={22} style={{ color: "#fff" }} />
       </div>
       <div>
         <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "2px" }}>{label}</div>
-        <div style={{ fontSize: "20px", fontWeight: "700" }}>{value}</div>
+        <div style={{ fontSize: "20px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif" }}>{value}</div>
       </div>
     </div>
   );
@@ -1576,12 +1582,12 @@ function TierContextPanel({ benchmark, snapshot }) {
 
   return (
     <div style={{
-      background: "#1E1E1E", borderRadius: "12px", border: "1px solid #333",
+      background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
       padding: "24px", display: "flex", alignItems: "center", gap: "16px",
       borderLeft: `3px solid ${info.color}`,
     }}>
       <div style={{
-        width: "56px", height: "56px", borderRadius: "12px",
+        width: "56px", height: "56px", borderRadius: "8px",
         background: `${info.color}20`, display: "flex",
         alignItems: "center", justifyContent: "center",
         fontSize: "24px", fontWeight: "800", color: info.color,
@@ -1598,7 +1604,7 @@ function TierContextPanel({ benchmark, snapshot }) {
       </div>
       <div style={{ textAlign: "right" }}>
         <div style={{ fontSize: "12px", color: "#9E9E9E" }}>Peers matched</div>
-        <div style={{ fontSize: "28px", fontWeight: "700" }}>{benchmark.peer_count}</div>
+        <div style={{ fontSize: "28px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif" }}>{benchmark.peer_count}</div>
       </div>
     </div>
   );
@@ -1609,7 +1615,7 @@ function TierRangesPanel({ benchmark }) {
 
   return (
     <div style={{
-      background: "#1E1E1E", borderRadius: "12px", border: "1px solid #333", padding: "24px",
+      background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333", padding: "24px",
     }}>
       <div style={{ fontSize: "16px", fontWeight: "700", marginBottom: "16px" }}>Tier Ranges (90-day peer data)</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
@@ -1661,7 +1667,7 @@ function TierRangeCard({ title, subtitle, p25, median, p75, format, singleValue,
       <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>{title}</div>
       {subtitle && <div style={{ fontSize: "10px", color: "#666", marginBottom: "8px" }}>{subtitle}</div>}
       {customContent ? customContent : singleValue ? (
-        <div style={{ fontSize: "20px", fontWeight: "700" }}>{format(median)}</div>
+        <div style={{ fontSize: "20px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif" }}>{format(median)}</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px" }}>
           <div style={{ background: "#1E1E1E", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
@@ -1729,7 +1735,7 @@ function RecommendationsOverview({ recommendations }) {
 
   return (
     <div style={{
-      background: "#1E1E1E", borderRadius: "12px", border: "1px solid #333",
+      background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
       padding: "24px", display: "flex", alignItems: "center", gap: "24px",
     }}>
       <div style={{ flex: 1 }}>
@@ -1752,7 +1758,7 @@ function RecommendationsOverview({ recommendations }) {
             background: "#252525", borderRadius: "8px", padding: "12px 16px", textAlign: "center",
             minWidth: "80px",
           }}>
-            <div style={{ fontSize: "20px", fontWeight: "700", color }}>{count}</div>
+            <div style={{ fontSize: "20px", fontWeight: "700", color, fontFamily: "'Barlow Condensed', sans-serif" }}>{count}</div>
             <div style={{ fontSize: "10px", color: "#9E9E9E" }}>{label}</div>
           </div>
         ))}
@@ -1764,7 +1770,7 @@ function RecommendationsOverview({ recommendations }) {
 function RecommendationColumn({ title, color, icon, items, description }) {
   return (
     <div style={{
-      background: "#1E1E1E", borderRadius: "12px", border: "1px solid #333", padding: "24px",
+      background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333", padding: "24px",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
         <span style={{ fontSize: "20px" }}>{icon}</span>
@@ -1857,7 +1863,7 @@ function FormatInsightsCard({ insights }) {
 
   return (
     <div style={{
-      background: "#1E1E1E", borderRadius: "12px", border: "1px solid #333",
+      background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
       padding: "24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px",
     }}>
       {[

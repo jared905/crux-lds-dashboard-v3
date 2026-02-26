@@ -838,7 +838,7 @@ function KPISparklineStrip({ kpiData, hasData, trendPercent }) {
               {card.label}
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
-              <div style={{ fontSize: "24px", fontWeight: "700", color: "#fff" }}>
+              <div style={{ fontSize: "24px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
                 {latest != null ? card.fmt(latest) : "--"}
               </div>
               {pct != null && (

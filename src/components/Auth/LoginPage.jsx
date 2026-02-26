@@ -27,7 +27,7 @@ const LoginPage = ({ onSwitchToSignup }) => {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#121212',
+      background: '#181817',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -37,7 +37,7 @@ const LoginPage = ({ onSwitchToSignup }) => {
         width: '100%',
         maxWidth: '400px',
         background: '#1E1E1E',
-        borderRadius: '16px',
+        borderRadius: '8px',
         padding: '40px',
         boxShadow: '0 4px 24px rgba(0, 0, 0, 0.4)'
       }}>
@@ -60,8 +60,8 @@ const LoginPage = ({ onSwitchToSignup }) => {
         {/* Title */}
         <h1 style={{
           color: '#E0E0E0',
-          fontSize: '24px',
-          fontWeight: '600',
+          fontSize: '28px',
+          fontWeight: '700',
           textAlign: 'center',
           marginBottom: '8px'
         }}>
@@ -115,8 +115,8 @@ const LoginPage = ({ onSwitchToSignup }) => {
               style={{
                 width: '100%',
                 padding: '12px 16px',
-                background: '#121212',
-                border: '1px solid #333',
+                background: '#181817',
+                border: '1px solid #2A2A2A',
                 borderRadius: '8px',
                 color: '#E0E0E0',
                 fontSize: '14px',
@@ -125,7 +125,7 @@ const LoginPage = ({ onSwitchToSignup }) => {
                 boxSizing: 'border-box'
               }}
               onFocus={(e) => e.target.style.borderColor = '#2962FF'}
-              onBlur={(e) => e.target.style.borderColor = '#333'}
+              onBlur={(e) => e.target.style.borderColor = '#2A2A2A'}
             />
           </div>
 
@@ -150,7 +150,7 @@ const LoginPage = ({ onSwitchToSignup }) => {
                 style={{
                   width: '100%',
                   padding: '12px 48px 12px 16px',
-                  background: '#121212',
+                  background: '#181817',
                   border: '1px solid #333',
                   borderRadius: '8px',
                   color: '#E0E0E0',
@@ -160,7 +160,7 @@ const LoginPage = ({ onSwitchToSignup }) => {
                   boxSizing: 'border-box'
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#2962FF'}
-                onBlur={(e) => e.target.style.borderColor = '#333'}
+                onBlur={(e) => e.target.style.borderColor = '#2A2A2A'}
               />
               <button
                 type="button"
@@ -253,7 +253,7 @@ const LoginPage = ({ onSwitchToSignup }) => {
           gap: '6px',
           marginTop: '32px',
           paddingTop: '24px',
-          borderTop: '1px solid #333'
+          borderTop: '1px solid #2A2A2A'
         }}>
           <span style={{ fontSize: '10px', color: '#666', fontWeight: '600', letterSpacing: '0.5px' }}>
             POWERED BY

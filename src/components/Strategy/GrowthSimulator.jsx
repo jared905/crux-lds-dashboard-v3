@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { TrendingUp, MonitorPlay, Smartphone, Zap, MousePointerClick, UserPlus, ArrowRight, RotateCcw, Minus } from "lucide-react";
+import { TrendingUp, MonitorPlay, Smartphone, Zap, MousePointerClick, UserPlus, ArrowRight, RotateCcw, Minus, Download, DollarSign } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/utils";
 
 export default function GrowthSimulator({ rows, currentSubscribers = 0, channelSubscriberMap = {}, selectedChannel = "all" }) {
@@ -122,7 +122,93 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
       ctrLift: 0,
       convLift: 0
     });
+    setActivePreset("custom");
   };
+
+  // Fix: sync cadence sliders when baselines recalculate (e.g. rows/channel change)
+  const prevBaselinesRef = useRef(baselines);
+  useEffect(() => {
+    const prev = prevBaselinesRef.current;
+    if (prev.currentLongFreq !== baselines.currentLongFreq || prev.currentShortFreq !== baselines.currentShortFreq) {
+      setInputs(i => ({
+        ...i,
+        longsPerMonth: baselines.currentLongFreq,
+        shortsPerMonth: baselines.currentShortFreq,
+      }));
+      setActivePreset("custom");
+    }
+    prevBaselinesRef.current = baselines;
+  }, [baselines]);
+
+  // --- SCENARIO PRESETS ---
+  const [activePreset, setActivePreset] = useState("custom");
+  const [subValue, setSubValue] = useState(1); // $/sub/year for ROI calc
+
+  const presets = {
+    conservative: {
+      label: "Conservative",
+      desc: "Small quality improvements, same cadence",
+      longsPerMonth: baselines.currentLongFreq,
+      shortsPerMonth: baselines.currentShortFreq,
+      ctrLift: 5,
+      retentionLift: 5,
+      convLift: 0,
+    },
+    moderate: {
+      label: "Moderate",
+      desc: "More content + meaningful quality lifts",
+      longsPerMonth: baselines.currentLongFreq + 2,
+      shortsPerMonth: baselines.currentShortFreq + 4,
+      ctrLift: 10,
+      retentionLift: 10,
+      convLift: 0,
+    },
+    aggressive: {
+      label: "Aggressive",
+      desc: "Full content push + optimized packaging",
+      longsPerMonth: baselines.currentLongFreq + 4,
+      shortsPerMonth: baselines.currentShortFreq + 8,
+      ctrLift: 20,
+      retentionLift: 15,
+      convLift: 10,
+    },
+  };
+
+  const applyPreset = (key) => {
+    const p = presets[key];
+    setInputs({
+      longsPerMonth: p.longsPerMonth,
+      shortsPerMonth: p.shortsPerMonth,
+      ctrLift: p.ctrLift,
+      retentionLift: p.retentionLift,
+      convLift: p.convLift,
+    });
+    setActivePreset(key);
+  };
+
+  // --- PDF EXPORT ---
+  const cardRef = useRef(null);
+  const handleExportPDF = useCallback(async () => {
+    if (!cardRef.current) return;
+    try {
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+      const canvas = await html2canvas(cardRef.current, {
+        backgroundColor: "#111",
+        scale: 2,
+        useCORS: true,
+      });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "landscape", unit: "px", format: [canvas.width / 2, canvas.height / 2] });
+      pdf.addImage(imgData, "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
+      pdf.save("growth-projection.pdf");
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      alert("PDF export requires html2canvas and jspdf packages. Install them with: npm i html2canvas jspdf");
+    }
+  }, []);
 
   // Use manual override if set, otherwise use the passed prop
   const currentSubCount = manualSubCount !== null ? manualSubCount : currentSubscribers;
@@ -185,7 +271,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
     card: {
       backgroundColor: "#1E1E1E",
       border: "2px solid #333",
-      borderRadius: "12px",
+      borderRadius: "8px",
       padding: "28px",
       marginBottom: "20px",
       color: "#fff"
@@ -330,7 +416,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
       padding: "24px",
       backgroundColor: "#252525",
       border: "2px solid #333",
-      borderRadius: "12px",
+      borderRadius: "8px",
       marginBottom: "28px"
     },
     forecastMetric: {
@@ -400,7 +486,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
   };
 
   return (
-    <div style={s.card}>
+    <div ref={cardRef} style={s.card}>
       <div style={s.header}>
         <div style={s.headerLeft}>
           <h2 style={s.h2}>Growth Projection Simulator</h2>
@@ -409,8 +495,17 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
           </div>
         </div>
         <div style={s.headerRight}>
-          <button 
-            style={s.resetBtn} 
+          <button
+            style={s.resetBtn}
+            onClick={handleExportPDF}
+            onMouseEnter={(e) => e.target.style.backgroundColor = "#333"}
+            onMouseLeave={(e) => e.target.style.backgroundColor = "#252525"}
+          >
+            <Download size={14} />
+            Export PDF
+          </button>
+          <button
+            style={s.resetBtn}
             onClick={handleReset}
             onMouseEnter={(e) => e.target.style.backgroundColor = "#333"}
             onMouseLeave={(e) => e.target.style.backgroundColor = "#252525"}
@@ -534,6 +629,56 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
       <div style={s.layout}>
         {/* LEFT SIDE: CONTROLS */}
         <div style={s.controls}>
+          {/* SCENARIO PRESETS */}
+          <div style={s.sectionLabel}>Quick Scenarios</div>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
+            {Object.entries(presets).map(([key, p]) => (
+              <button
+                key={key}
+                onClick={() => applyPreset(key)}
+                style={{
+                  flex: 1,
+                  minWidth: "100px",
+                  padding: "10px 12px",
+                  borderRadius: "8px",
+                  border: activePreset === key ? "2px solid #60a5fa" : "1px solid #333",
+                  backgroundColor: activePreset === key ? "#1e3a5f" : "#252525",
+                  color: activePreset === key ? "#93c5fd" : "#E0E0E0",
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {p.label}
+                <div style={{ fontSize: "10px", fontWeight: "500", color: "#9E9E9E", marginTop: "2px" }}>{p.desc}</div>
+              </button>
+            ))}
+            <button
+              onClick={handleReset}
+              style={{
+                flex: 1,
+                minWidth: "100px",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                border: activePreset === "custom" ? "2px solid #60a5fa" : "1px solid #333",
+                backgroundColor: activePreset === "custom" ? "#1e3a5f" : "#252525",
+                color: activePreset === "custom" ? "#93c5fd" : "#E0E0E0",
+                fontSize: "12px",
+                fontWeight: "700",
+                cursor: "pointer",
+                textAlign: "center",
+                transition: "all 0.15s ease",
+              }}
+            >
+              Custom
+              <div style={{ fontSize: "10px", fontWeight: "500", color: "#9E9E9E", marginTop: "2px" }}>Your settings</div>
+            </button>
+          </div>
+
+          <div style={s.divider} />
+
           {/* CADENCE SECTION */}
           <div style={s.sectionLabel}>Content Cadence</div>
 
@@ -553,7 +698,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
                 step="1"
                 style={s.slider}
                 value={inputs.longsPerMonth}
-                onChange={(e) => setInputs({ ...inputs, longsPerMonth: Number(e.target.value) })}
+                onChange={(e) => { setInputs({ ...inputs, longsPerMonth: Number(e.target.value) }); setActivePreset("custom"); }}
               />
               <div style={{
                 ...s.valBox,
@@ -581,7 +726,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
                 step="1"
                 style={s.slider}
                 value={inputs.shortsPerMonth}
-                onChange={(e) => setInputs({ ...inputs, shortsPerMonth: Number(e.target.value) })}
+                onChange={(e) => { setInputs({ ...inputs, shortsPerMonth: Number(e.target.value) }); setActivePreset("custom"); }}
               />
               <div style={{
                 ...s.valBox,
@@ -618,7 +763,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
                 step="5"
                 style={s.slider}
                 value={inputs.ctrLift}
-                onChange={(e) => setInputs({ ...inputs, ctrLift: Number(e.target.value) })}
+                onChange={(e) => { setInputs({ ...inputs, ctrLift: Number(e.target.value) }); setActivePreset("custom"); }}
               />
               <div style={s.valBox}>+{inputs.ctrLift}%</div>
             </div>
@@ -644,7 +789,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
                 step="5"
                 style={s.slider}
                 value={inputs.retentionLift}
-                onChange={(e) => setInputs({ ...inputs, retentionLift: Number(e.target.value) })}
+                onChange={(e) => { setInputs({ ...inputs, retentionLift: Number(e.target.value) }); setActivePreset("custom"); }}
               />
               <div style={s.valBox}>+{inputs.retentionLift}%</div>
             </div>
@@ -670,7 +815,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
                 step="5"
                 style={s.slider}
                 value={inputs.convLift}
-                onChange={(e) => setInputs({ ...inputs, convLift: Number(e.target.value) })}
+                onChange={(e) => { setInputs({ ...inputs, convLift: Number(e.target.value) }); setActivePreset("custom"); }}
               />
               <div style={s.valBox}>+{inputs.convLift}%</div>
             </div>
@@ -743,6 +888,71 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
               />
             </AreaChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* ROI FRAMING */}
+      <div style={{ marginTop: "28px", padding: "24px", backgroundColor: "#252525", border: "2px solid #333", borderRadius: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+          <DollarSign size={20} className="text-green-400" />
+          <div style={{ fontSize: "16px", fontWeight: "800", color: "#fff" }}>Estimated Growth Value</div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>
+          {/* Subscriber Value Input */}
+          <div style={{ padding: "16px", backgroundColor: "#1E1E1E", borderRadius: "8px", border: "1px solid #333" }}>
+            <div style={{ fontSize: "11px", fontWeight: "700", color: "#9E9E9E", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "10px" }}>
+              Subscriber Value
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "20px", color: "#666" }}>$</span>
+              <input
+                type="number"
+                min="0.1"
+                max="100"
+                step="0.5"
+                value={subValue}
+                onChange={(e) => setSubValue(Math.max(0.1, parseFloat(e.target.value) || 1))}
+                style={{
+                  width: "80px",
+                  padding: "6px 10px",
+                  backgroundColor: "#333",
+                  border: "1px solid #444",
+                  borderRadius: "6px",
+                  color: "#fff",
+                  fontSize: "16px",
+                  fontWeight: "700",
+                }}
+              />
+              <span style={{ fontSize: "12px", color: "#9E9E9E" }}>/sub/year</span>
+            </div>
+          </div>
+
+          {/* Projected Annual Value */}
+          <div style={{ padding: "16px", backgroundColor: "#1E1E1E", borderRadius: "8px", border: "1px solid #333" }}>
+            <div style={{ fontSize: "11px", fontWeight: "700", color: "#9E9E9E", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "10px" }}>
+              Projected Annual Value of New Subs
+            </div>
+            <div style={{ fontSize: "32px", fontWeight: "900", color: "#22c55e", fontFamily: "'Barlow Condensed', sans-serif" }}>
+              ${fmtInt(Math.round(projection.totalGain * subValue))}
+            </div>
+            <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "4px" }}>
+              {fmtInt(projection.totalGain)} new subs × ${subValue}/yr
+            </div>
+          </div>
+
+          {/* ROI vs Baseline */}
+          <div style={{ padding: "16px", backgroundColor: "#1E1E1E", borderRadius: "8px", border: "1px solid #333" }}>
+            <div style={{ fontSize: "11px", fontWeight: "700", color: "#9E9E9E", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "10px" }}>
+              Incremental Value vs Status Quo
+            </div>
+            <div style={{ fontSize: "32px", fontWeight: "900", color: projection.totalGain > projection.baselineTotal ? "#22c55e" : "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
+              +${fmtInt(Math.round((projection.totalGain - projection.baselineTotal) * subValue))}
+            </div>
+            <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "4px" }}>
+              {fmtInt(projection.totalGain - projection.baselineTotal)} additional subs over baseline
+            </div>
+          </div>
         </div>
       </div>
     </div>

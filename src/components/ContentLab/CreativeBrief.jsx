@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { createBrief, createTranscript, validateBriefForGeneration, PERFORMANCE_LEVELS } from '../../lib/briefSchema';
 import claudeAPI from '../../services/claudeAPI';
+import { getBrandContextWithSignals } from '../../services/brandContextService';
 
 // Styles matching existing dashboard theme
 const s = {
@@ -58,7 +59,7 @@ const s = {
   card: {
     backgroundColor: '#1E1E1E',
     border: '1px solid #333',
-    borderRadius: '12px',
+    borderRadius: '8px',
     padding: '24px'
   },
   cardTitle: {
@@ -178,7 +179,7 @@ const s = {
   ideaCard: {
     backgroundColor: '#1E1E1E',
     border: '1px solid #333',
-    borderRadius: '12px',
+    borderRadius: '8px',
     padding: '20px',
     marginBottom: '16px'
   },
@@ -271,7 +272,7 @@ const s = {
     alignItems: 'center',
     gap: '6px',
     padding: '6px 12px',
-    borderRadius: '16px',
+    borderRadius: '8px',
     fontSize: '12px',
     fontWeight: '500'
   },
@@ -318,7 +319,7 @@ const s = {
   loadingCard: {
     backgroundColor: '#1E1E1E',
     border: '1px solid #333',
-    borderRadius: '16px',
+    borderRadius: '8px',
     padding: '48px',
     textAlign: 'center',
     maxWidth: '400px'
@@ -503,7 +504,17 @@ Focus on:
 
     try {
       const prompt = buildPrompt();
-      const systemPrompt = 'You are an expert YouTube content strategist. Always respond with valid JSON only, no additional text or markdown.';
+      let systemPrompt = 'You are an expert YouTube content strategist. Always respond with valid JSON only, no additional text or markdown.';
+
+      // Inject brand context for brand-aware idea generation
+      if (activeClient?.id) {
+        try {
+          const brandBlock = await getBrandContextWithSignals(activeClient.id, 'creative_brief');
+          if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+        } catch (e) {
+          console.warn('[CreativeBrief] Brand context fetch failed, proceeding without:', e.message);
+        }
+      }
 
       const response = await claudeAPI.call(prompt, systemPrompt, 'creative_brief', 4096);
 

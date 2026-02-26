@@ -28,7 +28,7 @@ export default function AudienceSignals({ channelId }) {
   if (loading) {
     return (
       <div style={{
-        background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
+        background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px",
         padding: "32px", textAlign: "center", color: "#888", marginTop: "24px",
       }}>
         <Loader size={20} style={{ animation: "spin 1s linear infinite", margin: "0 auto 8px" }} />
@@ -40,7 +40,7 @@ export default function AudienceSignals({ channelId }) {
   if (!signals) {
     return (
       <div style={{
-        background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
+        background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px",
         padding: "24px", marginTop: "24px",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
@@ -57,25 +57,41 @@ export default function AudienceSignals({ channelId }) {
   const { high_engagement_formats, content_gaps, _computed } = signals;
 
   return (
-    <div style={{
-      background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
-      padding: "24px", marginTop: "24px", position: "relative", overflow: "hidden",
+    <div className="section-card" style={{
+      background: "#1E1E1E", border: "1px solid #2A2A2A", borderRadius: "8px",
+      padding: "24px", marginTop: "24px",
+      "--glow-color": "rgba(139, 92, 246, 0.2)",
     }}>
-      <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, height: "4px",
-        background: "linear-gradient(90deg, #8b5cf6, #3b82f6, #10b981)",
-      }} />
-
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
-        <Radio size={18} color="#8b5cf6" />
-        <span style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>Audience Signals</span>
-        <span style={{
-          fontSize: "10px", color: "#888", background: "#252525",
-          padding: "2px 8px", borderRadius: "4px",
-        }}>
-          auto-computed · {_computed?.video_count || 0} videos
-        </span>
+        <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #8b5cf6, #8b5cf6cc)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px #8b5cf64d", flexShrink: 0 }}>
+          <svg className="radar-dish" width="32" height="32" viewBox="0 0 48 48" fill="none" style={{ overflow: "visible" }}>
+            {/* Flat base platform */}
+            <rect x="10" y="42" width="22" height="3" rx="1.5" fill="white" opacity="0.9" />
+            {/* Support legs — angled inward to post */}
+            <line x1="14" y1="42" x2="20" y2="34" stroke="white" strokeWidth="2.5" strokeLinecap="round" opacity="0.85" />
+            <line x1="28" y1="42" x2="22" y2="34" stroke="white" strokeWidth="2.5" strokeLinecap="round" opacity="0.85" />
+            {/* Vertical post */}
+            <line x1="21" y1="34" x2="18" y2="24" stroke="white" strokeWidth="2.5" strokeLinecap="round" opacity="0.9" />
+            {/* Dish — tilted ellipse, side profile */}
+            <ellipse cx="22" cy="18" rx="8" ry="18" transform="rotate(-30 22 18)" stroke="white" strokeWidth="2.5" fill="none" opacity="0.9" />
+            {/* Cross support inside dish */}
+            <line x1="16" y1="28" x2="34" y2="12" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+            <line x1="12" y1="14" x2="30" y2="26" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+            {/* Receiver arm — from dish center outward */}
+            <line x1="22" y1="20" x2="34" y2="10" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.8" />
+            {/* Receiver dot */}
+            <circle cx="35" cy="9" r="2.5" fill="white" opacity="0.9" />
+            {/* Signal waves — hidden by default, appear on hover and move toward dish */}
+            <g className="radar-waves" style={{ opacity: 0 }}>
+              <path d="M40 -2 Q34 8, 42 18" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" />
+              <path d="M46 -5 Q39 6, 48 18" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" />
+              <path d="M52 -8 Q44 4, 54 18" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" />
+            </g>
+          </svg>
+        </div>
+        <span style={{ fontSize: "26px", fontWeight: "700", color: "#fff" }}>Audience Signals</span>
+        <span className="stat-chip purple">{_computed?.video_count || 0} videos analyzed</span>
       </div>
 
       {/* Two-column grid */}

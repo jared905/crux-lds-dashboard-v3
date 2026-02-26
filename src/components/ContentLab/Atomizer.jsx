@@ -106,7 +106,7 @@ export default function Atomizer({ activeClient }) {
       <div style={{
         background: "#1E1E1E",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         padding: "24px",
         marginBottom: "24px"
       }}>
@@ -125,7 +125,7 @@ export default function Atomizer({ activeClient }) {
       <div style={{
         background: "#1E1E1E",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         padding: "24px",
         marginBottom: "24px"
       }}>
@@ -241,7 +241,7 @@ export default function Atomizer({ activeClient }) {
           <div style={{
             background: "#1E1E1E",
             border: "1px solid #333",
-            borderRadius: "12px",
+            borderRadius: "8px",
             padding: "16px 24px",
             marginBottom: "24px",
             display: "flex",
@@ -272,7 +272,7 @@ export default function Atomizer({ activeClient }) {
             <div style={{
               background: "#1E1E1E",
               border: "1px solid #333",
-              borderRadius: "12px",
+              borderRadius: "8px",
               padding: "20px 24px",
               marginBottom: "24px"
             }}>

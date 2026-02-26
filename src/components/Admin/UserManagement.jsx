@@ -348,7 +348,7 @@ const UserManagement = ({ clients = [] }) => {
         <div style={{
           background: '#1E1E1E',
           border: '1px solid #333',
-          borderRadius: '12px',
+          borderRadius: '8px',
           padding: '24px',
           marginBottom: '24px'
         }}>
@@ -367,7 +367,7 @@ const UserManagement = ({ clients = [] }) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                background: '#121212',
+                background: '#181817',
                 border: '1px solid #333',
                 borderRadius: '8px',
                 padding: '10px 14px'
@@ -447,7 +447,7 @@ const UserManagement = ({ clients = [] }) => {
                   style={{
                     flex: '1 1 250px',
                     padding: '10px 14px',
-                    background: '#121212',
+                    background: '#181817',
                     border: '1px solid #333',
                     borderRadius: '8px',
                     color: '#E0E0E0',
@@ -459,7 +459,7 @@ const UserManagement = ({ clients = [] }) => {
                   onChange={(e) => setInviteRole(e.target.value)}
                   style={{
                     padding: '10px 14px',
-                    background: '#121212',
+                    background: '#181817',
                     border: '1px solid #333',
                     borderRadius: '8px',
                     color: '#E0E0E0',
@@ -520,7 +520,7 @@ const UserManagement = ({ clients = [] }) => {
               style={{
                 background: '#1E1E1E',
                 border: '1px solid #333',
-                borderRadius: '12px',
+                borderRadius: '8px',
                 overflow: 'hidden'
               }}
             >
@@ -565,7 +565,7 @@ const UserManagement = ({ clients = [] }) => {
                 {/* Role Badge */}
                 <span style={{
                   padding: '4px 12px',
-                  borderRadius: '12px',
+                  borderRadius: '8px',
                   fontSize: '12px',
                   fontWeight: '600',
                   background: user.role === 'admin' ? 'rgba(41, 98, 255, 0.15)' : 'rgba(158, 158, 158, 0.15)',

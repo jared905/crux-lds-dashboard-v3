@@ -44,7 +44,7 @@ const s = {
     display: 'inline-flex',
     alignItems: 'center',
     padding: '2px 8px',
-    borderRadius: '12px',
+    borderRadius: '8px',
     fontSize: '11px',
     fontWeight: '500',
   },

@@ -133,7 +133,7 @@ export default function OpportunitySynthesis({ rows, activeClient }) {
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px" }}>
       {/* Header */}
-      <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px", padding: "24px", marginBottom: "16px" }}>
+      <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px", padding: "24px", marginBottom: "16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
           <Compass size={22} color="#3b82f6" />
           <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff" }}>Opportunity Synthesis</div>
@@ -189,7 +189,7 @@ export default function OpportunitySynthesis({ rows, activeClient }) {
 
       {/* Empty state */}
       {!error && filtered.length === 0 && (
-        <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px", padding: "40px", textAlign: "center", color: "#666", fontSize: "14px" }}>
+        <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px", padding: "40px", textAlign: "center", color: "#666", fontSize: "14px" }}>
           {opportunities.length === 0
             ? "No opportunities found. Upload video data, run an audit, or add competitor channels to surface opportunities."
             : "No opportunities match your filters."}

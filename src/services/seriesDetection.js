@@ -7,6 +7,7 @@
 
 import claudeAPI from './claudeAPI';
 import { parseClaudeJSON } from '../lib/parseClaudeJSON';
+import { getBrandContextWithSignals } from './brandContextService';
 import {
   upsertDetectedSeries,
   assignVideosToSeries,
@@ -137,8 +138,18 @@ Rules:
 - Focus on recurring INTENT, not just keyword overlap
 - Return ONLY valid JSON, no other text`;
 
-export async function detectSeriesBySemantic(uncategorizedVideos, existingSeriesNames, auditId) {
+export async function detectSeriesBySemantic(uncategorizedVideos, existingSeriesNames, auditId, channelId) {
   if (uncategorizedVideos.length < 5) return [];
+
+  // Fetch brand context to make series detection brand-aware
+  let brandBlock = '';
+  if (channelId) {
+    try {
+      brandBlock = await getBrandContextWithSignals(channelId, 'series_detection');
+    } catch (e) {
+      console.warn('[seriesDetection] Brand context fetch failed, proceeding without:', e.message);
+    }
+  }
 
   // Limit to 100 videos for the prompt
   const videosForPrompt = uncategorizedVideos.slice(0, 100);
@@ -162,9 +173,13 @@ Identify implicit series/themes. For each, provide:
 }`;
 
   try {
+    const systemPrompt = brandBlock
+      ? SERIES_DETECTION_SYSTEM_PROMPT + '\n\n' + brandBlock
+      : SERIES_DETECTION_SYSTEM_PROMPT;
+
     const result = await claudeAPI.call(
       prompt,
-      SERIES_DETECTION_SYSTEM_PROMPT,
+      systemPrompt,
       'audit_series_detection',
       2000
     );
@@ -221,7 +236,7 @@ export async function runSeriesDetection(auditId, channelId, videos) {
 
     // Pass 2: Semantic detection on uncategorized videos
     const existingNames = patternSeries.map(s => s.name);
-    const semanticSeries = await detectSeriesBySemantic(uncategorized, existingNames, auditId);
+    const semanticSeries = await detectSeriesBySemantic(uncategorized, existingNames, auditId, channelId);
 
     // Merge (semantic series only if they don't heavily overlap with pattern series)
     const allSeries = [...patternSeries];

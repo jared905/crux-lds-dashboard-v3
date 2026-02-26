@@ -25,7 +25,7 @@ import {
 
 const cardStyle = {
   background: "#1E1E1E",
-  borderRadius: "12px",
+  borderRadius: "8px",
   border: "1px solid #333",
   marginBottom: "16px",
   overflow: "hidden",

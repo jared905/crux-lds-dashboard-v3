@@ -164,7 +164,7 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
       <div style={{
         background: "#1E1E1E",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         padding: "24px",
         marginBottom: "24px"
       }}>
@@ -198,7 +198,7 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
             style={{
               background: statusFilter === f.id ? "#3b82f6" : "#252525",
               border: `1px solid ${statusFilter === f.id ? "#3b82f6" : "#444"}`,
-              borderRadius: "16px",
+              borderRadius: "8px",
               padding: "6px 14px",
               color: statusFilter === f.id ? "#fff" : "#b0b0b0",
               fontSize: "12px",
@@ -229,7 +229,7 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
       <div style={{
         background: "#1E1E1E",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         overflow: "hidden"
       }}>
         {loading ? (

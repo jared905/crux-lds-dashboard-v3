@@ -351,7 +351,7 @@ export default function StrategySuggestions({ rows }) {
     <div style={{
       background: "#1E1E1E",
       border: "1px solid #333",
-      borderRadius: "12px",
+      borderRadius: "8px",
       padding: "24px",
       marginBottom: "20px",
       position: "relative",

@@ -284,7 +284,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
       {/* Header */}
       <div style={{
         background: "linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)",
-        borderRadius: "12px",
+        borderRadius: "8px",
         border: "1px solid rgba(139, 92, 246, 0.3)",
         padding: "20px",
       }}>
@@ -726,7 +726,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
       {showPreview && (
         <div style={{
           background: "#fff",
-          borderRadius: "12px",
+          borderRadius: "8px",
           padding: "32px",
           color: "#333",
           fontFamily: "system-ui, -apple-system, sans-serif",
@@ -1370,7 +1370,7 @@ function buildPDFElement(content) {
 
 const cardStyle = {
   background: "#1E1E1E",
-  borderRadius: "12px",
+  borderRadius: "8px",
   border: "1px solid #333",
   padding: "20px",
 };

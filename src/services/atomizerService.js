@@ -8,6 +8,7 @@
 
 import { supabase } from './supabaseClient';
 import { claudeAPI } from './claudeAPI';
+import { getBrandContextWithSignals } from './brandContextService';
 
 // ============================================
 // SYSTEM PROMPT
@@ -70,8 +71,19 @@ Guidelines:
  * @param {string} title - Title for the transcript
  * @returns {Promise<Object>} Parsed atomizer results
  */
-export async function analyzeTranscript(text, title = 'Untitled') {
+export async function analyzeTranscript(text, title = 'Untitled', channelId = null) {
   const wordCount = text.trim().split(/\s+/).length;
+
+  // Fetch brand context to make atomized content brand-aware
+  let systemPrompt = ATOMIZER_SYSTEM_PROMPT;
+  if (channelId) {
+    try {
+      const brandBlock = await getBrandContextWithSignals(channelId, 'atomizer');
+      if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+    } catch (e) {
+      console.warn('[atomizer] Brand context fetch failed, proceeding without:', e.message);
+    }
+  }
 
   const prompt = `Analyze this transcript and extract the best clips, shorts, and quotes:
 
@@ -82,7 +94,7 @@ Word Count: ${wordCount}
 ${text}
 --- END TRANSCRIPT ---`;
 
-  const result = await claudeAPI.call(prompt, ATOMIZER_SYSTEM_PROMPT, 'atomizer', 4096);
+  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer', 4096);
 
   // Parse JSON response (handle markdown code block wrapping)
   let parsed;

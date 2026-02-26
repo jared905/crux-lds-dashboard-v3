@@ -112,7 +112,7 @@ export default function ViewsChart({
     card: {
       backgroundColor: colors.bg,
       border: `1px solid ${colors.border}`,
-      borderRadius: "12px",
+      borderRadius: "8px",
       padding: "24px",
       boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.3)",
       display: "flex",

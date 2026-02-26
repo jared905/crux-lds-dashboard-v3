@@ -33,7 +33,7 @@ import { syncOAuthChannelVideos } from '../../services/clientDataService';
 
 const cardStyle = {
   background: "#1E1E1E",
-  borderRadius: "12px",
+  borderRadius: "8px",
   border: "1px solid #333",
   padding: "24px",
   marginBottom: "16px",
@@ -1107,7 +1107,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
           padding: "20px",
           background: "rgba(139, 92, 246, 0.06)",
           border: "1px solid rgba(139, 92, 246, 0.2)",
-          borderRadius: "12px",
+          borderRadius: "8px",
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -1435,7 +1435,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
               transform: "translate(-50%, -50%)",
               background: "#1E1E1E",
               border: "1px solid #333",
-              borderRadius: "12px",
+              borderRadius: "8px",
               padding: "32px",
               maxWidth: "420px",
               width: "90%",

@@ -47,7 +47,7 @@ const s = {
   container: {
     backgroundColor: '#1E1E1E',
     border: '1px solid #333',
-    borderRadius: '12px',
+    borderRadius: '8px',
     padding: '24px',
   },
   header: {

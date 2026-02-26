@@ -452,7 +452,7 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
       <div style={{
         backgroundColor: "#1E1E1E",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         padding: "24px",
         position: "relative",
         overflow: "hidden"
@@ -554,7 +554,7 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
             <div style={{
               backgroundColor: "#1E1E1E",
               border: "1px solid #333",
-              borderRadius: "12px",
+              borderRadius: "8px",
               padding: "24px",
               display: "flex",
               flexDirection: "column",
@@ -643,7 +643,7 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
           <div style={{
             backgroundColor: "#1E1E1E",
             border: "1px solid #333",
-            borderRadius: "12px",
+            borderRadius: "8px",
             padding: "24px",
             position: "relative",
             overflow: "hidden"
@@ -743,7 +743,7 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
             backgroundColor: "#1E1E1E",
             border: "1px solid #10b981",
             borderLeft: "4px solid #10b981",
-            borderRadius: "12px",
+            borderRadius: "8px",
             padding: "20px"
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
@@ -859,7 +859,7 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
           <div id="ai-summary-content" style={{
             backgroundColor: "#1E1E1E",
             border: "1px solid #333",
-            borderRadius: "12px",
+            borderRadius: "8px",
             padding: "32px"
           }}>
             <div style={{ fontSize: "15px", lineHeight: "1.7", color: "#E0E0E0" }}>
@@ -943,7 +943,7 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
           <div style={{
             backgroundColor: "#1E1E1E",
             border: "1px solid #333",
-            borderRadius: "12px",
+            borderRadius: "8px",
             padding: "24px",
             position: "relative",
             overflow: "hidden"

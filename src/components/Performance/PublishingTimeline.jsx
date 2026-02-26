@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
  * Publishing Pattern Timeline
  * Shows uploads per week over time with shorts/longs breakdown
  */
-export default function PublishingTimeline({ rows, dateRange = '28d' }) {
+export default function PublishingTimeline({ rows, dateRange = '28d', compact = false }) {
   const timelineData = useMemo(() => {
     if (!rows || rows.length === 0) return null;
 
@@ -113,41 +113,46 @@ export default function PublishingTimeline({ rows, dateRange = '28d' }) {
     container: {
       background: "#1E1E1E",
       border: "1px solid #333",
-      borderRadius: "12px",
-      padding: "24px",
-      marginBottom: "20px"
+      borderRadius: "8px",
+      padding: compact ? "16px" : "24px",
+      marginBottom: compact ? 0 : "20px",
+      height: compact ? "100%" : "auto",
+      display: compact ? "flex" : "block",
+      flexDirection: "column",
     },
     header: {
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: "20px"
+      marginBottom: compact ? "12px" : "20px"
     },
     title: {
-      fontSize: "20px",
+      fontSize: compact ? "16px" : "20px",
       fontWeight: "700",
       color: "#fff"
     },
     subtitle: {
-      fontSize: "13px",
+      fontSize: compact ? "11px" : "13px",
       color: "#888",
       marginTop: "4px"
     },
     avg: {
-      fontSize: "13px",
+      fontSize: compact ? "11px" : "13px",
       color: "#888"
     },
     avgValue: {
       color: "#fff",
       fontWeight: "600",
-      fontSize: "16px"
+      fontSize: compact ? "14px" : "16px"
     },
     chart: {
       display: "flex",
       alignItems: "flex-end",
-      gap: "8px",
-      height: "200px",
-      padding: "20px 0",
+      gap: compact ? "4px" : "8px",
+      height: compact ? undefined : "200px",
+      flex: compact ? 1 : undefined,
+      minHeight: compact ? "120px" : undefined,
+      padding: compact ? "12px 0" : "20px 0",
       borderBottom: "1px solid #333"
     },
     barWrapper: {
@@ -157,7 +162,8 @@ export default function PublishingTimeline({ rows, dateRange = '28d' }) {
       alignItems: "center",
       gap: "8px",
       position: "relative",
-      cursor: "pointer"
+      cursor: "pointer",
+      transition: "transform 0.2s ease, filter 0.2s ease",
     },
     barStack: {
       width: "100%",
@@ -207,12 +213,13 @@ export default function PublishingTimeline({ rows, dateRange = '28d' }) {
     legend: {
       display: "flex",
       alignItems: "center",
-      gap: "16px",
-      marginTop: "16px",
-      fontSize: "12px",
+      gap: compact ? "10px" : "16px",
+      marginTop: compact ? "10px" : "16px",
+      fontSize: compact ? "10px" : "12px",
       color: "#888",
-      paddingTop: "16px",
-      borderTop: "1px solid #333"
+      paddingTop: compact ? "10px" : "16px",
+      borderTop: "1px solid #333",
+      flexWrap: compact ? "wrap" : "nowrap",
     },
     legendItem: {
       display: "flex",
@@ -249,15 +256,30 @@ export default function PublishingTimeline({ rows, dateRange = '28d' }) {
     return `${month} ${day}`;
   };
 
-  const chartHeight = 160;
+  const chartHeight = compact ? 120 : 160;
   const avgLinePosition = chartHeight - (avgUploadsPerWeek / maxUploads * chartHeight);
 
   return (
-    <div style={s.container}>
+    <div style={s.container} className="section-card heart-section">
       <div style={s.header}>
-        <div>
-          <div style={s.title}>📈 Publishing Pattern</div>
-          <div style={s.subtitle}>{getSubtitle()}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #ef4444, #ef4444cc)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px #ef44444d" }}>
+            <svg className="heart-icon" width="28" height="28" viewBox="0 0 48 48" fill="none">
+              {/* Anatomical heart */}
+              {/* Main chambers */}
+              <path d="M24 40 C24 40, 10 30, 10 20 C10 14, 14 10, 18 10 C20 10, 22 12, 24 14 C26 12, 28 10, 30 10 C34 10, 38 14, 38 20 C38 30, 24 40, 24 40Z" fill="white" opacity="0.9" />
+              {/* Aorta — top vessels */}
+              <path d="M20 12 C18 6, 14 4, 14 4" stroke="white" strokeWidth="3" strokeLinecap="round" fill="none" opacity="0.8" />
+              <path d="M24 10 C24 6, 26 3, 26 3" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.75" />
+              <path d="M28 12 C30 6, 34 5, 34 5" stroke="white" strokeWidth="3" strokeLinecap="round" fill="none" opacity="0.8" />
+              {/* Ventricle line */}
+              <path d="M24 16 C24 22, 22 28, 24 36" stroke="#ef4444" strokeWidth="1.5" fill="none" opacity="0.4" />
+            </svg>
+          </div>
+          <div>
+            <div style={s.title}>Publishing Pattern</div>
+            <div style={s.subtitle}>{getSubtitle()}</div>
+          </div>
         </div>
         <div style={s.avg}>
           <div style={s.avgValue}>{avgUploadsPerWeek.toFixed(1)}</div>
@@ -307,16 +329,13 @@ export default function PublishingTimeline({ rows, dateRange = '28d' }) {
 }
 
 function WeekBar({ week, maxUploads, chartHeight, formatDate, s }) {
-  const [showTooltip, setShowTooltip] = React.useState(false);
-
   const shortsHeight = maxUploads > 0 ? (week.shorts / maxUploads) * chartHeight : 0;
   const longsHeight = maxUploads > 0 ? (week.longs / maxUploads) * chartHeight : 0;
 
   return (
     <div
+      className="week-bar"
       style={s.barWrapper}
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
     >
       {week.total > 0 && (
         <div style={s.count(true)}>
@@ -357,27 +376,6 @@ function WeekBar({ week, maxUploads, chartHeight, formatDate, s }) {
 
       <div style={s.weekLabel}>{formatDate(week.weekStart)}</div>
 
-      {showTooltip && week.total > 0 && (
-        <div style={s.tooltip}>
-          <div style={{ fontWeight: "600", marginBottom: "6px" }}>
-            Week of {formatDate(week.weekStart)}
-          </div>
-          <div style={{ marginBottom: "2px" }}>
-            {week.total} upload{week.total !== 1 ? 's' : ''} total
-          </div>
-          {week.shorts > 0 && (
-            <div style={{ color: "#f97316" }}>• {week.shorts} short{week.shorts !== 1 ? 's' : ''}</div>
-          )}
-          {week.longs > 0 && (
-            <div style={{ color: "#0ea5e9" }}>• {week.longs} long-form</div>
-          )}
-          {week.avgViewsPerUpload > 0 && (
-            <div style={{ marginTop: "6px", paddingTop: "6px", borderTop: "1px solid #333" }}>
-              Avg {week.avgViewsPerUpload.toLocaleString()} views/upload
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

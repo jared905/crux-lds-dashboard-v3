@@ -233,7 +233,7 @@ export default function ContentCalendar({ rows }) {
       <div style={{
         background: "#1E1E1E",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         padding: "40px",
         marginBottom: "20px",
         textAlign: "center",
@@ -250,7 +250,7 @@ export default function ContentCalendar({ rows }) {
       <div style={{
         background: "#1E1E1E",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         padding: "40px",
         marginBottom: "20px",
         textAlign: "center"
@@ -285,7 +285,7 @@ export default function ContentCalendar({ rows }) {
     section: {
       background: "#1E1E1E",
       border: "1px solid #333",
-      borderRadius: "12px",
+      borderRadius: "8px",
       padding: "24px",
       marginBottom: "20px",
       position: "relative",

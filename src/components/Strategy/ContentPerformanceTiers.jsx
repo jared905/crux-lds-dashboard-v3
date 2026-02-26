@@ -52,7 +52,7 @@ export default function ContentPerformanceTiers({ rows }) {
 
   if (!analysis) {
     return (
-      <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px", padding: "40px", marginBottom: "20px" }}>
+      <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px", padding: "40px", marginBottom: "20px" }}>
         <div style={{ textAlign: "center", color: "#9E9E9E" }}>
           No data available for performance tier analysis
         </div>
@@ -90,13 +90,12 @@ export default function ContentPerformanceTiers({ rows }) {
 
   const s = {
     card: {
-      backgroundColor: "#1E1E1E",
-      border: "1px solid #333",
-      borderRadius: "12px",
+      background: "linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(245, 158, 11, 0.03))",
+      border: "1px solid rgba(16, 185, 129, 0.12)",
+      borderRadius: "8px",
       padding: "24px",
       marginBottom: "20px",
-      position: "relative",
-      overflow: "hidden"
+      "--glow-color": "rgba(16, 185, 129, 0.2)",
     },
     header: {
       display: "flex",
@@ -105,9 +104,9 @@ export default function ContentPerformanceTiers({ rows }) {
       marginBottom: "24px"
     },
     title: {
-      fontSize: "18px",
+      fontSize: "26px",
       fontWeight: "700",
-      color: "#fff"
+      color: "#fff",
     },
     mainContent: {
       display: "grid",
@@ -220,14 +219,13 @@ export default function ContentPerformanceTiers({ rows }) {
   };
 
   return (
-    <div style={s.card}>
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "4px", background: "linear-gradient(90deg, #10b981, #f59e0b, #ef4444)" }} />
+    <div className="section-card" style={s.card}>
       <div style={s.header}>
-        <Award size={20} style={{ color: "#10b981" }} />
-        <div style={s.title}>Content Performance Tiers</div>
-        <div style={{ fontSize: "12px", color: "#9E9E9E", background: "#252525", padding: "4px 10px", borderRadius: "6px" }}>
-          Distribution by Views
+        <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #10b981, #f59e0b)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(16, 185, 129, 0.3)", flexShrink: 0 }}>
+          <Award size={22} style={{ color: "#fff" }} />
         </div>
+        <div style={s.title}>Content Performance Tiers</div>
+        <span className="stat-chip green">Distribution by Views</span>
       </div>
 
       <div style={s.mainContent}>
@@ -293,7 +291,7 @@ export default function ContentPerformanceTiers({ rows }) {
               transform: "translate(-50%, -50%)",
               textAlign: "center"
             }}>
-              <div style={{ fontSize: "32px", fontWeight: "700", color: "#fff" }}>{total}</div>
+              <div style={{ fontSize: "32px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif", color: "#fff" }}>{total}</div>
               <div style={{ fontSize: "12px", color: "#9E9E9E" }}>Total Videos</div>
             </div>
           </div>

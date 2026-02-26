@@ -450,7 +450,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
       <div style={{
         background: "#1E1E1E",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         padding: "24px",
         marginBottom: "24px",
         textAlign: "center",
@@ -465,7 +465,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
     <div style={{
       background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
       border: "1px solid #333",
-      borderRadius: "12px",
+      borderRadius: "8px",
       padding: "24px",
       marginBottom: "24px"
     }}>
@@ -703,7 +703,7 @@ function MetricCard({ label, current, previous, change, isPercentage = false }) 
       <div style={{ fontSize: "10px", color: "#888", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
         {label}
       </div>
-      <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+      <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
         {formatValue(current)}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>

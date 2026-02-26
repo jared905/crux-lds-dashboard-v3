@@ -918,6 +918,34 @@ export async function setCompetitorGroupMembers(groupId, channelIds) {
   }
 }
 
+/**
+ * Get the most recent video for each of the given channels.
+ * Returns { [channel_id]: video } map.
+ */
+export async function getRecentVideosByChannels(channelIds, { days = 30 } = {}) {
+  if (!supabase) throw new Error('Supabase not configured');
+  if (!channelIds.length) return {};
+
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+
+  const { data, error } = await supabase
+    .from('videos')
+    .select('id, channel_id, title, youtube_video_id, view_count, like_count, comment_count, published_at, thumbnail_url, video_type')
+    .in('channel_id', channelIds)
+    .gte('published_at', cutoffDate.toISOString())
+    .order('published_at', { ascending: false });
+
+  if (error) throw error;
+
+  // Keep only the most recent video per channel
+  const byChannel = {};
+  (data || []).forEach(v => {
+    if (!byChannel[v.channel_id]) byChannel[v.channel_id] = v;
+  });
+  return byChannel;
+}
+
 export default {
   // Channels
   getChannels,
@@ -931,6 +959,7 @@ export default {
   // Videos
   getVideos,
   getTopCompetitorVideos,
+  getRecentVideosByChannels,
   upsertVideos,
 
   // Snapshots

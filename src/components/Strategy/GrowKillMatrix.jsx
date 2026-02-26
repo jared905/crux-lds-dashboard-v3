@@ -64,7 +64,7 @@ export default function GrowKillMatrix({ patterns }) {
     <div style={{
       background: "#252525",
       border: `2px solid ${color}40`,
-      borderRadius: "12px",
+      borderRadius: "8px",
       padding: "20px",
       display: "flex",
       flexDirection: "column",
@@ -178,7 +178,7 @@ export default function GrowKillMatrix({ patterns }) {
     <div style={{
       background: "#1E1E1E",
       border: "1px solid #333",
-      borderRadius: "12px",
+      borderRadius: "8px",
       padding: "24px",
       marginTop: "24px"
     }}>

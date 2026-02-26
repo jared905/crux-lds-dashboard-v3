@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/Full_View_favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet" />
     <title>Full View Analytics || Crux</title>
     <meta name="version" content="2.2.1-cache-bust" />
     <style>
@@ -11,33 +14,9 @@
         margin: 0;
         padding: 0;
         min-height: 100vh;
-        background-color: #cbcbcb; /* Dark Gray Background */
+        background-color: #181817;
         position: relative;
         overflow-x: hidden;
-      }
-
-      /* This creates the repeating, rotated watermark */
-      body::before {
-        content: "";
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%; /* Larger than screen to cover area after rotation */
-        height: 500%;
-        /* Point to your logo in the public folder */
-        background-image: url('/crux-logo.png'); 
-        background-repeat: repeat;
-        background-size: 90px; /* Adjust this to change logo size */
-        opacity: 0.03; /* 20% Opacity */
-        transform: rotate(-45deg);
-        transform-origin: top left;
-        pointer-events: none; /* Allows clicking through the watermark */
-        z-index: -1; /* Sits behind your content */
-      }
-
-      #root {
-        position: relative;
-        z-index: 1;
       }
     </style>
   </head>

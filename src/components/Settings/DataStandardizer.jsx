@@ -186,7 +186,7 @@ export default function DataStandardizer() {
   const s = {
     container: { padding: "40px", maxWidth: "800px", margin: "0 auto", color: "#f8fafc", fontFamily: "sans-serif" },
     dropZone: {
-      border: "2px dashed #475569", borderRadius: "16px", padding: "40px",
+      border: "2px dashed #475569", borderRadius: "8px", padding: "40px",
       textAlign: "center", backgroundColor: "#1e293b", cursor: "pointer", transition: "all 0.2s"
     },
     btn: {

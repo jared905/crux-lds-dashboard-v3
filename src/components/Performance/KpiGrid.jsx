@@ -1,9 +1,24 @@
 import React from "react";
-import { 
-  UploadCloud, Eye, Clock, 
-  BarChart3, MousePointerClick, Users 
-} from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/utils";
+
+/* ── progress ring for percentage KPIs ── */
+function ProgressRing({ value, color, size = 52, stroke = 5 }) {
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const pct = Math.min(Math.max(value, 0), 1);
+  const offset = circumference * (1 - pct);
+  return (
+    <svg width={size} height={size} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
+      <circle cx={size/2} cy={size/2} r={radius} fill="none"
+        stroke="#252525" strokeWidth={stroke} />
+      <circle cx={size/2} cy={size/2} r={radius} fill="none"
+        stroke={color} strokeWidth={stroke}
+        strokeDasharray={circumference} strokeDashoffset={offset}
+        strokeLinecap="round"
+        style={{ transition: "stroke-dashoffset 0.6s ease" }} />
+    </svg>
+  );
+}
 
 export default function KpiGrid({ kpis, channelStats }) {
   const safeKpis = kpis || {};
@@ -16,9 +31,10 @@ export default function KpiGrid({ kpis, channelStats }) {
       value: safeChannelStats.subscriberCount
         ? fmtInt(safeChannelStats.subscriberCount)
         : fmtInt(safeKpis.subscribers || 0),
-      icon: Users,
-      color: "#f472b6", // Pink-400 (Highlight color for the headline metric)
-      bg: "rgba(244, 114, 182, 0.1)", // Translucent Pink
+      iconSrc: "/icons/subscribers.svg",
+      color: "#f472b6",
+      gradient: "linear-gradient(135deg, #f472b6, #ec4899)",
+      glow: "rgba(236, 72, 153, 0.3)",
       subtext: safeChannelStats.subscriberCount
         ? `+${fmtInt(safeKpis.subscribers || 0)} in period`
         : "Net gained",
@@ -28,9 +44,10 @@ export default function KpiGrid({ kpis, channelStats }) {
       value: safeChannelStats.viewCount
         ? fmtInt(safeChannelStats.viewCount)
         : fmtInt(safeKpis.views || 0),
-      icon: Eye,
-      color: "#818cf8", // Indigo-400 (Brighter for dark mode)
-      bg: "rgba(129, 140, 248, 0.1)", // Translucent Indigo
+      iconSrc: "/icons/views.svg",
+      color: "#818cf8",
+      gradient: "linear-gradient(135deg, #818cf8, #6366f1)",
+      glow: "rgba(99, 102, 241, 0.3)",
       subtext: safeChannelStats.viewCount
         ? `${fmtInt(safeKpis.views || 0)} in period`
         : "Lifetime views",
@@ -40,9 +57,10 @@ export default function KpiGrid({ kpis, channelStats }) {
       value: safeChannelStats.videoCount
         ? fmtInt(safeChannelStats.videoCount)
         : fmtInt(safeKpis.uploads || 0),
-      icon: UploadCloud,
-      color: "#94a3b8", // Slate-400 (Lighter for dark mode)
-      bg: "rgba(148, 163, 184, 0.1)", // Translucent Slate
+      iconSrc: "/icons/upload.svg",
+      color: "#94a3b8",
+      gradient: "linear-gradient(135deg, #94a3b8, #64748b)",
+      glow: "rgba(100, 116, 139, 0.3)",
       subtext: safeChannelStats.videoCount
         ? `${fmtInt(safeKpis.uploads || 0)} in period`
         : "All videos",
@@ -50,26 +68,33 @@ export default function KpiGrid({ kpis, channelStats }) {
     {
       label: "Watch Hours",
       value: fmtInt(safeKpis.watchHours || 0),
-      icon: Clock,
-      color: "#818cf8", // Indigo-400
-      bg: "rgba(129, 140, 248, 0.1)",
+      iconSrc: "/icons/clock.svg",
+      color: "#818cf8",
+      gradient: "linear-gradient(135deg, #818cf8, #6366f1)",
+      glow: "rgba(99, 102, 241, 0.3)",
       subtext: "In period",
     },
     {
       label: "Avg Retention",
       value: fmtPct(safeKpis.avgRetention || 0, 1),
-      icon: BarChart3,
-      color: "#34d399", // Emerald-400 (Brighter)
-      bg: "rgba(52, 211, 153, 0.1)", // Translucent Emerald
+      iconSrc: "/icons/retention.svg",
+      color: "#34d399",
+      gradient: "linear-gradient(135deg, #34d399, #10b981)",
+      glow: "rgba(16, 185, 129, 0.3)",
       subtext: "Weighted avg",
+      showRing: true,
+      ringValue: safeKpis.avgRetention || 0,
     },
     {
       label: "Avg CTR",
       value: fmtPct(safeKpis.avgCtr || 0, 1),
-      icon: MousePointerClick,
-      color: "#fbbf24", // Amber-400 (Brighter)
-      bg: "rgba(251, 191, 36, 0.1)", // Translucent Amber
+      iconSrc: "/icons/click.svg",
+      color: "#fbbf24",
+      gradient: "linear-gradient(135deg, #fbbf24, #f59e0b)",
+      glow: "rgba(245, 158, 11, 0.3)",
       subtext: "Click-through rate",
+      showRing: true,
+      ringValue: safeKpis.avgCtr || 0,
     },
   ];
 
@@ -86,7 +111,7 @@ export default function KpiGrid({ kpis, channelStats }) {
       backgroundColor: "#1e293b", // Slate-800
       // Subtle Border (Darker than card, but distinct)
       border: "1px solid #334155", // Slate-700
-      borderRadius: "12px",
+      borderRadius: "8px",
       padding: "24px",
       display: "flex",
       flexDirection: "column",
@@ -101,15 +126,16 @@ export default function KpiGrid({ kpis, channelStats }) {
       justifyContent: "space-between",
       marginBottom: "16px",
     },
-    iconBox: (color, bg) => ({
-      width: "40px",
-      height: "40px",
-      borderRadius: "8px",
+    iconBox: (gradient, glow) => ({
+      width: "48px",
+      height: "48px",
+      borderRadius: "14px",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      color: color,
-      backgroundColor: bg,
+      color: "#fff",
+      background: gradient,
+      boxShadow: `0 4px 16px ${glow}`,
     }),
     label: {
       fontSize: "12px",
@@ -120,12 +146,13 @@ export default function KpiGrid({ kpis, channelStats }) {
       textTransform: "uppercase", // Adds a 'Data' feel
     },
     value: {
-      fontSize: "28px",
+      fontSize: "34px",
       fontWeight: "700",
-      color: "#f8fafc", // Slate-50 (Bright White Text)
+      color: "#f8fafc",
       lineHeight: "1",
       fontVariantNumeric: "tabular-nums",
-      letterSpacing: "-0.02em",
+      letterSpacing: "-0.03em",
+      fontFamily: "'Barlow Condensed', sans-serif",
     },
     subtext: {
       fontSize: "12px",
@@ -138,18 +165,24 @@ export default function KpiGrid({ kpis, channelStats }) {
   return (
     <div style={s.grid}>
       {cards.map((item, i) => {
-        const Icon = item.icon;
         return (
           <div key={i} style={s.card}>
             <div style={s.header}>
-              <div style={s.iconBox(item.color, item.bg)}>
-                <Icon size={20} strokeWidth={2} />
+              <div style={s.iconBox(item.gradient, item.glow)}>
+                <img src={item.iconSrc} width={24} height={24} alt={item.label} style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))" }} />
               </div>
             </div>
             
             <div>
               <div style={s.label}>{item.label}</div>
-              <div style={s.value}>{item.value}</div>
+              {item.showRing ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <ProgressRing value={item.ringValue} color={item.color} />
+                  <div style={s.value}>{item.value}</div>
+                </div>
+              ) : (
+                <div style={s.value}>{item.value}</div>
+              )}
               <div style={s.subtext}>{item.subtext}</div>
             </div>
           </div>

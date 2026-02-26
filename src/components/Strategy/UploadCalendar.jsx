@@ -115,7 +115,7 @@ export default function UploadCalendar({ rows, dateRange = '28d' }) {
     container: {
       background: "#1E1E1E",
       border: "1px solid #333",
-      borderRadius: "12px",
+      borderRadius: "8px",
       padding: "24px",
       marginBottom: "20px"
     },

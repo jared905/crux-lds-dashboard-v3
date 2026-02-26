@@ -8,6 +8,7 @@ import {
   getCurrentBrandContext,
   saveBrandContext,
   extractBrandContext,
+  autoDiscoverBrandContext,
   getBrandContextHistory,
   searchChannels,
 } from '../../services/brandContextService';
@@ -19,7 +20,7 @@ const styles = {
   card: {
     background: '#1E1E1E',
     border: '1px solid #333',
-    borderRadius: '12px',
+    borderRadius: '8px',
     padding: '24px',
     marginBottom: '16px',
   },
@@ -727,6 +728,46 @@ export default function BrandContext({ activeClient }) {
     }
   }, [pasteContent, brandName, effectiveChannel?.name]);
 
+  // ── Auto-Discover from channel data ──────────────────────────────────────
+
+  const [discovering, setDiscovering] = useState(false);
+
+  const handleAutoDiscover = useCallback(async () => {
+    if (!effectiveChannel?.id) {
+      setError('Select a client first.');
+      return;
+    }
+    setDiscovering(true);
+    setError(null);
+    setExtractionCost(null);
+
+    try {
+      const result = await autoDiscoverBrandContext(effectiveChannel.id);
+      const { raw_extraction, extraction_model, usage, cost, ...contextFields } = result;
+
+      setFormData({
+        ...contextFields,
+        raw_extraction,
+        extraction_model,
+      });
+      setExtractionCost(cost);
+
+      // Expand all sections
+      const expanded = {};
+      ['brand_voice', 'messaging_priorities', 'audience_signals', 'content_themes', 'visual_identity', 'platform_presence', 'strategic_goals', 'resource_constraints', 'content_boundaries'].forEach(k => {
+        expanded[k] = true;
+      });
+      setExpandedSections(expanded);
+
+      setMode('edit');
+    } catch (err) {
+      console.error('[BrandContext] Auto-discover error:', err);
+      setError(err.message || 'Auto-discovery failed. Ensure the channel has video data.');
+    } finally {
+      setDiscovering(false);
+    }
+  }, [effectiveChannel?.id]);
+
   // ── Save ───────────────────────────────────────────────────────────────────
 
   const handleSave = useCallback(async () => {
@@ -912,7 +953,7 @@ export default function BrandContext({ activeClient }) {
           Brand Context — {effectiveChannel.name}
         </div>
         <div style={styles.subtitle}>
-          {mode === 'extract' && 'Paste website content, about pages, or social media posts to extract brand intelligence.'}
+          {mode === 'extract' && 'Auto-discover brand intelligence from channel data, or paste website content manually.'}
           {mode === 'edit' && 'Review and edit the extracted brand context before saving.'}
           {mode === 'review' && 'Brand context is active and will be injected into all AI-generated outputs for this channel.'}
         </div>
@@ -934,51 +975,105 @@ export default function BrandContext({ activeClient }) {
 
       {/* ─── EXTRACT MODE ─────────────────────────────────────────────────── */}
       {mode === 'extract' && (
-        <div style={styles.card}>
-          <div style={{ marginBottom: '16px' }}>
-            <label style={styles.label}>Brand Name</label>
-            <input
-              type="text"
-              value={brandName}
-              onChange={e => setBrandName(e.target.value)}
-              placeholder="e.g. Cotopaxi"
-              style={styles.input}
-            />
-          </div>
-
-          <div style={{ marginBottom: '16px' }}>
-            <label style={styles.label}>Paste Content</label>
-            <textarea
-              value={pasteContent}
-              onChange={e => setPasteContent(e.target.value)}
-              placeholder={"Paste website homepage copy, about page text, recent social media posts, campaign descriptions, product pages...\n\nThe more content you provide, the richer the extraction. Include content from multiple platforms if available."}
-              style={{ ...styles.textarea, minHeight: '240px' }}
-            />
-            <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-              {pasteContent.length > 0 ? `${pasteContent.length.toLocaleString()} characters` : 'Tip: Copy and paste text from the brand\'s website, Instagram captions, LinkedIn posts, etc.'}
+        <>
+          {/* Auto-Discover Card */}
+          <div style={{
+            ...styles.card,
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(16, 185, 129, 0.06))',
+            border: '1px solid rgba(99, 102, 241, 0.25)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+              <div style={{
+                width: '40px', height: '40px', borderRadius: '10px',
+                background: 'linear-gradient(135deg, #6366f1, #10b981)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <Search size={20} style={{ color: '#fff' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '16px', fontWeight: '700', color: '#E0E0E0', marginBottom: '4px' }}>
+                  Auto-Discover from Channel Data
+                </div>
+                <div style={{ fontSize: '13px', color: '#9E9E9E', lineHeight: '1.5', marginBottom: '12px' }}>
+                  Analyze {effectiveChannel.name}'s video titles, descriptions, tags, and performance data to automatically build a brand context profile. No copy-pasting needed.
+                </div>
+                <button
+                  onClick={handleAutoDiscover}
+                  disabled={discovering || loading}
+                  style={{
+                    ...styles.btnPrimary,
+                    background: discovering || loading ? '#333' : 'linear-gradient(135deg, #6366f1, #10b981)',
+                    opacity: discovering || loading ? 0.7 : 1,
+                    cursor: discovering || loading ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {discovering ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={16} />}
+                  {discovering ? 'Analyzing channel data...' : 'Discover Brand Context'}
+                </button>
+                {discovering && (
+                  <div style={{ fontSize: '11px', color: '#9E9E9E', marginTop: '8px' }}>
+                    Fetching videos and sending to Claude for analysis. This may take 15-30 seconds.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <button
-              onClick={handleExtract}
-              disabled={loading || !pasteContent.trim()}
-              style={{
-                ...styles.btnPrimary,
-                opacity: loading || !pasteContent.trim() ? 0.5 : 1,
-                cursor: loading || !pasteContent.trim() ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={16} />}
-              {loading ? 'Extracting...' : 'Extract Brand Context'}
-            </button>
-            {extractionCost !== null && (
-              <span style={{ fontSize: '12px', color: '#9E9E9E' }}>
-                Estimated cost: ${extractionCost.toFixed(4)}
-              </span>
-            )}
+          {/* Divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', margin: '8px 0' }}>
+            <div style={{ flex: 1, height: '1px', background: '#333' }} />
+            <span style={{ fontSize: '12px', color: '#666', fontWeight: '600' }}>OR PASTE CONTENT MANUALLY</span>
+            <div style={{ flex: 1, height: '1px', background: '#333' }} />
           </div>
-        </div>
+
+          {/* Manual Paste Card */}
+          <div style={styles.card}>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Brand Name</label>
+              <input
+                type="text"
+                value={brandName}
+                onChange={e => setBrandName(e.target.value)}
+                placeholder="e.g. Cotopaxi"
+                style={styles.input}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={styles.label}>Paste Content</label>
+              <textarea
+                value={pasteContent}
+                onChange={e => setPasteContent(e.target.value)}
+                placeholder={"Paste website homepage copy, about page text, recent social media posts, campaign descriptions, product pages...\n\nThe more content you provide, the richer the extraction. Include content from multiple platforms if available."}
+                style={{ ...styles.textarea, minHeight: '240px' }}
+              />
+              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                {pasteContent.length > 0 ? `${pasteContent.length.toLocaleString()} characters` : 'Tip: Copy and paste text from the brand\'s website, Instagram captions, LinkedIn posts, etc.'}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <button
+                onClick={handleExtract}
+                disabled={loading || discovering || !pasteContent.trim()}
+                style={{
+                  ...styles.btnPrimary,
+                  opacity: loading || discovering || !pasteContent.trim() ? 0.5 : 1,
+                  cursor: loading || discovering || !pasteContent.trim() ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={16} />}
+                {loading ? 'Extracting...' : 'Extract Brand Context'}
+              </button>
+              {extractionCost !== null && (
+                <span style={{ fontSize: '12px', color: '#9E9E9E' }}>
+                  Estimated cost: ${extractionCost.toFixed(4)}
+                </span>
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       {/* ─── EDIT MODE ────────────────────────────────────────────────────── */}

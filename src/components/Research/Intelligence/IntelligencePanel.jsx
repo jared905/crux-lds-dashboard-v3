@@ -112,7 +112,7 @@ export default function IntelligencePanel({
 
   return (
     <div style={{
-      background: '#1E1E1E', border: '1px solid #333', borderRadius: '12px',
+      background: '#1E1E1E', border: '1px solid #333', borderRadius: '8px',
       overflow: 'hidden', marginBottom: '16px',
     }}>
       {/* Panel header */}
@@ -309,7 +309,7 @@ function CompetitorGroupManager({ clientId, groups, activeCompetitors, onGroupsC
       alignItems: 'center', justifyContent: 'center',
     }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{
-        background: '#1E1E1E', border: '1px solid #333', borderRadius: '12px',
+        background: '#1E1E1E', border: '1px solid #333', borderRadius: '8px',
         width: '540px', maxHeight: '80vh', display: 'flex', flexDirection: 'column',
       }}>
         {/* Header */}

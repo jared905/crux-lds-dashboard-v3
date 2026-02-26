@@ -125,7 +125,7 @@ export default function AuditProgress({ auditId, onComplete, onFailed, onBack })
 
         {/* Progress bar */}
         <div style={{
-          background: "#1E1E1E", borderRadius: "12px", border: "1px solid #333",
+          background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
           padding: "24px",
         }}>
           <div style={{

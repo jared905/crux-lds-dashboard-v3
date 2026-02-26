@@ -442,7 +442,7 @@ export default function ContentIntelligence({ rows }) {
       <div style={{
         background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         padding: "24px",
         marginBottom: "24px"
       }}>
@@ -461,7 +461,7 @@ export default function ContentIntelligence({ rows }) {
       <div style={{
         background: "#1E1E1E",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         padding: "24px",
         marginBottom: "24px"
       }}>
@@ -553,7 +553,7 @@ export default function ContentIntelligence({ rows }) {
         <div style={{
           background: "#1E1E1E",
           border: "1px solid #333",
-          borderRadius: "12px",
+          borderRadius: "8px",
           padding: "24px"
         }}>
           <div style={{ fontSize: "16px", fontWeight: "600", color: "#fff", marginBottom: "20px" }}>
@@ -623,7 +623,7 @@ export default function ContentIntelligence({ rows }) {
         <div style={{
           background: "#1E1E1E",
           border: "1px solid #333",
-          borderRadius: "12px",
+          borderRadius: "8px",
           padding: "60px 24px",
           textAlign: "center"
         }}>

@@ -125,7 +125,7 @@ export default function GapDetection({ rows, activeClient }) {
       <div style={{
         background: "#1E1E1E",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         padding: "24px",
         marginBottom: "24px",
       }}>
@@ -159,7 +159,7 @@ export default function GapDetection({ rows, activeClient }) {
         <div style={{
           background: "#1E1E1E",
           border: "1px solid #333",
-          borderRadius: "12px",
+          borderRadius: "8px",
           padding: "48px 24px",
           textAlign: "center",
           color: "#888",
@@ -177,7 +177,7 @@ export default function GapDetection({ rows, activeClient }) {
         <div style={{
           background: "#1E1E1E",
           border: "1px solid #333",
-          borderRadius: "12px",
+          borderRadius: "8px",
           padding: "48px 24px",
           textAlign: "center",
           color: "#666",
@@ -197,7 +197,7 @@ export default function GapDetection({ rows, activeClient }) {
         <div style={{
           background: "#1E1E1E",
           border: "1px solid #333",
-          borderRadius: "12px",
+          borderRadius: "8px",
           padding: "48px 24px",
           textAlign: "center",
           color: "#666",
@@ -220,7 +220,7 @@ export default function GapDetection({ rows, activeClient }) {
             <div style={{
               background: "#1E1E1E",
               border: "1px solid #333",
-              borderRadius: "12px",
+              borderRadius: "8px",
               padding: "16px 20px",
               marginBottom: "16px",
               display: "flex",
@@ -243,7 +243,7 @@ export default function GapDetection({ rows, activeClient }) {
                       background: cfg.bg,
                       color: cfg.color,
                       border: `1px solid ${cfg.color}`,
-                      borderRadius: "12px",
+                      borderRadius: "8px",
                       padding: "2px 10px",
                       fontSize: "11px",
                       fontWeight: "600",
@@ -274,7 +274,7 @@ export default function GapDetection({ rows, activeClient }) {
                 style={{
                   background: typeFilter === f.id ? "#3b82f6" : "#252525",
                   border: `1px solid ${typeFilter === f.id ? "#3b82f6" : "#444"}`,
-                  borderRadius: "16px",
+                  borderRadius: "8px",
                   padding: "6px 14px",
                   color: typeFilter === f.id ? "#fff" : "#b0b0b0",
                   fontSize: "12px",
@@ -296,7 +296,7 @@ export default function GapDetection({ rows, activeClient }) {
                 style={{
                   background: impactFilter === level ? "#3b82f6" : "#252525",
                   border: `1px solid ${impactFilter === level ? "#3b82f6" : "#444"}`,
-                  borderRadius: "16px",
+                  borderRadius: "8px",
                   padding: "6px 14px",
                   color: impactFilter === level ? "#fff" : "#b0b0b0",
                   fontSize: "12px",
@@ -322,7 +322,7 @@ export default function GapDetection({ rows, activeClient }) {
                   background: "#1E1E1E",
                   border: `1px solid #333`,
                   borderLeft: `4px solid ${typeCfg.color || "#666"}`,
-                  borderRadius: "12px",
+                  borderRadius: "8px",
                   overflow: "hidden",
                 }}>
                   {/* Card header (clickable) */}
@@ -594,7 +594,7 @@ export default function GapDetection({ rows, activeClient }) {
             <div style={{
               background: "#1E1E1E",
               border: "1px solid #333",
-              borderRadius: "12px",
+              borderRadius: "8px",
               padding: "32px 24px",
               textAlign: "center",
               color: "#666",
@@ -611,7 +611,7 @@ export default function GapDetection({ rows, activeClient }) {
         <div style={{
           background: "#1E1E1E",
           border: "1px solid #333",
-          borderRadius: "12px",
+          borderRadius: "8px",
           padding: "48px 24px",
           textAlign: "center",
           color: "#666",

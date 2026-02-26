@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { MessageSquare, Search, TrendingUp, Loader2, AlertCircle, Download, Tag, BarChart3 } from 'lucide-react';
 import claudeAPI from '../../services/claudeAPI';
 import youtubeAPI from '../../services/youtubeAPI';
+import { getBrandContextWithSignals } from '../../services/brandContextService';
 
-export default function CommentAnalysis({ data }) {
+export default function CommentAnalysis({ data, activeClient }) {
   const [videoUrl, setVideoUrl] = useState('');
   const [maxComments, setMaxComments] = useState(500);
   const [comments, setComments] = useState([]);
@@ -62,8 +63,18 @@ export default function CommentAnalysis({ data }) {
         .slice(0, 1000) // Limit to 1000 comments to manage token usage
         .map(c => c.text);
 
-      const systemPrompt = `You are a YouTube audience research analyst specializing in Latter-day Saints (LDS/Mormon) content.
+      let systemPrompt = `You are a YouTube audience research analyst specializing in Latter-day Saints (LDS/Mormon) content.
 Your goal is to analyze viewer comments to extract themes, sentiment, and actionable insights for content creators.`;
+
+      // Inject brand context for brand-aware comment analysis
+      if (activeClient?.id) {
+        try {
+          const brandBlock = await getBrandContextWithSignals(activeClient.id, 'comment_analysis');
+          if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+        } catch (e) {
+          console.warn('[CommentAnalysis] Brand context fetch failed, proceeding without:', e.message);
+        }
+      }
 
       const userPrompt = `Analyze these ${commentTexts.length} comments from an LDS YouTube video:
 

@@ -287,7 +287,7 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
       <div style={{
         background: "#1E1E1E",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         padding: "40px",
         marginBottom: "20px",
         textAlign: "center",
@@ -305,21 +305,12 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
 
   const s = {
     section: {
-      background: "#1E1E1E",
-      border: "1px solid #333",
-      borderRadius: "12px",
+      background: "linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(236, 72, 153, 0.03))",
+      border: "1px solid rgba(245, 158, 11, 0.12)",
+      borderRadius: "8px",
       padding: "24px",
       marginBottom: "20px",
-      position: "relative",
-      overflow: "hidden"
-    },
-    gradientBar: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      height: "4px",
-      background: "linear-gradient(90deg, #f59e0b, #ec4899, #8b5cf6)"
+      "--glow-color": "rgba(245, 158, 11, 0.2)",
     },
     header: {
       display: "flex",
@@ -329,7 +320,7 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
       flexWrap: "wrap",
       gap: "12px"
     },
-    title: { fontSize: "20px", fontWeight: "700", color: "#fff" },
+    title: { fontSize: "26px", fontWeight: "700", color: "#fff" },
     subtitle: {
       fontSize: "12px",
       color: "#9E9E9E",
@@ -494,19 +485,22 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
     : analysis.series;
 
   return (
-    <div style={s.section}>
-      <div style={s.gradientBar} />
-
+    <div className="section-card" style={s.section}>
       <div style={s.header}>
-        <div>
-          <div style={s.title}>Content Series Analysis</div>
-          <div style={s.subtitle}>
-            Recurring formats & strategic recommendations
-            {analysis.uncategorizedCount > 0 && !aiDone && (
-              <span style={{ color: "#f59e0b", marginLeft: "8px" }}>
-                ({analysis.uncategorizedCount} uncategorized videos)
-              </span>
-            )}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #f59e0b, #ec4899)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(245, 158, 11, 0.3)", flexShrink: 0 }}>
+            <Layers size={22} style={{ color: "#fff" }} />
+          </div>
+          <div>
+            <div style={s.title}>Content Series Analysis</div>
+            <div style={s.subtitle}>
+              Recurring formats & strategic recommendations
+              {analysis.uncategorizedCount > 0 && !aiDone && (
+                <span className="stat-chip amber" style={{ marginLeft: "8px" }}>
+                  {analysis.uncategorizedCount} uncategorized
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div style={s.tabs}>

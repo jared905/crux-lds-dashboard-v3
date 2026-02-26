@@ -23,7 +23,7 @@ export default function BrandHeader({ activeTab, onTab }) {
       height: "52px", // Increased from 44px
       width: "52px",  // Increased from 44px
       backgroundColor: "#1f2937", // Dark card bg
-      borderRadius: "12px",
+      borderRadius: "8px",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -42,9 +42,9 @@ export default function BrandHeader({ activeTab, onTab }) {
       gap: "2px"
     },
     h1: {
-      fontSize: "18px",
+      fontSize: "20px",
       fontWeight: "800",
-      color: "#f9fafb", // White
+      color: "#f9fafb",
       margin: 0,
       lineHeight: "1.2",
       letterSpacing: "-0.01em"

@@ -100,7 +100,7 @@ export default function AudienceIntelTab({ channelIds, clientId, activeCompetito
                 {aiData.topInterests.map((interest, i) => (
                   <span key={i} style={{
                     fontSize: '10px', background: '#8b5cf620', color: '#a78bfa',
-                    padding: '3px 8px', borderRadius: '12px', border: '1px solid #8b5cf640',
+                    padding: '3px 8px', borderRadius: '8px', border: '1px solid #8b5cf640',
                   }}>
                     {interest}
                   </span>
@@ -224,7 +224,7 @@ export default function AudienceIntelTab({ channelIds, clientId, activeCompetito
               <div key={i}
                 onClick={() => onNavigateToTitleLab && onNavigateToTitleLab(topic.topic)}
                 style={{
-                  background: '#252525', border: '1px solid #333', borderRadius: '16px',
+                  background: '#252525', border: '1px solid #333', borderRadius: '8px',
                   padding: '6px 12px', cursor: onNavigateToTitleLab ? 'pointer' : 'default',
                   transition: 'border-color 0.15s',
                 }}

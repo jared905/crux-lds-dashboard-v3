@@ -27,7 +27,7 @@ const s = {
   panel: {
     backgroundColor: '#1E1E1E',
     border: '1px solid #333',
-    borderRadius: '12px',
+    borderRadius: '8px',
     padding: '20px',
     marginBottom: '20px',
   },
@@ -50,7 +50,7 @@ const s = {
     alignItems: 'center',
     gap: '6px',
     padding: '6px 12px',
-    borderRadius: '16px',
+    borderRadius: '8px',
     fontSize: '12px',
     fontWeight: '500',
   },

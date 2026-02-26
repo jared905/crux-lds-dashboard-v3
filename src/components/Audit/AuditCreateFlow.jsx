@@ -254,7 +254,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
       {step === 1 && (
         <div style={{ maxWidth: "600px" }}>
           <div style={{
-            background: "#1E1E1E", borderRadius: "12px", border: "1px solid #333",
+            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
             padding: "32px",
           }}>
             <div style={{ fontSize: "16px", fontWeight: "600", marginBottom: "8px" }}>
@@ -299,7 +299,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
       {step === 2 && channelPreview && (
         <div style={{ maxWidth: "600px" }}>
           <div style={{
-            background: "#1E1E1E", borderRadius: "12px", border: "1px solid #333",
+            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
             padding: "32px",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
@@ -387,7 +387,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
       {step === 3 && (
         <div style={{ maxWidth: "600px" }}>
           <div style={{
-            background: "#1E1E1E", borderRadius: "12px", border: "1px solid #333",
+            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
             padding: "32px",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
@@ -635,7 +635,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
       {step === 4 && (
         <div style={{ maxWidth: "600px" }}>
           <div style={{
-            background: "#1E1E1E", borderRadius: "12px", border: "1px solid #333",
+            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
             padding: "32px",
           }}>
             <div style={{ fontSize: "16px", fontWeight: "600", marginBottom: "20px" }}>

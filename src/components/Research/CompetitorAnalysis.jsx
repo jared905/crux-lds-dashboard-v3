@@ -5,9 +5,10 @@ import { getOutlierVideos, analyzeCompetitorVideo } from '../../services/competi
 import { importCompetitorDatabase } from '../../services/competitorImport';
 import CategoryBrowser from './CategoryBrowser';
 import { ChannelClientAssignment } from './ChannelClientAssignment';
+import AnimatedSection from '../Shared/AnimatedSection';
 
 const CompetitorTrends = lazy(() => import('./CompetitorTrends'));
-const IntelligencePanel = lazy(() => import('./Intelligence/IntelligencePanel'));
+const CommandCenter = lazy(() => import('./CommandCenter'));
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -1371,13 +1372,8 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   return (
     <div style={{ padding: "0" }}>
       {/* ── SECTION 1: HEADER TOOLBAR ── */}
-      <div style={{
-        background: "#1E1E1E",
-        border: "1px solid #333",
-        borderRadius: "12px",
-        padding: "16px 24px",
-        marginBottom: "16px",
-      }}>
+      <AnimatedSection delay={0}>
+      <div className="page-section" style={{ padding: "16px 24px", marginBottom: "16px" }}>
         {/* Top row */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -1422,7 +1418,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                     onClick={() => setIndustryFilter(ind.id)}
                     style={{
                       padding: "4px 10px",
-                      borderRadius: "12px",
+                      borderRadius: "8px",
                       fontSize: "11px",
                       fontWeight: "500",
                       background: industryFilter === ind.id ? ind.color + '20' : "transparent",
@@ -1629,7 +1625,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
         {/* API Key Input (collapsible) */}
         {showApiKeyInput && (
-          <div style={{ marginTop: "12px", background: "#252525", border: "1px solid #333", borderRadius: "8px", padding: "12px" }}>
+          <div style={{ marginTop: "12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px" }}>
             <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>
               YouTube Data API v3 Key &mdash; <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" style={{ color: "#60a5fa" }}>Get from Google Cloud Console</a>
             </div>
@@ -1637,7 +1633,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               <input
                 type="text" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
                 placeholder="Enter your YouTube Data API key"
-                style={{ flex: 1, background: "#1E1E1E", border: "1px solid #333", borderRadius: "6px", padding: "8px 10px", color: "#fff", fontSize: "12px" }}
+                style={{ flex: 1, background: "var(--card)", border: "1px solid var(--border)", borderRadius: "6px", padding: "8px 10px", color: "#fff", fontSize: "12px" }}
               />
               <button onClick={saveApiKey} style={{ background: "#10b981", border: "none", borderRadius: "6px", padding: "8px 16px", color: "#fff", fontSize: "12px", fontWeight: "600", cursor: "pointer" }}>
                 Save
@@ -1648,7 +1644,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
         {/* Add Competitor Popover (collapsible) - supports URL paste or keyword search */}
         {showAddPopover && !masterView && (
-          <div style={{ marginTop: "12px", background: "#252525", border: "1px solid #333", borderRadius: "8px", padding: "12px", position: "relative" }}>
+          <div style={{ marginTop: "12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px", position: "relative" }}>
             <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>
               Search YouTube or paste a channel URL
             </div>
@@ -1682,7 +1678,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                   }
                 }}
                 placeholder="e.g. retirement planning or https://youtube.com/@channel"
-                style={{ flex: 1, background: "#1E1E1E", border: "1px solid #333", borderRadius: "6px", padding: "8px 10px", color: "#fff", fontSize: "12px" }}
+                style={{ flex: 1, background: "var(--card)", border: "1px solid var(--border)", borderRadius: "6px", padding: "8px 10px", color: "#fff", fontSize: "12px" }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     setSearchResults([]);
@@ -1709,7 +1705,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               </div>
             )}
             {!searchLoading && searchResults.length > 0 && (
-              <div style={{ marginTop: "8px", background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px", overflow: "hidden" }}>
+              <div style={{ marginTop: "8px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "8px", overflow: "hidden" }}>
                 {searchResults.map((result, idx) => {
                   const alreadyAdded = activeCompetitors.some(c => c.id === result.channelId);
                   return (
@@ -1757,23 +1753,25 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             )}
 
             {error && (
-              <div style={{ marginTop: "6px", padding: "6px 10px", background: "#ef444420", border: "1px solid #ef4444", borderRadius: "6px", color: "#ef4444", fontSize: "11px" }}>
+              <div className="alert error" style={{ marginTop: "6px", padding: "6px 10px", fontSize: "11px", marginBottom: 0 }}>
                 {error}
               </div>
             )}
           </div>
         )}
       </div>
+      </AnimatedSection>
 
       {/* ── SECTION 2: KPI STRIP ── */}
       {activeCompetitors.length > 0 && yourStats && (
+        <AnimatedSection delay={0.05}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "16px" }}>
           {/* Rank */}
-          <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "10px", padding: "16px", borderTop: "3px solid #3b82f6" }}>
+          <div className="page-section section-card" style={{ padding: "16px", borderTop: "3px solid #3b82f6", borderRadius: "10px", marginBottom: 0 }}>
             <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600", marginBottom: "8px" }}>
               Rank
             </div>
-            <div style={{ fontSize: "28px", fontWeight: "700", color: "#fff" }}>
+            <div style={{ fontSize: "28px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
               #{(() => {
                 const allChannels = [
                   { subs: yourStats.totalSubscribers, isYou: true },
@@ -1788,7 +1786,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           </div>
 
           {/* Gap to Leader */}
-          <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "10px", padding: "16px", borderTop: "3px solid #f59e0b" }}>
+          <div className="page-section section-card" style={{ padding: "16px", borderTop: "3px solid #f59e0b", borderRadius: "10px", marginBottom: 0 }}>
             <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600", marginBottom: "8px" }}>
               Gap to #1
             </div>
@@ -1798,7 +1796,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               const isLeader = gap >= 0;
               return (
                 <>
-                  <div style={{ fontSize: "28px", fontWeight: "700", color: isLeader ? "#10b981" : "#f59e0b" }}>
+                  <div style={{ fontSize: "28px", fontWeight: "700", color: isLeader ? "#10b981" : "#f59e0b", fontFamily: "'Barlow Condensed', sans-serif" }}>
                     {isLeader ? "Leader" : fmtInt(gap)}
                   </div>
                   <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
@@ -1810,7 +1808,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           </div>
 
           {/* Momentum */}
-          <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "10px", padding: "16px", borderTop: "3px solid #8b5cf6" }}>
+          <div className="page-section section-card" style={{ padding: "16px", borderTop: "3px solid #8b5cf6", borderRadius: "10px", marginBottom: 0 }}>
             <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600", marginBottom: "8px" }}>
               Momentum
             </div>
@@ -1820,7 +1818,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               const isAhead = yourUploadFreq > avgCompetitorFreq;
               return (
                 <>
-                  <div style={{ fontSize: "28px", fontWeight: "700", color: isAhead ? "#10b981" : "#f59e0b" }}>
+                  <div style={{ fontSize: "28px", fontWeight: "700", color: isAhead ? "#10b981" : "#f59e0b", fontFamily: "'Barlow Condensed', sans-serif" }}>
                     {yourUploadFreq}/mo
                   </div>
                   <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
@@ -1832,7 +1830,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           </div>
 
           {/* Views Performance */}
-          <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "10px", padding: "16px", borderTop: "3px solid #10b981" }}>
+          <div className="page-section section-card" style={{ padding: "16px", borderTop: "3px solid #10b981", borderRadius: "10px", marginBottom: 0 }}>
             <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600", marginBottom: "8px" }}>
               Views vs Avg
             </div>
@@ -1843,7 +1841,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               const diff = avgCompetitorViews > 0 ? ((yourAvgViews / avgCompetitorViews - 1) * 100).toFixed(0) : 0;
               return (
                 <>
-                  <div style={{ fontSize: "28px", fontWeight: "700", color: isAhead ? "#10b981" : "#f59e0b" }}>
+                  <div style={{ fontSize: "28px", fontWeight: "700", color: isAhead ? "#10b981" : "#f59e0b", fontFamily: "'Barlow Condensed', sans-serif" }}>
                     {isAhead ? "+" : ""}{diff}%
                   </div>
                   <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
@@ -1854,6 +1852,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             })()}
           </div>
         </div>
+        </AnimatedSection>
       )}
 
       {/* ── CATEGORY BROWSER (Master View) or COMPETITIVE INTELLIGENCE (Client View) ── */}
@@ -1870,10 +1869,10 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         </div>
       )}
 
-      {/* ── COMPETITIVE INTELLIGENCE PANEL (Client View Only) ── */}
+      {/* ── COMMAND CENTER (Client View Only) ── */}
       {activeCompetitors.length > 0 && !masterView && (
         <Suspense fallback={null}>
-          <IntelligencePanel
+          <CommandCenter
             activeCompetitors={activeCompetitors}
             rows={rows}
             activeClient={activeClient}
@@ -1888,11 +1887,13 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             setOutlierMinMultiplier={setOutlierMinMultiplier}
             fetchOutliers={fetchOutliers}
             handleViewInsight={handleViewInsight}
+            onSelectChannel={(id) => setSelectedChannelId(id)}
           />
         </Suspense>
       )}
 
       {/* ── COMPETITOR ROSTER ── */}
+      <AnimatedSection delay={0.1}>
 
       {/* 3A: Category Filter Bar + View Toggle */}
       {activeCompetitors.length > 0 && (
@@ -1907,7 +1908,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             <button
               onClick={() => { if (viewMode === 'hubs') { setExpandedHubCategory(null); } else { setSelectedCategory(null); } }}
               style={{
-                padding: "5px 12px", borderRadius: "16px", fontSize: "11px", fontWeight: "600",
+                padding: "5px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: "600",
                 border: `1px solid ${(viewMode === 'hubs' ? !expandedHubCategory : !selectedCategory) ? '#3b82f6' : '#444'}`,
                 background: (viewMode === 'hubs' ? !expandedHubCategory : !selectedCategory) ? 'rgba(59,130,246,0.15)' : 'transparent',
                 color: (viewMode === 'hubs' ? !expandedHubCategory : !selectedCategory) ? '#3b82f6' : '#888',
@@ -1931,7 +1932,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                     }
                   }}
                   style={{
-                    padding: "5px 12px", borderRadius: "16px", fontSize: "11px", fontWeight: "600",
+                    padding: "5px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: "600",
                     border: `1px solid ${isActive ? cfg.color : '#444'}`,
                     background: isActive ? `${cfg.color}20` : 'transparent',
                     color: isActive ? cfg.color : '#888',
@@ -2018,7 +2019,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       {/* 3C: Trends View */}
       {activeCompetitors.length > 0 && viewMode === 'trends' && (
         <Suspense fallback={
-          <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px", padding: "64px 24px", textAlign: "center", marginBottom: "16px" }}>
+          <div className="page-section" style={{ padding: "64px 24px", textAlign: "center", marginBottom: "16px" }}>
             <Loader size={32} style={{ color: "#555", margin: "0 auto 12px", animation: "spin 1s linear infinite" }} />
             <div style={{ fontSize: "14px", color: "#888" }}>Loading trends...</div>
             <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
@@ -2039,8 +2040,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
       {/* Empty state */}
       {activeCompetitors.length === 0 && (
-        <div style={{
-          background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
+        <div className="page-section" style={{
           padding: "48px 24px", textAlign: "center", color: "#666", marginBottom: "16px",
         }}>
           <Search size={48} style={{ margin: "0 auto 16px", opacity: 0.3 }} />
@@ -2048,6 +2048,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           <div style={{ fontSize: "12px" }}>Add competitor channels to start benchmarking your performance</div>
         </div>
       )}
+      </AnimatedSection>
 
       {/* ── SECTION 4: CHANNEL DETAIL DRAWER ── */}
       {selectedChannel && (
@@ -2158,7 +2159,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
           <div style={{
-            background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
+            background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px",
             width: "600px", maxHeight: "80vh", overflow: "hidden",
           }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #333", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -2290,7 +2291,7 @@ function BulkAssignModal({ categoryConfig, activeCompetitors, clients, loading, 
       display: "flex", alignItems: "center", justifyContent: "center",
     }}>
       <div style={{
-        background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
+        background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px",
         width: "550px", maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column",
       }}>
         {/* Header */}
@@ -2471,12 +2472,12 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
   return (
     <div style={{
       position: "fixed", top: 0, right: 0, bottom: 0, width: "520px",
-      background: "#1a1a1a", borderLeft: "1px solid #333",
+      background: "var(--bg)", borderLeft: "1px solid var(--border)",
       zIndex: 1000, overflowY: "auto",
       boxShadow: "-4px 0 20px rgba(0,0,0,0.5)",
     }}>
       {/* Drawer header */}
-      <div style={{ padding: "20px", borderBottom: "1px solid #333" }}>
+      <div style={{ padding: "20px", borderBottom: "1px solid var(--border)" }}>
         <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", marginBottom: "12px" }}>
           <img src={channel.thumbnail} alt="" style={{ width: "48px", height: "48px", borderRadius: "50%", objectFit: "cover" }} />
           <div style={{ flex: 1 }}>
@@ -2534,7 +2535,7 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
           </button>
         </div>
         {refreshError && (
-          <div style={{ marginTop: "8px", padding: "6px 10px", background: "#ef444415", border: "1px solid #ef444440", borderRadius: "6px", color: "#ef4444", fontSize: "11px" }}>
+          <div className="alert error" style={{ marginTop: "8px", padding: "6px 10px", fontSize: "11px", marginBottom: 0 }}>
             Refresh failed: {refreshError}
           </div>
         )}
@@ -2542,15 +2543,15 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
 
       {/* KPI row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", padding: "16px 20px" }}>
-        <div style={{ background: "#252525", borderRadius: "6px", padding: "10px" }}>
+        <div style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "10px" }}>
           <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Subscribers</div>
           <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginTop: "2px" }}>{fmtInt(channel.subscriberCount)}</div>
         </div>
-        <div style={{ background: "#252525", borderRadius: "6px", padding: "10px" }}>
+        <div style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "10px" }}>
           <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Avg Views</div>
           <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginTop: "2px" }}>{fmtInt(channel.avgViewsPerVideo)}</div>
         </div>
-        <div style={{ background: "#252525", borderRadius: "6px", padding: "10px" }}>
+        <div style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "10px" }}>
           <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>30d Uploads</div>
           <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginTop: "2px" }}>{channel.uploadsLast30Days}</div>
         </div>
@@ -2558,7 +2559,7 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
 
       {/* Growth banner */}
       {growth && (growth.subscriberChange !== 0 || growth.viewsChange !== 0) && (
-        <div style={{ margin: "0 20px 12px", padding: "8px 12px", background: "#252525", border: "1px solid #333", borderRadius: "6px", display: "flex", gap: "16px", fontSize: "11px" }}>
+        <div style={{ margin: "0 20px 12px", padding: "8px 12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "6px", display: "flex", gap: "16px", fontSize: "11px" }}>
           <span style={{ color: "#888" }}>Since {growth.lastRefreshDate}:</span>
           {growth.subscriberChange !== 0 && (
             <span style={{ fontWeight: "700", color: growth.subscriberChange > 0 ? "#10b981" : "#ef4444" }}>
@@ -2569,7 +2570,7 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
       )}
 
       {/* Tab bar */}
-      <div style={{ display: "flex", borderBottom: "1px solid #333", padding: "0 20px" }}>
+      <div style={{ display: "flex", borderBottom: "1px solid var(--border)", padding: "0 20px" }}>
         {['overview', 'content', 'schedule'].map(tab => (
           <button key={tab} onClick={() => setDrawerTab(tab)}
             style={{
@@ -2592,17 +2593,17 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
             <div style={{ marginBottom: "20px" }}>
               <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px" }}>Upload Breakdown (30d)</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
-                <div style={{ background: "#252525", border: "1px solid #333", borderRadius: "6px", padding: "10px" }}>
+                <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "6px", padding: "10px" }}>
                   <div style={{ fontSize: "9px", color: "#888" }}>TOTAL</div>
-                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>{channel.uploadsLast30Days}</div>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>{channel.uploadsLast30Days}</div>
                 </div>
-                <div style={{ background: "#252525", border: "1px solid #333", borderRadius: "6px", padding: "10px" }}>
+                <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "6px", padding: "10px" }}>
                   <div style={{ fontSize: "9px", color: "#888" }}>SHORTS</div>
-                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#ec4899" }}>{channel.shorts30d}</div>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#ec4899", fontFamily: "'Barlow Condensed', sans-serif" }}>{channel.shorts30d}</div>
                 </div>
-                <div style={{ background: "#252525", border: "1px solid #333", borderRadius: "6px", padding: "10px" }}>
+                <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "6px", padding: "10px" }}>
                   <div style={{ fontSize: "9px", color: "#888" }}>LONG-FORM</div>
-                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#3b82f6" }}>{channel.longs30d}</div>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#3b82f6", fontFamily: "'Barlow Condensed', sans-serif" }}>{channel.longs30d}</div>
                 </div>
               </div>
             </div>
@@ -2612,7 +2613,7 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
               <div style={{ marginBottom: "20px" }}>
                 <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px" }}>Content Series</div>
                 {channel.contentSeries.slice(0, 3).map((series, idx) => (
-                  <div key={idx} style={{ background: "#252525", border: "1px solid #333", borderRadius: "6px", padding: "10px", marginBottom: "6px" }}>
+                  <div key={idx} style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "6px", padding: "10px", marginBottom: "6px" }}>
                     <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff" }}>{series.name}</div>
                     <div style={{ fontSize: "10px", color: "#888", marginTop: "4px" }}>
                       {series.count} episodes &middot; {fmtInt(series.avgViews)} avg views
@@ -2630,7 +2631,7 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
                 </div>
                 {channel.topVideos.map((video, idx) => (
                   <a key={video.id} href={`https://www.youtube.com/watch?v=${video.id}`} target="_blank" rel="noopener noreferrer"
-                    style={{ display: "flex", gap: "10px", padding: "8px", marginBottom: "6px", background: "#252525", borderRadius: "6px", textDecoration: "none", alignItems: "center" }}>
+                    style={{ display: "flex", gap: "10px", padding: "8px", marginBottom: "6px", background: "var(--input-bg)", borderRadius: "6px", textDecoration: "none", alignItems: "center" }}>
                     <img src={video.thumbnail} alt="" style={{ width: "80px", height: "45px", borderRadius: "4px", objectFit: "cover", flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: "11px", fontWeight: "600", color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{video.title}</div>
@@ -2668,7 +2669,7 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
               <div style={{ marginBottom: "20px" }}>
                 <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px" }}>Title Patterns (Top {titleAnalysis.topVideoCount} Videos)</div>
                 {titleAnalysis.patterns.slice(0, 5).map((pattern, idx) => (
-                  <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: "#252525", borderRadius: "6px", marginBottom: "6px" }}>
+                  <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: "var(--input-bg)", borderRadius: "6px", marginBottom: "6px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <span style={{ fontSize: "18px" }}>{pattern.icon}</span>
                       <div>
@@ -2689,7 +2690,7 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
                 <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px" }}>Format Breakdown</div>
                 <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
                   {formatAnalysis.durationStats.map(format => (
-                    <div key={format.name} style={{ flex: 1, background: "#252525", borderRadius: "6px", padding: "10px", borderLeft: `3px solid ${format.color}` }}>
+                    <div key={format.name} style={{ flex: 1, background: "var(--input-bg)", borderRadius: "6px", padding: "10px", borderLeft: `3px solid ${format.color}` }}>
                       <div style={{ fontSize: "9px", color: "#888" }}>{format.name}</div>
                       <div style={{ fontSize: "18px", fontWeight: "700", color: format.color }}>{format.count}</div>
                       <div style={{ fontSize: "9px", color: "#666" }}>{Math.round(format.percentage)}% &middot; {fmtInt(format.avgViews)} avg</div>
@@ -2697,7 +2698,7 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
                   ))}
                 </div>
                 {formatAnalysis.typeStats.slice(0, 6).map(type => (
-                  <div key={type.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: "#252525", borderRadius: "6px", marginBottom: "4px" }}>
+                  <div key={type.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: "var(--input-bg)", borderRadius: "6px", marginBottom: "4px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                       <span style={{ fontSize: "16px" }}>{type.icon}</span>
                       <div>
@@ -2718,12 +2719,12 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
           <div>
             <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "12px" }}>Upload Schedule</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "16px" }}>
-              <div style={{ background: "#252525", borderRadius: "6px", padding: "12px" }}>
+              <div style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "12px" }}>
                 <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Best Day</div>
                 <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", marginTop: "4px" }}>{scheduleAnalysis.bestDay?.day || 'N/A'}</div>
                 <div style={{ fontSize: "10px", color: "#666" }}>{scheduleAnalysis.bestDay?.avgViews ? fmtInt(scheduleAnalysis.bestDay.avgViews) + ' avg views' : ''}</div>
               </div>
-              <div style={{ background: "#252525", borderRadius: "6px", padding: "12px" }}>
+              <div style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "12px" }}>
                 <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Best Time</div>
                 <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", marginTop: "4px" }}>{scheduleAnalysis.bestTime?.hour || 'N/A'}</div>
                 <div style={{ fontSize: "10px", color: "#666" }}>{scheduleAnalysis.bestTime?.avgViews ? fmtInt(scheduleAnalysis.bestTime.avgViews) + ' avg views' : ''}</div>
@@ -2748,11 +2749,11 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
               </div>
             )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-              <div style={{ background: "#252525", borderRadius: "6px", padding: "12px" }}>
+              <div style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "12px" }}>
                 <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Cadence</div>
                 <div style={{ fontSize: "14px", fontWeight: "700", color: "#fff", marginTop: "4px" }}>Every {(30 / Math.max(channel.uploadsLast30Days, 1)).toFixed(1)} days</div>
               </div>
-              <div style={{ background: "#252525", borderRadius: "6px", padding: "12px" }}>
+              <div style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "12px" }}>
                 <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Consistency</div>
                 <div style={{ fontSize: "14px", fontWeight: "700", color: scheduleAnalysis.consistency > 0.7 ? "#10b981" : scheduleAnalysis.consistency > 0.4 ? "#f59e0b" : "#ef4444", marginTop: "4px" }}>
                   {scheduleAnalysis.consistency > 0.7 ? "High" : scheduleAnalysis.consistency > 0.4 ? "Medium" : "Low"}
@@ -2835,7 +2836,7 @@ function CategoryHeader({ group, isExpanded, onToggle, children }) {
       background: "#1E1E1E",
       border: "1px solid #333",
       borderLeft: `4px solid ${config.color}`,
-      borderRadius: "12px",
+      borderRadius: "8px",
       overflow: "hidden",
     }}>
       {/* Clickable header */}
@@ -3085,32 +3086,22 @@ function CategoryHubCard({ group, onClick }) {
   return (
     <div
       onClick={onClick}
+      className="page-section section-card"
       style={{
-        background: "#1E1E1E",
-        border: "1px solid #333",
         borderTop: `3px solid ${config.color}`,
-        borderRadius: "12px",
         padding: "20px",
         cursor: "pointer",
-        transition: "border-color 0.15s, transform 0.1s",
-      }}
-      onMouseOver={e => {
-        e.currentTarget.style.borderColor = config.color;
-        e.currentTarget.style.transform = "translateY(-2px)";
-      }}
-      onMouseOut={e => {
-        e.currentTarget.style.borderColor = "#333";
-        e.currentTarget.style.borderTopColor = config.color;
-        e.currentTarget.style.transform = "translateY(0)";
+        marginBottom: 0,
       }}
     >
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
         <div style={{
-          width: "40px", height: "40px", borderRadius: "10px",
-          background: `${config.color}18`,
+          width: "48px", height: "48px", borderRadius: "14px",
+          background: `linear-gradient(135deg, ${config.color}, ${config.color}cc)`,
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: "20px",
+          fontSize: "22px",
+          boxShadow: `0 4px 16px ${config.color}4d`, flexShrink: 0,
         }}>
           {config.icon}
         </div>
@@ -3121,7 +3112,7 @@ function CategoryHubCard({ group, onClick }) {
           <div style={{ fontSize: "11px", color: "#777" }}>{config.description}</div>
         </div>
         <div style={{
-          fontSize: "20px", fontWeight: "700", color: config.color,
+          fontSize: "20px", fontWeight: "700", color: config.color, fontFamily: "'Barlow Condensed', sans-serif",
           background: `${config.color}15`, padding: "4px 12px", borderRadius: "8px",
         }}>
           {group.channelCount}
@@ -3200,7 +3191,7 @@ function CategoryHubCard({ group, onClick }) {
       {/* Actionable callout */}
       {group.topPerformer && group.hasData && (
         <div style={{
-          background: "#252525", border: "1px solid #333",
+          background: "var(--input-bg)", border: "1px solid var(--border)",
           borderRadius: "8px", padding: "12px",
         }}>
           <div style={{
@@ -3269,9 +3260,8 @@ function HubDrilldown({ group, onChannelClick, selectedChannelId, sortCol, sortD
   return (
     <div>
       {/* Category summary banner */}
-      <div style={{
-        background: "#1E1E1E", border: "1px solid #333",
-        borderLeft: `4px solid ${config.color}`, borderRadius: "12px",
+      <div className="page-section" style={{
+        borderLeft: `4px solid ${config.color}`,
         padding: "20px", marginBottom: "16px",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
@@ -3311,15 +3301,12 @@ function HubDrilldown({ group, onChannelClick, selectedChannelId, sortCol, sortD
       </div>
 
       {/* Sortable channel table */}
-      <div style={{
-        background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px",
-        overflow: "hidden",
-      }}>
+      <div className="page-section" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{
           display: "grid",
           gridTemplateColumns: "44px 1fr 110px 100px 100px 80px",
           gap: "8px", padding: "10px 16px",
-          background: "#1a1a1a", borderBottom: "1px solid #333",
+          background: "var(--bg)", borderBottom: "1px solid var(--border)",
           fontSize: "10px", fontWeight: "600", color: "#888",
           textTransform: "uppercase", letterSpacing: "0.5px",
         }}>
@@ -3345,12 +3332,12 @@ function HubDrilldown({ group, onChannelClick, selectedChannelId, sortCol, sortD
               display: "grid",
               gridTemplateColumns: "44px 1fr 110px 100px 100px 80px",
               gap: "8px", padding: "10px 16px",
-              borderBottom: "1px solid #2a2a2a",
+              borderBottom: "1px solid var(--border)",
               cursor: "pointer", alignItems: "center",
-              background: selectedChannelId === comp.id ? "#252525" : "transparent",
+              background: selectedChannelId === comp.id ? "var(--input-bg)" : "transparent",
               transition: "background 0.1s",
             }}
-            onMouseOver={e => { if (selectedChannelId !== comp.id) e.currentTarget.style.background = "#1a1a1a"; }}
+            onMouseOver={e => { if (selectedChannelId !== comp.id) e.currentTarget.style.background = "var(--bg)"; }}
             onMouseOut={e => { if (selectedChannelId !== comp.id) e.currentTarget.style.background = "transparent"; }}
           >
             <img src={comp.thumbnail} alt="" style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover" }} />

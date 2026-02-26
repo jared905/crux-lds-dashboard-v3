@@ -35,7 +35,7 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
     bannerCard: {
       backgroundColor: '#1E1E1E',
       border: '1px solid #333',
-      borderRadius: '12px',
+      borderRadius: '8px',
       padding: '24px',
       position: 'relative',
       overflow: 'hidden'
@@ -51,7 +51,7 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
     iconBox: {
       width: '48px',
       height: '48px',
-      borderRadius: '12px',
+      borderRadius: '8px',
       backgroundColor: 'rgba(139, 92, 246, 0.15)',
       display: 'flex',
       alignItems: 'center',
@@ -110,7 +110,7 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
     activeModeBanner: {
       backgroundColor: '#1E1E1E',
       border: '1px solid #8b5cf6',
-      borderRadius: '12px',
+      borderRadius: '8px',
       padding: '16px 20px',
       display: 'flex',
       alignItems: 'center',
@@ -127,14 +127,14 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
     userMessage: {
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
       border: '1px solid rgba(59, 130, 246, 0.3)',
-      borderRadius: '12px',
+      borderRadius: '8px',
       padding: '16px',
       marginLeft: '48px'
     },
     assistantMessage: {
       backgroundColor: '#252525',
       border: '1px solid #333',
-      borderRadius: '12px',
+      borderRadius: '8px',
       padding: '16px',
       marginRight: '48px'
     },
@@ -165,7 +165,7 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
     inputCard: {
       backgroundColor: '#1E1E1E',
       border: '1px solid #333',
-      borderRadius: '12px',
+      borderRadius: '8px',
       padding: '16px',
       position: 'sticky',
       bottom: '16px'
@@ -201,7 +201,7 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
     exampleCard: {
       backgroundColor: '#252525',
       border: '1px solid #333',
-      borderRadius: '12px',
+      borderRadius: '8px',
       padding: '20px'
     },
     exampleButton: {

@@ -242,6 +242,196 @@ ${rawText.slice(0, 80000)}`;
   };
 }
 
+/**
+ * Auto-discover brand context from the channel's existing YouTube data.
+ * Fetches videos + channel info from Supabase and sends to Claude for analysis.
+ * Returns the same structure as extractBrandContext (no manual pasting needed).
+ */
+export async function autoDiscoverBrandContext(channelId) {
+  if (!supabase) throw new Error('Supabase not configured');
+  if (!channelId) throw new Error('channelId is required');
+
+  // 1. Fetch channel info
+  const { data: channel } = await supabase
+    .from('channels')
+    .select('name, description, subscriber_count, video_count, category, tags, custom_url')
+    .eq('id', channelId)
+    .maybeSingle();
+
+  if (!channel) throw new Error('Channel not found');
+
+  // 2. Fetch recent videos (up to 200, newest first)
+  const { data: videos } = await supabase
+    .from('videos')
+    .select('title, description, view_count, like_count, comment_count, duration_seconds, published_at, tags, detected_format, avg_view_percentage, subscribers_gained, ctr')
+    .eq('channel_id', channelId)
+    .order('published_at', { ascending: false })
+    .limit(200);
+
+  if (!videos || videos.length < 3) {
+    throw new Error('Not enough video data to auto-discover brand context. Need at least 3 videos.');
+  }
+
+  // 3. Compute publishing cadence from dates
+  const dates = videos
+    .map(v => v.published_at ? new Date(v.published_at) : null)
+    .filter(Boolean)
+    .sort((a, b) => b - a);
+
+  let cadenceStr = '';
+  if (dates.length >= 4) {
+    const spans = [];
+    for (let i = 0; i < Math.min(dates.length - 1, 30); i++) {
+      spans.push((dates[i] - dates[i + 1]) / (1000 * 60 * 60 * 24));
+    }
+    const avgDaysBetween = spans.reduce((s, d) => s + d, 0) / spans.length;
+    const perMonth = avgDaysBetween > 0 ? Math.round(30 / avgDaysBetween * 10) / 10 : 0;
+    cadenceStr = `Average ${perMonth} videos/month (avg ${Math.round(avgDaysBetween)} days between uploads)`;
+  }
+
+  // 4. Compute format breakdown
+  const formats = {};
+  videos.forEach(v => {
+    const fmt = v.detected_format || (v.duration_seconds < 62 ? 'short' : 'long');
+    formats[fmt] = (formats[fmt] || 0) + 1;
+  });
+  const formatStr = Object.entries(formats).map(([k, v]) => `${k}: ${v}`).join(', ');
+
+  // 5. Compute top performing videos (by views)
+  const topByViews = [...videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0)).slice(0, 10);
+  const topVideosSummary = topByViews.map(v =>
+    `"${v.title}" — ${(v.view_count || 0).toLocaleString()} views, ${Math.round(v.avg_view_percentage || 0)}% retained, ${(v.subscribers_gained || 0)} subs gained`
+  ).join('\n');
+
+  // 6. Build a content sample from titles + descriptions
+  const titlesSample = videos.slice(0, 50).map(v => v.title).join('\n');
+  const descSample = videos.slice(0, 15).map(v => {
+    const desc = (v.description || '').slice(0, 500);
+    return desc ? `[${v.title}]: ${desc}` : null;
+  }).filter(Boolean).join('\n---\n');
+
+  // 7. Build tags/topics summary
+  const tagCounts = {};
+  videos.forEach(v => {
+    (v.tags || []).forEach(t => {
+      const key = t.toLowerCase().trim();
+      if (key) tagCounts[key] = (tagCounts[key] || 0) + 1;
+    });
+  });
+  const topTags = Object.entries(tagCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 30)
+    .map(([tag, count]) => `${tag} (${count})`)
+    .join(', ');
+
+  // 8. Send to Claude
+  const prompt = `Analyze this YouTube channel's data and build a brand context profile for "${channel.name}".
+
+CHANNEL INFO:
+- Name: ${channel.name}
+- Subscribers: ${(channel.subscriber_count || 0).toLocaleString()}
+- Category: ${channel.category || 'Unknown'}
+- Description: ${(channel.description || 'N/A').slice(0, 2000)}
+- Custom URL: ${channel.custom_url || 'N/A'}
+
+PUBLISHING DATA:
+- Total videos analyzed: ${videos.length}
+- ${cadenceStr}
+- Format breakdown: ${formatStr}
+
+TOP 10 VIDEOS BY VIEWS:
+${topVideosSummary}
+
+ALL RECENT TITLES (newest first):
+${titlesSample}
+
+TOP TAGS BY FREQUENCY:
+${topTags || 'No tags available'}
+
+SAMPLE DESCRIPTIONS:
+${descSample.slice(0, 15000)}
+
+---
+
+Based on this data, extract a comprehensive brand context profile. Infer:
+- Brand voice from their writing style in titles and descriptions
+- Content themes from recurring topics across titles and tags
+- Audience signals from what performs best (views, retention, subs gained)
+- Messaging priorities from description CTAs and recurring product/topic mentions
+- Resource constraints from publishing cadence and format patterns
+- Content boundaries from what topics/formats they clearly avoid
+
+Return this exact JSON structure:
+{
+  "brand_voice": {
+    "primary_attributes": ["attribute1", "attribute2"],
+    "tone_descriptors": ["description of tone"],
+    "language_patterns": {
+      "frequently_used_phrases": [],
+      "avoided_language": [],
+      "hashtags": []
+    },
+    "voice_summary": "One paragraph summary of the brand voice"
+  },
+  "messaging_priorities": {
+    "current_campaigns": [{"name": "", "status": "active|upcoming", "description": "", "priority_signal": "high|medium|low"}],
+    "product_focus": [{"product_line": "", "emphasis_level": "primary|secondary", "detected_from": []}],
+    "primary_ctas": [{"action": "", "placement": []}],
+    "strategic_themes": []
+  },
+  "audience_signals": {
+    "high_engagement_formats": [{"format": "", "platform": "youtube", "signal_strength": "strong|moderate|weak", "notes": ""}],
+    "audience_demographics_observed": {"age_skew": "", "interest_clusters": [], "notes": ""},
+    "content_gaps": [{"observation": "", "youtube_opportunity": ""}]
+  },
+  "content_themes": {
+    "themes": [{"theme": "", "frequency": "high|medium|low", "platforms": ["youtube"], "sub_topics": []}],
+    "seasonal_patterns": [{"period": "", "themes": []}]
+  },
+  "visual_identity": {},
+  "platform_presence": {
+    "youtube": {
+      "handle": "${channel.custom_url || ''}",
+      "follower_count": ${channel.subscriber_count || 0},
+      "posting_frequency": "${cadenceStr}",
+      "notes": ""
+    }
+  },
+  "resource_constraints": {
+    "publishing_cadence": { "videos_per_period": ${cadenceStr ? Math.round(parseFloat(cadenceStr)) || '' : "''"}, "period": "month" },
+    "production_capability": {},
+    "budget_tier": "",
+    "talent": [],
+    "turnaround": {}
+  }
+}`;
+
+  const result = await claudeAPI.call(
+    prompt,
+    `You are a YouTube brand analyst. Given channel data (titles, descriptions, performance metrics, tags), infer a comprehensive brand context profile. Be specific — cite actual video titles, topics, and patterns. Return ONLY valid JSON (no markdown fences, no commentary), starting with { and ending with }.`,
+    'brand_context_auto_discover',
+    4096
+  );
+
+  const parsed = parseClaudeJSON(result.text, {
+    brand_voice: {},
+    messaging_priorities: {},
+    audience_signals: {},
+    content_themes: {},
+    visual_identity: {},
+    platform_presence: {},
+    resource_constraints: {},
+  });
+
+  return {
+    ...parsed,
+    raw_extraction: result.text,
+    extraction_model: 'claude-sonnet-4-5',
+    usage: result.usage,
+    cost: result.cost,
+  };
+}
+
 // ─── PROMPT INJECTION ──────────────────────────────────────────────────────────
 
 /**
@@ -255,6 +445,11 @@ const TASK_SECTIONS = {
   competitor_insight: ['brand_voice', 'messaging_priorities'],
   video_ideation: ['brand_voice', 'messaging_priorities', 'content_themes', 'audience_signals', 'strategic_goals', 'resource_constraints', 'content_boundaries'],
   content_intelligence: ['brand_voice', 'messaging_priorities', 'content_themes', 'audience_signals', 'strategic_goals', 'resource_constraints', 'content_boundaries'],
+  series_detection: ['brand_voice', 'content_themes', 'audience_signals', 'content_boundaries'],
+  atomizer: ['brand_voice', 'messaging_priorities', 'audience_signals', 'content_boundaries'],
+  creative_brief: ['brand_voice', 'messaging_priorities', 'content_themes', 'audience_signals', 'strategic_goals', 'resource_constraints', 'content_boundaries'],
+  comment_analysis: ['brand_voice', 'audience_signals', 'content_themes'],
+  weekly_brief: ['brand_voice', 'messaging_priorities', 'content_themes', 'audience_signals', 'strategic_goals', 'resource_constraints', 'content_boundaries'],
 };
 
 /**

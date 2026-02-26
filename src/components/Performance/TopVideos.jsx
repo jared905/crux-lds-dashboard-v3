@@ -62,21 +62,11 @@ export default function TopVideos({ rows, n = 10 }) {
 
   const s = {
     card: {
-      backgroundColor: "#1E1E1E",
-      border: "1px solid #333",
-      borderRadius: "12px",
+      background: "#1E1E1E",
+      border: "1px solid #2A2A2A",
+      borderRadius: "8px",
       padding: "20px",
       marginBottom: "20px",
-      position: "relative",
-      overflow: "hidden",
-    },
-    topGradient: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      height: "4px",
-      background: "linear-gradient(90deg, #ec4899, #8b5cf6, #3b82f6)",
     },
     header: {
       display: "flex",
@@ -85,18 +75,20 @@ export default function TopVideos({ rows, n = 10 }) {
       marginBottom: "20px",
     },
     title: {
-      fontSize: "18px",
-      fontWeight: "600",
+      fontSize: "26px",
+      fontWeight: "700",
       color: "#fff",
+      margin: 0,
     },
     countBadge: {
-      fontSize: "11px",
-      fontWeight: "600",
-      color: "#9E9E9E",
-      backgroundColor: "#252525",
-      padding: "4px 10px",
+      fontSize: "12px",
+      fontWeight: "700",
+      color: "#f472b6",
+      backgroundColor: "rgba(236, 72, 153, 0.15)",
+      padding: "4px 12px",
       borderRadius: "6px",
-      border: "1px solid #333",
+      fontFamily: "'Barlow Condensed', sans-serif",
+      letterSpacing: "-0.01em",
     },
     listContainer: {
       display: "flex",
@@ -244,10 +236,44 @@ export default function TopVideos({ rows, n = 10 }) {
   };
 
   return (
-    <div style={s.card}>
-      <div style={s.topGradient} />
+    <div className="section-card podium-section" style={s.card}>
       <div style={s.header}>
-        <h2 style={s.title}>Top Videos</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #fbbf24, #fbbf24cc)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px #fbbf244d" }}>
+            <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
+              {/* Podium blocks */}
+              {/* 2nd place — left */}
+              <rect x="4" y="28" width="12" height="16" rx="1.5" fill="white" opacity="0.7" />
+              <text x="10" y="38" textAnchor="middle" fontFamily="'Barlow Condensed', sans-serif" fontSize="8" fontWeight="800" fill="#fbbf24" opacity="0.6">2</text>
+              {/* 1st place — center (tallest) */}
+              <rect x="18" y="20" width="12" height="24" rx="1.5" fill="white" opacity="0.9" />
+              <text x="24" y="32" textAnchor="middle" fontFamily="'Barlow Condensed', sans-serif" fontSize="9" fontWeight="800" fill="#fbbf24" opacity="0.7">1</text>
+              {/* 3rd place — right */}
+              <rect x="32" y="32" width="12" height="12" rx="1.5" fill="white" opacity="0.6" />
+              <text x="38" y="40" textAnchor="middle" fontFamily="'Barlow Condensed', sans-serif" fontSize="7" fontWeight="800" fill="#fbbf24" opacity="0.5">3</text>
+              {/* Winner figure on 1st place — jumps on hover */}
+              <g className="podium-winner">
+                {/* Head */}
+                <circle cx="24" cy="11" r="3" fill="white" opacity="0.9" />
+                {/* Torso */}
+                <rect x="22" y="14" width="4" height="5" rx="1" fill="white" opacity="0.9" />
+                {/* Arms up (celebrating) */}
+                <line x1="22" y1="15" x2="18" y2="11" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.85" />
+                <line x1="26" y1="15" x2="30" y2="11" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.85" />
+                {/* Legs */}
+                <line x1="23" y1="19" x2="21.5" y2="20" stroke="white" strokeWidth="1.8" strokeLinecap="round" opacity="0.85" />
+                <line x1="25" y1="19" x2="26.5" y2="20" stroke="white" strokeWidth="1.8" strokeLinecap="round" opacity="0.85" />
+              </g>
+              {/* 2nd place figure */}
+              <circle cx="10" cy="22" r="2.5" fill="white" opacity="0.6" />
+              <rect x="8.5" y="24.5" width="3" height="3.5" rx="0.8" fill="white" opacity="0.6" />
+              {/* 3rd place figure */}
+              <circle cx="38" cy="27" r="2.5" fill="white" opacity="0.5" />
+              <rect x="36.5" y="29.5" width="3" height="2.5" rx="0.8" fill="white" opacity="0.5" />
+            </svg>
+          </div>
+          <h2 style={s.title}>Top Videos</h2>
+        </div>
         <span style={s.countBadge}>Top {sorted.length} of {safeRows.length}</span>
       </div>
 
@@ -260,16 +286,18 @@ export default function TopVideos({ rows, n = 10 }) {
           const ctrColor = (video.ctr || 0) > 0.055 ? "#00C853" : "#E0E0E0";
 
           return (
-            <div key={idx} style={{
+            <div key={idx} className="comparison-row" style={{
               ...s.row,
               flexDirection: isMobile ? "column" : "row",
               alignItems: isMobile ? "stretch" : "center",
               gap: isMobile ? "10px" : "16px",
-              borderBottom: idx === sorted.length - 1 ? "none" : "1px solid #334155"
+              borderBottom: idx === sorted.length - 1 ? "none" : "1px solid #334155",
+              borderRadius: "4px",
+              padding: "16px 8px",
             }}>
 
               {/* Top section: rank + thumbnail + title/meta */}
-              <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "10px" : "16px", minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "10px" : "16px", minWidth: 0, flex: 1 }}>
                 <div style={s.rank(idx)}>#{idx + 1}</div>
 
                 {/* Thumbnail - use YouTube thumbnail if video ID available */}
@@ -361,10 +389,10 @@ export default function TopVideos({ rows, n = 10 }) {
 
               {/* Metrics — grid row on mobile, inline on desktop */}
               <div style={isMobile
-                ? { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px", paddingLeft: "34px" }
-                : { display: "flex", alignItems: "center", gap: "16px" }
+                ? { display: "grid", gridTemplateColumns: video.impressions ? "1fr 1fr 1fr 1fr 1fr" : "1fr 1fr 1fr 1fr", gap: "8px", paddingLeft: "34px" }
+                : { display: "grid", gridTemplateColumns: video.impressions ? "100px 80px 70px 70px 70px" : "100px 70px 70px 70px", gap: "12px", flexShrink: 0 }
               }>
-                <div style={s.metricCol(isMobile ? "auto" : "100px")}>
+                <div style={s.metricCol("auto")}>
                   <div style={s.metricLabel}><Eye size={12} /> Views</div>
                   <div style={s.metricValue("#fff")}>{fmtInt(video.views || 0)}</div>
                   {!isMobile && (
@@ -374,19 +402,26 @@ export default function TopVideos({ rows, n = 10 }) {
                   )}
                 </div>
 
-                <div style={s.metricCol(isMobile ? "auto" : "75px")}>
+                {video.impressions > 0 && (
+                  <div style={s.metricCol("auto")}>
+                    <div style={s.metricLabel}><Eye size={12} /> Impr</div>
+                    <div style={s.metricValue("#a78bfa")}>{fmtInt(video.impressions)}</div>
+                  </div>
+                )}
+
+                <div style={s.metricCol("auto")}>
                   <div style={s.metricLabel}><Percent size={12} /> Ret</div>
                   <div style={s.metricValue(retColor)}>
                     {fmtPct(video.avgViewPct || 0, 0)}
                   </div>
                 </div>
 
-                <div style={s.metricCol(isMobile ? "auto" : "75px")}>
+                <div style={s.metricCol("auto")}>
                   <div style={s.metricLabel}><MousePointerClick size={12} /> CTR</div>
                   <div style={s.metricValue(ctrColor)}>{fmtPct(video.ctr || 0, 1)}</div>
                 </div>
 
-                <div style={s.metricCol(isMobile ? "auto" : "75px")}>
+                <div style={s.metricCol("auto")}>
                   <div style={s.metricLabel}><UserPlus size={12} /> Subs</div>
                   <div style={s.metricValue()}>{fmtInt(video.subscribers || 0)}</div>
                 </div>

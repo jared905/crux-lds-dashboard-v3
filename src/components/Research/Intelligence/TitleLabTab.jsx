@@ -117,7 +117,7 @@ export default function TitleLabTab({ channelIds, clientId, rows, initialTopic }
           {topics.map((t, i) => (
             <span key={i} style={{
               background: '#3b82f620', color: '#60a5fa', border: '1px solid #3b82f640',
-              padding: '4px 10px', borderRadius: '16px', fontSize: '11px', fontWeight: '600',
+              padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '600',
               display: 'flex', alignItems: 'center', gap: '4px',
             }}>
               {t}
@@ -154,7 +154,7 @@ export default function TitleLabTab({ channelIds, clientId, rows, initialTopic }
             return (
               <button key={f.id} onClick={() => toggleFormat(f.id)}
                 style={{
-                  padding: '4px 10px', borderRadius: '16px', fontSize: '10px', fontWeight: '600',
+                  padding: '4px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: '600',
                   border: `1px solid ${active ? '#3b82f6' : '#444'}`,
                   background: active ? '#3b82f620' : 'transparent',
                   color: active ? '#3b82f6' : '#888', cursor: 'pointer',

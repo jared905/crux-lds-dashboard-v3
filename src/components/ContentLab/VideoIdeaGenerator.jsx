@@ -374,7 +374,7 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
       <div style={{
         backgroundColor: "#1E1E1E",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         padding: "24px",
         position: "relative",
         overflow: "hidden"
@@ -476,7 +476,7 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
             <div style={{
               backgroundColor: "#1E1E1E",
               border: "1px solid #333",
-              borderRadius: "12px",
+              borderRadius: "8px",
               padding: "24px",
               display: "flex",
               flexDirection: "column",
@@ -581,7 +581,7 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
           <div style={{
             backgroundColor: "#1E1E1E",
             border: "1px solid #333",
-            borderRadius: "12px",
+            borderRadius: "8px",
             padding: "24px",
             position: "relative",
             overflow: "hidden"
@@ -676,7 +676,7 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
           backgroundColor: "#1E1E1E",
           border: "1px solid #10b981",
           borderLeft: "4px solid #10b981",
-          borderRadius: "12px",
+          borderRadius: "8px",
           padding: "20px"
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
@@ -773,7 +773,7 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
                   style={{
                     backgroundColor: "#1E1E1E",
                     border: "1px solid #333",
-                    borderRadius: "12px",
+                    borderRadius: "8px",
                     padding: "24px",
                     position: "relative",
                     overflow: "hidden"
@@ -998,7 +998,7 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
           <div style={{
             backgroundColor: "#1E1E1E",
             border: "1px solid #333",
-            borderRadius: "12px",
+            borderRadius: "8px",
             padding: "24px",
             position: "relative",
             overflow: "hidden"

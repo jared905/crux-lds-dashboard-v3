@@ -33,7 +33,7 @@ import ContentSeriesAnalysis from "./components/Performance/ContentSeriesAnalysi
 import Atomizer from "./components/ContentLab/Atomizer.jsx";
 import VideoIdeaGenerator from "./components/ContentLab/VideoIdeaGenerator.jsx";
 import BriefsList from "./components/Strategy/BriefsList.jsx";
-import OpportunitySynthesis from "./components/Strategy/OpportunitySynthesis.jsx";
+import UnifiedStrategy from "./components/Strategy/UnifiedStrategy.jsx";
 import GapDetection from "./components/Research/GapDetection.jsx";
 import UserManagement from "./components/Admin/UserManagement.jsx";
 import APISettings from "./components/Settings/APISettings.jsx";
@@ -1043,6 +1043,7 @@ export default function App() {
                 setChartMetric={setChartMetric}
                 channelStats={channelStats}
                 activeClient={activeClient}
+                setTab={setTab}
               />
             )}
 
@@ -1081,7 +1082,17 @@ export default function App() {
             )}
 
             {tab === "opportunities" && (
-              <OpportunitySynthesis rows={filtered} activeClient={activeClient} />
+              <UnifiedStrategy
+                rows={filtered}
+                activeClient={activeClient}
+                channelSubscriberCount={
+                  channelStats?.subscriberCount
+                  ?? activeClient?.subscriberCount
+                  ?? 0
+                }
+                channelSubscriberMap={allChannelStats}
+                selectedChannel={selectedChannel}
+              />
             )}
 
             {tab === "briefs" && (

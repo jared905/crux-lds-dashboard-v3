@@ -25,9 +25,9 @@ export default function FilterBar({
   const hasSnapshotData = snapshotDays > 0 && dateRange !== "all";
 
   return (
-    <div style={{ position: "sticky", top: isMobile ? "70px" : "110px", zIndex: 99, background: "rgba(18, 18, 18, 0.92)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", paddingTop: isMobile ? "10px" : "20px", paddingBottom: "10px" }}>
+    <div style={{ position: "sticky", top: isMobile ? "56px" : "65px", zIndex: 99, paddingTop: isMobile ? "6px" : "8px", paddingBottom: "6px" }}>
       <div style={{ maxWidth: "1400px", margin: "0 auto", padding: isMobile ? "0 10px" : "0 24px" }}>
-        <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px", padding: isMobile ? "12px" : "20px" }}>
+        <div style={{ background: "rgba(30, 30, 30, 0.6)", border: "1px solid #333", borderRadius: "8px", padding: isMobile ? "12px" : "20px", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
           <div style={{ display: "flex", gap: isMobile ? "8px" : "16px", alignItems: "center", flexWrap: "wrap" }}>
 
             {/* Report Period Selector - shows when periods exist */}

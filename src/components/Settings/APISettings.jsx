@@ -28,7 +28,7 @@ const toggleBtnStyle = {
 
 const cardStyle = {
   background: "#1E1E1E",
-  borderRadius: "12px",
+  borderRadius: "8px",
   border: "1px solid #333",
   padding: "24px",
   marginBottom: "16px",
@@ -217,19 +217,19 @@ export default function APISettings({ onNavigateToSecurity, onClientsUpdate }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "20px" }}>
             <div style={statBox}>
               <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "6px" }}>Total Cost</div>
-              <div style={{ fontSize: "20px", fontWeight: "700" }}>{formatCost(usageStats.totalCost)}</div>
+              <div style={{ fontSize: "20px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif" }}>{formatCost(usageStats.totalCost)}</div>
             </div>
             <div style={statBox}>
               <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "6px" }}>Remaining</div>
-              <div style={{ fontSize: "20px", fontWeight: "700", color: "#22c55e" }}>{formatCost(usageStats.remainingBudget)}</div>
+              <div style={{ fontSize: "20px", fontWeight: "700", color: "#22c55e", fontFamily: "'Barlow Condensed', sans-serif" }}>{formatCost(usageStats.remainingBudget)}</div>
             </div>
             <div style={statBox}>
               <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "6px" }}>Requests</div>
-              <div style={{ fontSize: "20px", fontWeight: "700" }}>{usageStats.requestCount}</div>
+              <div style={{ fontSize: "20px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif" }}>{usageStats.requestCount}</div>
             </div>
             <div style={statBox}>
               <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "6px" }}>Tokens Used</div>
-              <div style={{ fontSize: "20px", fontWeight: "700" }}>{formatTokens(usageStats.inputTokens + usageStats.outputTokens)}</div>
+              <div style={{ fontSize: "20px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif" }}>{formatTokens(usageStats.inputTokens + usageStats.outputTokens)}</div>
             </div>
           </div>
 
@@ -293,7 +293,7 @@ export default function APISettings({ onNavigateToSecurity, onClientsUpdate }) {
 
       {/* Help Text */}
       <div style={{
-        padding: "16px 20px", background: "#1E1E1E", borderRadius: "12px",
+        padding: "16px 20px", background: "#1E1E1E", borderRadius: "8px",
         border: "1px solid #333", fontSize: "13px", color: "#9E9E9E",
       }}>
         <h4 style={{ fontWeight: "600", color: "#E0E0E0", marginBottom: "10px", marginTop: 0 }}>Getting Started</h4>

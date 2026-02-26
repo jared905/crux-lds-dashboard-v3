@@ -41,7 +41,7 @@ const s = {
   container: {
     backgroundColor: '#1E1E1E',
     border: '1px solid #333',
-    borderRadius: '12px',
+    borderRadius: '8px',
     padding: '20px',
     marginBottom: '20px',
   },
@@ -245,7 +245,7 @@ const s = {
     display: 'inline-flex',
     alignItems: 'center',
     padding: '4px 10px',
-    borderRadius: '12px',
+    borderRadius: '8px',
     fontSize: '11px',
     fontWeight: '500',
   },
@@ -263,7 +263,7 @@ const s = {
   },
   modalContent: {
     backgroundColor: '#1E1E1E',
-    borderRadius: '12px',
+    borderRadius: '8px',
     padding: '24px',
     width: '400px',
     maxWidth: '90vw',

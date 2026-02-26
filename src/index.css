@@ -53,10 +53,10 @@ body {
 /* Earth at night background */
 body::before {
   content: '';
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
-  width: 100vw;
+  width: 100%;
   height: 100vh;
   background-image: url('/bg-satellite.jpg');
   background-size: cover;
@@ -70,10 +70,10 @@ body::before {
 /* Gradient overlay that fades the image into the bg color */
 body::after {
   content: '';
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
-  width: 100vw;
+  width: 100%;
   height: 100vh;
   background: linear-gradient(to bottom,
     rgba(24, 24, 23, 0) 0%,
@@ -255,6 +255,7 @@ textarea.input { min-height: 120px; resize: vertical; }
   .drawer { width: min(520px, 95vw); padding: 20px; }
   .mobile-hide { display: none !important; }
   .mobile-only { display: block !important; }
+  .page-section { padding: 16px; margin-bottom: 16px; }
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
@@ -269,8 +270,93 @@ textarea.input { min-height: 120px; resize: vertical; }
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .section-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 24px var(--accent-dim);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 30px var(--accent-dim);
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* --- SHARED PAGE PRIMITIVES --- */
+
+/* Standard content card for page sections */
+.page-section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+/* Page header: icon + title + subtitle */
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.page-header h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+.page-header .subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Small gradient icon box */
+.page-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Form label */
+.form-label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+/* Secondary button variant */
+.btn.secondary {
+  background: var(--input-bg);
+  border-color: #444;
+  color: var(--muted);
+}
+.btn.secondary:hover {
+  background: #333;
+  color: var(--text);
+}
+
+/* Alert boxes */
+.alert {
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.alert.error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+.alert.success {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+}
+.alert.info {
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-text);
 }
 
 /* --- STAT HIGHLIGHT CHIPS --- */
@@ -340,12 +426,247 @@ textarea.input { min-height: 120px; resize: vertical; }
 .animate-delay-7 { animation-delay: 0.35s; }
 .animate-delay-8 { animation-delay: 0.40s; }
 
+/* ========= MICRO-INTERACTION HOVER EFFECTS ========= */
+
+/* KPI card hover — scale + glow */
+.kpi-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.kpi-card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 0 0 1px var(--glow-color, #333);
+  border-color: var(--glow-color, #333) !important;
+}
+.kpi-card:hover .kpi-icon {
+  box-shadow: 0 4px 20px var(--glow-color, rgba(255, 255, 255, 0.3));
+  transition: box-shadow 0.2s ease;
+}
+
+/* Per-icon hover animations triggered by parent .kpi-card:hover */
+@keyframes uploadArrow {
+  0% { transform: translateY(8px); opacity: 0; }
+  30% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translateY(-14px); opacity: 0; }
+}
+@keyframes eyeBlink {
+  0%, 30%, 100% { transform: scaleY(1); }
+  15% { transform: scaleY(0.1); }
+}
+@keyframes clockTick {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes personPopIn {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes barGrow {
+  0% { transform: scaleY(0); }
+  80% { transform: scaleY(1.05); }
+  100% { transform: scaleY(1); }
+}
+@keyframes targetClick {
+  0% { transform: scale(1); }
+  20% { transform: scale(0.6); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+@keyframes targetRipple {
+  0% { transform: scale(0); opacity: 0.9; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+.kpi-card:hover .icon-upload-arrow { animation: uploadArrow 0.7s ease-out both; }
+.kpi-card:hover .icon-eye { animation: eyeBlink 1s ease; transform-origin: center center; }
+.kpi-card:hover .icon-clock-hand { animation: clockTick 0.8s ease-in-out forwards; transform-origin: 24px 24px; }
+.kpi-card:hover .icon-person-side { animation: personPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.kpi-card:hover .icon-person-left { animation-delay: 0.1s; transform-origin: center center; }
+.kpi-card:hover .icon-person-right { animation-delay: 0.2s; transform-origin: center center; }
+.kpi-card:hover .icon-bar { animation: barGrow 0.6s ease-out both; transform-origin: bottom center; }
+.kpi-card:hover .icon-target-click { animation: targetClick 0.5s ease; transform-origin: center center; }
+.kpi-card:hover .icon-ripple { animation: targetRipple 0.8s ease-out both; transform-origin: center center; }
+
+/* VS lightning bolt flash */
+@keyframes boltFlash {
+  0%, 100% { opacity: 0; transform: scale(0.5); }
+  15% { opacity: 1; transform: scale(1.2); }
+  30% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.1); }
+  70% { opacity: 1; transform: scale(1); }
+  85% { opacity: 0.6; transform: scale(0.9); }
+}
+.vs-icon:hover .vs-bolt { animation: boltFlash 0.7s ease both; transform-origin: center center; }
+
+/* Calculator — digits type in on hover */
+@keyframes calcDigit {
+  0%, 90% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.calc-section:hover .calc-d1 { animation: calcDigit 0.1s ease 0.1s both; }
+.calc-section:hover .calc-d2 { animation: calcDigit 0.1s ease 0.25s both; }
+.calc-section:hover .calc-d3 { animation: calcDigit 0.1s ease 0.4s both; }
+.calc-section:hover .calc-d4 { animation: calcDigit 0.1s ease 0.55s both; }
+.calc-section:hover .calc-d5 { animation: calcDigit 0.1s ease 0.7s both; }
+
+/* Pizza — slice gets pulled off screen */
+@keyframes slicePull {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0.85; }
+  30% { transform: translate(4px, -4px) rotate(5deg); opacity: 0.85; }
+  100% { transform: translate(30px, -30px) rotate(15deg); opacity: 0; }
+}
+.pizza-section:hover .pizza-slice {
+  animation: slicePull 0.6s ease-in both;
+  transform-origin: 24px 24px;
+}
+
+/* Heart — beats on hover */
+@keyframes heartBeat {
+  0% { transform: scale(1); }
+  15% { transform: scale(1.15); }
+  30% { transform: scale(0.95); }
+  45% { transform: scale(1.1); }
+  60% { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+.heart-section:hover .heart-icon {
+  animation: heartBeat 0.8s ease both;
+}
+
+/* Publishing Pattern — week bars lift on hover */
+.week-bar:hover {
+  transform: scaleY(1.08) translateY(-2px);
+  filter: brightness(1.2);
+}
+
+/* Podium — winner jumps up and down like Excitebike */
+@keyframes podiumJump {
+  0% { transform: translateY(0); }
+  8% { transform: translateY(-7px); }
+  16% { transform: translateY(0); }
+  22% { transform: translateY(-6px); }
+  30% { transform: translateY(0); }
+  36% { transform: translateY(-5px); }
+  44% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+  58% { transform: translateY(0); }
+  64% { transform: translateY(-3px); }
+  72% { transform: translateY(0); }
+  80% { transform: translateY(-2px); }
+  88% { transform: translateY(0); }
+  100% { transform: translateY(0); }
+}
+.podium-section:hover .podium-winner {
+  animation: podiumJump 2s ease both;
+}
+
+/* Radar dish — waves appear at edge, travel as group toward dish, dissolve on contact */
+@keyframes radarReceive {
+  0% { opacity: 0; transform: translateX(4px) translateY(-2px); }
+  15% { opacity: 0.9; transform: translateX(2px) translateY(-1px); }
+  70% { opacity: 0.8; transform: translateX(-14px) translateY(6px); }
+  90% { opacity: 0.3; transform: translateX(-18px) translateY(8px); }
+  100% { opacity: 0; transform: translateX(-20px) translateY(10px); }
+}
+.section-card:hover .radar-waves {
+  animation: radarReceive 1.4s ease both;
+}
+
+/* Target — arrow flies in fast and hits bullseye */
+@keyframes arrowHit {
+  0% { opacity: 0; transform: translate(28px, -22px); }
+  40% { opacity: 1; transform: translate(0, 0); }
+  100% { opacity: 1; transform: translate(0, 0); }
+}
+/* Target board shakes on impact */
+@keyframes targetShake {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  15% { transform: translate(-2px, 1px) rotate(-2deg); }
+  30% { transform: translate(2px, -1px) rotate(2deg); }
+  45% { transform: translate(-1px, 0px) rotate(-1deg); }
+  60% { transform: translate(1px, 0px) rotate(1deg); }
+  75% { transform: translate(-0.5px, 0) rotate(0deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+.target-section:hover .target-arrow {
+  animation: arrowHit 0.35s cubic-bezier(0.12, 0, 0.39, 0) both;
+}
+.target-section:hover .target-board {
+  animation: targetShake 0.6s ease 0.14s both;
+}
+
+/* Hero banner — progress fill sweeps left to right in active oval */
+@keyframes progressFill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Comparison row hover — subtle highlight */
+.comparison-row {
+  transition: background 0.15s ease;
+}
+.comparison-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Donut chart hover — spin wiggle */
+.donut-hover {
+  transition: transform 0.3s ease;
+}
+.donut-hover:hover {
+  transform: rotate(10deg) scale(1.08);
+}
+
+/* Insight card hover — pop */
+.insight-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.insight-card:hover {
+  transform: scale(1.04);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* Number pop entrance — bouncy scale-in */
+@keyframes numberPop {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+.number-pop {
+  animation: numberPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Progress ring pulse glow */
+@keyframes ringPulse {
+  0%, 100% { filter: drop-shadow(0 0 0px transparent); }
+  50% { filter: drop-shadow(0 0 8px var(--ring-color, #3b82f6)); }
+}
+.ring-pulse {
+  animation: ringPulse 1s ease-in-out 0.6s both;
+}
+
+/* Production mix box hover — glow */
+.production-mix {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.production-mix:hover {
+  transform: scale(1.04);
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), 0 0 20px rgba(14, 165, 233, 0.25);
+}
+
 /* Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
   .animate-in,
-  .animate-fade {
+  .animate-fade,
+  .number-pop,
+  .ring-pulse {
     animation: none;
     opacity: 1;
+    transform: none;
+  }
+  .kpi-card:hover,
+  .donut-hover:hover,
+  .insight-card:hover,
+  .production-mix:hover {
     transform: none;
   }
 }

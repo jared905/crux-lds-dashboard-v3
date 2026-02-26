@@ -29,6 +29,7 @@ export default function BrandFunnel({ rows, dateRange }) {
 
     // Calculate totals
     const totalImpressions = rows.reduce((sum, r) => sum + (r.impressions || 0), 0);
+    const hasRealImpressions = totalImpressions > 0;
     const totalViews = rows.reduce((sum, r) => sum + (r.views || 0), 0);
 
     // Keep watch hours for secondary display
@@ -267,6 +268,7 @@ export default function BrandFunnel({ rows, dateRange }) {
       shortsHeavy,
       isStale,
       daysSinceLastUpload,
+      hasRealImpressions,
       diagnosis
     };
   }, [rows, dateRange]);
@@ -300,7 +302,7 @@ export default function BrandFunnel({ rows, dateRange }) {
 
   if (!funnelData) {
     return (
-      <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "12px", padding: "40px", marginBottom: "20px" }}>
+      <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px", padding: "40px", marginBottom: "20px" }}>
         <div style={{ textAlign: "center", color: "#9E9E9E" }}>
           No data available for funnel analysis
         </div>
@@ -341,25 +343,54 @@ export default function BrandFunnel({ rows, dateRange }) {
                         "Last 28 Days";
 
   return (
-    <div style={{
-      background: "linear-gradient(135deg, #1E1E1E 0%, #2A2A2A 100%)",
-      border: "2px solid #333",
-      borderRadius: "12px",
+    <div className="section-card target-section" style={{
+      background: "#1E1E1E",
+      border: "1px solid #2A2A2A",
+      borderRadius: "8px",
+      "--glow-color": "rgba(139, 92, 246, 0.2)",
       padding: isMobile ? "16px" : "28px",
       marginBottom: "20px",
-      position: "relative",
-      overflow: "hidden"
     }}>
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "4px", background: "linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899)" }} />
-
       {/* Header */}
       <div style={{ marginBottom: isMobile ? "16px" : "28px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "8px" : "12px", marginBottom: "8px", flexWrap: "wrap" }}>
-          <Zap size={isMobile ? 18 : 22} style={{ color: "#8b5cf6" }} />
-          <div style={{ fontSize: isMobile ? "18px" : "22px", fontWeight: "700", color: "#fff" }}>Impact Funnel</div>
-          <div style={{ fontSize: isMobile ? "11px" : "13px", color: "#9E9E9E", background: "#252525", padding: isMobile ? "3px 8px" : "5px 12px", borderRadius: "6px" }}>
-            {dateRangeLabel}
+          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #ec4899, #ec4899cc)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px #ec48994d", flexShrink: 0, overflow: "hidden" }}>
+            <svg width="34" height="34" viewBox="0 0 48 48" fill="none" style={{ overflow: "visible" }}>
+              {/* Target board + support — shakes on arrow impact */}
+              <g className="target-board">
+                {/* Support leg behind target */}
+                <line x1="26" y1="38" x2="36" y2="46" stroke="white" strokeWidth="2.5" strokeLinecap="round" opacity="0.6" />
+                <line x1="18" y1="38" x2="8" y2="46" stroke="white" strokeWidth="2.5" strokeLinecap="round" opacity="0.6" />
+                {/* Target — 3D perspective ellipses */}
+                <ellipse cx="22" cy="24" rx="18" ry="20" stroke="white" strokeWidth="3" fill="none" opacity="0.9" />
+                <ellipse cx="22" cy="24" rx="12" ry="14" stroke="white" strokeWidth="2" fill="none" opacity="0.8" />
+                <ellipse cx="22" cy="24" rx="6" ry="7" stroke="white" strokeWidth="2" fill="none" opacity="0.7" />
+                {/* Bullseye dot */}
+                <circle cx="22" cy="24" r="2" fill="white" opacity="0.9" />
+              </g>
+              {/* Arrow that flies in on hover */}
+              <g className="target-arrow" style={{ opacity: 0 }}>
+                {/* Arrow shaft */}
+                <line x1="22" y1="24" x2="42" y2="8" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
+                {/* Arrow head */}
+                <path d="M22 24 L26 21 L24 26 Z" fill="white" opacity="0.9" />
+                {/* Arrow fletching */}
+                <line x1="40" y1="10" x2="44" y2="6" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
+                <line x1="42" y1="12" x2="46" y2="8" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
+              </g>
+            </svg>
           </div>
+          <div style={{ fontSize: isMobile ? "22px" : "28px", fontWeight: "700", color: "#fff" }}>Impact Funnel</div>
+          <span className="stat-chip purple">{dateRangeLabel}</span>
+          {funnelData.hasRealImpressions ? (
+            <span style={{ fontSize: "10px", fontWeight: "700", color: "#10b981", background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.3)", padding: "2px 8px", borderRadius: "4px" }}>
+              Real Impressions
+            </span>
+          ) : (
+            <span style={{ fontSize: "10px", fontWeight: "700", color: "#f59e0b", background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", padding: "2px 8px", borderRadius: "4px" }}>
+              Estimated Data
+            </span>
+          )}
         </div>
         {!isMobile && (
           <div style={{ fontSize: "14px", color: "#9E9E9E", marginLeft: "34px" }}>
@@ -508,7 +539,7 @@ export default function BrandFunnel({ rows, dateRange }) {
           <div style={{
             background: "#252525",
             border: `2px solid ${funnelData.diagnosis.color}`,
-            borderRadius: "12px",
+            borderRadius: "8px",
             padding: "28px"
           }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: "18px", marginBottom: "20px" }}>
@@ -520,7 +551,7 @@ export default function BrandFunnel({ rows, dateRange }) {
                 <DiagnosisIcon size={36} style={{ color: funnelData.diagnosis.color }} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "20px", fontWeight: "700", color: funnelData.diagnosis.color, marginBottom: "10px" }}>
+                <div style={{ fontSize: "20px", fontWeight: "700", color: funnelData.diagnosis.color, marginBottom: "10px", fontFamily: "'Barlow Condensed', sans-serif" }}>
                   {funnelData.diagnosis.title}
                 </div>
                 <div style={{ fontSize: "14px", color: "#E0E0E0", lineHeight: "1.6" }}>
@@ -646,7 +677,7 @@ export default function BrandFunnel({ rows, dateRange }) {
           <div style={{
             background: "#252525",
             border: "1px solid #333",
-            borderRadius: "12px",
+            borderRadius: "8px",
             padding: "24px"
           }}>
             <div style={{ fontSize: "12px", color: "#9E9E9E", fontWeight: "700", textTransform: "uppercase", marginBottom: "8px" }}>

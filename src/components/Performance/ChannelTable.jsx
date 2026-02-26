@@ -98,7 +98,7 @@ export default function ChannelTable({ rows, onSelect }) {
     card: {
       backgroundColor: "#1e293b",
       border: "1px solid #334155",
-      borderRadius: "12px",
+      borderRadius: "8px",
       overflow: "hidden",
       marginTop: "24px",
       boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.3)"

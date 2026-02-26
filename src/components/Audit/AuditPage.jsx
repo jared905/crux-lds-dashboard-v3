@@ -223,7 +223,7 @@ export default function AuditPage({ activeClient }) {
             textAlign: "center",
             padding: "80px 40px",
             background: "#1E1E1E",
-            borderRadius: "12px",
+            borderRadius: "8px",
             border: "1px solid #333",
           }}
         >

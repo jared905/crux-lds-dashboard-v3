@@ -70,22 +70,19 @@ export default function PerformanceFeedback({
   return (
     <div style={{ padding: "0" }}>
       {/* Header */}
-      <div style={{
-        background: "#1E1E1E",
-        border: "1px solid #333",
-        borderRadius: "12px",
+      <div className="section-card" style={{
+        background: "linear-gradient(135deg, rgba(34, 197, 94, 0.05), rgba(59, 130, 246, 0.03))",
+        border: "1px solid rgba(34, 197, 94, 0.12)",
+        borderRadius: "8px",
+        "--glow-color": "rgba(34, 197, 94, 0.2)",
         padding: "24px",
         marginBottom: "24px",
-        position: "relative",
-        overflow: "hidden",
       }}>
-        <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, height: "4px",
-          background: "linear-gradient(90deg, #22c55e, #3b82f6, #8b5cf6)",
-        }} />
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-          <Activity size={20} color="#22c55e" />
-          <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff" }}>
+          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #22c55e, #3b82f6)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(34, 197, 94, 0.3)", flexShrink: 0 }}>
+            <Activity size={22} style={{ color: "#fff" }} />
+          </div>
+          <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff" }}>
             Performance Feedback
           </div>
         </div>
@@ -99,7 +96,7 @@ export default function PerformanceFeedback({
         <div style={{
           background: "#1E1E1E",
           border: "1px solid #333",
-          borderRadius: "12px",
+          borderRadius: "8px",
           padding: "32px",
           textAlign: "center",
           color: "#888",
@@ -141,7 +138,7 @@ function AccuracySection({ feedback }) {
       <div style={{
         background: "#1E1E1E",
         border: "1px solid #333",
-        borderRadius: "12px",
+        borderRadius: "8px",
         padding: "24px",
         marginBottom: "24px",
       }}>
@@ -177,7 +174,7 @@ function AccuracySection({ feedback }) {
     <div style={{
       background: "#1E1E1E",
       border: "1px solid #333",
-      borderRadius: "12px",
+      borderRadius: "8px",
       padding: "24px",
       marginBottom: "24px",
     }}>
@@ -201,7 +198,7 @@ function AccuracySection({ feedback }) {
           minWidth: "180px",
           background: accuracy.outperformedPct >= 50 ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)",
           border: `1px solid ${accuracy.outperformedPct >= 50 ? "#10b981" : "#ef4444"}`,
-          borderRadius: "12px",
+          borderRadius: "8px",
           padding: "20px",
           textAlign: "center",
         }}>
@@ -226,11 +223,11 @@ function AccuracySection({ feedback }) {
             minWidth: "180px",
             background: "rgba(59, 130, 246, 0.08)",
             border: "1px solid #3b82f6",
-            borderRadius: "12px",
+            borderRadius: "8px",
             padding: "20px",
             textAlign: "center",
           }}>
-            <div style={{ fontSize: "36px", fontWeight: "800", color: "#3b82f6" }}>
+            <div style={{ fontSize: "36px", fontWeight: "800", color: "#3b82f6", fontFamily: "'Barlow Condensed', sans-serif" }}>
               {accuracy.exceededPredictionPct}%
             </div>
             <div style={{ fontSize: "12px", color: "#888", marginTop: "4px" }}>
@@ -330,7 +327,7 @@ function ChannelTrendSection({ feedback }) {
     <div style={{
       background: "#1E1E1E",
       border: "1px solid #333",
-      borderRadius: "12px",
+      borderRadius: "8px",
       padding: "24px",
       marginBottom: "24px",
     }}>
