@@ -378,7 +378,7 @@ export default async function handler(req, res) {
 
       // Sync the channel (fetch stats, videos, create snapshots)
       try {
-        const videosCount = await syncChannel(syncTarget, apiKey);
+        const videosCount = await syncChannel(channel, apiKey);
         results.channels_synced++;
         results.videos_synced += videosCount;
         results.youtube_api_calls += 3; // channels.list + playlistItems + videos.list
