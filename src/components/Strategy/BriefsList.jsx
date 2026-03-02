@@ -20,6 +20,7 @@ const SOURCE_LABELS = {
   competitor_inspired: "Competitor",
   opportunity_synthesis: "Opportunity",
   gap_detection: "Gap Detection",
+  remix: "Remix",
 };
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();

@@ -446,7 +446,7 @@ const TASK_SECTIONS = {
   video_ideation: ['brand_voice', 'messaging_priorities', 'content_themes', 'audience_signals', 'strategic_goals', 'resource_constraints', 'content_boundaries'],
   content_intelligence: ['brand_voice', 'messaging_priorities', 'content_themes', 'audience_signals', 'strategic_goals', 'resource_constraints', 'content_boundaries'],
   series_detection: ['brand_voice', 'content_themes', 'audience_signals', 'content_boundaries'],
-  atomizer: ['brand_voice', 'messaging_priorities', 'audience_signals', 'content_boundaries'],
+  atomizer: ['brand_voice', 'messaging_priorities', 'audience_signals', 'content_themes', 'strategic_goals', 'content_boundaries'],
   creative_brief: ['brand_voice', 'messaging_priorities', 'content_themes', 'audience_signals', 'strategic_goals', 'resource_constraints', 'content_boundaries'],
   comment_analysis: ['brand_voice', 'audience_signals', 'content_themes'],
   weekly_brief: ['brand_voice', 'messaging_priorities', 'content_themes', 'audience_signals', 'strategic_goals', 'resource_constraints', 'content_boundaries'],

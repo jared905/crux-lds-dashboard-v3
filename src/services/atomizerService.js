@@ -1,20 +1,24 @@
 /**
- * Atomizer Service
+ * Atomizer Service — V2
  * Full View Analytics - Crux Media
  *
- * Analyzes transcripts with Claude to extract clips, shorts, and quotes
- * scored by virality. Results stored in Supabase.
+ * Two-pass architecture:
+ *   Pass 1 — Analyze transcript → extract long-form & short-form edit directions
+ *   Pass 2 — Remix selected elements → synthesize a final production brief
+ *
+ * Results stored in Supabase (atomized_content + briefs tables).
  */
 
 import { supabase } from './supabaseClient';
 import { claudeAPI } from './claudeAPI';
 import { getBrandContextWithSignals } from './brandContextService';
+import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 
 // ============================================
-// SYSTEM PROMPT
+// LEGACY SYSTEM PROMPT (V1 — clips/shorts/quotes)
 // ============================================
 
-const ATOMIZER_SYSTEM_PROMPT = `You are a YouTube content strategist specializing in repurposing long-form content into high-performing short-form pieces. Analyze the provided transcript and extract the best opportunities for clips, shorts, and quotable moments.
+const ATOMIZER_LEGACY_PROMPT = `You are a YouTube content strategist specializing in repurposing long-form content into high-performing short-form pieces. Analyze the provided transcript and extract the best opportunities for clips, shorts, and quotable moments.
 
 Respond with ONLY a JSON object (no markdown, no code fences) in this exact format:
 {
@@ -61,21 +65,176 @@ Guidelines:
 - Extract at least 3 clips, 3 shorts, and 3 quotes when the transcript is long enough.`;
 
 // ============================================
+// V2 SYSTEM PROMPT — Edit Directions
+// ============================================
+
+const ATOMIZER_V2_SYSTEM_PROMPT = `You are a YouTube editor and content strategist. Your job is to analyze a transcript and propose EDIT DIRECTIONS — complete video concepts that an editor can execute using only the existing material.
+
+You will produce two categories:
+
+1. LONG-FORM EDIT DIRECTIONS — standalone YouTube videos (5-20 minutes)
+2. SHORT-FORM EDIT DIRECTIONS — YouTube Shorts / Reels (15-60 seconds)
+
+CRITICAL RULES:
+- Every hook MUST use EXACT WORDS from the transcript. Quote the speaker verbatim — do not paraphrase, summarize, or invent.
+- Do not suggest content, topics, or dialogue that does not exist in the transcript.
+- Title variations must use these specific styles:
+  - "curiosity_gap": Creates an information gap the viewer needs to close
+  - "direct_value": States the benefit or takeaway clearly
+  - "pattern_interrupt": Breaks expectations or uses unexpected framing
+- Thumbnail suggestions must reference a SPECIFIC moment from the transcript that has visual or emotional energy.
+- Narrative arcs should specify which transcript sections to include and in what order.
+
+Respond with ONLY a JSON object (no markdown, no code fences) in this exact format:
+{
+  "long_form_directions": [
+    {
+      "title": "Working title for the edit direction",
+      "hook": "EXACT transcript words for the first 5-15 seconds — verbatim quote from the speaker",
+      "hook_timecode": "MM:SS approximate location of the hook in the source",
+      "arc_summary": "Narrative arc: describe the structure (setup > development > payoff) and which transcript sections to include, in what order",
+      "title_variations": [
+        { "text": "Title option 1", "style": "curiosity_gap" },
+        { "text": "Title option 2", "style": "direct_value" },
+        { "text": "Title option 3", "style": "pattern_interrupt" }
+      ],
+      "description": "YouTube description (2-3 short paragraphs with key takeaways and CTA)",
+      "thumbnail_suggestion": {
+        "concept": "What the thumbnail should communicate",
+        "transcript_reference": "The specific moment from the transcript that inspires this — describe the visual or emotional beat",
+        "visual_elements": ["element1", "element2", "element3"]
+      },
+      "estimated_duration": "8-12 min",
+      "virality_score": 8,
+      "rationale": "Why this edit direction would perform well — reference the channel's performance patterns if context is provided"
+    }
+  ],
+  "short_form_directions": [
+    {
+      "title": "Short-form working title",
+      "hook": "EXACT transcript words for the first 1-3 seconds — verbatim",
+      "hook_timecode": "MM:SS",
+      "arc_summary": "Micro-arc: hook > core moment > punchline or CTA",
+      "title_variations": [
+        { "text": "Title option 1", "style": "curiosity_gap" },
+        { "text": "Title option 2", "style": "direct_value" }
+      ],
+      "description": "Short description or caption for the Short",
+      "thumbnail_suggestion": {
+        "concept": "Cover frame concept",
+        "transcript_reference": "Specific moment reference",
+        "visual_elements": ["element1"]
+      },
+      "cta": "Call to action for the end of the Short",
+      "estimated_duration": "30-45 sec",
+      "virality_score": 7,
+      "rationale": "Why this works as short-form content"
+    }
+  ],
+  "summary": "One paragraph summarizing the transcript's themes and the overall editorial strategy behind these directions",
+  "total_directions": 8
+}
+
+Guidelines:
+- Long-form: Propose 2-4 directions. Each should be a complete, self-contained video concept with a clear narrative arc. Think "editor's brief" — not just "this part was interesting."
+- Short-form: Propose 3-5 directions. Punchy, hook-driven, optimized for vertical scroll-stopping. Every Short needs a powerful opener from the transcript and a clear CTA.
+- Virality scores 1-10: Based on hook strength, topic novelty, emotional resonance, and alignment with the channel's proven performers.
+- If the transcript lacks timecodes, estimate position (beginning/middle/end) and note it.
+- Prioritize moments with: emotional peaks, surprising data, contrarian takes, vulnerable admissions, strong storytelling, or concrete how-to value.`;
+
+// ============================================
+// REMIX SYSTEM PROMPT
+// ============================================
+
+const REMIX_SYSTEM_PROMPT = `You are a YouTube content director. The user has selected specific elements (hooks, arcs, titles, thumbnails, descriptions) from multiple edit directions proposed by the Atomizer. Your job is to SYNTHESIZE these into one cohesive, production-ready edit brief.
+
+RULES:
+- Hooks must remain exact transcript quotes — do not modify the verbatim language.
+- Reconcile any conflicting arcs into a single coherent narrative.
+- Pick the strongest title (or create a hybrid) from the selected options and explain why.
+- The final brief should be something an editor can execute immediately.
+
+Respond with ONLY a JSON object:
+{
+  "title": "Final chosen or hybrid title",
+  "hook": "The exact transcript hook (verbatim, unchanged)",
+  "arc": "Complete narrative arc: section-by-section breakdown of how the edit flows",
+  "description": "Final YouTube description (2-3 paragraphs, timestamps if applicable, CTA)",
+  "thumbnail": {
+    "concept": "Final thumbnail direction",
+    "transcript_reference": "The moment it references",
+    "visual_elements": ["element1", "element2"]
+  },
+  "cta": "Call to action (if short-form, otherwise null)",
+  "format": "long_form or short_form",
+  "editor_notes": "Additional notes for the editor — pacing, tone, transitions, anything synthesized from the user's feedback",
+  "rationale": "Why this combination works, referencing the source directions"
+}`;
+
+// ============================================
+// PERFORMANCE CONTEXT
+// ============================================
+
+/**
+ * Fetch top performer data from the latest intelligence brief.
+ * Returns a formatted prompt block for injection into the system prompt.
+ */
+export async function getClientPerformanceContext(clientId) {
+  if (!supabase || !clientId) return '';
+
+  try {
+    const { data: brief, error } = await supabase
+      .from('intelligence_briefs')
+      .select('top_performers, metrics_snapshot')
+      .eq('client_id', clientId)
+      .order('brief_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !brief) return '';
+
+    const performers = brief.top_performers;
+    if (!Array.isArray(performers) || performers.length === 0) return '';
+
+    const lines = performers.slice(0, 10).map(v => {
+      const parts = [`"${v.title}"`];
+      if (v.views) parts.push(`${Number(v.views).toLocaleString()} views`);
+      if (v.ctr) parts.push(`${(Number(v.ctr) * 100).toFixed(1)}% CTR`);
+      if (v.retention) parts.push(`${(Number(v.retention) * 100).toFixed(0)}% retention`);
+      return `- ${parts.join(' | ')}`;
+    });
+
+    let block = `<client_performance_context>\n## This Channel's Top Performers\n${lines.join('\n')}`;
+
+    const ms = brief.metrics_snapshot;
+    if (ms) {
+      const avgParts = [];
+      if (ms.avgCTR) avgParts.push(`Avg CTR: ${(Number(ms.avgCTR) * 100).toFixed(1)}%`);
+      if (ms.avgRetention) avgParts.push(`Avg Retention: ${(Number(ms.avgRetention) * 100).toFixed(0)}%`);
+      if (ms.totalVideos) avgParts.push(`Videos analyzed: ${ms.totalVideos}`);
+      if (avgParts.length) block += `\n\n## Channel Averages\n${avgParts.join(' | ')}`;
+    }
+
+    block += '\n\nUse these top performers as calibration for your title style, hook approach, and virality scoring. Reference specific patterns you notice.';
+    block += '\n</client_performance_context>';
+    return block;
+  } catch (e) {
+    console.warn('[atomizer] Performance context fetch failed:', e.message);
+    return '';
+  }
+}
+
+// ============================================
 // TRANSCRIPT ANALYSIS
 // ============================================
 
 /**
- * Analyze a transcript using Claude to extract atomized content pieces.
- *
- * @param {string} text - The transcript text
- * @param {string} title - Title for the transcript
- * @returns {Promise<Object>} Parsed atomizer results
+ * Legacy V1 analysis (clips/shorts/quotes).
  */
-export async function analyzeTranscript(text, title = 'Untitled', channelId = null) {
+async function analyzeTranscriptLegacy(text, title, channelId) {
   const wordCount = text.trim().split(/\s+/).length;
 
-  // Fetch brand context to make atomized content brand-aware
-  let systemPrompt = ATOMIZER_SYSTEM_PROMPT;
+  let systemPrompt = ATOMIZER_LEGACY_PROMPT;
   if (channelId) {
     try {
       const brandBlock = await getBrandContextWithSignals(channelId, 'atomizer');
@@ -95,24 +254,127 @@ ${text}
 --- END TRANSCRIPT ---`;
 
   const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer', 4096);
+  const parsed = parseClaudeJSON(result.text);
 
-  // Parse JSON response (handle markdown code block wrapping)
-  let parsed;
-  try {
-    let responseText = result.text.trim();
-    if (responseText.startsWith('```')) {
-      responseText = responseText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  return { ...parsed, usage: result.usage, cost: result.cost };
+}
+
+/**
+ * Analyze a transcript to extract edit directions (V2) or legacy clips/shorts/quotes.
+ *
+ * @param {string} text - The transcript text
+ * @param {string} title - Title for the transcript
+ * @param {string|null} channelId - Client ID for brand/performance context
+ * @param {Object} [options]
+ * @param {boolean} [options.v2=true] - Use V2 edit directions prompt
+ * @returns {Promise<Object>} Parsed atomizer results
+ */
+export async function analyzeTranscript(text, title = 'Untitled', channelId = null, { v2 = true } = {}) {
+  if (!v2) return analyzeTranscriptLegacy(text, title, channelId);
+
+  const wordCount = text.trim().split(/\s+/).length;
+
+  let systemPrompt = ATOMIZER_V2_SYSTEM_PROMPT;
+
+  if (channelId) {
+    // Inject brand context
+    try {
+      const brandBlock = await getBrandContextWithSignals(channelId, 'atomizer');
+      if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+    } catch (e) {
+      console.warn('[atomizer] Brand context fetch failed, proceeding without:', e.message);
     }
-    parsed = JSON.parse(responseText);
-  } catch {
-    throw new Error('Failed to parse atomizer response. The AI returned an unexpected format.');
+
+    // Inject performance context from intelligence briefs
+    try {
+      const perfBlock = await getClientPerformanceContext(channelId);
+      if (perfBlock) systemPrompt += '\n\n' + perfBlock;
+    } catch (e) {
+      console.warn('[atomizer] Performance context fetch failed, proceeding without:', e.message);
+    }
   }
 
-  return {
-    ...parsed,
-    usage: result.usage,
-    cost: result.cost,
-  };
+  const prompt = `Analyze this transcript and propose edit directions for both long-form and short-form content:
+
+Title: ${title}
+Word Count: ${wordCount}
+
+--- TRANSCRIPT ---
+${text}
+--- END TRANSCRIPT ---`;
+
+  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_v2', 8192);
+  const parsed = parseClaudeJSON(result.text);
+
+  return { ...parsed, usage: result.usage, cost: result.cost };
+}
+
+// ============================================
+// REMIX
+// ============================================
+
+/**
+ * Remix selected elements from multiple directions into a single cohesive brief.
+ *
+ * @param {Array<Object>} selectedElements - Array of { directionId, direction, elements: string[] }
+ *   element keys: 'hook', 'arc', 'title_0', 'title_1', 'title_2', 'thumbnail', 'description'
+ * @param {string} userFeedback - Free-text instructions from the user
+ * @param {string|null} channelId - For brand context injection
+ * @returns {Promise<Object>} Synthesized brief data
+ */
+export async function remixDirections(selectedElements, userFeedback = '', channelId = null) {
+  const elementsBlock = selectedElements.map((sel, i) => {
+    const d = sel.direction;
+    const lines = [`Direction ${i + 1}: "${d.title}" (${d.content_type || 'edit direction'})`];
+
+    if (sel.elements.includes('hook')) {
+      lines.push(`  HOOK: "${d.hook}"`);
+    }
+    if (sel.elements.includes('arc')) {
+      lines.push(`  ARC: ${d.arc_summary}`);
+    }
+    const titleVars = d.title_variations || [];
+    sel.elements.filter(e => e.startsWith('title_')).forEach(e => {
+      const idx = parseInt(e.split('_')[1]);
+      if (titleVars[idx]) {
+        lines.push(`  TITLE (${titleVars[idx].style}): "${titleVars[idx].text}"`);
+      }
+    });
+    if (sel.elements.includes('thumbnail')) {
+      const t = d.thumbnail_suggestion || {};
+      lines.push(`  THUMBNAIL: ${t.concept || 'N/A'} (ref: ${t.transcript_reference || 'N/A'})`);
+    }
+    if (sel.elements.includes('description')) {
+      lines.push(`  DESCRIPTION: ${d.description_text || d.description || 'N/A'}`);
+    }
+
+    return lines.join('\n');
+  }).join('\n\n');
+
+  let systemPrompt = REMIX_SYSTEM_PROMPT;
+  if (channelId) {
+    try {
+      const brandBlock = await getBrandContextWithSignals(channelId, 'atomizer');
+      if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+    } catch (e) {
+      console.warn('[atomizer] Brand context for remix failed:', e.message);
+    }
+  }
+
+  const prompt = `Synthesize the following selected elements into one cohesive edit brief:
+
+--- SELECTED ELEMENTS ---
+${elementsBlock}
+--- END SELECTED ELEMENTS ---
+
+${userFeedback ? `--- USER FEEDBACK ---\n${userFeedback}\n--- END FEEDBACK ---` : ''}
+
+Create a single, production-ready brief that combines the best of these selections.`;
+
+  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_remix', 4096);
+  const parsed = parseClaudeJSON(result.text);
+
+  return { ...parsed, usage: result.usage, cost: result.cost };
 }
 
 // ============================================
@@ -121,14 +383,6 @@ ${text}
 
 /**
  * Save a transcript to Supabase.
- *
- * @param {Object} transcript
- * @param {string} transcript.title
- * @param {string} transcript.text
- * @param {string} transcript.sourceType - 'paste' | 'youtube_captions' | 'upload'
- * @param {string} [transcript.sourceUrl]
- * @param {string} [transcript.clientId]
- * @returns {Promise<Object>} Saved transcript record
  */
 export async function saveTranscript({ title, text, sourceType = 'paste', sourceUrl, clientId }) {
   if (!supabase) throw new Error('Supabase not configured');
@@ -169,18 +423,60 @@ export async function markTranscriptAnalyzed(transcriptId, model = 'claude-sonne
 
 /**
  * Save atomized content items from analysis results.
- *
- * @param {string} transcriptId - UUID of the parent transcript
- * @param {Object} analysisResults - Parsed atomizer response (clips, shorts, quotes)
- * @param {string} [clientId]
- * @returns {Promise<Array>} Saved atomized content records
+ * Handles both V2 (long_form_direction/short_form_direction) and legacy (clip/short/quote).
  */
 export async function saveAtomizedContent(transcriptId, analysisResults, clientId) {
   if (!supabase) throw new Error('Supabase not configured');
 
   const items = [];
 
-  // Map clips
+  // V2: Long-form directions
+  (analysisResults.long_form_directions || []).forEach(dir => {
+    items.push({
+      transcript_id: transcriptId,
+      client_id: clientId || null,
+      content_type: 'long_form_direction',
+      title: dir.title,
+      timecode_start: dir.hook_timecode || null,
+      hook: dir.hook,
+      virality_score: dir.virality_score ?? dir.viralityScore,
+      rationale: dir.rationale,
+      arc_summary: dir.arc_summary,
+      title_variations: dir.title_variations,
+      thumbnail_suggestion: dir.thumbnail_suggestion,
+      description_text: dir.description,
+      direction_metadata: {
+        estimated_duration: dir.estimated_duration,
+      },
+      status: 'suggested',
+    });
+  });
+
+  // V2: Short-form directions
+  (analysisResults.short_form_directions || []).forEach(dir => {
+    items.push({
+      transcript_id: transcriptId,
+      client_id: clientId || null,
+      content_type: 'short_form_direction',
+      title: dir.title,
+      timecode_start: dir.hook_timecode || null,
+      hook: dir.hook,
+      virality_score: dir.virality_score ?? dir.viralityScore,
+      rationale: dir.rationale,
+      arc_summary: dir.arc_summary,
+      title_variations: dir.title_variations,
+      thumbnail_suggestion: dir.thumbnail_suggestion,
+      description_text: dir.description,
+      direction_metadata: {
+        estimated_duration: dir.estimated_duration,
+        cta: dir.cta,
+      },
+      suggested_cta: dir.cta,
+      status: 'suggested',
+    });
+  });
+
+  // Legacy: clips
   (analysisResults.clips || []).forEach(clip => {
     items.push({
       transcript_id: transcriptId,
@@ -197,7 +493,7 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
     });
   });
 
-  // Map shorts
+  // Legacy: shorts
   (analysisResults.shorts || []).forEach(short => {
     items.push({
       transcript_id: transcriptId,
@@ -214,7 +510,7 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
     });
   });
 
-  // Map quotes
+  // Legacy: quotes
   (analysisResults.quotes || []).forEach(quote => {
     items.push({
       transcript_id: transcriptId,
@@ -241,17 +537,13 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
 
 /**
  * Create a brief from an approved atomized content item.
- *
- * @param {string} atomizedContentId
- * @param {string} clientId
- * @returns {Promise<Object>} Created brief record
+ * Works for both V2 directions and legacy clips/shorts/quotes.
  */
 export async function createBriefFromAtomized(atomizedContentId, clientId) {
   if (!supabase) throw new Error('Supabase not configured');
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Get the atomized content item
   const { data: item, error: fetchError } = await supabase
     .from('atomized_content')
     .select('*')
@@ -260,7 +552,25 @@ export async function createBriefFromAtomized(atomizedContentId, clientId) {
 
   if (fetchError) throw fetchError;
 
-  // Create the brief
+  const briefData = {
+    content_type: item.content_type,
+    hook: item.hook,
+    transcript_excerpt: item.transcript_excerpt,
+    timecode_start: item.timecode_start,
+    timecode_end: item.timecode_end,
+    virality_score: item.virality_score,
+    rationale: item.rationale,
+    suggested_cta: item.suggested_cta,
+    suggested_visual: item.suggested_visual,
+  };
+
+  // V2 fields
+  if (item.title_variations) briefData.title_variations = item.title_variations;
+  if (item.thumbnail_suggestion) briefData.thumbnail_suggestion = item.thumbnail_suggestion;
+  if (item.description_text) briefData.description = item.description_text;
+  if (item.arc_summary) briefData.arc_summary = item.arc_summary;
+  if (item.direction_metadata) briefData.direction_metadata = item.direction_metadata;
+
   const { data: brief, error: briefError } = await supabase
     .from('briefs')
     .insert({
@@ -269,17 +579,7 @@ export async function createBriefFromAtomized(atomizedContentId, clientId) {
       status: 'draft',
       source_type: 'atomizer',
       source_id: atomizedContentId,
-      brief_data: {
-        content_type: item.content_type,
-        hook: item.hook,
-        transcript_excerpt: item.transcript_excerpt,
-        timecode_start: item.timecode_start,
-        timecode_end: item.timecode_end,
-        virality_score: item.virality_score,
-        rationale: item.rationale,
-        suggested_cta: item.suggested_cta,
-        suggested_visual: item.suggested_visual,
-      },
+      brief_data: briefData,
       created_by: user?.id || null,
     })
     .select()
@@ -287,7 +587,6 @@ export async function createBriefFromAtomized(atomizedContentId, clientId) {
 
   if (briefError) throw briefError;
 
-  // Update atomized content status
   await supabase
     .from('atomized_content')
     .update({
@@ -299,6 +598,46 @@ export async function createBriefFromAtomized(atomizedContentId, clientId) {
     .eq('id', atomizedContentId);
 
   return brief;
+}
+
+/**
+ * Save a remix result as a brief.
+ */
+export async function saveRemixAsBrief(remixResult, selectedElements, clientId) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const remixSources = selectedElements.map(sel => ({
+    atomized_content_id: sel.directionId,
+    selected_elements: sel.elements,
+  }));
+
+  const { data, error } = await supabase
+    .from('briefs')
+    .insert({
+      client_id: clientId,
+      title: remixResult.title || 'Remixed Edit Direction',
+      status: 'draft',
+      source_type: 'remix',
+      brief_data: {
+        hook: remixResult.hook,
+        arc: remixResult.arc,
+        description: remixResult.description,
+        thumbnail: remixResult.thumbnail,
+        cta: remixResult.cta,
+        format: remixResult.format,
+        editor_notes: remixResult.editor_notes,
+        rationale: remixResult.rationale,
+      },
+      remix_sources: remixSources,
+      created_by: user?.id || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 /**
@@ -338,10 +677,13 @@ export async function getAtomizedContent(transcriptId) {
 
 export default {
   analyzeTranscript,
+  remixDirections,
   saveTranscript,
   markTranscriptAnalyzed,
   saveAtomizedContent,
   createBriefFromAtomized,
+  saveRemixAsBrief,
+  getClientPerformanceContext,
   getTranscripts,
   getAtomizedContent,
 };
