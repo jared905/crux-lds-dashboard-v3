@@ -962,6 +962,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             view_count: v.views,
             like_count: v.likes,
             comment_count: v.comments,
+            last_synced_at: new Date().toISOString(),
           }));
           await upsertVideos(videosToUpsert, dbChannel.id);
         }
