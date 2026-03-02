@@ -730,6 +730,163 @@ async function syncConnection(connection) {
   return results;
 }
 
+// Backfill mode: fetch per-video analytics for a date range and create missing snapshots.
+// Usage: /api/cron/daily-sync?backfill=2026-02-23,2026-02-28&manual=true
+async function handleBackfill(req, res) {
+  const startTime = Date.now();
+  const [startDate, endDate] = req.query.backfill.split(',');
+
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: 'backfill requires start,end dates (YYYY-MM-DD,YYYY-MM-DD)' });
+  }
+
+  console.log(`[Backfill] Filling snapshots for ${startDate} → ${endDate}`);
+
+  const { data: connections, error: connError } = await supabase
+    .from('youtube_oauth_connections')
+    .select('*')
+    .eq('is_active', true);
+
+  if (connError) throw connError;
+  if (!connections?.length) {
+    return res.status(200).json({ success: true, message: 'No active connections' });
+  }
+
+  // Build list of dates to backfill
+  const dates = [];
+  const cur = new Date(startDate + 'T00:00:00Z');
+  const end = new Date(endDate + 'T00:00:00Z');
+  while (cur <= end) {
+    dates.push(cur.toISOString().split('T')[0]);
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+
+  const allResults = [];
+
+  for (const connection of connections) {
+    const connResult = {
+      channel: connection.youtube_channel_title,
+      snapshotsCreated: 0,
+      errors: []
+    };
+
+    try {
+      const accessToken = await getAccessToken(connection);
+      const channelId = connection.youtube_channel_id;
+
+      // Find the client channel in our database
+      const { data: dbChannel } = await supabase
+        .from('channels')
+        .select('id, name')
+        .eq('youtube_channel_id', channelId)
+        .eq('is_client', true)
+        .single();
+
+      if (!dbChannel) {
+        connResult.errors.push('No matching client channel in database');
+        allResults.push(connResult);
+        continue;
+      }
+
+      // Get all videos for this channel (need DB id → youtube_video_id mapping)
+      const { data: videos } = await supabase
+        .from('videos')
+        .select('id, youtube_video_id, view_count, like_count, comment_count')
+        .eq('channel_id', dbChannel.id);
+
+      if (!videos?.length) {
+        connResult.errors.push('No videos in database for this channel');
+        allResults.push(connResult);
+        continue;
+      }
+
+      const videoMap = {};
+      for (const v of videos) { videoMap[v.youtube_video_id] = v; }
+
+      // Fetch analytics for each day individually (Analytics API supports video dimension per day)
+      let batch = [];
+      const batchSize = 50;
+
+      for (const date of dates) {
+        try {
+          const analytics = await fetchAnalytics(accessToken, channelId, date, date);
+
+          if (analytics.rows) {
+            for (const row of analytics.rows) {
+              const ytVideoId = row[0];
+              const dbVideo = videoMap[ytVideoId];
+              if (!dbVideo) continue;
+
+              const views = row[1] ?? 0;
+              const watchHours = ((row[2] ?? 0) / 60);
+              const avgViewPct = (row[3] ?? 0) / 100;
+              const subsGained = row[4] ?? 0;
+
+              if (views === 0 && watchHours === 0) continue;
+
+              batch.push({
+                video_id: dbVideo.id,
+                snapshot_date: date,
+                view_count: views || null,
+                watch_hours: watchHours || null,
+                avg_view_percentage: avgViewPct || null,
+                subscribers_gained: subsGained || null,
+                // Cumulative counts from Data API (current values)
+                total_view_count: dbVideo.view_count || null,
+                total_like_count: dbVideo.like_count || null,
+                total_comment_count: dbVideo.comment_count || null,
+              });
+
+              if (batch.length >= batchSize) {
+                const { error } = await supabase
+                  .from('video_snapshots')
+                  .upsert(batch, { onConflict: 'video_id,snapshot_date' });
+                if (!error) connResult.snapshotsCreated += batch.length;
+                else connResult.errors.push(`Upsert error: ${error.message}`);
+                batch = [];
+              }
+            }
+          }
+        } catch (e) {
+          connResult.errors.push(`${date}: ${e.message}`);
+        }
+
+        // Rate limit: 100ms between daily requests
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      // Flush remaining
+      if (batch.length > 0) {
+        const { error } = await supabase
+          .from('video_snapshots')
+          .upsert(batch, { onConflict: 'video_id,snapshot_date' });
+        if (!error) connResult.snapshotsCreated += batch.length;
+        else connResult.errors.push(`Upsert error: ${error.message}`);
+      }
+
+      console.log(`[Backfill] ${connection.youtube_channel_title}: ${connResult.snapshotsCreated} snapshots`);
+    } catch (e) {
+      connResult.errors.push(e.message);
+    }
+
+    allResults.push(connResult);
+  }
+
+  const totalSnapshots = allResults.reduce((s, r) => s + r.snapshotsCreated, 0);
+  const duration = Date.now() - startTime;
+  console.log(`[Backfill] Done: ${totalSnapshots} snapshots in ${duration}ms`);
+
+  return res.status(200).json({
+    success: true,
+    mode: 'backfill',
+    dateRange: { start: startDate, end: endDate },
+    daysProcessed: dates.length,
+    totalSnapshots,
+    results: allResults,
+    duration
+  });
+}
+
 export default async function handler(req, res) {
   // Verify this is a legitimate cron request from Vercel
   const authHeader = req.headers.authorization;
@@ -739,6 +896,11 @@ export default async function handler(req, res) {
     if (process.env.NODE_ENV === 'production') {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+  }
+
+  // Backfill mode: /api/cron/daily-sync?backfill=2026-02-23,2026-02-28&manual=true
+  if (req.query?.backfill) {
+    return handleBackfill(req, res);
   }
 
   console.log('[Daily Sync] Starting...');
