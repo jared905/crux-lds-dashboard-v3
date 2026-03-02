@@ -76,7 +76,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
       // Fetch top comments from top 3 videos via server proxy (sorted by likes)
       let topComments = [];
       try {
-        const videosWithIds = top.filter(v => v.youtubeVideoId).slice(0, 3);
+        const videosWithIds = top.filter(v => v.youtubeVideoId).slice(0, 8);
         const titleMap = {};
         videosWithIds.forEach(v => { titleMap[v.youtubeVideoId] = v.title || 'Untitled'; });
 
@@ -97,7 +97,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
 
             topComments = allComments
               .sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0))
-              .slice(0, 5)
+              .slice(0, 10)
               .map(c => ({
                 text: c.text,
                 author: c.author,
@@ -108,6 +108,147 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
         }
       } catch (err) {
         console.warn('Could not fetch comments for PDF:', err);
+      }
+
+      // Generate 3 Key Opportunities via Claude AI
+      let opportunities = [];
+      try {
+        const { default: claudeAPI } = await import('../../services/claudeAPI');
+        if (claudeAPI.apiKey) {
+          const topByCtr = [...filtered].sort((a, b) => (b.ctr || 0) - (a.ctr || 0));
+          const topByRet = [...filtered].sort((a, b) => (b.retention || 0) - (a.retention || 0));
+          const bottomByCtr = [...topByCtr].reverse();
+          const bottomByRet = [...topByRet].reverse();
+
+          const formatVid = (v) => `"${v.title}" (${(v.views||0).toLocaleString()} views, ${((v.ctr||0)*100).toFixed(1)}% CTR, ${((v.retention||0)*100).toFixed(1)}% retention)`;
+
+          const shorts = filtered.filter(r => r.type === 'short');
+          const longs = filtered.filter(r => r.type !== 'short');
+          const shortsViews = shorts.reduce((s, r) => s + (r.views || 0), 0);
+          const longsViews = longs.reduce((s, r) => s + (r.views || 0), 0);
+
+          const dataPrompt = `Channel performance for ${getDateRangeLabel()}:
+- Total Views: ${kpis.views.toLocaleString()}${kpis.viewsChange !== undefined ? ` (${kpis.viewsChange >= 0 ? '+' : ''}${kpis.viewsChange.toFixed(1)}% vs previous period)` : ''}
+- Watch Hours: ${kpis.watchHours.toLocaleString()}${kpis.watchHoursChange !== undefined ? ` (${kpis.watchHoursChange >= 0 ? '+' : ''}${kpis.watchHoursChange.toFixed(1)}%)` : ''}
+- Subscribers: ${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}${kpis.subsChange !== undefined ? ` (${kpis.subsChange >= 0 ? '+' : ''}${kpis.subsChange.toFixed(1)}%)` : ''}
+- Avg CTR: ${(kpis.avgCtr * 100).toFixed(1)}%
+- Avg Retention: ${(kpis.avgRet * 100).toFixed(1)}%
+- Shorts: ${shorts.length} videos, ${shortsViews.toLocaleString()} views
+- Long-form: ${longs.length} videos, ${longsViews.toLocaleString()} views
+
+Top 5 by CTR:
+${topByCtr.slice(0, 5).map(formatVid).join('\n')}
+
+Bottom 5 by CTR:
+${bottomByCtr.slice(0, 5).map(formatVid).join('\n')}
+
+Top 5 by Retention:
+${topByRet.slice(0, 5).map(formatVid).join('\n')}
+
+Bottom 5 by Retention:
+${bottomByRet.slice(0, 5).map(formatVid).join('\n')}
+
+Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action title", "recommendation": "2-3 sentence actionable recommendation"}]`;
+
+          const systemPrompt = 'You are a YouTube growth strategist. Given this period\'s performance data, provide exactly 3 concise, actionable recommendations to improve the channel. Focus on specific, data-backed actions the creator can take immediately. Return ONLY valid JSON, no markdown fences.';
+
+          const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 1024);
+          const parsed = JSON.parse(result.text.trim());
+          if (Array.isArray(parsed) && parsed.length >= 3) {
+            opportunities = parsed.slice(0, 3);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not generate AI opportunities for PDF:', err);
+      }
+
+      // Build "Content Published This Period" section
+      let publishedSectionHtml = '';
+      {
+        let periodStart = null;
+        const now = new Date();
+        if (dateRange === 'custom' && customDateRange?.start) {
+          periodStart = new Date(customDateRange.start + 'T00:00:00');
+        } else if (dateRange === '7d') {
+          periodStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        } else if (dateRange === '28d') {
+          periodStart = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+        } else if (dateRange === '90d') {
+          periodStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        } else if (dateRange === 'ytd') {
+          periodStart = new Date(now.getFullYear(), 0, 1);
+        }
+
+        const publishedVideos = periodStart
+          ? filtered.filter(r => r.publishDate && new Date(r.publishDate) >= periodStart)
+              .sort((a, b) => new Date(b.publishDate) - new Date(a.publishDate))
+          : [];
+
+        if (publishedVideos.length > 0) {
+          const pubShorts = publishedVideos.filter(r => r.type === 'short');
+          const pubLongs = publishedVideos.filter(r => r.type !== 'short');
+
+          const calcMetrics = (vids) => {
+            const views = vids.reduce((s, r) => s + (r.views || 0), 0);
+            const imps = vids.reduce((s, r) => s + (r.impressions || 0), 0);
+            const avgCtr = imps > 0 ? vids.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / imps : 0;
+            const avgRet = views > 0 ? vids.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / views : 0;
+            return { count: vids.length, views, avgCtr, avgRet };
+          };
+
+          const sm = calcMetrics(pubShorts);
+          const lm = calcMetrics(pubLongs);
+
+          const videoRows = publishedVideos.map(video => {
+            const typeBg = video.type === 'short' ? '#fff7ed' : '#eff6ff';
+            const typeColor = video.type === 'short' ? '#f97316' : '#0ea5e9';
+            const typeLabel = video.type === 'short' ? 'SHORT' : 'LONG';
+            const pubDate = video.publishDate ? new Date(video.publishDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+            const channelLine = video.channel ? '<div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">' + video.channel + '</div>' : '';
+            return '<tr style="border-bottom: 1px solid #e2e8f0;">'
+              + '<td style="padding: 8px 14px; font-size: 13px; color: #1e293b; max-width: 400px; font-weight: 500;">'
+              + '<div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + (video.title || 'Untitled') + '</div>'
+              + channelLine
+              + '</td>'
+              + '<td style="padding: 8px 14px; text-align: center;"><span style="display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; background: ' + typeBg + '; color: ' + typeColor + ';">' + typeLabel + '</span></td>'
+              + '<td style="padding: 8px 14px; text-align: center; font-size: 12px; color: #64748b; white-space: nowrap;">' + pubDate + '</td>'
+              + '<td style="padding: 8px 14px; text-align: right; font-size: 14px; font-weight: 600; color: #1e293b;">' + (video.views || 0).toLocaleString() + '</td>'
+              + '<td style="padding: 8px 14px; text-align: right; font-size: 13px; color: #64748b;">' + ((video.ctr || 0) * 100).toFixed(1) + '%</td>'
+              + '<td style="padding: 8px 14px; text-align: right; font-size: 13px; color: #64748b;">' + ((video.retention || 0) * 100).toFixed(1) + '%</td>'
+              + '</tr>';
+          }).join('');
+
+          publishedSectionHtml = '<div data-pdf-section style="margin-bottom: 24px;">'
+            + '<h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 14px;">📅 Content Published This Period</h2>'
+            + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px;">'
+            + '<div style="background: #fff7ed; padding: 18px; border-radius: 12px; border: 2px solid #fed7aa;">'
+            + '<div style="font-size: 18px; font-weight: 700; color: #ea580c; margin-bottom: 10px;">📱 Shorts Published</div>'
+            + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Count</div><div style="font-size: 26px; font-weight: 700; color: #f97316;">' + sm.count + '</div></div>'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #f97316;">' + sm.views.toLocaleString() + '</div></div>'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #1e293b;">' + (sm.avgCtr * 100).toFixed(1) + '%</div></div>'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #1e293b;">' + (sm.avgRet * 100).toFixed(1) + '%</div></div>'
+            + '</div></div>'
+            + '<div style="background: #eff6ff; padding: 18px; border-radius: 12px; border: 2px solid #bfdbfe;">'
+            + '<div style="font-size: 18px; font-weight: 700; color: #0284c7; margin-bottom: 10px;">🎥 Long-form Published</div>'
+            + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Count</div><div style="font-size: 26px; font-weight: 700; color: #0ea5e9;">' + lm.count + '</div></div>'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #0ea5e9;">' + lm.views.toLocaleString() + '</div></div>'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #1e293b;">' + (lm.avgCtr * 100).toFixed(1) + '%</div></div>'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #1e293b;">' + (lm.avgRet * 100).toFixed(1) + '%</div></div>'
+            + '</div></div>'
+            + '</div>'
+            + '<div style="background: #f8fafc; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0;">'
+            + '<table style="width: 100%; border-collapse: collapse;"><thead><tr style="background: #e2e8f0;">'
+            + '<th style="text-align: left; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TITLE</th>'
+            + '<th style="text-align: center; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TYPE</th>'
+            + '<th style="text-align: center; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">PUBLISHED</th>'
+            + '<th style="text-align: right; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">VIEWS</th>'
+            + '<th style="text-align: right; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">CTR</th>'
+            + '<th style="text-align: right; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">RETENTION</th>'
+            + '</tr></thead><tbody>' + videoRows + '</tbody></table></div>'
+            + '</div>';
+        }
       }
 
       // Determine channel display name
@@ -234,6 +375,9 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
             </div>
           </div>
 
+          <!-- Content Published This Period -->
+          ${publishedSectionHtml}
+
           <!-- Metric Definitions -->
           <div data-pdf-section style="display: flex; gap: 22px; margin-bottom: 20px; padding: 12px 18px; background: #f1f5f9; border-radius: 10px; border-left: 4px solid #94a3b8;">
             <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;"><strong style="color: #475569;">CTR (Click-Through Rate):</strong> The percentage of people who saw your thumbnail and clicked to watch.</p>
@@ -296,6 +440,24 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
                     <span style="font-size: 12px; color: #94a3b8; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${c.videoTitle}</span>
                     <span style="font-size: 13px; color: #2563eb; font-weight: 600;">👍 ${c.likes.toLocaleString()}</span>
                   </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          ` : ''}
+
+          ${opportunities.length > 0 ? `
+          <!-- 3 Key Opportunities -->
+          <div data-pdf-section style="margin-bottom: 32px;">
+            <h2 style="font-size: 30px; font-weight: 700; color: #1e293b; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 3px solid #10b981;">🎯 3 Key Opportunities</h2>
+            ${opportunities.map((opp, idx) => `
+              <div style="display: flex; gap: 16px; margin-bottom: 16px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); padding: 22px; border-radius: 14px; border: 2px solid #86efac;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #059669); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: white; flex-shrink: 0; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">
+                  ${idx + 1}
+                </div>
+                <div style="flex: 1;">
+                  <div style="font-size: 18px; font-weight: 700; color: #065f46; margin-bottom: 8px;">${opp.title}</div>
+                  <div style="font-size: 15px; color: #374151; line-height: 1.7;">${opp.recommendation}</div>
                 </div>
               </div>
             `).join('')}
