@@ -503,30 +503,6 @@ async function syncConnection(connection) {
       results.errors.push(`Analytics: ${e.message}`);
     }
 
-    // Fetch 30-day Analytics API totals for watch hours, subscribers, retention
-    // (Analytics API doesn't support video+day dimensions together, so we get per-video period totals
-    //  and distribute proportionally across daily snapshots based on views)
-    let analytics30d = {};
-    try {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const analytics30 = await fetchAnalytics(accessToken, channelId, thirtyDaysAgo, yesterday);
-      if (analytics30.rows) {
-        for (const row of analytics30.rows) {
-          analytics30d[row[0]] = {
-            views: row[1] ?? 0,
-            watchHours: (row[2] ?? 0) / 60,
-            avgViewPercentage: (row[3] ?? 0) / 100,
-            subscribersGained: row[4] ?? 0,
-          };
-        }
-        console.log(`[Daily Sync] Analytics 30d: ${analytics30.rows.length} videos with watch hours/subs`);
-      }
-    } catch (e) {
-      results.errors.push(`Analytics30d: ${e.message}`);
-      console.warn(`[Daily Sync] Analytics 30d failed (backfill will lack watch hours): ${e.message}`);
-    }
-    results.analytics30dVideos = Object.keys(analytics30d).length;
-
     // Fetch reporting data (impressions/CTR)
     let reportingData = null;
     if (connection.reporting_job_id) {
@@ -622,7 +598,8 @@ async function syncConnection(connection) {
     }
 
     // Backfill historical snapshots from Reporting API per-day data
-    // Enriched with Analytics API 30-day totals (watch hours, subs, retention)
+    // Uses COALESCE-based RPC so Reporting API data only fills gaps —
+    // it never overwrites accurate Analytics API values (views, watch hours, etc.)
     if (reportingData?.byDate && videos) {
       const videoMap = {};
       for (const v of videos) { videoMap[v.youtube_video_id] = v; }
@@ -630,17 +607,7 @@ async function syncConnection(connection) {
       const dates = Object.keys(reportingData.byDate).sort();
       console.log(`[Daily Sync] Backfilling ${dates.length} days of historical snapshots`);
 
-      // Pre-compute total impressions per video across all reporting days
-      // (reach report has impressions but NOT views, so we distribute by impressions)
-      const totalImpressionsByVideo = {};
-      for (const date of dates) {
-        for (const [ytVideoId, metrics] of Object.entries(reportingData.byDate[date])) {
-          totalImpressionsByVideo[ytVideoId] = (totalImpressionsByVideo[ytVideoId] || 0) + (metrics.impressions || 0);
-        }
-      }
-
       let backfillCount = 0;
-      let watchHoursCount = 0;
       const batchSize = 50;
       let batch = [];
 
@@ -653,40 +620,28 @@ async function syncConnection(connection) {
           const hasMetrics = metrics.views || metrics.impressions || metrics.watchHours || metrics.likes;
           if (!hasMetrics) continue;
 
-          // Distribute Analytics API 30-day totals proportionally by daily impressions
-          // (channel_reach report has impressions but NOT views/watch_time)
-          const a30 = analytics30d[ytVideoId];
-          const dailyImpressions = metrics.impressions || 0;
-          const totalImpressions = totalImpressionsByVideo[ytVideoId] || 1;
-          const dayShare = totalImpressions > 0 ? dailyImpressions / totalImpressions : 0;
-
-          // Also compute estimated daily views from Analytics API totals
-          const estDailyViews = a30 && dayShare > 0 ? Math.round(a30.views * dayShare) : null;
-          const watchHours = metrics.watchHours || (a30 && dayShare > 0 ? a30.watchHours * dayShare : null);
-          const subsGained = metrics.subscribersGained || (a30 && a30.subscribersGained && dayShare > 0 ? Math.round(a30.subscribersGained * dayShare) : null);
-          const avgViewPct = metrics.avgViewPercentage || (a30 ? a30.avgViewPercentage : null);
-          if (watchHours && watchHours > 0) watchHoursCount++;
-
+          // Only include ACTUAL Reporting API values — no estimates.
+          // Columns the report doesn't have (e.g. views in reach reports) stay null,
+          // and the COALESCE RPC preserves existing Analytics API data.
           batch.push({
             video_id: dbVideo.id,
             snapshot_date: date,
-            view_count: metrics.views || estDailyViews || null,
+            view_count: metrics.views || null,
             impressions: metrics.impressions || null,
             ctr: metrics.ctr || null,
-            watch_hours: watchHours || null,
+            watch_hours: metrics.watchHours || null,
             likes: metrics.likes || null,
             comments: metrics.comments || null,
             shares: metrics.shares || null,
-            subscribers_gained: subsGained || null,
+            subscribers_gained: metrics.subscribersGained || null,
             subscribers_lost: metrics.subscribersLost || null,
-            avg_view_percentage: avgViewPct || null,
+            avg_view_percentage: metrics.avgViewPercentage || null,
           });
 
           if (batch.length >= batchSize) {
-            const { error } = await supabase
-              .from('video_snapshots')
-              .upsert(batch, { onConflict: 'video_id,snapshot_date' });
-            if (!error) backfillCount += batch.length;
+            const { data: count, error } = await supabase
+              .rpc('upsert_video_snapshots_safe', { snapshots: batch });
+            if (!error) backfillCount += (count || batch.length);
             batch = [];
           }
         }
@@ -694,15 +649,13 @@ async function syncConnection(connection) {
 
       // Flush remaining batch
       if (batch.length > 0) {
-        const { error } = await supabase
-          .from('video_snapshots')
-          .upsert(batch, { onConflict: 'video_id,snapshot_date' });
-        if (!error) backfillCount += batch.length;
+        const { data: count, error } = await supabase
+          .rpc('upsert_video_snapshots_safe', { snapshots: batch });
+        if (!error) backfillCount += (count || batch.length);
       }
 
-      console.log(`[Daily Sync] Backfilled ${backfillCount} historical snapshots (${watchHoursCount} with watch hours) across ${dates.length} days`);
+      console.log(`[Daily Sync] Backfilled ${backfillCount} historical snapshots across ${dates.length} days`);
       results.historicalBackfill = backfillCount;
-      results.backfillWithWatchHours = watchHoursCount;
     }
 
     // Update connection last sync time

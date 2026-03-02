@@ -401,28 +401,27 @@ async function handleBackfill(connection, accessToken, res) {
         }
       }
 
-      // Upsert snapshots
-      for (const data of Object.values(dailyData)) {
-        const snapshotData = {
-          video_id: data.video_id,
-          snapshot_date: data.snapshot_date,
-          impressions: data.impressions > 0 ? data.impressions : null,
-          ctr: data.ctrCount > 0 ? data.ctrSum / data.ctrCount : null,
-          view_count: data.views > 0 ? data.views : null,
-          watch_hours: data.watchTimeMinutes > 0 ? data.watchTimeMinutes / 60 : null,
-          avg_view_duration_seconds: data.avgDurationCount > 0 ? data.avgDurationSum / data.avgDurationCount : null,
-          subscribers_gained: data.subscribersGained > 0 ? data.subscribersGained : null,
-          subscribers_lost: data.subscribersLost > 0 ? data.subscribersLost : null,
-          likes: data.likes > 0 ? data.likes : null,
-          comments: data.comments > 0 ? data.comments : null,
-          shares: data.shares > 0 ? data.shares : null
-        };
+      // Upsert snapshots using COALESCE-based RPC so Reporting API data
+      // only fills gaps — never overwrites accurate Analytics API values
+      const snapshotBatch = Object.values(dailyData).map(data => ({
+        video_id: data.video_id,
+        snapshot_date: data.snapshot_date,
+        impressions: data.impressions > 0 ? data.impressions : null,
+        ctr: data.ctrCount > 0 ? data.ctrSum / data.ctrCount : null,
+        view_count: data.views > 0 ? data.views : null,
+        watch_hours: data.watchTimeMinutes > 0 ? data.watchTimeMinutes / 60 : null,
+        avg_view_duration_seconds: data.avgDurationCount > 0 ? data.avgDurationSum / data.avgDurationCount : null,
+        subscribers_gained: data.subscribersGained > 0 ? data.subscribersGained : null,
+        subscribers_lost: data.subscribersLost > 0 ? data.subscribersLost : null,
+        likes: data.likes > 0 ? data.likes : null,
+        comments: data.comments > 0 ? data.comments : null,
+        shares: data.shares > 0 ? data.shares : null
+      })).filter(s => s.impressions || s.view_count || s.likes);
 
-        const { error } = await supabase
-          .from('video_snapshots')
-          .upsert(snapshotData, { onConflict: 'video_id,snapshot_date' });
-
-        if (!error) totalSnapshots++;
+      if (snapshotBatch.length > 0) {
+        const { data: count, error } = await supabase
+          .rpc('upsert_video_snapshots_safe', { snapshots: snapshotBatch });
+        if (!error) totalSnapshots += (count || snapshotBatch.length);
       }
 
       reportsProcessed++;
