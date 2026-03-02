@@ -1,6 +1,7 @@
 /**
- * Vercel Serverless Function - YouTube OAuth Status & Disconnect
- * GET: Returns connection status without exposing tokens
+ * Vercel Serverless Function - YouTube OAuth Management
+ * GET:    Returns connection status without exposing tokens
+ * POST:   Refreshes expired YouTube OAuth tokens
  * DELETE: Revokes tokens and removes connection
  */
 
@@ -31,6 +32,33 @@ function decryptToken(encrypted) {
   return decrypted;
 }
 
+function encryptToken(plaintext) {
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  let encrypted = cipher.update(plaintext, 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+  const authTag = cipher.getAuthTag();
+  return `${iv.toString('base64')}:${encrypted}:${authTag.toString('base64')}`;
+}
+
+async function logAuditEvent(userId, eventType, data = {}) {
+  try {
+    await supabase.from('youtube_oauth_audit_log').insert({
+      user_id: userId,
+      event_type: eventType,
+      youtube_channel_id: data.youtube_channel_id || null,
+      ip_address: data.ip_address || null,
+      user_agent: data.user_agent || null,
+      error_message: data.error_message || null,
+      metadata: data.metadata || {}
+    });
+  } catch (err) {
+    console.warn('Failed to log audit event:', err.message);
+  }
+}
+
+/* ── GET: list connections ── */
 async function handleGet(user, res) {
   const { data: connections, error } = await supabase
     .from('youtube_oauth_connections')
@@ -63,8 +91,101 @@ async function handleGet(user, res) {
   return res.status(200).json({ connections: enrichedConnections, count: enrichedConnections.length });
 }
 
+/* ── POST: refresh token ── */
+async function handlePost(user, req, res) {
+  const { connectionId } = req.body;
+  if (!connectionId) return res.status(400).json({ error: 'connectionId required' });
+
+  const ipAddress = req.headers['x-forwarded-for']?.split(',')[0] || req.headers['x-real-ip'] || null;
+  const userAgent = req.headers['user-agent'] || null;
+
+  const { data: connection, error: connError } = await supabase
+    .from('youtube_oauth_connections')
+    .select('*')
+    .eq('id', connectionId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (connError || !connection) return res.status(404).json({ error: 'Connection not found' });
+
+  let refreshToken;
+  try {
+    refreshToken = decryptToken(connection.encrypted_refresh_token);
+  } catch (err) {
+    console.error('Failed to decrypt refresh token:', err.message);
+    return res.status(500).json({ error: 'Failed to decrypt token' });
+  }
+
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token'
+    })
+  });
+
+  if (!tokenResponse.ok) {
+    const errorData = await tokenResponse.json();
+    await supabase
+      .from('youtube_oauth_connections')
+      .update({
+        connection_error: errorData.error_description || errorData.error,
+        is_active: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', connectionId);
+
+    await logAuditEvent(user.id, 'token_refresh_failed', {
+      youtube_channel_id: connection.youtube_channel_id,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      error_message: errorData.error_description || errorData.error,
+      metadata: { error_code: errorData.error }
+    });
+
+    return res.status(400).json({
+      error: 'Token refresh failed',
+      details: errorData.error_description || errorData.error
+    });
+  }
+
+  const tokens = await tokenResponse.json();
+  const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
+  const encryptedAccessToken = encryptToken(tokens.access_token);
+
+  const updateData = {
+    encrypted_access_token: encryptedAccessToken,
+    token_expires_at: expiresAt.toISOString(),
+    last_refreshed_at: new Date().toISOString(),
+    connection_error: null,
+    is_active: true,
+    updated_at: new Date().toISOString()
+  };
+
+  if (tokens.refresh_token) {
+    updateData.encrypted_refresh_token = encryptToken(tokens.refresh_token);
+  }
+
+  await supabase
+    .from('youtube_oauth_connections')
+    .update(updateData)
+    .eq('id', connectionId);
+
+  await logAuditEvent(user.id, 'token_refresh', {
+    youtube_channel_id: connection.youtube_channel_id,
+    ip_address: ipAddress,
+    user_agent: userAgent,
+    metadata: { new_expiry: expiresAt.toISOString(), new_refresh_token_issued: !!tokens.refresh_token }
+  });
+
+  return res.status(200).json({ success: true, expiresAt: expiresAt.toISOString() });
+}
+
+/* ── DELETE: revoke + remove ── */
 async function handleDelete(user, req, res) {
-  // Support both query param (preferred for DELETE) and body
   const connectionId = req.query?.connectionId || req.body?.connectionId;
   if (!connectionId) return res.status(400).json({ error: 'connectionId required' });
 
@@ -80,7 +201,6 @@ async function handleDelete(user, req, res) {
 
   if (connError || !connection) return res.status(404).json({ error: 'Connection not found' });
 
-  // Revoke token with Google (best effort)
   try {
     const accessToken = decryptToken(connection.encrypted_access_token);
     await fetch(`https://oauth2.googleapis.com/revoke?token=${accessToken}`, {
@@ -91,7 +211,6 @@ async function handleDelete(user, req, res) {
     console.warn('Token revocation failed:', e.message);
   }
 
-  // Delete connection
   const { error: deleteError } = await supabase
     .from('youtube_oauth_connections')
     .delete()
@@ -102,15 +221,12 @@ async function handleDelete(user, req, res) {
     return res.status(500).json({ error: 'Failed to remove connection' });
   }
 
-  // Audit log
-  await supabase.from('youtube_oauth_audit_log').insert({
-    user_id: user.id,
-    event_type: 'token_revoked',
+  await logAuditEvent(user.id, 'token_revoked', {
     youtube_channel_id: connection.youtube_channel_id,
     ip_address: ipAddress,
     user_agent: userAgent,
     metadata: { channel_title: connection.youtube_channel_title, email: connection.youtube_email }
-  }).catch(() => {});
+  });
 
   return res.status(200).json({ success: true, message: 'YouTube account disconnected successfully' });
 }
@@ -119,11 +235,11 @@ export default async function handler(req, res) {
   const allowedOrigin = process.env.FRONTEND_URL || process.env.VERCEL_URL || '*';
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (!['GET', 'DELETE'].includes(req.method)) return res.status(405).json({ error: 'Method not allowed' });
+  if (!['GET', 'POST', 'DELETE'].includes(req.method)) return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const authHeader = req.headers.authorization;
@@ -134,9 +250,10 @@ export default async function handler(req, res) {
     if (authError || !user) return res.status(401).json({ error: 'Invalid or expired session' });
 
     if (req.method === 'GET') return await handleGet(user, res);
+    if (req.method === 'POST') return await handlePost(user, req, res);
     if (req.method === 'DELETE') return await handleDelete(user, req, res);
   } catch (error) {
-    console.error('OAuth status error:', error);
+    console.error('OAuth handler error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

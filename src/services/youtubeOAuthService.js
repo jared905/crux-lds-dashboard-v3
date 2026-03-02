@@ -109,7 +109,7 @@ class YouTubeOAuthService {
     }
 
     try {
-      const response = await fetch('/api/youtube-oauth-status', {
+      const response = await fetch('/api/youtube-oauth', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -143,7 +143,7 @@ class YouTubeOAuthService {
     const token = await this.getAuthToken();
     if (!token) throw new Error('Not authenticated');
 
-    const response = await fetch('/api/youtube-token-refresh', {
+    const response = await fetch('/api/youtube-oauth', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -171,7 +171,7 @@ class YouTubeOAuthService {
     const token = await this.getAuthToken();
     if (!token) throw new Error('Not authenticated');
 
-    const response = await fetch(`/api/youtube-oauth-status?connectionId=${encodeURIComponent(connectionId)}`, {
+    const response = await fetch(`/api/youtube-oauth?connectionId=${encodeURIComponent(connectionId)}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`
