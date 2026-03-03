@@ -164,6 +164,8 @@ Respond with ONLY a JSON object (no markdown, no code fences):
   }
 }
 
+IMPORTANT: Shorts and long-form videos have different discovery mechanics and viewer behavior. When analyzing topics and content appetite, distinguish between formats. Title/thumbnail insights should only reference long-form videos (shorts do not have clickable thumbnails). The video_type field in the data indicates "short" or "long".
+
 Return 8-12 topics, ordered by audience interest strength (avgViews * frequency).`;
 
 export async function analyzeAudienceInterests(channelIds, clientId, { days = 90, forceRefresh = false } = {}) {

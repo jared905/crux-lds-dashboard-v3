@@ -290,18 +290,22 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
 
       const videoData = sampleVideos.map(v => ({
         title: v.title,
+        type: v.type === 'short' ? 'Short' : 'Long-form',
         views: v.views,
         ctr: v.ctr,
         retention: v.retention,
         date: v.date
       }));
 
+      const shortCount = rows.filter(v => v.type === 'short').length;
+      const longCount = rows.length - shortCount;
+
       let systemPrompt = `You are a YouTube analytics expert helping analyze content performance.
 
 You have access to data from ${rows.length} videos from ${clientName}'s YouTube channel.
 
 Channel Overview:
-- Total videos: ${rows.length}
+- Total videos: ${rows.length} (${longCount} long-form, ${shortCount} shorts)
 - Average views: ${Math.round(avgViews).toLocaleString()}
 - Average CTR: ${(avgCTR * 100).toFixed(1)}%
 - Average retention: ${(avgRetention * 100).toFixed(1)}%
@@ -311,6 +315,8 @@ Analyze the data and answer questions with:
 2. Comparisons and patterns
 3. Actionable insights
 4. Clear, concise explanations
+
+IMPORTANT: Shorts and long-form are different formats with different discovery mechanics. Each video includes a "type" field. Keep format-specific insights separate. Title/thumbnail recommendations should only reference long-form videos (shorts do not have clickable thumbnails).
 
 Format your response in markdown for readability.`;
 
@@ -334,6 +340,7 @@ ${JSON.stringify(videoData, null, 2)}
 **Top 10 Performing Videos:**
 ${JSON.stringify(topVideos.slice(0, 10).map(v => ({
   title: v.title,
+  type: v.type === 'short' ? 'Short' : 'Long-form',
   views: v.views,
   ctr: v.ctr,
   retention: v.retention

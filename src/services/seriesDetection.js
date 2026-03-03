@@ -136,6 +136,7 @@ Rules:
 - Use clear, descriptive series names
 - A video can only belong to one series
 - Focus on recurring INTENT, not just keyword overlap
+- Do not mix Shorts and long-form videos in the same series — they are different formats (the video_type field indicates "short" or "long")
 - Return ONLY valid JSON, no other text`;
 
 export async function detectSeriesBySemantic(uncategorizedVideos, existingSeriesNames, auditId, channelId) {

@@ -107,6 +107,19 @@ export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
       const currentStats = calcStats(currentMonthData);
       const previousStats = calcStats(previousMonthData);
 
+      // === FORMAT BREAKDOWN ===
+      const currentShorts = currentMonthData.filter(v => v.type === 'short');
+      const currentLongForm = currentMonthData.filter(v => v.type !== 'short');
+      const prevShorts = previousMonthData.filter(v => v.type === 'short');
+      const prevLongForm = previousMonthData.filter(v => v.type !== 'short');
+
+      const formatBreakdown = {
+        currentShorts: { count: currentShorts.length, views: currentShorts.reduce((s, v) => s + v.views, 0) },
+        currentLongForm: { count: currentLongForm.length, views: currentLongForm.reduce((s, v) => s + v.views, 0) },
+        prevShorts: { count: prevShorts.length, views: prevShorts.reduce((s, v) => s + v.views, 0) },
+        prevLongForm: { count: prevLongForm.length, views: prevLongForm.reduce((s, v) => s + v.views, 0) },
+      };
+
       // === SEPARATE CTR AND RETENTION ANALYSIS ===
 
       // CTR Analysis - categorize videos by CTR performance
@@ -114,12 +127,14 @@ export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
       const sortedByCTR = [...videosWithCTR].sort((a, b) => b.ctr - a.ctr);
       const topCTRVideos = sortedByCTR.slice(0, 5).map(v => ({
         title: v.title,
+        type: v.type === 'short' ? 'Short' : 'Long-form',
         ctr: (v.ctr * 100).toFixed(1) + '%',
         views: v.views,
         retention: v.retention ? (v.retention * 100).toFixed(1) + '%' : 'N/A'
       }));
       const bottomCTRVideos = sortedByCTR.slice(-5).reverse().map(v => ({
         title: v.title,
+        type: v.type === 'short' ? 'Short' : 'Long-form',
         ctr: (v.ctr * 100).toFixed(1) + '%',
         views: v.views,
         retention: v.retention ? (v.retention * 100).toFixed(1) + '%' : 'N/A'
@@ -138,12 +153,14 @@ export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
       const sortedByRetention = [...videosWithRetention].sort((a, b) => b.retention - a.retention);
       const topRetentionVideos = sortedByRetention.slice(0, 5).map(v => ({
         title: v.title,
+        type: v.type === 'short' ? 'Short' : 'Long-form',
         retention: (v.retention * 100).toFixed(1) + '%',
         views: v.views,
         ctr: v.ctr ? (v.ctr * 100).toFixed(1) + '%' : 'N/A'
       }));
       const bottomRetentionVideos = sortedByRetention.slice(-5).reverse().map(v => ({
         title: v.title,
+        type: v.type === 'short' ? 'Short' : 'Long-form',
         retention: (v.retention * 100).toFixed(1) + '%',
         views: v.views,
         ctr: v.ctr ? (v.ctr * 100).toFixed(1) + '%' : 'N/A'
@@ -170,6 +187,7 @@ export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
 
       const topVideos = currentMonthData.slice(0, 5).map(v => ({
         title: v.title,
+        type: v.type === 'short' ? 'Short' : 'Long-form',
         views: v.views,
         ctr: v.ctr ? (v.ctr * 100).toFixed(1) + '%' : 'N/A',
         retention: v.retention ? (v.retention * 100).toFixed(1) + '%' : 'N/A'
@@ -222,11 +240,15 @@ Write in a narrative style that executives would expect in a monthly board repor
 - Total Views: ${currentStats.views.toLocaleString()}
 - Videos Published: ${currentStats.uploads}
 - Average Views per Video: ${Math.round(currentStats.avgViews).toLocaleString()}
+- Long-form: ${formatBreakdown.currentLongForm.count} videos, ${formatBreakdown.currentLongForm.views.toLocaleString()} views
+- Shorts: ${formatBreakdown.currentShorts.count} videos, ${formatBreakdown.currentShorts.views.toLocaleString()} views
 
 **Previous Month Performance (30-60 Days Ago):**
 - Total Views: ${previousStats.views.toLocaleString()}
 - Videos Published: ${previousStats.uploads}
 - Average Views per Video: ${Math.round(previousStats.avgViews).toLocaleString()}
+- Long-form: ${formatBreakdown.prevLongForm.count} videos, ${formatBreakdown.prevLongForm.views.toLocaleString()} views
+- Shorts: ${formatBreakdown.prevShorts.count} videos, ${formatBreakdown.prevShorts.views.toLocaleString()} views
 
 ---
 
@@ -311,7 +333,7 @@ Please write a comprehensive executive summary with these sections:
 ## Outlook
 [1-2 sentences about what to watch for next month]
 
-Write in a professional narrative style. Use specific numbers. Focus on insights, not just data reporting. IMPORTANT: Keep CTR and retention analysis separate - they measure different things (CTR = packaging appeal, Retention = content quality).`;
+Write in a professional narrative style. Use specific numbers. Focus on insights, not just data reporting. IMPORTANT: Keep CTR and retention analysis separate - they measure different things (CTR = packaging appeal, Retention = content quality). IMPORTANT: Shorts and long-form are different formats with different discovery mechanics — keep format-specific insights separate. Title/thumbnail recommendations should only reference long-form videos (shorts do not have clickable thumbnails). Each video in the data includes a "type" field.`;
 
       // Inject brand context if available
       if (activeClient?.id) {

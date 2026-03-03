@@ -173,6 +173,11 @@ export async function generateWeeklyBrief(clientId, rows, {
 
     const briefDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
+    const longFormRows = rows.filter(r => r.type !== 'short');
+    const shortRows = rows.filter(r => r.type === 'short');
+    const longFormViews = longFormRows.reduce((s, r) => s + (r.views || 0), 0);
+    const shortViews = shortRows.reduce((s, r) => s + (r.views || 0), 0);
+
     const prompt = `Write a 3-4 paragraph executive summary for this week's intelligence brief (${briefDate}).
 
 Channel Metrics:
@@ -181,6 +186,10 @@ Channel Metrics:
 - ${(metricsSnapshot.avgCTR * 100).toFixed(1)}% avg CTR
 - ${(metricsSnapshot.avgRetention * 100).toFixed(1)}% avg retention
 ${metricsSnapshot.subscriberCount ? `- ${metricsSnapshot.subscriberCount.toLocaleString()} subscribers` : ''}
+
+Format Breakdown:
+- Long-form: ${longFormRows.length} videos, ${longFormViews.toLocaleString()} views
+- Shorts: ${shortRows.length} videos, ${shortViews.toLocaleString()} views
 
 Primary Constraint: ${primaryConstraint?.constraint || 'None identified'} (${primaryConstraint?.severity || 'N/A'})
 ${primaryConstraint?.evidence || ''}
@@ -193,7 +202,7 @@ ${competitorHighlights.length > 0 ? `Competitor Breakouts:\n${competitorHighligh
 Top Recommendations:
 ${recommendedActions.map((r, i) => `${i + 1}. ${r.title} (${r.impact} impact, ${r.effort} effort)`).join('\n')}
 
-Write the summary as if briefing a busy executive. Lead with the most important insight. End with the single most impactful action to take this week.`;
+Write the summary as if briefing a busy executive. Lead with the most important insight. End with the single most impactful action to take this week. IMPORTANT: Shorts and long-form are different formats with different discovery mechanics — keep format-specific insights separate. Title/thumbnail recommendations should only reference long-form content.`;
 
     const result = await claudeAPI.call(prompt, systemPrompt, 'weekly_brief', 1024);
     executiveSummary = result.text.trim();

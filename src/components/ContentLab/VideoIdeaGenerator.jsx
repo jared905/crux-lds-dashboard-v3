@@ -90,6 +90,7 @@ export default function VideoIdeaGenerator({ data, activeClient }) {
       // Prepare data for Claude
       const videoData = topVideos.map(v => ({
         title: v.title,
+        type: v.type === 'short' ? 'Short' : 'Long-form',
         views: v.views,
         ctr: v.ctr,
         retention: v.retention
@@ -108,7 +109,9 @@ export default function VideoIdeaGenerator({ data, activeClient }) {
       let systemPrompt = `You are a YouTube content strategist.
 Your goal is to analyze successful videos and generate creative, data-driven video ideas that will resonate with ${clientName}'s audience.
 
-${focusGuidance[contentFocus]}`;
+${focusGuidance[contentFocus]}
+
+IMPORTANT: Shorts and long-form are different formats with different discovery mechanics. When generating ideas, specify whether each idea is for long-form or short-form. Title/thumbnail recommendations should only reference long-form videos as examples (shorts do not have clickable thumbnails). Each video in the data includes a "type" field.`;
 
       let userPrompt = `Analyze these top-performing videos from ${clientName}'s YouTube channel:
 
@@ -130,6 +133,7 @@ Channel Performance Context:
             if (outliers.length > 0) {
               const outlierData = outliers.map(v => ({
                 title: v.title,
+                type: v.video_type === 'short' ? 'Short' : 'Long-form',
                 channel: v.channel?.name || 'Unknown',
                 views: v.view_count,
                 outlierScore: v.outlierScore,
