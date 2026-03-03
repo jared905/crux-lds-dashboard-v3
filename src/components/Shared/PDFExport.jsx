@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import { FileDown, X, Check, RotateCcw } from "lucide-react";
@@ -745,7 +746,7 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
       {exporting ? 'Preparing...' : rendering ? 'Rendering PDF...' : 'Export PDF'}
     </button>
 
-    {showReviewModal && (
+    {showReviewModal && createPortal(
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={handleCancelModal}>
         <div style={{ backgroundColor: '#1E1E1E', border: '1px solid #333', borderRadius: '12px', width: '820px', maxWidth: '90vw', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
           {/* Header */}
@@ -808,7 +809,8 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
             </button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
     </>
   );
