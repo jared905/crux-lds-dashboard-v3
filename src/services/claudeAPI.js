@@ -111,8 +111,8 @@ class ClaudeAPIService {
   }
 
   // Check if request would exceed budget
-  checkBudget(estimatedTokens = 10000) {
-    const estimatedCost = this.calculateCost(estimatedTokens / 2, estimatedTokens / 2);
+  checkBudget(estimatedInputTokens = 5000, estimatedOutputTokens = 5000) {
+    const estimatedCost = this.calculateCost(estimatedInputTokens, estimatedOutputTokens);
     return (this.usageStats.totalCost + estimatedCost) <= this.monthlyBudget;
   }
 
@@ -147,9 +147,9 @@ class ClaudeAPIService {
       throw new Error('Claude API key not configured. Please add your API key in settings.');
     }
 
-    // Check budget
+    // Check budget (separate input vs output estimates for accurate costing)
     const estimatedInputTokens = this.estimateTokens(systemPrompt + prompt);
-    if (!this.checkBudget(estimatedInputTokens + maxTokens)) {
+    if (!this.checkBudget(estimatedInputTokens, maxTokens)) {
       throw new Error(`Monthly budget of $${this.monthlyBudget} would be exceeded. Current usage: $${this.usageStats.totalCost.toFixed(2)}`);
     }
 
@@ -207,7 +207,7 @@ class ClaudeAPIService {
     }
 
     const estimatedInputTokens = this.estimateTokens(systemPrompt + prompt);
-    if (!this.checkBudget(estimatedInputTokens + maxTokens)) {
+    if (!this.checkBudget(estimatedInputTokens, maxTokens)) {
       throw new Error(`Monthly budget of $${this.monthlyBudget} would be exceeded.`);
     }
 
