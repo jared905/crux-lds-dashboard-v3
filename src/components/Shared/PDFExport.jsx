@@ -59,7 +59,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
       container.style.left = '-9999px';
       container.style.width = '1200px';
       container.style.backgroundColor = '#ffffff';
-      container.style.padding = '35px';
+      container.style.padding = '50px 35px 35px 35px';
       container.style.fontFamily = 'system-ui, -apple-system, sans-serif';
       document.body.appendChild(container);
 
@@ -229,8 +229,8 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
               + '</tr>';
           }).join('');
 
-          publishedSectionHtml = '<div data-pdf-section style="margin-bottom: 24px;">'
-            + '<h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 14px;">📅 Content Published This Period</h2>'
+          publishedSectionHtml = '<div data-pdf-section style="margin-bottom: 28px;">'
+            + '<h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3;">📅 Content Published This Period</h2>'
             + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px;">'
             + '<div style="background: #fff7ed; padding: 18px; border-radius: 12px; border: 2px solid #fed7aa;">'
             + '<div style="font-size: 18px; font-weight: 700; color: #ea580c; margin-bottom: 10px;">📱 Shorts Published</div>'
@@ -272,21 +272,21 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
       container.innerHTML = `
         <div style="max-width: 1080px; margin: 0 auto;">
           <!-- Header -->
-          <div data-pdf-section style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; padding-bottom: 16px; border-bottom: 3px solid #2563eb;">
-            <div style="display: flex; align-items: center; gap: 18px;">
+          <div data-pdf-section style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #2563eb;">
+            <div style="display: flex; align-items: center; gap: 22px;">
               <div style="background: #1a1a1a; padding: 14px 18px; border-radius: 10px;">
                 <img src="/Full_View_Logo.png" alt="Full View Analytics" style="height: 72px; object-fit: contain; display: block;" />
               </div>
-              <div style="border-left: 2px solid #cbd5e1; padding-left: 18px;">
-                ${displayName ? `<div style="font-size: 20px; font-weight: 700; color: #2563eb; margin-bottom: 3px;">${displayName}</div>` : ''}
-                <h1 style="margin: 0; font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1.2;">Strategic YouTube Insights</h1>
-                <p style="margin: 6px 0 0 0; font-size: 16px; color: #64748b; font-weight: 500;">${dateLabel} • ${dateStr}</p>
+              <div style="border-left: 2px solid #cbd5e1; padding-left: 22px;">
+                ${displayName ? `<div style="font-size: 20px; font-weight: 700; color: #2563eb; margin-bottom: 6px;">${displayName}</div>` : ''}
+                <h1 style="margin: 0; font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1.3;">Strategic YouTube Insights</h1>
+                <p style="margin: 10px 0 0 0; font-size: 16px; color: #64748b; font-weight: 500;">${dateLabel} • ${dateStr}</p>
               </div>
             </div>
           </div>
 
           <!-- Key Metrics Grid -->
-          <div data-pdf-section style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+          <div data-pdf-section style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px;">
             <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #2563eb;">
               <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px;">TOTAL VIEWS</div>
               <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.views.toLocaleString()}</div>
@@ -322,7 +322,7 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
           </div>
 
           <!-- Summary Stats -->
-          <div data-pdf-section style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 22px 24px; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+          <div data-pdf-section style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 22px 24px; border-radius: 12px; margin-bottom: 28px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; text-align: center;">
               <div>
                 <div style="font-size: 14px; color: #93c5fd; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px;">TOTAL VIDEOS</div>
@@ -346,7 +346,7 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
           </div>
 
           <!-- Content Performance -->
-          <div data-pdf-section style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+          <div data-pdf-section style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;">
             <div style="background: #fff7ed; padding: 20px; border-radius: 12px; border: 3px solid #f97316;">
               <div style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">📱 Shorts Performance</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
@@ -393,14 +393,14 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
           </div>
 
           <!-- Metric Definitions -->
-          <div data-pdf-section style="display: flex; gap: 22px; margin-bottom: 20px; padding: 12px 18px; background: #f1f5f9; border-radius: 10px; border-left: 4px solid #94a3b8;">
+          <div data-pdf-section style="display: flex; gap: 22px; margin-bottom: 28px; padding: 14px 18px; background: #f1f5f9; border-radius: 10px; border-left: 4px solid #94a3b8;">
             <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;"><strong style="color: #475569;">CTR (Click-Through Rate):</strong> The percentage of people who saw your thumbnail and clicked to watch.</p>
             <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;"><strong style="color: #475569;">AVD (Avg View Duration):</strong> The average percentage of your video that viewers watched before leaving.</p>
           </div>
 
           <!-- Top Performers -->
-          <div data-pdf-section style="margin-bottom: 28px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 14px;">🏆 Top Performing Videos</h2>
+          <div data-pdf-section style="margin-bottom: 32px;">
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3;">🏆 Top Performing Videos</h2>
             <div style="background: #f8fafc; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0;">
               <table style="width: 100%; border-collapse: collapse;">
                 <thead>
@@ -447,7 +447,7 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
           ${topComments.length > 0 ? `
           <!-- Top Comments -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 30px; font-weight: 700; color: #1e293b; margin-bottom: 20px;">💬 Top Audience Comments</h2>
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; line-height: 1.3;">💬 Top Audience Comments</h2>
             ${topComments.map(c => `
               <div style="background: #f8fafc; padding: 18px 22px; border-radius: 12px; margin-bottom: 12px; border-left: 4px solid #2563eb;">
                 <div style="font-size: 15px; color: #1e293b; line-height: 1.6; margin-bottom: 10px;">"${c.text}"</div>
@@ -466,7 +466,7 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
           ${opportunities.length > 0 ? `
           <!-- 3 Key Opportunities -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 30px; font-weight: 700; color: #1e293b; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 3px solid #10b981;">🎯 3 Key Opportunities</h2>
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; padding-bottom: 10px; border-bottom: 3px solid #10b981; line-height: 1.3;">🎯 3 Key Opportunities</h2>
             ${opportunities.map((opp, idx) => `
               <div style="display: flex; gap: 16px; margin-bottom: 16px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); padding: 22px; border-radius: 14px; border: 2px solid #86efac;">
                 <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #059669); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: white; flex-shrink: 0; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">
@@ -553,7 +553,7 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
           ` : ''}
 
           <!-- Footer -->
-          <div data-pdf-section style="margin-top: 28px; padding-top: 18px; border-top: 1px solid #e2e8f0; text-align: center;">
+          <div data-pdf-footer style="padding-top: 18px; border-top: 1px solid #e2e8f0; text-align: center;">
             <div style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 8px;">
               <span style="color: #64748b; font-size: 14px; font-weight: 500;">Generated by Full View Analytics</span>
               <span style="color: #cbd5e1; font-size: 14px;">•</span>
@@ -584,10 +584,25 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
         // If section spans two pages and fits on a single page, push it to the next page
         if (endPage > startPage && sectionHeight < pageHeightPx * 0.85) {
           const nextPageStart = (startPage + 1) * pageHeightPx;
-          const spacer = nextPageStart - sectionTop + 40;
+          const spacer = nextPageStart - sectionTop + 65;
           section.style.marginTop = `${spacer}px`;
         }
       });
+
+      // Push footer to the bottom of the last page
+      const footer = container.querySelector('[data-pdf-footer]');
+      if (footer) {
+        const footerTop = footer.offsetTop;
+        const footerHeight = footer.offsetHeight;
+        const footerBottom = footerTop + footerHeight;
+        const lastPage = Math.floor(footerTop / pageHeightPx);
+        const lastPageBottom = (lastPage + 1) * pageHeightPx;
+        const padding = 35; // bottom padding from page edge
+        const neededTop = lastPageBottom - footerHeight - padding;
+        if (neededTop > footerTop) {
+          footer.style.marginTop = `${neededTop - footerTop}px`;
+        }
+      }
 
       // Capture the content as canvas
       const canvas = await html2canvas(container, {
