@@ -248,12 +248,21 @@ MULTICHANNEL NETWORK:
 * When comparing performance across channels, note that differences may reflect intentional strategic choices (e.g. a clips channel will naturally have different metrics than a flagship long-form channel).
 * Cross-channel recommendations (e.g. cross-promotion, content repurposing between channels) are valuable when supported by the data.` : ''}`;
 
-          const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 3000);
+          console.log('[PDFExport] Calling Claude for recommendations...');
+          const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 4096);
+          console.log('[PDFExport] Claude response received, length:', result.text?.length);
           // Strip markdown fences if present (e.g. ```json ... ```)
           let jsonText = result.text.trim();
           const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
           if (fenceMatch) jsonText = fenceMatch[1].trim();
-          const parsed = JSON.parse(jsonText);
+
+          let parsed;
+          try {
+            parsed = JSON.parse(jsonText);
+          } catch (parseErr) {
+            console.error('[PDFExport] JSON parse failed. Raw response:', jsonText.slice(0, 500));
+            throw parseErr;
+          }
 
           // Handle new structured format
           if (parsed && parsed.recommendations && Array.isArray(parsed.recommendations)) {
@@ -270,10 +279,13 @@ MULTICHANNEL NETWORK:
           } else if (Array.isArray(parsed) && parsed.length >= 1) {
             // Fallback for old format
             opportunities = parsed.slice(0, 8);
+          } else {
+            console.warn('[PDFExport] Unexpected response structure:', Object.keys(parsed || {}));
           }
         }
       } catch (err) {
-        console.warn('Could not generate AI recommendations for PDF:', err);
+        console.error('Could not generate AI recommendations for PDF:', err);
+        console.error('Error details:', err?.message, err?.stack);
       }
 
       // Build "Content Published This Period" section
