@@ -160,7 +160,28 @@ export async function generateWeeklyBrief(clientId, rows, {
   let generationCost = 0;
 
   try {
-    let systemPrompt = `You are a YouTube growth strategist writing a concise weekly intelligence brief for a content creator or brand. Write in a direct, editorial voice — like a smart advisor who respects the reader's time. No fluff, no cliches. Focus on what changed, what matters, and what to do next.`;
+    let systemPrompt = `You are the top YouTube strategist in the world, with deep expertise in platform algorithm behavior, audience psychology, retention mechanics, and content packaging across every vertical and channel size.
+
+You work as a senior strategist at CRUX Media, a video strategy and production agency with 15 years of experience and over 3 billion views managed across enterprise clients. You are writing a concise weekly intelligence brief — think of it as the one page a busy executive reads Monday morning to know exactly what happened and what to do this week.
+
+ANALYTICAL LENS:
+* Read the data like a diagnostician. Identify root causes, not symptoms.
+* Think in systems. Every metric connects to others: CTR affects impressions velocity, retention drives recommendation reach.
+* Contextualize by format. Shorts and long-form have different benchmarks and discovery mechanics.
+* Separate signal from noise. One underperforming video is not a trend. A consistent pattern IS.
+
+YOUR VOICE:
+* Direct and confident. No hedging, no filler, no "it is important to" or "you should consider."
+* Warm but authoritative. This is a partner speaking, not a vendor pitching.
+* Obsessively specific. Every insight must reference actual data, video titles, or patterns. If you cannot cite the data, do not include the insight.
+* Forward-looking. Every observation connects to a concrete action.
+* Plain language. The reader may not be a YouTube expert. Write so a marketing director or business owner understands every sentence. When you reference a platform concept (CTR, retention, impressions), briefly explain what it means in plain terms on first use. The brief should feel smart, not intimidating.
+
+FORMAT RULES:
+* This is a brief — respect the reader's time. 3-4 tight paragraphs, no padding.
+* Shorts and long-form are fundamentally different formats. Keep format-specific insights separate. Title/thumbnail recommendations should only reference long-form content.
+* Lead with the most important insight. End with the single most impactful action for this week.
+* Never use dashes or hyphens (-) as bullet points.`;
 
     if (clientId) {
       try {
@@ -178,9 +199,26 @@ export async function generateWeeklyBrief(clientId, rows, {
     const longFormViews = longFormRows.reduce((s, r) => s + (r.views || 0), 0);
     const shortViews = shortRows.reduce((s, r) => s + (r.views || 0), 0);
 
-    const prompt = `Write a 3-4 paragraph executive summary for this week's intelligence brief (${briefDate}).
+    // Detect multichannel network
+    const uniqueChannels = [...new Set(rows.map(r => r.channel).filter(Boolean))];
+    const isMultiChannel = uniqueChannels.length > 1;
 
-Channel Metrics:
+    let channelBreakdownBlock = '';
+    if (isMultiChannel) {
+      const channelLines = uniqueChannels.map(ch => {
+        const chRows = rows.filter(r => r.channel === ch);
+        const chViews = chRows.reduce((s, r) => s + (r.views || 0), 0);
+        const chShorts = chRows.filter(r => r.type === 'short').length;
+        const chLongs = chRows.filter(r => r.type !== 'short').length;
+        return `* ${ch}: ${chRows.length} videos (${chLongs} long-form, ${chShorts} Shorts), ${chViews.toLocaleString()} views`;
+      }).join('\n');
+      channelBreakdownBlock = `\nNetwork Overview (${uniqueChannels.length} channels):\n${channelLines}\n`;
+      systemPrompt += `\n\nMULTICHANNEL NETWORK:\n* This data spans ${uniqueChannels.length} YouTube channels under one client. Each channel has its own audience, content strategy, and algorithm profile.\n* Reference which channel each insight applies to. Do NOT give blanket advice that assumes all channels share the same audience or content strategy.\n* Differences between channels may reflect intentional strategic choices.`;
+    }
+
+    const prompt = `Write a 3-4 paragraph executive summary for this week's intelligence brief (${briefDate}).
+${channelBreakdownBlock}
+${isMultiChannel ? 'Network' : 'Channel'} Metrics:
 - ${metricsSnapshot.totalVideos} videos analyzed
 - ${metricsSnapshot.totalViews.toLocaleString()} total views
 - ${(metricsSnapshot.avgCTR * 100).toFixed(1)}% avg CTR

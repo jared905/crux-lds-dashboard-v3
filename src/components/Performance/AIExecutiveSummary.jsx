@@ -125,20 +125,16 @@ export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
       // CTR Analysis - categorize videos by CTR performance
       const videosWithCTR = currentMonthData.filter(v => v.ctr && v.ctr > 0);
       const sortedByCTR = [...videosWithCTR].sort((a, b) => b.ctr - a.ctr);
-      const topCTRVideos = sortedByCTR.slice(0, 5).map(v => ({
+      const mapVideoMeta = (v) => ({
         title: v.title,
+        ...(isMultiChannel && v.channel ? { channel: v.channel } : {}),
         type: v.type === 'short' ? 'Short' : 'Long-form',
-        ctr: (v.ctr * 100).toFixed(1) + '%',
+        ctr: v.ctr ? (v.ctr * 100).toFixed(1) + '%' : 'N/A',
         views: v.views,
         retention: v.retention ? (v.retention * 100).toFixed(1) + '%' : 'N/A'
-      }));
-      const bottomCTRVideos = sortedByCTR.slice(-5).reverse().map(v => ({
-        title: v.title,
-        type: v.type === 'short' ? 'Short' : 'Long-form',
-        ctr: (v.ctr * 100).toFixed(1) + '%',
-        views: v.views,
-        retention: v.retention ? (v.retention * 100).toFixed(1) + '%' : 'N/A'
-      }));
+      });
+      const topCTRVideos = sortedByCTR.slice(0, 5).map(mapVideoMeta);
+      const bottomCTRVideos = sortedByCTR.slice(-5).reverse().map(mapVideoMeta);
 
       // CTR distribution buckets
       const ctrDistribution = {
@@ -151,20 +147,8 @@ export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
       // Retention Analysis - categorize videos by retention performance
       const videosWithRetention = currentMonthData.filter(v => v.retention && v.retention > 0);
       const sortedByRetention = [...videosWithRetention].sort((a, b) => b.retention - a.retention);
-      const topRetentionVideos = sortedByRetention.slice(0, 5).map(v => ({
-        title: v.title,
-        type: v.type === 'short' ? 'Short' : 'Long-form',
-        retention: (v.retention * 100).toFixed(1) + '%',
-        views: v.views,
-        ctr: v.ctr ? (v.ctr * 100).toFixed(1) + '%' : 'N/A'
-      }));
-      const bottomRetentionVideos = sortedByRetention.slice(-5).reverse().map(v => ({
-        title: v.title,
-        type: v.type === 'short' ? 'Short' : 'Long-form',
-        retention: (v.retention * 100).toFixed(1) + '%',
-        views: v.views,
-        ctr: v.ctr ? (v.ctr * 100).toFixed(1) + '%' : 'N/A'
-      }));
+      const topRetentionVideos = sortedByRetention.slice(0, 5).map(mapVideoMeta);
+      const bottomRetentionVideos = sortedByRetention.slice(-5).reverse().map(mapVideoMeta);
 
       // Retention distribution buckets
       const retentionDistribution = {
@@ -185,13 +169,31 @@ export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
         .slice(0, 3)
         .map(v => ({ title: v.title, ctr: (v.ctr * 100).toFixed(1) + '%', retention: (v.retention * 100).toFixed(1) + '%' }));
 
+      // Detect multichannel network
+      const uniqueChannels = [...new Set(currentMonthData.map(r => r.channel).filter(Boolean))];
+      const isMultiChannel = uniqueChannels.length > 1;
+
       const topVideos = currentMonthData.slice(0, 5).map(v => ({
         title: v.title,
+        ...(isMultiChannel && v.channel ? { channel: v.channel } : {}),
         type: v.type === 'short' ? 'Short' : 'Long-form',
         views: v.views,
         ctr: v.ctr ? (v.ctr * 100).toFixed(1) + '%' : 'N/A',
         retention: v.retention ? (v.retention * 100).toFixed(1) + '%' : 'N/A'
       }));
+
+      // Build per-channel breakdown for multichannel networks
+      let channelBreakdownBlock = '';
+      if (isMultiChannel) {
+        const channelRows = uniqueChannels.map(ch => {
+          const chRows = currentMonthData.filter(r => r.channel === ch);
+          const chViews = chRows.reduce((s, r) => s + (r.views || 0), 0);
+          const chShorts = chRows.filter(r => r.type === 'short').length;
+          const chLongs = chRows.filter(r => r.type !== 'short').length;
+          return `* ${ch}: ${chRows.length} videos (${chLongs} long-form, ${chShorts} Shorts), ${chViews.toLocaleString()} views`;
+        }).join('\n');
+        channelBreakdownBlock = `\n**Network Overview (${uniqueChannels.length} channels):**\n${channelRows}\n`;
+      }
 
       // Build context-aware system prompt
       const clientName = activeClient?.name || 'this channel';
@@ -211,15 +213,22 @@ export default function AIExecutiveSummary({ rows, analysis, activeClient }) {
         actionable: 'Emphasize concrete next steps and tactical recommendations. Include specific action items with expected outcomes.'
       };
 
-      let systemPrompt = `You are an executive communications specialist for YouTube content creators.
+      let systemPrompt = `You are the top YouTube strategist in the world, with deep expertise in platform algorithm behavior, audience psychology, retention mechanics, and content packaging across every vertical and channel size. You understand how YouTube's recommendation engine weighs watch time, session depth, click-through rate, and audience satisfaction signals at a granular level.
 
-Your goal is to write compelling, data-driven executive summaries that:
-1. Tell a story about channel performance (not just list statistics)
-2. Provide strategic context and insights
-3. Are written in professional but accessible language
-4. Are suitable for presenting to stakeholders, board members, or leadership
-5. Focus on "why" things happened, not just "what" happened
-6. Include specific, actionable recommendations
+You work as a senior strategist at CRUX Media, a video strategy and production agency with 15 years of experience and over 3 billion views managed across enterprise clients. You combine world-class analytical depth with a trusted advisor's voice, writing executive summaries that tell the story behind the numbers.
+
+ANALYTICAL LENS:
+* Read the data like a diagnostician. Identify root causes, not symptoms. If retention drops at a predictable point, explain WHY (pacing, hook structure, content density) and what to do about it.
+* Think in systems. Every metric connects to others: CTR affects impressions velocity, retention drives recommendation reach, upload consistency affects subscriber notification trust.
+* Contextualize by format. A 45% retention on an 18-minute video is strong. A 45% retention on a 90-second Short is a problem. Adjust your analysis to the format's benchmarks and audience behavior patterns.
+* Separate signal from noise. A single underperforming video is not a trend. Three consecutive drops in retention with similar content structures IS a pattern worth addressing.
+
+YOUR VOICE:
+* Direct and confident. No hedging, no filler, no "it is important to" or "you should consider."
+* Warm but authoritative. This is a partner who deeply understands their craft, not a vendor pitching or a textbook lecturing.
+* Obsessively specific. Every insight must reference actual video titles, percentages, patterns, or numbers from this channel's data.
+* Forward-looking. Every observation connects to a concrete growth opportunity with a clear mechanism.
+* Plain language. The client may not be a YouTube expert. Write so a marketing director or business owner understands every sentence without Googling. When you reference a platform concept (CTR, retention, impressions), briefly explain what it means in plain terms on first use. Never assume the reader knows YouTube jargon. The insight should feel smart, not intimidating.
 
 Context: You are analyzing performance for ${clientName}.
 
@@ -227,16 +236,26 @@ ${focusGuidance[focusArea]}
 
 ${styleGuidance[reportStyle]}
 
-Write in a narrative style that executives would expect in a monthly board report.`;
+FORMAT RULES:
+* Use markdown formatting suitable for a board-ready executive report.
+* Shorts and long-form are fundamentally different formats with different algorithm pathways. Never conflate them. When recommending title or thumbnail strategies, only reference long-form videos (Shorts do not have clickable thumbnails or browse impressions in the same way).
+* Never use dashes or hyphens (-) as bullet points in any text fields.
+${isMultiChannel ? `
+MULTICHANNEL NETWORK:
+* This data spans ${uniqueChannels.length} YouTube channels under one client. Each channel has its own audience, content strategy, and algorithm profile.
+* Analyze each channel's performance individually before drawing cross-network conclusions. Do NOT average metrics across channels as if they were one channel.
+* Name which channel you are referencing for each insight. A retention pattern on one channel does not necessarily apply to another.
+* When comparing performance across channels, note that differences may reflect intentional strategic choices (e.g. a clips channel will naturally have different metrics than a flagship long-form channel).
+* Cross-channel recommendations (e.g. cross-promotion, content repurposing) are valuable when supported by the data.` : ''}`;
 
-      let userPrompt = `Write a comprehensive executive summary for ${clientName}'s YouTube channel performance for the last 30 days.`;
+      let userPrompt = `Write a comprehensive executive summary for ${clientName}'s YouTube ${isMultiChannel ? 'network' : 'channel'} performance for the last 30 days.`;
 
       // Add user-specific goals if provided
       if (specificGoals && specificGoals.trim()) {
         userPrompt += `\n\n**IMPORTANT - User's Specific Goals/Questions:**\n${specificGoals.trim()}\n\nPlease address these goals/questions throughout your analysis.`;
       }
 
-      userPrompt += `\n\n**Current Month Performance (Last 30 Days):**
+      userPrompt += `\n${channelBreakdownBlock}\n**Current Month Performance (Last 30 Days):**
 - Total Views: ${currentStats.views.toLocaleString()}
 - Videos Published: ${currentStats.uploads}
 - Average Views per Video: ${Math.round(currentStats.avgViews).toLocaleString()}
@@ -387,7 +406,7 @@ Write in a professional narrative style. Use specific numbers. Focus on insights
 
       if (!refinementPrompt || !refinementPrompt.trim()) return;
 
-      const systemPrompt = `You are refining an executive summary based on user feedback. Maintain the professional tone and structure, but adjust based on the specific request. Keep the same general format unless asked to change it.`;
+      const systemPrompt = `You are refining an executive summary based on user feedback. Maintain the same voice: direct, confident, data-specific, and written in plain language a non-YouTube-expert can understand. Adjust based on the specific request. Keep the same general format unless asked to change it.`;
 
       const result = await claudeAPI.call(
         `Original summary:\n\n${narrative}\n\n---\n\nUser's request: ${refinementPrompt}\n\nPlease provide the refined summary:`,

@@ -109,12 +109,29 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
         // Refresh API key from localStorage in case it was set after module init
         if (!claudeAPI.apiKey) claudeAPI.apiKey = claudeAPI.loadAPIKey();
         if (claudeAPI.apiKey) {
-          const formatVid = (v) => `"${v.title}" (${(v.views||0).toLocaleString()} views, ${((v.ctr||0)*100).toFixed(1)}% CTR, ${((v.retention||0)*100).toFixed(1)}% retention)`;
+          // Detect multichannel
+          const uniqueChannels = [...new Set(filtered.map(r => r.channel).filter(Boolean))];
+          const isMultiChannel = uniqueChannels.length > 1;
+
+          const formatVid = (v) => `"${v.title}"${isMultiChannel && v.channel ? ` [${v.channel}]` : ''} (${(v.views||0).toLocaleString()} views, ${((v.ctr||0)*100).toFixed(1)}% CTR, ${((v.retention||0)*100).toFixed(1)}% retention)`;
 
           const shorts = filtered.filter(r => r.type === 'short');
           const longs = filtered.filter(r => r.type !== 'short');
           const shortsViews = shorts.reduce((s, r) => s + (r.views || 0), 0);
           const longsViews = longs.reduce((s, r) => s + (r.views || 0), 0);
+
+          // Build per-channel breakdown for multichannel networks
+          let channelBreakdownBlock = '';
+          if (isMultiChannel) {
+            const channelRows = uniqueChannels.map(ch => {
+              const chRows = filtered.filter(r => r.channel === ch);
+              const chViews = chRows.reduce((s, r) => s + (r.views || 0), 0);
+              const chShorts = chRows.filter(r => r.type === 'short').length;
+              const chLongs = chRows.filter(r => r.type !== 'short').length;
+              return `* ${ch}: ${chRows.length} videos (${chLongs} long-form, ${chShorts} Shorts), ${chViews.toLocaleString()} views`;
+            }).join('\n');
+            channelBreakdownBlock = `\nNETWORK OVERVIEW\nThis is a multichannel network with ${uniqueChannels.length} channels. Recommendations should be channel-specific where possible — what works for one channel may not apply to another.\n${channelRows}\n`;
+          }
 
           const longsByCtr = [...longs].sort((a, b) => (b.ctr || 0) - (a.ctr || 0));
           const longsByRet = [...longs].sort((a, b) => (b.retention || 0) - (a.retention || 0));
@@ -143,9 +160,9 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
           const dataPrompt = `You are generating the Strategic Recommendations section for ${clientName || 'this channel'}'s ${periodFraming}.
 
 ---
-
+${channelBreakdownBlock}
 CHANNEL OVERVIEW
-Channel: ${clientName || 'Unknown'}
+${isMultiChannel ? `Network: ${clientName || 'Unknown'} (${uniqueChannels.length} channels)` : `Channel: ${clientName || 'Unknown'}`}
 Reporting Period: ${periodLabel}
 Total Subscribers: ${channelStats?.subscriberCount ? Number(channelStats.subscriberCount).toLocaleString() : 'N/A'}${kpis.subsChange !== undefined ? ` (${kpis.subsChange >= 0 ? '+' : ''}${kpis.subsChange.toFixed(1)}% change this period)` : ''}
 Total Views (period): ${kpis.views.toLocaleString()}${kpis.viewsChange !== undefined ? ` (${kpis.viewsChange >= 0 ? '+' : ''}${kpis.viewsChange.toFixed(1)}% vs previous period)` : ''}
@@ -223,7 +240,13 @@ FORMAT RULES:
 * Shorts and long-form are fundamentally different formats with different algorithm pathways. Never conflate them. When recommending title or thumbnail strategies, only reference long-form videos (Shorts do not have clickable thumbnails or browse impressions in the same way).
 * Prioritize recommendations by expected impact. Highest leverage opportunities first. A small change that affects every video outweighs a big change that affects one.
 * Never use dashes or hyphens (-) as bullet points in any text fields.
-* Return ONLY valid JSON, no markdown fences.`;
+* Return ONLY valid JSON, no markdown fences.
+${isMultiChannel ? `
+MULTICHANNEL NETWORK:
+* This data spans multiple YouTube channels under one client. Each channel has its own audience, content strategy, and algorithm profile.
+* Make recommendations channel-specific. Name which channel each recommendation applies to. Do NOT give blanket advice that assumes all channels share the same audience or content strategy.
+* When comparing performance across channels, note that differences may reflect intentional strategic choices (e.g. a clips channel will naturally have different metrics than a flagship long-form channel).
+* Cross-channel recommendations (e.g. cross-promotion, content repurposing between channels) are valuable when supported by the data.` : ''}`;
 
           const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 3000);
           // Strip markdown fences if present (e.g. ```json ... ```)
@@ -803,6 +826,29 @@ FORMAT RULES:
     });
   };
 
+  const updateStep = (idx, stepIdx, value) => {
+    setPendingOpportunities(prev => {
+      const updated = prev.map((o, i) => {
+        if (i !== idx) return o;
+        const newSteps = [...(o.steps || [])];
+        newSteps[stepIdx] = value;
+        return { ...o, steps: newSteps };
+      });
+      updated._opening = prev._opening;
+      updated._closing = prev._closing;
+      return updated;
+    });
+  };
+
+  const updateOpeningClosing = (field, value) => {
+    setPendingOpportunities(prev => {
+      const updated = [...prev];
+      updated._opening = field === '_opening' ? value : prev._opening;
+      updated._closing = field === '_closing' ? value : prev._closing;
+      return updated;
+    });
+  };
+
   const isDisabled = exporting || rendering;
 
   return (
@@ -860,10 +906,15 @@ FORMAT RULES:
           <div style={{ padding: '20px 24px', flex: 1, overflowY: 'auto' }}>
             <div style={{ fontSize: '14px', fontWeight: '600', color: '#93c5fd', marginBottom: '14px', letterSpacing: '0.5px' }}>STRATEGIC RECOMMENDATIONS</div>
 
-            {pendingOpportunities._opening && (
+            {pendingOpportunities._opening !== undefined && (
               <div style={{ padding: '12px 16px', background: '#1a2e1a', borderRadius: '8px', marginBottom: '16px', border: '1px solid #2d5a2d' }}>
                 <div style={{ fontSize: '11px', fontWeight: '600', color: '#10b981', marginBottom: '6px', letterSpacing: '0.5px' }}>OPENING</div>
-                <div style={{ fontSize: '13px', color: '#ccc', lineHeight: '1.6' }}>{pendingOpportunities._opening}</div>
+                <textarea
+                  value={pendingOpportunities._opening || ''}
+                  onChange={e => updateOpeningClosing('_opening', e.target.value)}
+                  rows={3}
+                  style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '10px 12px', color: '#ccc', fontSize: '13px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                />
               </div>
             )}
 
@@ -889,43 +940,56 @@ FORMAT RULES:
                       style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#fff', fontSize: '15px', fontWeight: '600', outline: 'none' }}
                     />
                   </div>
-                  {opp.insight && (
-                    <div style={{ marginBottom: '8px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#10b981', letterSpacing: '0.3px' }}>INSIGHT: </span>
-                      <span style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>{opp.insight}</span>
-                    </div>
-                  )}
-                  {opp.opportunity && (
-                    <div style={{ marginBottom: '8px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#f59e0b', letterSpacing: '0.3px' }}>OPPORTUNITY: </span>
-                      <span style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>{opp.opportunity}</span>
-                    </div>
-                  )}
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '600', color: '#10b981', letterSpacing: '0.3px', marginBottom: '4px' }}>INSIGHT</div>
+                    <textarea
+                      value={opp.insight || ''}
+                      onChange={e => updateOpportunity(idx, 'insight', e.target.value)}
+                      disabled={!opp.included}
+                      rows={2}
+                      style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#ccc', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '600', color: '#f59e0b', letterSpacing: '0.3px', marginBottom: '4px' }}>OPPORTUNITY</div>
+                    <textarea
+                      value={opp.opportunity || ''}
+                      onChange={e => updateOpportunity(idx, 'opportunity', e.target.value)}
+                      disabled={!opp.included}
+                      rows={2}
+                      style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#ccc', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
                   {opp.steps && opp.steps.length > 0 && (
                     <div style={{ marginTop: '8px', paddingLeft: '4px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#93c5fd', marginBottom: '4px', letterSpacing: '0.3px' }}>ACTION STEPS:</div>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#93c5fd', marginBottom: '6px', letterSpacing: '0.3px' }}>ACTION STEPS</div>
                       {opp.steps.map((step, si) => (
-                        <div key={si} style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5', marginBottom: '2px', paddingLeft: '12px' }}>{si + 1}. {step}</div>
+                        <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '13px', color: '#93c5fd', fontWeight: '600', minWidth: '16px', paddingTop: '7px' }}>{si + 1}.</span>
+                          <input
+                            type="text"
+                            value={step}
+                            onChange={e => updateStep(idx, si, e.target.value)}
+                            disabled={!opp.included}
+                            style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '6px 10px', color: '#ccc', fontSize: '13px', outline: 'none' }}
+                          />
+                        </div>
                       ))}
                     </div>
-                  )}
-                  {opp.recommendation && (
-                    <textarea
-                      value={opp.recommendation}
-                      onChange={e => updateOpportunity(idx, 'recommendation', e.target.value)}
-                      disabled={!opp.included}
-                      rows={3}
-                      style={{ width: '100%', marginTop: '8px', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '10px 12px', color: '#ccc', fontSize: '14px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
-                    />
                   )}
                 </div>
               ))
             )}
 
-            {pendingOpportunities._closing && (
+            {pendingOpportunities._closing !== undefined && (
               <div style={{ padding: '12px 16px', background: '#1a2e1a', borderRadius: '8px', marginTop: '8px', border: '1px solid #2d5a2d' }}>
                 <div style={{ fontSize: '11px', fontWeight: '600', color: '#10b981', marginBottom: '6px', letterSpacing: '0.5px' }}>CLOSING</div>
-                <div style={{ fontSize: '13px', color: '#ccc', lineHeight: '1.6' }}>{pendingOpportunities._closing}</div>
+                <textarea
+                  value={pendingOpportunities._closing || ''}
+                  onChange={e => updateOpeningClosing('_closing', e.target.value)}
+                  rows={3}
+                  style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '10px 12px', color: '#ccc', fontSize: '13px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                />
               </div>
             )}
           </div>
