@@ -234,20 +234,20 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
             + '<h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3;">📅 Content Published This Period</h2>'
             + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px;">'
             + '<div style="background: #fff7ed; padding: 18px; border-radius: 12px; border: 2px solid #fed7aa;">'
-            + '<div style="font-size: 18px; font-weight: 700; color: #ea580c; margin-bottom: 10px;">📱 Shorts Published</div>'
-            + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Count</div><div style="font-size: 26px; font-weight: 700; color: #f97316;">' + sm.count + '</div></div>'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #f97316;">' + sm.views.toLocaleString() + '</div></div>'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #1e293b;">' + (sm.avgCtr * 100).toFixed(1) + '%</div></div>'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #1e293b;">' + (sm.avgRet * 100).toFixed(1) + '%</div></div>'
+            + '<div style="font-size: 18px; font-weight: 700; color: #ea580c; margin-bottom: 12px; line-height: 1.3;">📱 Shorts Published</div>'
+            + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Count</div><div style="font-size: 26px; font-weight: 700; color: #f97316; line-height: 1.25;">' + sm.count + '</div></div>'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #f97316; line-height: 1.25;">' + sm.views.toLocaleString() + '</div></div>'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (sm.avgCtr * 100).toFixed(1) + '%</div></div>'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (sm.avgRet * 100).toFixed(1) + '%</div></div>'
             + '</div></div>'
             + '<div style="background: #eff6ff; padding: 18px; border-radius: 12px; border: 2px solid #bfdbfe;">'
-            + '<div style="font-size: 18px; font-weight: 700; color: #0284c7; margin-bottom: 10px;">🎥 Long-form Published</div>'
-            + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Count</div><div style="font-size: 26px; font-weight: 700; color: #0ea5e9;">' + lm.count + '</div></div>'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #0ea5e9;">' + lm.views.toLocaleString() + '</div></div>'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #1e293b;">' + (lm.avgCtr * 100).toFixed(1) + '%</div></div>'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #1e293b;">' + (lm.avgRet * 100).toFixed(1) + '%</div></div>'
+            + '<div style="font-size: 18px; font-weight: 700; color: #0284c7; margin-bottom: 12px; line-height: 1.3;">🎥 Long-form Published</div>'
+            + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Count</div><div style="font-size: 26px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">' + lm.count + '</div></div>'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">' + lm.views.toLocaleString() + '</div></div>'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (lm.avgCtr * 100).toFixed(1) + '%</div></div>'
+            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (lm.avgRet * 100).toFixed(1) + '%</div></div>'
             + '</div></div>'
             + '</div>'
             + '<div style="background: #f8fafc; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0;">'
@@ -333,42 +333,42 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
           <!-- Key Metrics Grid -->
           <div data-pdf-section style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 28px;">
             <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #16a34a;">
-              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px;">WATCH HOURS</div>
-              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.watchHours.toLocaleString()}</div>
-              ${kpis.watchHoursChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.watchHoursChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 6px; font-weight: 600;">${kpis.watchHoursChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.watchHoursChange).toFixed(1)}% vs previous period</div>` : ''}
+              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">WATCH HOURS</div>
+              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1.25;">${kpis.watchHours.toLocaleString()}</div>
+              ${kpis.watchHoursChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.watchHoursChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 8px; font-weight: 600; line-height: 1.4;">${kpis.watchHoursChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.watchHoursChange).toFixed(1)}% vs previous period</div>` : ''}
               ${allTimeKpis ? `<div style="border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 8px;">
                 <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Lifetime: <span style="color: #64748b; font-weight: 600;">${allTimeKpis.watchHours.toLocaleString()}</span></div>
               </div>` : ''}
             </div>
 
             <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #f59e0b;">
-              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px;">SUBSCRIBERS</div>
-              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1;">${channelStats?.subscriberCount ? Number(channelStats.subscriberCount).toLocaleString() : allTimeKpis ? allTimeKpis.subs.toLocaleString() : '—'}</div>
-              <div style="font-size: 13px; color: #64748b; margin-top: 6px; font-weight: 500;">Subscribers Gained: <span style="color: ${kpis.subs >= 0 ? '#16a34a' : '#dc2626'}; font-weight: 600;">${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}</span></div>
-              ${kpis.subsChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.subsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 4px; font-weight: 600;">${kpis.subsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.subsChange).toFixed(1)}% vs previous period</div>` : ''}
+              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">SUBSCRIBERS</div>
+              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1.25;">${channelStats?.subscriberCount ? Number(channelStats.subscriberCount).toLocaleString() : allTimeKpis ? allTimeKpis.subs.toLocaleString() : '—'}</div>
+              <div style="font-size: 13px; color: #64748b; margin-top: 8px; font-weight: 500; line-height: 1.4;">Subscribers Gained: <span style="color: ${kpis.subs >= 0 ? '#16a34a' : '#dc2626'}; font-weight: 600;">${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}</span></div>
+              ${kpis.subsChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.subsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 6px; font-weight: 600; line-height: 1.4;">${kpis.subsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.subsChange).toFixed(1)}% vs previous period</div>` : ''}
             </div>
           </div>
 
           <!-- Summary Stats -->
-          <div data-pdf-section style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 22px 24px; border-radius: 12px; margin-bottom: 28px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+          <div data-pdf-section style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 24px 28px; border-radius: 12px; margin-bottom: 28px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; text-align: center;">
               <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px;">TOTAL VIDEOS</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${filtered.length}</div>
-                ${kpis.countChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.countChange >= 0 ? '#86efac' : '#fca5a5'}; margin-top: 4px; font-weight: 600;">${kpis.countChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.countChange).toFixed(1)}%</div>` : ''}
+                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">TOTAL VIDEOS</div>
+                <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${filtered.length}</div>
+                ${kpis.countChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.countChange >= 0 ? '#86efac' : '#fca5a5'}; margin-top: 8px; font-weight: 600; line-height: 1.4;">${kpis.countChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.countChange).toFixed(1)}%</div>` : ''}
               </div>
               <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px;">AVG VIEWS/VIDEO</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${filtered.length > 0 ? Math.round(kpis.views / filtered.length).toLocaleString() : '0'}</div>
-                ${kpis.avgViewsPerVideoChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.avgViewsPerVideoChange >= 0 ? '#86efac' : '#fca5a5'}; margin-top: 4px; font-weight: 600;">${kpis.avgViewsPerVideoChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.avgViewsPerVideoChange).toFixed(1)}%</div>` : ''}
+                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">AVG VIEWS/VIDEO</div>
+                <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${filtered.length > 0 ? Math.round(kpis.views / filtered.length).toLocaleString() : '0'}</div>
+                ${kpis.avgViewsPerVideoChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.avgViewsPerVideoChange >= 0 ? '#86efac' : '#fca5a5'}; margin-top: 8px; font-weight: 600; line-height: 1.4;">${kpis.avgViewsPerVideoChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.avgViewsPerVideoChange).toFixed(1)}%</div>` : ''}
               </div>
               <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px;">AVG CTR</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${(kpis.avgCtr * 100).toFixed(1)}%</div>
+                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">AVG CTR</div>
+                <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${(kpis.avgCtr * 100).toFixed(1)}%</div>
               </div>
               <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px;">AVG RETENTION</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${(kpis.avgRet * 100).toFixed(1)}%</div>
+                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">AVG RETENTION</div>
+                <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${(kpis.avgRet * 100).toFixed(1)}%</div>
               </div>
             </div>
           </div>
@@ -376,54 +376,54 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
           <!-- Content Performance -->
           <div data-pdf-section style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;">
             <div style="background: #fff7ed; padding: 20px; border-radius: 12px; border: 3px solid #f97316;">
-              <div style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">📱 Shorts Performance</div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+              <div style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 14px; line-height: 1.3;">📱 Shorts Performance</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 6px; font-weight: 600;">Videos</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #f97316;">${kpis.shortsMetrics.count}</div>
+                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Videos</div>
+                  <div style="font-size: 28px; font-weight: 700; color: #f97316; line-height: 1.25;">${kpis.shortsMetrics.count}</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 6px; font-weight: 600;">Views</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #f97316;">${(kpis.shortsMetrics.views / 1000).toFixed(1)}K</div>
+                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Views</div>
+                  <div style="font-size: 28px; font-weight: 700; color: #f97316; line-height: 1.25;">${(kpis.shortsMetrics.views / 1000).toFixed(1)}K</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 6px; font-weight: 600;">Avg CTR</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${(kpis.shortsMetrics.avgCtr * 100).toFixed(1)}%</div>
+                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg CTR</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #1e293b; line-height: 1.25;">${(kpis.shortsMetrics.avgCtr * 100).toFixed(1)}%</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 6px; font-weight: 600;">Avg Retention</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${(kpis.shortsMetrics.avgRet * 100).toFixed(1)}%</div>
+                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg Retention</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #1e293b; line-height: 1.25;">${(kpis.shortsMetrics.avgRet * 100).toFixed(1)}%</div>
                 </div>
               </div>
             </div>
 
             <div style="background: #eff6ff; padding: 20px; border-radius: 12px; border: 3px solid #0ea5e9;">
-              <div style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 12px;">🎥 Long-form Performance</div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+              <div style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 14px; line-height: 1.3;">🎥 Long-form Performance</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 6px; font-weight: 600;">Videos</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9;">${kpis.longsMetrics.count}</div>
+                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Videos</div>
+                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">${kpis.longsMetrics.count}</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 6px; font-weight: 600;">Views</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9;">${(kpis.longsMetrics.views / 1000).toFixed(1)}K</div>
+                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Views</div>
+                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">${(kpis.longsMetrics.views / 1000).toFixed(1)}K</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 6px; font-weight: 600;">Avg CTR</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${(kpis.longsMetrics.avgCtr * 100).toFixed(1)}%</div>
+                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg CTR</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #1e293b; line-height: 1.25;">${(kpis.longsMetrics.avgCtr * 100).toFixed(1)}%</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 6px; font-weight: 600;">Avg Retention</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${(kpis.longsMetrics.avgRet * 100).toFixed(1)}%</div>
+                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg Retention</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #1e293b; line-height: 1.25;">${(kpis.longsMetrics.avgRet * 100).toFixed(1)}%</div>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Metric Definitions -->
-          <div data-pdf-section style="display: flex; gap: 22px; margin-bottom: 28px; padding: 14px 18px; background: #f1f5f9; border-radius: 10px; border-left: 4px solid #94a3b8;">
-            <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;"><strong style="color: #475569;">CTR (Click-Through Rate):</strong> The percentage of people who saw your thumbnail and clicked to watch.</p>
-            <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;"><strong style="color: #475569;">AVD (Avg View Duration):</strong> The average percentage of your video that viewers watched before leaving.</p>
+          <div data-pdf-section style="display: flex; gap: 22px; margin-bottom: 28px; padding: 16px 18px; background: #f1f5f9; border-radius: 10px; border-left: 4px solid #94a3b8;">
+            <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.6;"><strong style="color: #475569;">CTR (Click-Through Rate):</strong> The percentage of people who saw your thumbnail and clicked to watch.</p>
+            <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.6;"><strong style="color: #475569;">AVD (Avg View Duration):</strong> The average percentage of your video that viewers watched before leaving.</p>
           </div>
 
           <!-- Top Performers -->
@@ -448,8 +448,8 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
                         <div style="display: flex; align-items: center; gap: 10px;">
                           ${video.thumbnailUrl || video.youtubeVideoId ? `<img src="${video.thumbnailUrl || `https://img.youtube.com/vi/${video.youtubeVideoId}/mqdefault.jpg`}" style="width: 64px; height: 36px; object-fit: cover; border-radius: 4px; flex-shrink: 0;" crossorigin="anonymous" />` : ''}
                           <div style="min-width: 0;">
-                            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${video.title || 'Untitled'}</div>
-                            ${video.channel ? `<div style="font-size: 12px; color: #94a3b8; font-weight: 400; margin-top: 2px;">${video.channel}</div>` : ''}
+                            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4;">${video.title || 'Untitled'}</div>
+                            ${video.channel ? `<div style="font-size: 12px; color: #94a3b8; font-weight: 400; margin-top: 4px; line-height: 1.3;">${video.channel}</div>` : ''}
                           </div>
                         </div>
                       </td>
@@ -477,13 +477,13 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
           <div data-pdf-section style="margin-bottom: 32px;">
             <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; line-height: 1.3;">💬 Top Audience Comments</h2>
             ${topComments.map(c => `
-              <div style="background: #f8fafc; padding: 18px 22px; border-radius: 12px; margin-bottom: 12px; border-left: 4px solid #2563eb;">
-                <div style="font-size: 15px; color: #1e293b; line-height: 1.6; margin-bottom: 10px;">"${c.text}"</div>
+              <div style="background: #f8fafc; padding: 18px 22px; border-radius: 12px; margin-bottom: 14px; border-left: 4px solid #2563eb;">
+                <div style="font-size: 15px; color: #1e293b; line-height: 1.7; margin-bottom: 12px;">"${c.text}"</div>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <span style="font-size: 13px; color: #64748b; font-weight: 500;">— ${c.author}</span>
+                  <span style="font-size: 13px; color: #64748b; font-weight: 500; line-height: 1.4;">— ${c.author}</span>
                   <div style="display: flex; align-items: center; gap: 16px;">
-                    <span style="font-size: 12px; color: #94a3b8; max-width: 350px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${c.channel ? c.channel + ' · ' : ''}${c.videoTitle}</span>
-                    <span style="font-size: 13px; color: #2563eb; font-weight: 600;">👍 ${c.likes.toLocaleString()}</span>
+                    <span style="font-size: 12px; color: #94a3b8; max-width: 350px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4;">${c.channel ? c.channel + ' · ' : ''}${c.videoTitle}</span>
+                    <span style="font-size: 13px; color: #2563eb; font-weight: 600; line-height: 1.4;">👍 ${c.likes.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -496,13 +496,13 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
           <div data-pdf-section style="margin-bottom: 32px;">
             <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; padding-bottom: 10px; border-bottom: 3px solid #10b981; line-height: 1.3;">🎯 Key Opportunities</h2>
             ${opportunities.map((opp, idx) => `
-              <div style="display: flex; gap: 16px; margin-bottom: 16px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); padding: 22px; border-radius: 14px; border: 2px solid #86efac;">
+              <div style="display: flex; gap: 16px; margin-bottom: 18px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); padding: 22px; border-radius: 14px; border: 2px solid #86efac;">
                 <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #059669); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: white; flex-shrink: 0; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">
                   ${idx + 1}
                 </div>
                 <div style="flex: 1;">
-                  <div style="font-size: 18px; font-weight: 700; color: #065f46; margin-bottom: 8px;">${opp.title}</div>
-                  <div style="font-size: 15px; color: #374151; line-height: 1.7;">${opp.recommendation}</div>
+                  <div style="font-size: 18px; font-weight: 700; color: #065f46; margin-bottom: 10px; line-height: 1.35;">${opp.title}</div>
+                  <div style="font-size: 15px; color: #374151; line-height: 1.75;">${opp.recommendation}</div>
                 </div>
               </div>
             `).join('')}
@@ -518,22 +518,22 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
             <div style="background: linear-gradient(135deg, #f8fafc, #e0e7ff); padding: 28px; border-radius: 14px; border: 2px solid #818cf8;">
               ${aiContent.summary.split('\n').map(line => {
                 if (line.startsWith('# ')) {
-                  return `<h3 style="font-size: 26px; font-weight: 700; color: #1e3a8a; margin: 20px 0 12px 0;">${line.substring(2)}</h3>`;
+                  return `<h3 style="font-size: 26px; font-weight: 700; color: #1e3a8a; margin: 22px 0 14px 0; line-height: 1.35;">${line.substring(2)}</h3>`;
                 }
                 if (line.startsWith('## ')) {
-                  return `<h4 style="font-size: 22px; font-weight: 600; color: #312e81; margin: 18px 0 10px 0; padding-left: 12px; border-left: 4px solid #6366f1;">${line.substring(3)}</h4>`;
+                  return `<h4 style="font-size: 22px; font-weight: 600; color: #312e81; margin: 20px 0 12px 0; padding-left: 12px; border-left: 4px solid #6366f1; line-height: 1.35;">${line.substring(3)}</h4>`;
                 }
                 if (line.startsWith('### ')) {
-                  return `<h5 style="font-size: 18px; font-weight: 600; color: #4338ca; margin: 14px 0 8px 0;">${line.substring(4)}</h5>`;
+                  return `<h5 style="font-size: 18px; font-weight: 600; color: #4338ca; margin: 16px 0 10px 0; line-height: 1.35;">${line.substring(4)}</h5>`;
                 }
                 if (line.startsWith('- ') || line.startsWith('• ')) {
-                  return `<li style="margin-left: 24px; margin-bottom: 8px; color: #374151; font-size: 15px; line-height: 1.6;">${line.substring(2)}</li>`;
+                  return `<li style="margin-left: 24px; margin-bottom: 10px; color: #374151; font-size: 15px; line-height: 1.7;">${line.substring(2)}</li>`;
                 }
                 if (line.trim() === '') {
-                  return '<div style="height: 12px;"></div>';
+                  return '<div style="height: 14px;"></div>';
                 }
                 const boldText = line.replace(/\*\*(.+?)\*\*/g, '<strong style="color: #1d4ed8; font-weight: 600;">$1</strong>');
-                return `<p style="color: #374151; font-size: 15px; line-height: 1.7; margin-bottom: 12px;">${boldText}</p>`;
+                return `<p style="color: #374151; font-size: 15px; line-height: 1.7; margin-bottom: 14px;">${boldText}</p>`;
               }).join('')}
             </div>
           </div>
@@ -547,33 +547,33 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
             </h2>
             ${aiContent.ideas.map((idea, idx) => `
               <div style="background: linear-gradient(135deg, #faf5ff, #ede9fe); padding: 24px; border-radius: 14px; margin-bottom: 20px; border: 2px solid #a78bfa;">
-                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 18px;">
                   <div style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #7c3aed, #2563eb); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; color: white; box-shadow: 0 4px 8px rgba(124, 58, 237, 0.3);">
                     ${idx + 1}
                   </div>
                   <div>
-                    <div style="display: inline-block; padding: 6px 14px; border-radius: 8px; background: #e0e7ff; color: #4338ca; font-size: 13px; font-weight: 600; margin-right: 8px;">
+                    <div style="display: inline-block; padding: 6px 14px; border-radius: 8px; background: #e0e7ff; color: #4338ca; font-size: 13px; font-weight: 600; margin-right: 8px; line-height: 1.4;">
                       ${idea.topic}
                     </div>
-                    <div style="display: inline-block; padding: 6px 14px; border-radius: 8px; border: 2px solid #10b981; background: #d1fae5; color: #065f46; font-size: 13px; font-weight: 600;">
+                    <div style="display: inline-block; padding: 6px 14px; border-radius: 8px; border: 2px solid #10b981; background: #d1fae5; color: #065f46; font-size: 13px; font-weight: 600; line-height: 1.4;">
                       ${idea.confidence} confidence
                     </div>
                   </div>
                 </div>
-                <h3 style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 16px; line-height: 1.3;">
+                <h3 style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 16px; line-height: 1.35;">
                   ${idea.title}
                 </h3>
-                <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); padding: 16px; border-radius: 10px; margin-bottom: 12px; border-left: 4px solid #2563eb;">
-                  <div style="font-size: 12px; font-weight: 700; color: #1e3a8a; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Opening Hook</div>
-                  <div style="font-size: 14px; color: #1e40af; line-height: 1.6;">${idea.hook}</div>
+                <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); padding: 16px; border-radius: 10px; margin-bottom: 14px; border-left: 4px solid #2563eb;">
+                  <div style="font-size: 12px; font-weight: 700; color: #1e3a8a; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; line-height: 1.3;">Opening Hook</div>
+                  <div style="font-size: 14px; color: #1e40af; line-height: 1.7;">${idea.hook}</div>
                 </div>
-                <div style="background: linear-gradient(135deg, #f3e8ff, #e9d5ff); padding: 16px; border-radius: 10px; margin-bottom: 12px; border-left: 4px solid #7c3aed;">
-                  <div style="font-size: 12px; font-weight: 700; color: #5b21b6; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Thumbnail Concept</div>
-                  <div style="font-size: 14px; color: #6b21a8; line-height: 1.6;">${idea.thumbnailConcept}</div>
+                <div style="background: linear-gradient(135deg, #f3e8ff, #e9d5ff); padding: 16px; border-radius: 10px; margin-bottom: 14px; border-left: 4px solid #7c3aed;">
+                  <div style="font-size: 12px; font-weight: 700; color: #5b21b6; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; line-height: 1.3;">Thumbnail Concept</div>
+                  <div style="font-size: 14px; color: #6b21a8; line-height: 1.7;">${idea.thumbnailConcept}</div>
                 </div>
                 <div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); padding: 16px; border-radius: 10px; border-left: 4px solid #10b981;">
-                  <div style="font-size: 12px; font-weight: 700; color: #065f46; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">Why This Works</div>
-                  <div style="font-size: 14px; color: #047857; line-height: 1.6;">${idea.whyItWorks}</div>
+                  <div style="font-size: 12px; font-weight: 700; color: #065f46; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; line-height: 1.3;">Why This Works</div>
+                  <div style="font-size: 14px; color: #047857; line-height: 1.7;">${idea.whyItWorks}</div>
                 </div>
               </div>
             `).join('')}
@@ -582,10 +582,10 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
 
           <!-- Footer -->
           <div data-pdf-footer style="padding-top: 18px; border-top: 1px solid #e2e8f0; text-align: center;">
-            <div style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 8px;">
-              <span style="color: #64748b; font-size: 14px; font-weight: 500;">Generated by Full View Analytics</span>
+            <div style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 10px;">
+              <span style="color: #64748b; font-size: 14px; font-weight: 500; line-height: 1.4;">Generated by Full View Analytics</span>
               <span style="color: #cbd5e1; font-size: 14px;">•</span>
-              <span style="color: #94a3b8; font-size: 14px; font-weight: 500;">Powered by</span>
+              <span style="color: #94a3b8; font-size: 14px; font-weight: 500; line-height: 1.4;">Powered by</span>
               <img src="/crux-logo.png" alt="CRUX" style="height: 32px; object-fit: contain; vertical-align: middle;" />
             </div>
             <div style="color: #cbd5e1; font-size: 13px;">${dateStr} • This report contains confidential information</div>
