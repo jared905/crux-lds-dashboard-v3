@@ -11,7 +11,7 @@
 
 import { supabase } from './supabaseClient';
 import { claudeAPI } from './claudeAPI';
-import { getBrandContextWithSignals } from './brandContextService';
+import { getBrandContextWithSignals, getCurrentBrandContext } from './brandContextService';
 import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 
 // ============================================
@@ -301,7 +301,257 @@ export async function getCompetitorBenchmarks(clientId) {
 }
 
 // ============================================
-// PERFORMANCE CONTEXT
+// AUTO-POPULATE CONTEXT FIELDS
+// ============================================
+
+/**
+ * Fetch all 4 context fields from existing data sources and return
+ * human-readable text for each. Used to auto-populate the visible
+ * context text areas in the Atomizer UI.
+ *
+ * @param {string} channelId - Client channel ID (for brand context + audience signals)
+ * @param {string} clientId - Client ID (for performance + competitor data)
+ * @returns {Promise<{ strategyBrief: string, performanceData: string, audiencePersona: string, competitorBenchmarks: string }>}
+ */
+export async function fetchAtomizerContext(channelId, clientId) {
+  const [strategyResult, perfResult, audienceResult, compResult] = await Promise.allSettled([
+    fetchStrategyBrief(channelId),
+    fetchPerformanceData(clientId),
+    fetchAudiencePersona(channelId),
+    fetchCompetitorText(clientId),
+  ]);
+
+  return {
+    strategyBrief: strategyResult.status === 'fulfilled' ? strategyResult.value : '',
+    performanceData: perfResult.status === 'fulfilled' ? perfResult.value : '',
+    audiencePersona: audienceResult.status === 'fulfilled' ? audienceResult.value : '',
+    competitorBenchmarks: compResult.status === 'fulfilled' ? compResult.value : '',
+  };
+}
+
+/** Strategy Brief — from brand context strategic_goals, messaging_priorities, content_themes */
+async function fetchStrategyBrief(channelId) {
+  if (!channelId) return '';
+  const bc = await getCurrentBrandContext(channelId);
+  if (!bc) return '';
+
+  const lines = [];
+
+  // Strategic goals
+  const sg = bc.strategic_goals;
+  if (sg && typeof sg === 'object') {
+    if (sg.current_phase) lines.push(`Current Phase: ${sg.current_phase}${sg.phase_notes ? ' — ' + sg.phase_notes : ''}`);
+    if (sg.business_objectives?.length) lines.push(`Business Objectives: ${sg.business_objectives.join(', ')}`);
+    if (sg.kpis?.length) lines.push(`KPIs: ${sg.kpis.join(', ')}`);
+    if (sg.growth_targets?.length) {
+      sg.growth_targets.forEach(t => {
+        lines.push(`Target: ${t.target} ${t.metric}${t.timeframe ? ' within ' + t.timeframe : ''}`);
+      });
+    }
+  }
+
+  // Messaging priorities
+  const mp = bc.messaging_priorities;
+  if (mp && typeof mp === 'object') {
+    if (mp.current_campaigns?.length) {
+      lines.push('');
+      lines.push('Messaging Priorities:');
+      mp.current_campaigns.forEach(c => {
+        lines.push(`- Campaign: ${c.name}${c.status ? ' (' + c.status + ')' : ''}${c.description ? ' — ' + c.description : ''}`);
+      });
+    }
+    if (mp.primary_ctas?.length) {
+      lines.push(`Primary CTAs: ${mp.primary_ctas.map(c => c.action).join(', ')}`);
+    }
+    if (mp.strategic_themes?.length) {
+      lines.push(`Strategic Themes: ${mp.strategic_themes.join(', ')}`);
+    }
+  }
+
+  // Content themes
+  const ct = bc.content_themes;
+  if (ct && typeof ct === 'object') {
+    if (ct.themes?.length) {
+      lines.push('');
+      lines.push('Content Themes:');
+      ct.themes.forEach(t => {
+        lines.push(`- ${t.theme}${t.frequency ? ' (' + t.frequency + ')' : ''}${t.sub_topics?.length ? ' — ' + t.sub_topics.join(', ') : ''}`);
+      });
+    }
+  }
+
+  return lines.join('\n').trim();
+}
+
+/** Performance Data — from intelligence_briefs top_performers + metrics_snapshot */
+async function fetchPerformanceData(clientId) {
+  if (!supabase || !clientId) return '';
+
+  const { data: brief, error } = await supabase
+    .from('intelligence_briefs')
+    .select('top_performers, metrics_snapshot')
+    .eq('client_id', clientId)
+    .order('brief_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !brief) return '';
+
+  const lines = [];
+  const performers = brief.top_performers;
+  if (Array.isArray(performers) && performers.length > 0) {
+    lines.push('Top Performers:');
+    performers.slice(0, 10).forEach(v => {
+      const parts = [`"${v.title}"`];
+      if (v.views) parts.push(`${Number(v.views).toLocaleString()} views`);
+      if (v.ctr) parts.push(`${(Number(v.ctr) * 100).toFixed(1)}% CTR`);
+      if (v.retention) parts.push(`${(Number(v.retention) * 100).toFixed(0)}% retention`);
+      lines.push(`- ${parts.join(' | ')}`);
+    });
+  }
+
+  const ms = brief.metrics_snapshot;
+  if (ms) {
+    const avgParts = [];
+    if (ms.avgCTR) avgParts.push(`Avg CTR: ${(Number(ms.avgCTR) * 100).toFixed(1)}%`);
+    if (ms.avgRetention) avgParts.push(`Avg Retention: ${(Number(ms.avgRetention) * 100).toFixed(0)}%`);
+    if (ms.totalVideos) avgParts.push(`Videos analyzed: ${ms.totalVideos}`);
+    if (avgParts.length) {
+      lines.push('');
+      lines.push(`Channel Averages: ${avgParts.join(' | ')}`);
+    }
+  }
+
+  return lines.join('\n').trim();
+}
+
+/** Audience Persona — from computed audience signals + brand context audience_signals */
+async function fetchAudiencePersona(channelId) {
+  if (!channelId) return '';
+
+  let computedSignals = null;
+  try {
+    const { computeAudienceSignals } = await import('./audienceSignalService');
+    computedSignals = await computeAudienceSignals(channelId);
+  } catch (e) {
+    // Audience signals unavailable
+  }
+
+  // Also pull manual audience notes from brand context
+  let bcAudience = null;
+  try {
+    const bc = await getCurrentBrandContext(channelId);
+    bcAudience = bc?.audience_signals;
+  } catch (e) { /* ignore */ }
+
+  const lines = [];
+
+  // High engagement formats (computed or manual)
+  const formats = computedSignals?.high_engagement_formats || bcAudience?.high_engagement_formats || [];
+  if (formats.length > 0) {
+    lines.push('High Engagement Formats:');
+    formats.forEach(f => {
+      const parts = [f.format];
+      if (f._computed) {
+        parts.push(`${f._computed.count} videos`);
+        parts.push(`avg ${Math.round(f._computed.avg_views).toLocaleString()} views`);
+        if (f._computed.vs_channel_avg) parts.push(`${f._computed.vs_channel_avg > 0 ? '+' : ''}${Math.round(f._computed.vs_channel_avg)}% vs avg`);
+        if (f._computed.avg_ctr) parts.push(`${(f._computed.avg_ctr * 100).toFixed(1)}% CTR`);
+      } else if (f.notes) {
+        parts.push(f.notes);
+      }
+      lines.push(`- ${parts.join(' | ')}`);
+    });
+  }
+
+  // Computed signals
+  if (computedSignals?._computed) {
+    const c = computedSignals._computed;
+
+    if (c.optimal_duration?.sweet_spots?.length) {
+      lines.push('');
+      lines.push('Duration Sweet Spots:');
+      c.optimal_duration.sweet_spots.forEach(s => {
+        lines.push(`- ${s.range}: avg ${Math.round(s.avg_views).toLocaleString()} views, ${Math.round(s.avg_retention * 100)}% retention (${s.count} videos)`);
+      });
+    }
+
+    if (c.posting_patterns) {
+      const pp = c.posting_patterns;
+      if (pp.best_days?.length) lines.push(`\nBest Posting Days: ${pp.best_days.join(', ')}`);
+      if (pp.avg_uploads_per_week) lines.push(`Upload Frequency: ${pp.avg_uploads_per_week.toFixed(1)}/week`);
+      if (pp.frequency_insight) lines.push(`Insight: ${pp.frequency_insight}`);
+    }
+
+    if (c.subscriber_drivers?.length) {
+      lines.push('');
+      lines.push('Subscriber Drivers:');
+      c.subscriber_drivers.slice(0, 3).forEach(d => {
+        lines.push(`- ${d.attribute}: ${d.note}`);
+      });
+    }
+
+    if (c.growth_signals?.subscriber_velocity) {
+      const sv = c.growth_signals.subscriber_velocity;
+      lines.push(`\nGrowth Trend: ${sv.trend} (${sv.recent_30d.toLocaleString()} subs last 30d, ${sv.ratio}x vs prior period)`);
+    }
+  }
+
+  // Content gaps
+  const gaps = computedSignals?.content_gaps || bcAudience?.content_gaps || [];
+  if (gaps.length > 0) {
+    lines.push('');
+    lines.push('Content Gaps:');
+    gaps.forEach(g => {
+      lines.push(`- ${g.observation}${g.youtube_opportunity ? ' → ' + g.youtube_opportunity : ''}`);
+    });
+  }
+
+  // Manual audience demographics
+  if (bcAudience?.audience_demographics_observed?.interest_clusters?.length) {
+    lines.push(`\nAudience Interests: ${bcAudience.audience_demographics_observed.interest_clusters.join(', ')}`);
+  }
+
+  return lines.join('\n').trim();
+}
+
+/** Competitor Benchmarks — readable text version of getCompetitorBenchmarks */
+async function fetchCompetitorText(clientId) {
+  if (!supabase || !clientId) return '';
+
+  const { data: competitors, error: compError } = await supabase
+    .from('channels')
+    .select('id, name')
+    .eq('client_id', clientId)
+    .eq('is_competitor', true);
+
+  if (compError || !competitors?.length) return '';
+
+  const channelIds = competitors.map(c => c.id);
+  const channelNames = Object.fromEntries(competitors.map(c => [c.id, c.name]));
+
+  const { data: videos, error: vidError } = await supabase
+    .from('videos')
+    .select('title, view_count, channel_id, duration_seconds, published_at')
+    .in('channel_id', channelIds)
+    .order('view_count', { ascending: false })
+    .limit(20);
+
+  if (vidError || !videos?.length) return '';
+
+  const lines = ['Top Competitor Videos:'];
+  videos.forEach(v => {
+    const channel = channelNames[v.channel_id] || 'Unknown';
+    const views = (v.view_count || 0).toLocaleString();
+    const dur = v.duration_seconds ? (v.duration_seconds < 62 ? 'Short' : `${Math.round(v.duration_seconds / 60)}min`) : '';
+    lines.push(`- "${v.title}" (${channel}) | ${views} views${dur ? ' | ' + dur : ''}`);
+  });
+
+  return lines.join('\n').trim();
+}
+
+// ============================================
+// PERFORMANCE CONTEXT (prompt block for injection)
 // ============================================
 
 /**
@@ -407,32 +657,17 @@ export async function analyzeTranscript(text, title = 'Untitled', channelId = nu
   let systemPrompt = ATOMIZER_V2_SYSTEM_PROMPT;
 
   if (channelId) {
-    // Inject brand context
+    // Inject brand context (brand voice + content boundaries — foundational context)
     try {
       const brandBlock = await getBrandContextWithSignals(channelId, 'atomizer');
       if (brandBlock) systemPrompt += '\n\n' + brandBlock;
     } catch (e) {
       console.warn('[atomizer] Brand context fetch failed, proceeding without:', e.message);
     }
-
-    // Inject performance context from intelligence briefs
-    try {
-      const perfBlock = await getClientPerformanceContext(channelId);
-      if (perfBlock) systemPrompt += '\n\n' + perfBlock;
-    } catch (e) {
-      console.warn('[atomizer] Performance context fetch failed, proceeding without:', e.message);
-    }
-
-    // Inject competitor benchmarks (auto-fetched)
-    try {
-      const compBlock = await getCompetitorBenchmarks(channelId);
-      if (compBlock) systemPrompt += '\n\n' + compBlock;
-    } catch (e) {
-      console.warn('[atomizer] Competitor benchmarks fetch failed, proceeding without:', e.message);
-    }
   }
 
-  // Inject manual context inputs (user-provided, optional)
+  // Inject context from visible fields (auto-populated + user-edited)
+  // Performance data, competitor benchmarks, strategy, and audience now come through here
   const manualBlock = buildManualContext(contextInputs);
   if (manualBlock) systemPrompt += '\n\n' + manualBlock;
 
@@ -835,6 +1070,7 @@ export default {
   saveAtomizedContent,
   createBriefFromAtomized,
   saveRemixAsBrief,
+  fetchAtomizerContext,
   getClientPerformanceContext,
   getCompetitorBenchmarks,
   buildManualContext,

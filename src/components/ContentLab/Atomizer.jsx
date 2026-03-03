@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   Zap, FileText, Scissors, MessageSquare, Loader,
   ChevronDown, ChevronUp, Check, Plus, Shuffle,
@@ -8,7 +8,7 @@ import {
 import {
   analyzeTranscript, saveTranscript, markTranscriptAnalyzed,
   saveAtomizedContent, createBriefFromAtomized,
-  remixDirections, saveRemixAsBrief,
+  remixDirections, saveRemixAsBrief, fetchAtomizerContext,
 } from "../../services/atomizerService";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
@@ -496,12 +496,14 @@ export default function Atomizer({ activeClient }) {
 
   // Context inputs
   const [contextOpen, setContextOpen] = useState(false);
+  const [contextLoading, setContextLoading] = useState(false);
   const [contextInputs, setContextInputs] = useState({
     strategyBrief: "",
     performanceData: "",
     audiencePersona: "",
     competitorBenchmarks: "",
   });
+  const [autoFilledKeys, setAutoFilledKeys] = useState(new Set());
 
   // Remix state
   const [remixOpen, setRemixOpen] = useState(false);
@@ -518,7 +520,43 @@ export default function Atomizer({ activeClient }) {
 
   const updateContext = useCallback((key, value) => {
     setContextInputs(prev => ({ ...prev, [key]: value }));
+    // Mark as no longer auto-filled once user edits
+    setAutoFilledKeys(prev => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
   }, []);
+
+  // Auto-populate context fields from existing data sources
+  useEffect(() => {
+    if (!activeClient?.id) return;
+    let cancelled = false;
+    setContextLoading(true);
+
+    fetchAtomizerContext(activeClient.id, activeClient.id)
+      .then(fetched => {
+        if (cancelled) return;
+        const filled = new Set();
+        const newInputs = {};
+        for (const key of ['strategyBrief', 'performanceData', 'audiencePersona', 'competitorBenchmarks']) {
+          if (fetched[key]) {
+            newInputs[key] = fetched[key];
+            filled.add(key);
+          } else {
+            newInputs[key] = '';
+          }
+        }
+        setContextInputs(newInputs);
+        setAutoFilledKeys(filled);
+        if (filled.size > 0) setContextOpen(true);
+      })
+      .catch(err => console.warn('[atomizer] Context auto-fetch failed:', err.message))
+      .finally(() => { if (!cancelled) setContextLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [activeClient?.id]);
 
   // Cost estimates
   const estimatedInputTokens = 2800 + Math.ceil(wordCount / 0.75);
@@ -764,7 +802,7 @@ export default function Atomizer({ activeClient }) {
           />
         </div>
 
-        {/* Context Inputs (Collapsible) */}
+        {/* Context Inputs (Collapsible, Auto-populated) */}
         <div style={{
           background: "#1a1a1a", border: `1px solid ${contextFilledCount > 0 ? "#3b82f644" : "#333"}`,
           borderRadius: "8px", marginBottom: "16px", overflow: "hidden",
@@ -780,14 +818,17 @@ export default function Atomizer({ activeClient }) {
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <Layers size={14} color="#888" />
               <span style={{ fontSize: "12px", fontWeight: "600", color: "#b0b0b0" }}>
-                Context Inputs (Optional)
+                Context Inputs
               </span>
-              {contextFilledCount > 0 && (
+              {contextLoading && (
+                <Loader size={12} color="#3b82f6" style={{ animation: "spin 1s linear infinite" }} />
+              )}
+              {!contextLoading && contextFilledCount > 0 && (
                 <span style={{
-                  fontSize: "10px", fontWeight: "700", background: "#3b82f622",
-                  color: "#3b82f6", borderRadius: "10px", padding: "2px 8px",
+                  fontSize: "10px", fontWeight: "700", background: autoFilledKeys.size > 0 ? "#16a34a22" : "#3b82f622",
+                  color: autoFilledKeys.size > 0 ? "#22c55e" : "#3b82f6", borderRadius: "10px", padding: "2px 8px",
                 }}>
-                  {contextFilledCount}/4 filled
+                  {contextFilledCount}/4 {autoFilledKeys.size > 0 ? "auto-filled" : "filled"}
                 </span>
               )}
             </div>
@@ -808,6 +849,11 @@ export default function Atomizer({ activeClient }) {
                     <label style={{ fontSize: "11px", fontWeight: "600", color: contextInputs[f.key].trim() ? "#b0b0b0" : "#666" }}>
                       {f.label}
                     </label>
+                    {autoFilledKeys.has(f.key) && (
+                      <span style={{ fontSize: "9px", fontWeight: "600", color: "#22c55e", background: "#16a34a22", borderRadius: "6px", padding: "1px 6px" }}>
+                        Auto-filled
+                      </span>
+                    )}
                   </div>
                   <textarea
                     value={contextInputs[f.key]}
@@ -815,7 +861,8 @@ export default function Atomizer({ activeClient }) {
                     placeholder={f.placeholder}
                     rows={4}
                     style={{
-                      width: "100%", background: "#252525", border: `1px solid ${contextInputs[f.key].trim() ? "#3b82f644" : "#333"}`,
+                      width: "100%", background: "#252525",
+                      border: `1px solid ${autoFilledKeys.has(f.key) ? "#16a34a44" : contextInputs[f.key].trim() ? "#3b82f644" : "#333"}`,
                       borderRadius: "6px", padding: "8px 10px", color: "#e0e0e0",
                       fontSize: "12px", lineHeight: "1.5", resize: "vertical",
                       outline: "none", fontFamily: "inherit", boxSizing: "border-box",
