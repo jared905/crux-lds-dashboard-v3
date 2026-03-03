@@ -331,16 +331,7 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
           </div>
 
           <!-- Key Metrics Grid -->
-          <div data-pdf-section style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px;">
-            <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #2563eb;">
-              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px;">TOTAL VIEWS</div>
-              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.views.toLocaleString()}</div>
-              ${kpis.viewsChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.viewsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 6px; font-weight: 600;">${kpis.viewsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.viewsChange).toFixed(1)}% vs previous period</div>` : ''}
-              ${allTimeKpis ? `<div style="border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 8px;">
-                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Lifetime: <span style="color: #64748b; font-weight: 600;">${allTimeKpis.views.toLocaleString()}</span></div>
-              </div>` : ''}
-            </div>
-
+          <div data-pdf-section style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 28px;">
             <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #16a34a;">
               <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px;">WATCH HOURS</div>
               <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.watchHours.toLocaleString()}</div>
@@ -355,14 +346,6 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
               <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1;">${channelStats?.subscriberCount ? Number(channelStats.subscriberCount).toLocaleString() : allTimeKpis ? allTimeKpis.subs.toLocaleString() : '—'}</div>
               <div style="font-size: 13px; color: #64748b; margin-top: 6px; font-weight: 500;">Subscribers Gained: <span style="color: ${kpis.subs >= 0 ? '#16a34a' : '#dc2626'}; font-weight: 600;">${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}</span></div>
               ${kpis.subsChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.subsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 4px; font-weight: 600;">${kpis.subsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.subsChange).toFixed(1)}% vs previous period</div>` : ''}
-            </div>
-
-            <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #8b5cf6;">
-              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px;">IMPRESSIONS</div>
-              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1;">${filtered.reduce((s, r) => s + (r.impressions || 0), 0).toLocaleString()}</div>
-              <div style="border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 8px;">
-                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Avg CTR: <span style="color: #64748b; font-weight: 600;">${(kpis.avgCtr * 100).toFixed(1)}%</span></div>
-              </div>
             </div>
           </div>
 
