@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   FileText, Trash2, ChevronDown, ChevronUp, Loader, Link2, Unlink, TrendingUp, TrendingDown,
-  Check, X as XIcon, Copy, ClipboardCheck,
+  Check, X as XIcon, Copy, ClipboardCheck, Download,
 } from "lucide-react";
 import { supabase } from "../../services/supabaseClient";
 
@@ -165,11 +165,263 @@ function buildBriefMarkdown(brief, channelName) {
   return lines.join("\n").trim();
 }
 
+// ─── PDF export ─────────────────────────────────────────────────────────
+function esc(str) {
+  if (!str) return "";
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+async function exportBriefPDF(brief, channelName) {
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import("html2canvas"),
+    import("jspdf"),
+  ]);
+
+  const d = brief.brief_data || {};
+  const meta = d.direction_metadata || {};
+  const statusLabel = STATUS_CONFIG[brief.status]?.label || brief.status;
+  const dateStr = brief.created_at
+    ? new Date(brief.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    : "";
+
+  const sections = [];
+
+  // Header
+  sections.push(`
+    <div style="margin-bottom:28px;">
+      <div style="font-size:28px;font-weight:800;color:#1e293b;margin-bottom:8px;line-height:1.3;">${esc(brief.title || "Untitled Brief")}</div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        ${channelName ? `<span style="font-size:13px;font-weight:600;color:#2563eb;background:#dbeafe;border-radius:6px;padding:3px 12px;">${esc(channelName)}</span>` : ""}
+        ${meta.format_type ? `<span style="font-size:13px;font-weight:600;color:#b45309;background:#fef3c7;border-radius:6px;padding:3px 12px;">${esc(meta.format_type)}</span>` : ""}
+        ${meta.estimated_duration ? `<span style="font-size:13px;color:#64748b;">${esc(meta.estimated_duration)}</span>` : ""}
+        <span style="font-size:13px;font-weight:600;color:#64748b;background:#f1f5f9;border-radius:6px;padding:3px 12px;">${esc(statusLabel)}</span>
+        ${dateStr ? `<span style="font-size:13px;color:#94a3b8;">${esc(dateStr)}</span>` : ""}
+      </div>
+    </div>
+  `);
+
+  // Hook
+  if (d.hook) {
+    sections.push(`
+      <div style="margin-bottom:22px;border-left:4px solid #f59e0b;padding-left:16px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Hook</div>
+        <div style="font-size:15px;color:#1e293b;line-height:1.6;">${esc(d.hook)}</div>
+      </div>
+    `);
+  }
+
+  // Arc
+  if (d.arc_summary || d.arc) {
+    sections.push(`
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Arc</div>
+        <div style="font-size:15px;color:#334155;line-height:1.6;">${esc(d.arc_summary || d.arc)}</div>
+      </div>
+    `);
+  }
+
+  // Title Variations
+  if (d.title_variations?.length) {
+    const titlesHtml = d.title_variations.map((tv, i) => {
+      const label = typeof tv === "string" ? tv : tv.text || tv.title || "";
+      const style = typeof tv === "object" && tv.style ? tv.style : "";
+      return `<div style="font-size:14px;color:#1e293b;margin-bottom:4px;line-height:1.5;">
+        <span style="color:#64748b;margin-right:6px;">${i + 1}.</span> ${esc(label)}
+        ${style ? `<span style="font-size:11px;font-weight:600;color:#7c3aed;background:#f5f3ff;border-radius:4px;padding:1px 8px;margin-left:8px;">${esc(style)}</span>` : ""}
+      </div>`;
+    }).join("");
+    sections.push(`
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Title Variations</div>
+        ${titlesHtml}
+      </div>
+    `);
+  }
+
+  // Description
+  if (d.description) {
+    sections.push(`
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Description</div>
+        <div style="font-size:14px;color:#334155;line-height:1.7;white-space:pre-wrap;">${esc(d.description)}</div>
+      </div>
+    `);
+  }
+
+  // Thumbnail
+  const thumb = d.thumbnail_suggestion || d.thumbnail;
+  if (thumb) {
+    let thumbContent;
+    if (typeof thumb === "string") {
+      thumbContent = `<div style="font-size:14px;color:#334155;line-height:1.6;">${esc(thumb)}</div>`;
+    } else {
+      thumbContent = [
+        thumb.concept ? `<div style="font-size:14px;color:#334155;line-height:1.6;"><strong style="color:#64748b;">Concept:</strong> ${esc(thumb.concept)}</div>` : "",
+        thumb.transcript_reference ? `<div style="font-size:14px;color:#334155;line-height:1.6;"><strong style="color:#64748b;">Reference:</strong> ${esc(thumb.transcript_reference)}</div>` : "",
+        thumb.visual_elements?.length ? `<div style="font-size:14px;color:#334155;line-height:1.6;"><strong style="color:#64748b;">Elements:</strong> ${esc(thumb.visual_elements.join(", "))}</div>` : "",
+        thumb.text_overlay ? `<div style="font-size:14px;color:#334155;line-height:1.6;"><strong style="color:#64748b;">Text:</strong> ${esc(thumb.text_overlay)}</div>` : "",
+      ].filter(Boolean).join("");
+    }
+    sections.push(`
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Thumbnail Direction</div>
+        ${thumbContent}
+      </div>
+    `);
+  }
+
+  // EDL
+  if (meta.edl?.length) {
+    const edlRows = meta.edl.map((step, i) =>
+      `<div style="font-family:monospace;font-size:13px;color:#334155;margin-bottom:3px;line-height:1.5;">
+        <span style="color:#b45309;font-weight:700;">${i + 1}.</span> ${esc(step.action || step.description || "")} <span style="color:#94a3b8;">—</span> <span style="color:#2563eb;">${esc(step.segment || "")}</span> ${step.pacing ? `<span style="color:#94a3b8;">(${esc(step.pacing)})</span>` : ""}
+      </div>`
+    ).join("");
+    sections.push(`
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">EDL</div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;">${edlRows}</div>
+      </div>
+    `);
+  }
+
+  // B-Roll
+  if (meta.b_roll?.length) {
+    const brollRows = meta.b_roll.map(br =>
+      `<div style="font-size:14px;color:#334155;margin-bottom:4px;line-height:1.5;">
+        <span style="color:#0891b2;font-weight:600;">${esc(br.segment || br.timecode || "Shot")}</span>: ${esc(br.direction || br.description || "")}
+      </div>`
+    ).join("");
+    sections.push(`
+      <div style="margin-bottom:22px;border-left:4px solid #06b6d4;padding-left:16px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">B-Roll</div>
+        ${brollRows}
+      </div>
+    `);
+  }
+
+  // Motion Graphics
+  if (meta.motion_graphics?.length) {
+    const mfxRows = meta.motion_graphics.map(mg =>
+      `<div style="font-size:14px;color:#334155;margin-bottom:4px;line-height:1.5;">
+        <span style="color:#7c3aed;font-weight:600;">${esc(mg.type || "Graphic")}</span>${mg.timecode ? ` <span style="color:#94a3b8;">at ${esc(mg.timecode)}</span>` : ""}: ${esc(mg.content || mg.description || "")}
+      </div>`
+    ).join("");
+    sections.push(`
+      <div style="margin-bottom:22px;border-left:4px solid #a855f7;padding-left:16px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Motion Graphics</div>
+        ${mfxRows}
+      </div>
+    `);
+  }
+
+  // Timestamps
+  if (meta.timestamps?.length) {
+    const tsRows = meta.timestamps.map(ts =>
+      `<div style="font-family:monospace;font-size:13px;color:#334155;margin-bottom:3px;line-height:1.5;">
+        <span style="color:#16a34a;">${esc(ts.in || ts.timecode || "—")}</span>${ts.out ? ` <span style="color:#94a3b8;">→</span> <span style="color:#16a34a;">${esc(ts.out)}</span>` : ""} <span style="color:#64748b;">${esc(ts.note || ts.label || "")}</span>
+      </div>`
+    ).join("");
+    sections.push(`
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Timestamps</div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;">${tsRows}</div>
+      </div>
+    `);
+  }
+
+  // Rationale
+  if (d.rationale) {
+    sections.push(`
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Rationale</div>
+        <div style="font-size:14px;color:#64748b;line-height:1.6;font-style:italic;">${esc(d.rationale)}</div>
+      </div>
+    `);
+  }
+
+  // CTA
+  const cta = d.suggested_cta || d.cta || meta.cta;
+  if (cta) {
+    sections.push(`
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">CTA</div>
+        <div style="font-size:14px;color:#334155;line-height:1.6;">${esc(cta)}</div>
+      </div>
+    `);
+  }
+
+  // Editor Notes
+  if (d.editor_notes) {
+    sections.push(`
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Editor Notes</div>
+        <div style="font-size:14px;color:#334155;line-height:1.6;white-space:pre-wrap;">${esc(d.editor_notes)}</div>
+      </div>
+    `);
+  }
+
+  // Footer
+  sections.push(`
+    <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:11px;color:#94a3b8;">Generated from Full View Studio</span>
+      <span style="font-size:11px;color:#94a3b8;">${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span>
+    </div>
+  `);
+
+  // Build container
+  const container = document.createElement("div");
+  container.style.position = "absolute";
+  container.style.left = "-9999px";
+  container.style.width = "1200px";
+  container.style.backgroundColor = "#ffffff";
+  container.style.padding = "48px";
+  container.style.fontFamily = "system-ui, -apple-system, sans-serif";
+  container.style.color = "#1e293b";
+  container.innerHTML = sections.join("");
+  document.body.appendChild(container);
+
+  await new Promise(r => setTimeout(r, 300));
+
+  const canvas = await html2canvas(container, {
+    scale: 2,
+    backgroundColor: "#ffffff",
+    logging: false,
+  });
+
+  document.body.removeChild(container);
+
+  const pdf = new jsPDF("p", "mm", "a4");
+  const pdfWidth = pdf.internal.pageSize.getWidth();
+  const pdfHeight = pdf.internal.pageSize.getHeight();
+  const imgWidth = pdfWidth;
+  const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+  const imgData = canvas.toDataURL("image/png");
+
+  let heightLeft = imgHeight;
+  let position = 0;
+
+  pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+  heightLeft -= pdfHeight;
+
+  while (heightLeft > 0) {
+    position -= pdfHeight;
+    pdf.addPage();
+    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+    heightLeft -= pdfHeight;
+  }
+
+  const safeTitle = (brief.title || "Brief").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
+  const today = new Date().toISOString().split("T")[0];
+  pdf.save(`Brief_${safeTitle}_${today}.pdf`);
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // BriefDetailPanel
 // ═══════════════════════════════════════════════════════════════════════
 function BriefDetailPanel({ brief, channelName }) {
   const { copiedField, copyText } = useCopyField();
+  const [exportingPDF, setExportingPDF] = useState(false);
   const d = brief.brief_data || {};
   const meta = d.direction_metadata || {};
 
@@ -215,19 +467,41 @@ function BriefDetailPanel({ brief, channelName }) {
             </span>
           )}
         </div>
-        <button
-          onClick={() => copyText(fullMarkdown, "_all")}
-          style={{
-            background: copiedField === "_all" ? "#16a34a" : "#252525",
-            border: `1px solid ${copiedField === "_all" ? "#22c55e" : "#444"}`,
-            borderRadius: "6px", padding: "6px 14px", cursor: "pointer",
-            display: "flex", alignItems: "center", gap: "6px",
-            color: copiedField === "_all" ? "#fff" : "#e0e0e0", fontSize: "12px", fontWeight: "600",
-          }}
-        >
-          {copiedField === "_all" ? <ClipboardCheck size={14} /> : <Copy size={14} />}
-          {copiedField === "_all" ? "Copied!" : "Copy Brief"}
-        </button>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            onClick={() => copyText(fullMarkdown, "_all")}
+            style={{
+              background: copiedField === "_all" ? "#16a34a" : "#252525",
+              border: `1px solid ${copiedField === "_all" ? "#22c55e" : "#444"}`,
+              borderRadius: "6px", padding: "6px 14px", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: "6px",
+              color: copiedField === "_all" ? "#fff" : "#e0e0e0", fontSize: "12px", fontWeight: "600",
+            }}
+          >
+            {copiedField === "_all" ? <ClipboardCheck size={14} /> : <Copy size={14} />}
+            {copiedField === "_all" ? "Copied!" : "Copy Brief"}
+          </button>
+          <button
+            onClick={async () => {
+              setExportingPDF(true);
+              try { await exportBriefPDF(brief, channelName); }
+              catch (err) { console.error("[BriefPDF] Export failed:", err); }
+              finally { setExportingPDF(false); }
+            }}
+            disabled={exportingPDF}
+            style={{
+              background: "#252525",
+              border: "1px solid #444",
+              borderRadius: "6px", padding: "6px 14px", cursor: exportingPDF ? "wait" : "pointer",
+              display: "flex", alignItems: "center", gap: "6px",
+              color: "#e0e0e0", fontSize: "12px", fontWeight: "600",
+              opacity: exportingPDF ? 0.6 : 1,
+            }}
+          >
+            {exportingPDF ? <Loader size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Download size={14} />}
+            {exportingPDF ? "Exporting..." : "Export PDF"}
+          </button>
+        </div>
       </div>
 
       {/* Hook */}

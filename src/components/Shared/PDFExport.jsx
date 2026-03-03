@@ -9,7 +9,7 @@ import { FileDown, X, Check, RotateCcw } from "lucide-react";
  * Creates a clean, presentation-ready PDF with key executive metrics
  * Can optionally include AI-generated summary and video ideas
  */
-export default function PDFExport({ kpis, top, filtered, dateRange, customDateRange, clientName, selectedChannel, allTimeKpis, channelStats }) {
+export default function PDFExport({ kpis, top, filtered, dateRange, customDateRange, clientName, selectedChannel, allTimeKpis, channelStats, activeClient }) {
   const [exporting, setExporting] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [pendingOpportunities, setPendingOpportunities] = useState([]);
@@ -102,7 +102,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
         console.warn('Could not fetch comments for PDF:', err);
       }
 
-      // Generate 3 Key Opportunities via Claude AI
+      // Generate Strategic Recommendations via Claude AI
       let opportunities = [];
       try {
         const { default: claudeAPI } = await import('../../services/claudeAPI');
@@ -121,57 +121,136 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
           const shortsByCtr = [...shorts].sort((a, b) => (b.ctr || 0) - (a.ctr || 0));
           const shortsByRet = [...shorts].sort((a, b) => (b.retention || 0) - (a.retention || 0));
 
-          const dataPrompt = `Channel performance for ${getDateRangeLabel()}:
-- Total Views: ${kpis.views.toLocaleString()}${kpis.viewsChange !== undefined ? ` (${kpis.viewsChange >= 0 ? '+' : ''}${kpis.viewsChange.toFixed(1)}% vs previous period)` : ''}
-- Watch Hours: ${kpis.watchHours.toLocaleString()}${kpis.watchHoursChange !== undefined ? ` (${kpis.watchHoursChange >= 0 ? '+' : ''}${kpis.watchHoursChange.toFixed(1)}%)` : ''}
-- Subscribers: ${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}${kpis.subsChange !== undefined ? ` (${kpis.subsChange >= 0 ? '+' : ''}${kpis.subsChange.toFixed(1)}%)` : ''}
-- Avg CTR: ${(kpis.avgCtr * 100).toFixed(1)}%
-- Avg Retention: ${(kpis.avgRet * 100).toFixed(1)}%
-- Shorts: ${shorts.length} videos, ${shortsViews.toLocaleString()} views
-- Long-form: ${longs.length} videos, ${longsViews.toLocaleString()} views
+          // Fetch brand context if available
+          let brandContextBlock = '';
+          try {
+            if (activeClient?.id) {
+              const { getBrandContextWithSignals } = await import('../../services/brandContextService');
+              brandContextBlock = await getBrandContextWithSignals(activeClient.id, 'audit_recommendations');
+            }
+          } catch (e) {
+            console.warn('Could not load brand context for PDF:', e);
+          }
 
-=== LONG-FORM VIDEOS ===
-Top 5 Long-form by CTR:
+          // Determine period framing
+          const periodLabel = getDateRangeLabel();
+          const periodFraming = dateRange === '7d' ? 'weekly performance snapshot'
+            : dateRange === '28d' ? 'monthly performance review'
+            : dateRange === '90d' ? 'quarterly performance review'
+            : dateRange === 'ytd' ? 'year-to-date performance review'
+            : 'performance review';
+
+          const dataPrompt = `You are generating the Strategic Recommendations section for ${clientName || 'this channel'}'s ${periodFraming}.
+
+---
+
+CHANNEL OVERVIEW
+Channel: ${clientName || 'Unknown'}
+Reporting Period: ${periodLabel}
+Total Subscribers: ${channelStats?.subscriberCount ? Number(channelStats.subscriberCount).toLocaleString() : 'N/A'}${kpis.subsChange !== undefined ? ` (${kpis.subsChange >= 0 ? '+' : ''}${kpis.subsChange.toFixed(1)}% change this period)` : ''}
+Total Views (period): ${kpis.views.toLocaleString()}${kpis.viewsChange !== undefined ? ` (${kpis.viewsChange >= 0 ? '+' : ''}${kpis.viewsChange.toFixed(1)}% vs previous period)` : ''}
+Watch Hours (period): ${Number(kpis.watchHours.toFixed(1)).toLocaleString()}${kpis.watchHoursChange !== undefined ? ` (${kpis.watchHoursChange >= 0 ? '+' : ''}${kpis.watchHoursChange.toFixed(1)}%)` : ''}
+Subscribers Gained: ${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}
+Avg CTR: ${(kpis.avgCtr * 100).toFixed(1)}%
+Avg Retention: ${(kpis.avgRet * 100).toFixed(1)}%
+
+FORMAT BREAKDOWN
+Shorts: ${shorts.length} videos, ${shortsViews.toLocaleString()} views, ${(kpis.shortsMetrics.avgCtr * 100).toFixed(1)}% avg CTR, ${(kpis.shortsMetrics.avgRet * 100).toFixed(1)}% avg retention
+Long-form: ${longs.length} videos, ${longsViews.toLocaleString()} views, ${(kpis.longsMetrics.avgCtr * 100).toFixed(1)}% avg CTR, ${(kpis.longsMetrics.avgRet * 100).toFixed(1)}% avg retention
+
+---
+
+TOP PERFORMING LONG-FORM (by views):
 ${longsByCtr.slice(0, 5).map(formatVid).join('\n')}
 
-Bottom 5 Long-form by CTR:
-${[...longsByCtr].reverse().slice(0, 5).map(formatVid).join('\n')}
+BOTTOM PERFORMING LONG-FORM (by views):
+${[...longs].sort((a, b) => (a.views || 0) - (b.views || 0)).slice(0, 5).map(formatVid).join('\n')}
 
-Top 5 Long-form by Retention:
+TOP LONG-FORM BY RETENTION:
 ${longsByRet.slice(0, 5).map(formatVid).join('\n')}
 
-Bottom 5 Long-form by Retention:
+BOTTOM LONG-FORM BY RETENTION:
 ${[...longsByRet].reverse().slice(0, 5).map(formatVid).join('\n')}
 
-=== SHORTS ===
-Top 5 Shorts by CTR:
+TOP PERFORMING SHORTS (by views):
 ${shortsByCtr.slice(0, 5).map(formatVid).join('\n')}
 
-Bottom 5 Shorts by CTR:
-${[...shortsByCtr].reverse().slice(0, 5).map(formatVid).join('\n')}
+BOTTOM PERFORMING SHORTS (by views):
+${[...shorts].sort((a, b) => (a.views || 0) - (b.views || 0)).slice(0, 5).map(formatVid).join('\n')}
 
-Top 5 Shorts by Retention:
-${shortsByRet.slice(0, 5).map(formatVid).join('\n')}
+${brandContextBlock ? `---\n\n${brandContextBlock}` : ''}
 
-Bottom 5 Shorts by Retention:
-${[...shortsByRet].reverse().slice(0, 5).map(formatVid).join('\n')}
+---
 
-Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action title", "recommendation": "2-3 sentence actionable recommendation"}]`;
+Respond with ONLY a JSON object (no markdown fences) matching this exact structure:
+{
+  "opening": "2-3 sentence state-of-the-channel paragraph. Ground it in the strongest signal from the data — a standout trend, a shift in momentum, or a clear pattern. Reference actual numbers. Set the tone: confident, clear-eyed, never alarming.",
+  "recommendations": [
+    {
+      "title": "Action-oriented title that names the specific lever (e.g. 'Double down on the hook structure driving 62% retention')",
+      "insight": "What the data shows. Name specific video titles, cite exact percentages, identify the pattern. 1-2 sentences. This must read like a data analyst wrote it.",
+      "opportunity": "Why this matters for growth. Connect the pattern to YouTube's algorithm mechanics or audience behavior. Explain the growth mechanism, not just 'this could improve performance.' 1-2 sentences.",
+      "steps": ["Concrete immediate action the team can execute this week", "Follow-through action for the next content cycle", "How to measure whether it worked"]
+    }
+  ],
+  "closing": "2-3 sentence forward-looking statement. Anchor in the channel's momentum and biggest unlock ahead. End on a note that makes the client want to execute."
+}
 
-          const systemPrompt = 'You are a YouTube growth strategist. Given this period\'s performance data, provide exactly 6 concise, actionable recommendations to improve the channel. IMPORTANT: Shorts and long-form are different formats — when recommending title or thumbnail strategies, only reference long-form videos as examples (shorts do not have clickable thumbnails). Keep each format\'s insights separate. Focus on specific, data-backed actions the creator can take immediately. Return ONLY valid JSON, no markdown fences.';
+QUALITY FILTER: Generate however many recommendations are genuinely warranted by the data — typically 3-6. Apply these tests to every recommendation before including it:
+1. Does it cite a specific video title, metric, or pattern from THIS channel's data? If not, cut it.
+2. Could this recommendation apply to any YouTube channel without modification? If yes, cut it.
+3. Does the "opportunity" explain a specific growth mechanism, or is it just "this will improve performance"? If the latter, rewrite or cut it.
+4. Are the steps specific enough that the client could act on them tomorrow without further clarification? If not, make them specific.`;
 
-          const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 2048);
+          const systemPrompt = `You are the top YouTube strategist in the world, with deep expertise in platform algorithm behavior, audience psychology, retention mechanics, and content packaging across every vertical and channel size. You understand how YouTube's recommendation engine weighs watch time, session depth, click-through rate, and audience satisfaction signals at a granular level.
+
+You work as a senior strategist at CRUX Media, a video strategy and production agency with 15 years of experience and over 3 billion views managed across enterprise clients. You combine world-class analytical depth with a trusted advisor's voice, speaking directly to the client's team as a partner invested in their growth.
+
+ANALYTICAL LENS:
+* Read the data like a diagnostician. Identify root causes, not symptoms. If retention drops at a predictable point, explain WHY (pacing, hook structure, content density) and what to do about it.
+* Think in systems. Every metric connects to others: CTR affects impressions velocity, retention drives recommendation reach, upload consistency affects subscriber notification trust.
+* Contextualize by format. A 45% retention on an 18-minute video is strong. A 45% retention on a 90-second Short is a problem. Adjust your analysis to the format's benchmarks and audience behavior patterns.
+* Separate signal from noise. A single underperforming video is not a trend. Three consecutive drops in retention with similar content structures IS a pattern worth addressing.
+
+YOUR VOICE:
+* Direct and confident. No hedging, no filler, no "it is important to" or "you should consider."
+* Warm but authoritative. This is a partner who deeply understands their craft, not a vendor pitching or a textbook lecturing.
+* Obsessively specific. Every recommendation must reference actual video titles, percentages, patterns, or numbers from this channel's data. If you cannot cite the data, do not make the recommendation.
+* Forward-looking. Every observation connects to a concrete growth opportunity with a clear mechanism.
+* Plain language. The client may not be a YouTube expert. Write so a marketing director or business owner understands every sentence without Googling. When you reference a platform concept (CTR, retention, impressions), briefly explain what it means in plain terms on first use — e.g. "click-through rate (the percentage of people who see your thumbnail and choose to click)" or "retention (how much of the video viewers actually watch)." Never assume the reader knows YouTube jargon. The insight should feel smart, not intimidating.
+
+FORMAT RULES:
+* Shorts and long-form are fundamentally different formats with different algorithm pathways. Never conflate them. When recommending title or thumbnail strategies, only reference long-form videos (Shorts do not have clickable thumbnails or browse impressions in the same way).
+* Prioritize recommendations by expected impact. Highest leverage opportunities first. A small change that affects every video outweighs a big change that affects one.
+* Never use dashes or hyphens (-) as bullet points in any text fields.
+* Return ONLY valid JSON, no markdown fences.`;
+
+          const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 3000);
           // Strip markdown fences if present (e.g. ```json ... ```)
           let jsonText = result.text.trim();
           const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
           if (fenceMatch) jsonText = fenceMatch[1].trim();
           const parsed = JSON.parse(jsonText);
-          if (Array.isArray(parsed) && parsed.length >= 1) {
-            opportunities = parsed.slice(0, 6);
+
+          // Handle new structured format
+          if (parsed && parsed.recommendations && Array.isArray(parsed.recommendations)) {
+            opportunities = parsed.recommendations.map(r => ({
+              title: r.title,
+              insight: r.insight || '',
+              opportunity: r.opportunity || '',
+              steps: r.steps || [],
+              included: true
+            }));
+            // Store opening/closing for PDF rendering
+            opportunities._opening = parsed.opening || '';
+            opportunities._closing = parsed.closing || '';
+          } else if (Array.isArray(parsed) && parsed.length >= 1) {
+            // Fallback for old format
+            opportunities = parsed.slice(0, 8);
           }
         }
       } catch (err) {
-        console.warn('Could not generate AI opportunities for PDF:', err);
+        console.warn('Could not generate AI recommendations for PDF:', err);
       }
 
       // Build "Content Published This Period" section
@@ -265,7 +344,10 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
 
       // Store collected data and open review modal
       setPendingComments(topComments);
-      setPendingOpportunities(opportunities.map(o => ({ ...o, included: true })));
+      const opps = opportunities.map(o => ({ ...o, included: o.included !== false }));
+      opps._opening = opportunities._opening || '';
+      opps._closing = opportunities._closing || '';
+      setPendingOpportunities(opps);
       setPendingPublishedHtml(publishedSectionHtml);
       setShowReviewModal(true);
 
@@ -284,6 +366,8 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
 
     try {
       const opportunities = pendingOpportunities.filter(o => o.included);
+      opportunities._opening = pendingOpportunities._opening || '';
+      opportunities._closing = pendingOpportunities._closing || '';
       const topComments = pendingComments;
       const publishedSectionHtml = pendingPublishedHtml;
 
@@ -334,10 +418,10 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
           <div data-pdf-section style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 28px;">
             <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #16a34a;">
               <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">WATCH HOURS</div>
-              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1.25;">${kpis.watchHours.toLocaleString()}</div>
+              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1.25;">${Number(kpis.watchHours.toFixed(1)).toLocaleString()}</div>
               ${kpis.watchHoursChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.watchHoursChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 8px; font-weight: 600; line-height: 1.4;">${kpis.watchHoursChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.watchHoursChange).toFixed(1)}% vs previous period</div>` : ''}
               ${allTimeKpis ? `<div style="border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 8px;">
-                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Lifetime: <span style="color: #64748b; font-weight: 600;">${allTimeKpis.watchHours.toLocaleString()}</span></div>
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Lifetime: <span style="color: #64748b; font-weight: 600;">${Number(allTimeKpis.watchHours.toFixed(1)).toLocaleString()}</span></div>
               </div>` : ''}
             </div>
 
@@ -355,7 +439,6 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
               <div>
                 <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">TOTAL VIDEOS</div>
                 <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${filtered.length}</div>
-                ${kpis.countChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.countChange >= 0 ? '#86efac' : '#fca5a5'}; margin-top: 8px; font-weight: 600; line-height: 1.4;">${kpis.countChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.countChange).toFixed(1)}%</div>` : ''}
               </div>
               <div>
                 <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">AVG VIEWS/VIDEO</div>
@@ -469,6 +552,8 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
             </div>
           </div>
 
+          <div data-pdf-pagebreak></div>
+
           <!-- Content Published This Period -->
           ${publishedSectionHtml}
 
@@ -492,9 +577,10 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
           ` : ''}
 
           ${opportunities.length > 0 ? `
-          <!-- 3 Key Opportunities -->
+          <!-- Strategic Recommendations -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; padding-bottom: 10px; border-bottom: 3px solid #10b981; line-height: 1.3;">🎯 Key Opportunities</h2>
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 3px solid #10b981; line-height: 1.3;">🎯 Strategic Recommendations</h2>
+            ${opportunities._opening ? `<p style="font-size: 15px; color: #374151; line-height: 1.75; margin-bottom: 22px;">${opportunities._opening}</p>` : ''}
             ${opportunities.map((opp, idx) => `
               <div style="display: flex; gap: 16px; margin-bottom: 18px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); padding: 22px; border-radius: 14px; border: 2px solid #86efac;">
                 <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #059669); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: white; flex-shrink: 0; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">
@@ -502,10 +588,18 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
                 </div>
                 <div style="flex: 1;">
                   <div style="font-size: 18px; font-weight: 700; color: #065f46; margin-bottom: 10px; line-height: 1.35;">${opp.title}</div>
-                  <div style="font-size: 15px; color: #374151; line-height: 1.75;">${opp.recommendation}</div>
+                  ${opp.insight ? `<div style="font-size: 14px; color: #1e293b; line-height: 1.65; margin-bottom: 8px;"><strong style="color: #065f46;">The Insight:</strong> ${opp.insight}</div>` : ''}
+                  ${opp.opportunity ? `<div style="font-size: 14px; color: #1e293b; line-height: 1.65; margin-bottom: 10px;"><strong style="color: #065f46;">The Opportunity:</strong> ${opp.opportunity}</div>` : ''}
+                  ${opp.steps && opp.steps.length > 0 ? `
+                    <div style="margin-top: 6px; padding-left: 2px;">
+                      ${opp.steps.map((step, si) => `<div style="font-size: 13px; color: #374151; line-height: 1.6; margin-bottom: 4px; padding-left: 16px; text-indent: -16px;">${si + 1}. ${step}</div>`).join('')}
+                    </div>
+                  ` : ''}
+                  ${opp.recommendation ? `<div style="font-size: 15px; color: #374151; line-height: 1.75;">${opp.recommendation}</div>` : ''}
                 </div>
               </div>
             `).join('')}
+            ${opportunities._closing ? `<p style="font-size: 15px; color: #374151; line-height: 1.75; margin-top: 16px; padding: 16px 20px; background: #f0fdf4; border-radius: 10px; border-left: 4px solid #10b981;">${opportunities._closing}</p>` : ''}
           </div>
           ` : ''}
 
@@ -596,9 +690,22 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
       // Wait for any images to load
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Prevent page breaks from splitting sections
       // Calculate effective page height based on container width and A4 aspect ratio
       const pageHeightPx = (297 / 210) * container.offsetWidth;
+
+      // Force page breaks at marked positions
+      const pageBreaks = container.querySelectorAll('[data-pdf-pagebreak]');
+      pageBreaks.forEach(pb => {
+        const pbTop = pb.offsetTop;
+        const currentPage = Math.floor(pbTop / pageHeightPx);
+        const nextPageStart = (currentPage + 1) * pageHeightPx;
+        const spacer = nextPageStart - pbTop;
+        if (spacer > 0 && spacer < pageHeightPx) {
+          pb.style.height = `${spacer}px`;
+        }
+      });
+
+      // Prevent page breaks from splitting sections
       const sections = container.querySelectorAll('[data-pdf-section]');
       sections.forEach(section => {
         const sectionTop = section.offsetTop;
@@ -687,7 +794,13 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
   };
 
   const updateOpportunity = (idx, field, value) => {
-    setPendingOpportunities(prev => prev.map((o, i) => i === idx ? { ...o, [field]: value } : o));
+    setPendingOpportunities(prev => {
+      const updated = prev.map((o, i) => i === idx ? { ...o, [field]: value } : o);
+      // Preserve _opening and _closing
+      updated._opening = prev._opening;
+      updated._closing = prev._closing;
+      return updated;
+    });
   };
 
   const isDisabled = exporting || rendering;
@@ -745,7 +858,14 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
 
           {/* Body */}
           <div style={{ padding: '20px 24px', flex: 1, overflowY: 'auto' }}>
-            <div style={{ fontSize: '14px', fontWeight: '600', color: '#93c5fd', marginBottom: '14px', letterSpacing: '0.5px' }}>KEY OPPORTUNITIES</div>
+            <div style={{ fontSize: '14px', fontWeight: '600', color: '#93c5fd', marginBottom: '14px', letterSpacing: '0.5px' }}>STRATEGIC RECOMMENDATIONS</div>
+
+            {pendingOpportunities._opening && (
+              <div style={{ padding: '12px 16px', background: '#1a2e1a', borderRadius: '8px', marginBottom: '16px', border: '1px solid #2d5a2d' }}>
+                <div style={{ fontSize: '11px', fontWeight: '600', color: '#10b981', marginBottom: '6px', letterSpacing: '0.5px' }}>OPENING</div>
+                <div style={{ fontSize: '13px', color: '#ccc', lineHeight: '1.6' }}>{pendingOpportunities._opening}</div>
+              </div>
+            )}
 
             {pendingOpportunities.length === 0 ? (
               <div style={{ padding: '20px', background: '#2a2a2a', borderRadius: '8px', color: '#888', fontSize: '14px', textAlign: 'center' }}>
@@ -769,15 +889,44 @@ Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action ti
                       style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#fff', fontSize: '15px', fontWeight: '600', outline: 'none' }}
                     />
                   </div>
-                  <textarea
-                    value={opp.recommendation}
-                    onChange={e => updateOpportunity(idx, 'recommendation', e.target.value)}
-                    disabled={!opp.included}
-                    rows={3}
-                    style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '10px 12px', color: '#ccc', fontSize: '14px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
-                  />
+                  {opp.insight && (
+                    <div style={{ marginBottom: '8px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#10b981', letterSpacing: '0.3px' }}>INSIGHT: </span>
+                      <span style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>{opp.insight}</span>
+                    </div>
+                  )}
+                  {opp.opportunity && (
+                    <div style={{ marginBottom: '8px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#f59e0b', letterSpacing: '0.3px' }}>OPPORTUNITY: </span>
+                      <span style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5' }}>{opp.opportunity}</span>
+                    </div>
+                  )}
+                  {opp.steps && opp.steps.length > 0 && (
+                    <div style={{ marginTop: '8px', paddingLeft: '4px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#93c5fd', marginBottom: '4px', letterSpacing: '0.3px' }}>ACTION STEPS:</div>
+                      {opp.steps.map((step, si) => (
+                        <div key={si} style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.5', marginBottom: '2px', paddingLeft: '12px' }}>{si + 1}. {step}</div>
+                      ))}
+                    </div>
+                  )}
+                  {opp.recommendation && (
+                    <textarea
+                      value={opp.recommendation}
+                      onChange={e => updateOpportunity(idx, 'recommendation', e.target.value)}
+                      disabled={!opp.included}
+                      rows={3}
+                      style={{ width: '100%', marginTop: '8px', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '10px 12px', color: '#ccc', fontSize: '14px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  )}
                 </div>
               ))
+            )}
+
+            {pendingOpportunities._closing && (
+              <div style={{ padding: '12px 16px', background: '#1a2e1a', borderRadius: '8px', marginTop: '8px', border: '1px solid #2d5a2d' }}>
+                <div style={{ fontSize: '11px', fontWeight: '600', color: '#10b981', marginBottom: '6px', letterSpacing: '0.5px' }}>CLOSING</div>
+                <div style={{ fontSize: '13px', color: '#ccc', lineHeight: '1.6' }}>{pendingOpportunities._closing}</div>
+              </div>
             )}
           </div>
 

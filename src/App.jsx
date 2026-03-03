@@ -945,6 +945,7 @@ export default function App() {
               selectedChannel={selectedChannel}
               allTimeKpis={allTimeKpis}
               channelStats={channelStats}
+              activeClient={activeClient}
             />
             <ClientManager
               clients={clients}
