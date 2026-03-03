@@ -78,7 +78,11 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
       try {
         const videosWithIds = top.filter(v => v.youtubeVideoId).slice(0, 8);
         const titleMap = {};
-        videosWithIds.forEach(v => { titleMap[v.youtubeVideoId] = v.title || 'Untitled'; });
+        const channelMap = {};
+        videosWithIds.forEach(v => {
+          titleMap[v.youtubeVideoId] = v.title || 'Untitled';
+          channelMap[v.youtubeVideoId] = v.channel || '';
+        });
 
         if (videosWithIds.length > 0) {
           const videoIds = videosWithIds.map(v => v.youtubeVideoId);
@@ -102,7 +106,8 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
                 text: c.text,
                 author: c.author,
                 likes: c.likeCount || 0,
-                videoTitle: titleMap[c.videoId] || 'Unknown Video'
+                videoTitle: titleMap[c.videoId] || 'Unknown Video',
+                channel: channelMap[c.videoId] || ''
               }));
           }
         }
@@ -114,6 +119,8 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
       let opportunities = [];
       try {
         const { default: claudeAPI } = await import('../../services/claudeAPI');
+        // Refresh API key from localStorage in case it was set after module init
+        if (!claudeAPI.apiKey) claudeAPI.apiKey = claudeAPI.loadAPIKey();
         if (claudeAPI.apiKey) {
           const topByCtr = [...filtered].sort((a, b) => (b.ctr || 0) - (a.ctr || 0));
           const topByRet = [...filtered].sort((a, b) => (b.retention || 0) - (a.retention || 0));
@@ -153,7 +160,11 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
           const systemPrompt = 'You are a YouTube growth strategist. Given this period\'s performance data, provide exactly 3 concise, actionable recommendations to improve the channel. Focus on specific, data-backed actions the creator can take immediately. Return ONLY valid JSON, no markdown fences.';
 
           const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 1024);
-          const parsed = JSON.parse(result.text.trim());
+          // Strip markdown fences if present (e.g. ```json ... ```)
+          let jsonText = result.text.trim();
+          const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+          if (fenceMatch) jsonText = fenceMatch[1].trim();
+          const parsed = JSON.parse(jsonText);
           if (Array.isArray(parsed) && parsed.length >= 3) {
             opportunities = parsed.slice(0, 3);
           }
@@ -275,31 +286,37 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
           </div>
 
           <!-- Key Metrics Grid -->
-          <div data-pdf-section style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px;">
-            <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border-left: 5px solid #2563eb;">
+          <div data-pdf-section style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+            <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #2563eb;">
               <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px;">TOTAL VIEWS</div>
-              <div style="font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.views.toLocaleString()}</div>
-              ${kpis.viewsChange !== undefined ? `<div style="font-size: 13px; color: ${kpis.viewsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 6px; font-weight: 600;">${kpis.viewsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.viewsChange).toFixed(1)}% vs previous period</div>` : ''}
+              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.views.toLocaleString()}</div>
+              ${kpis.viewsChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.viewsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 6px; font-weight: 600;">${kpis.viewsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.viewsChange).toFixed(1)}% vs previous period</div>` : ''}
               ${allTimeKpis ? `<div style="border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 8px;">
-                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Lifetime: <span style="color: #64748b; font-weight: 600;">${allTimeKpis.views.toLocaleString()} views</span></div>
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Lifetime: <span style="color: #64748b; font-weight: 600;">${allTimeKpis.views.toLocaleString()}</span></div>
               </div>` : ''}
             </div>
 
-            <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border-left: 5px solid #16a34a;">
+            <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #16a34a;">
               <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px;">WATCH HOURS</div>
-              <div style="font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.watchHours.toLocaleString()}</div>
-              ${kpis.watchHoursChange !== undefined ? `<div style="font-size: 13px; color: ${kpis.watchHoursChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 6px; font-weight: 600;">${kpis.watchHoursChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.watchHoursChange).toFixed(1)}% vs previous period</div>` : ''}
+              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.watchHours.toLocaleString()}</div>
+              ${kpis.watchHoursChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.watchHoursChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 6px; font-weight: 600;">${kpis.watchHoursChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.watchHoursChange).toFixed(1)}% vs previous period</div>` : ''}
               ${allTimeKpis ? `<div style="border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 8px;">
-                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Lifetime: <span style="color: #64748b; font-weight: 600;">${allTimeKpis.watchHours.toLocaleString()} hours</span></div>
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Lifetime: <span style="color: #64748b; font-weight: 600;">${allTimeKpis.watchHours.toLocaleString()}</span></div>
               </div>` : ''}
             </div>
 
-            <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border-left: 5px solid #f59e0b;">
+            <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #f59e0b;">
               <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px;">SUBSCRIBERS</div>
-              <div style="font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1;">${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}</div>
-              ${kpis.subsChange !== undefined ? `<div style="font-size: 13px; color: ${kpis.subsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 6px; font-weight: 600;">${kpis.subsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.subsChange).toFixed(1)}% vs previous period</div>` : ''}
+              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1;">${channelStats?.subscriberCount ? Number(channelStats.subscriberCount).toLocaleString() : allTimeKpis ? allTimeKpis.subs.toLocaleString() : '—'}</div>
+              <div style="font-size: 13px; color: #64748b; margin-top: 6px; font-weight: 500;">Subscribers Gained: <span style="color: ${kpis.subs >= 0 ? '#16a34a' : '#dc2626'}; font-weight: 600;">${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}</span></div>
+              ${kpis.subsChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.subsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 4px; font-weight: 600;">${kpis.subsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.subsChange).toFixed(1)}% vs previous period</div>` : ''}
+            </div>
+
+            <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #8b5cf6;">
+              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px;">IMPRESSIONS</div>
+              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1;">${filtered.reduce((s, r) => s + (r.impressions || 0), 0).toLocaleString()}</div>
               <div style="border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 8px;">
-                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Total: <span style="color: #64748b; font-weight: 600;">${channelStats?.subscriberCount ? Number(channelStats.subscriberCount).toLocaleString() : allTimeKpis ? allTimeKpis.subs.toLocaleString() : '—'} subscribers</span></div>
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Avg CTR: <span style="color: #64748b; font-weight: 600;">${(kpis.avgCtr * 100).toFixed(1)}%</span></div>
               </div>
             </div>
           </div>
@@ -375,13 +392,10 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
             </div>
           </div>
 
-          <!-- Content Published This Period -->
-          ${publishedSectionHtml}
-
           <!-- Metric Definitions -->
           <div data-pdf-section style="display: flex; gap: 22px; margin-bottom: 20px; padding: 12px 18px; background: #f1f5f9; border-radius: 10px; border-left: 4px solid #94a3b8;">
             <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;"><strong style="color: #475569;">CTR (Click-Through Rate):</strong> The percentage of people who saw your thumbnail and clicked to watch.</p>
-            <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;"><strong style="color: #475569;">Retention:</strong> The average percentage of your video that viewers watched before leaving.</p>
+            <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.5;"><strong style="color: #475569;">AVD (Avg View Duration):</strong> The average percentage of your video that viewers watched before leaving.</p>
           </div>
 
           <!-- Top Performers -->
@@ -427,6 +441,9 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
             </div>
           </div>
 
+          <!-- Content Published This Period -->
+          ${publishedSectionHtml}
+
           ${topComments.length > 0 ? `
           <!-- Top Comments -->
           <div data-pdf-section style="margin-bottom: 32px;">
@@ -437,7 +454,7 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                   <span style="font-size: 13px; color: #64748b; font-weight: 500;">— ${c.author}</span>
                   <div style="display: flex; align-items: center; gap: 16px;">
-                    <span style="font-size: 12px; color: #94a3b8; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${c.videoTitle}</span>
+                    <span style="font-size: 12px; color: #94a3b8; max-width: 350px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${c.channel ? c.channel + ' · ' : ''}${c.videoTitle}</span>
                     <span style="font-size: 13px; color: #2563eb; font-weight: 600;">👍 ${c.likes.toLocaleString()}</span>
                   </div>
                 </div>
