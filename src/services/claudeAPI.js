@@ -131,6 +131,15 @@ class ClaudeAPIService {
     return Math.ceil(text.length / 4);
   }
 
+  // Global formatting rules appended to every system prompt
+  _applyGlobalRules(systemPrompt) {
+    const rules = '\n\nFORMATTING RULE: Never use dashes or hyphens (-) as bullet points, list markers, or separators in your response. Use numbered lists, letters, or plain sentences instead.';
+    if (systemPrompt && systemPrompt.trim()) {
+      return systemPrompt + rules;
+    }
+    return rules.trim();
+  }
+
   // Main API call method
   async call(prompt, systemPrompt = '', feature = 'general', maxTokens = MAX_TOKENS) {
     // Validate API key
@@ -154,10 +163,9 @@ class ClaudeAPIService {
         stream: false
       };
 
-      // Only add system prompt if it has content
-      if (systemPrompt && systemPrompt.trim()) {
-        requestBody.system = systemPrompt;
-      }
+      // Apply global formatting rules and add system prompt
+      const finalSystem = this._applyGlobalRules(systemPrompt);
+      requestBody.system = finalSystem;
 
       // Always use proxy format
       const response = await fetch(CLAUDE_API_URL, {
@@ -213,10 +221,9 @@ class ClaudeAPIService {
         stream: true
       };
 
-      // Only add system prompt if it has content
-      if (systemPrompt && systemPrompt.trim()) {
-        requestBody.system = systemPrompt;
-      }
+      // Apply global formatting rules and add system prompt
+      const finalSystem = this._applyGlobalRules(systemPrompt);
+      requestBody.system = finalSystem;
 
       const response = await fetch(CLAUDE_API_URL, {
         method: 'POST',

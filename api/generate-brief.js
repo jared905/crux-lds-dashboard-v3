@@ -118,7 +118,7 @@ Primary Constraint: ${primaryConstraint?.constraint || 'None'} (${primaryConstra
 Top Findings: ${topPatterns.map(p => p.finding).join('; ')}
 
 Be concise, direct, and actionable. Lead with the most important insight.`,
-              systemPrompt: 'You are a YouTube growth strategist writing a weekly brief. Be direct, no fluff.',
+              systemPrompt: 'You are a YouTube growth strategist writing a weekly brief. Be direct, no fluff. Never use dashes or hyphens (-) as bullet points, list markers, or separators. Use numbered lists, letters, or plain sentences instead.',
               taskId: 'weekly_brief',
               maxTokens: 1024,
             }),
