@@ -9,7 +9,10 @@ import {
   analyzeTranscript, saveTranscript, markTranscriptAnalyzed,
   saveAtomizedContent, createBriefFromAtomized,
   remixDirections, saveRemixAsBrief, fetchAtomizerContext,
+  getAtomizedContent,
 } from "../../services/atomizerService";
+import { getChannels } from "../../services/competitorDatabase";
+import AtomizerHistory from "./AtomizerHistory";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 
@@ -488,6 +491,12 @@ export default function Atomizer({ activeClient }) {
   const [savedTranscriptId, setSavedTranscriptId] = useState(null);
   const [briefCreating, setBriefCreating] = useState(null);
 
+  // History & channel state
+  const [selectedChannelId, setSelectedChannelId] = useState(null);
+  const [clientChannels, setClientChannels] = useState([]);
+  const [channelFilter, setChannelFilter] = useState(null);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+
   // Expansion
   const [expandedCards, setExpandedCards] = useState(new Set());
 
@@ -556,6 +565,18 @@ export default function Atomizer({ activeClient }) {
       .finally(() => { if (!cancelled) setContextLoading(false); });
 
     return () => { cancelled = true; };
+  }, [activeClient?.id]);
+
+  // Fetch client channels for channel picker
+  useEffect(() => {
+    if (!activeClient?.id) { setClientChannels([]); return; }
+    getChannels({ clientId: activeClient.id, isCompetitor: false })
+      .then(data => {
+        const chs = data || [];
+        setClientChannels(chs);
+        if (chs.length === 1) setSelectedChannelId(chs[0].id);
+      })
+      .catch(err => console.warn('[atomizer] Failed to fetch channels:', err.message));
   }, [activeClient?.id]);
 
   // Cost estimates
@@ -650,11 +671,14 @@ export default function Atomizer({ activeClient }) {
           text: transcriptText,
           sourceType: "paste",
           clientId: activeClient?.id,
+          channelId: selectedChannelId || null,
+          contextSnapshot: contextInputs,
+          analysisSummary: data.summary || null,
         });
         setSavedTranscriptId(saved.id);
         await markTranscriptAnalyzed(saved.id);
 
-        const savedItems = await saveAtomizedContent(saved.id, data, activeClient?.id);
+        const savedItems = await saveAtomizedContent(saved.id, data, activeClient?.id, selectedChannelId);
 
         // Attach _savedId to results for brief creation
         if (savedItems?.length) {
@@ -677,6 +701,7 @@ export default function Atomizer({ activeClient }) {
             };
           });
         }
+        setHistoryRefreshKey(prev => prev + 1);
       } catch (saveErr) {
         console.warn("Failed to save to database:", saveErr);
       }
@@ -685,7 +710,7 @@ export default function Atomizer({ activeClient }) {
     } finally {
       setAnalyzing(false);
     }
-  }, [transcriptText, title, activeClient, contextInputs]);
+  }, [transcriptText, title, activeClient, contextInputs, selectedChannelId]);
 
   const handleCreateBrief = useCallback(async (atomizedContentId) => {
     setBriefCreating(atomizedContentId);
@@ -739,12 +764,101 @@ export default function Atomizer({ activeClient }) {
     }
   }, [selections, remixFeedback, activeClient]);
 
+  // Load a past transcript from history sidebar
+  const handleLoadTranscript = useCallback(async (transcript) => {
+    // 1. Restore input fields
+    setTitle(transcript.title || "");
+    setTranscriptText(transcript.transcript_text || "");
+    setSavedTranscriptId(transcript.id);
+    setSelectedChannelId(transcript.channel_id || null);
+    setError("");
+
+    // 2. Restore context snapshot if available
+    if (transcript.context_snapshot) {
+      setContextInputs({
+        strategyBrief: transcript.context_snapshot.strategyBrief || "",
+        performanceData: transcript.context_snapshot.performanceData || "",
+        audiencePersona: transcript.context_snapshot.audiencePersona || "",
+        competitorBenchmarks: transcript.context_snapshot.competitorBenchmarks || "",
+      });
+      setAutoFilledKeys(new Set());
+      setContextOpen(true);
+    }
+
+    // 3. Reset remix/selection state
+    setSelections({});
+    setExpandedCards(new Set());
+    setRemixResult(null);
+    setRemixOpen(false);
+
+    // 4. Load atomized content and reconstruct results
+    try {
+      const atomized = await getAtomizedContent(transcript.id);
+      if (atomized && atomized.length > 0) {
+        const mapDirection = (a) => ({
+          ...a,
+          _savedId: a.id,
+          _briefCreated: a.status === "brief_created",
+          title_variations: a.title_variations || [],
+          thumbnail_suggestion: a.thumbnail_suggestion || {},
+          description: a.description_text,
+          virality_score: a.virality_score,
+          direction_metadata: a.direction_metadata || {},
+          estimated_duration: a.direction_metadata?.estimated_duration,
+          format_type: a.direction_metadata?.format_type,
+          timestamps: a.direction_metadata?.timestamps || [],
+          edl: a.direction_metadata?.edl || [],
+          b_roll: a.direction_metadata?.b_roll || [],
+          motion_graphics: a.direction_metadata?.motion_graphics || [],
+        });
+
+        const longForm = atomized.filter(a => a.content_type === "long_form_direction").map(mapDirection);
+        const shortForm = atomized.filter(a => a.content_type === "short_form_direction").map(a => ({
+          ...mapDirection(a),
+          cta: a.suggested_cta || a.direction_metadata?.cta,
+        }));
+        const clips = atomized.filter(a => a.content_type === "clip").map(a => ({
+          ...a, _savedId: a.id, _briefCreated: a.status === "brief_created",
+          viralityScore: a.virality_score, startTimecode: a.timecode_start, endTimecode: a.timecode_end,
+        }));
+        const shorts = atomized.filter(a => a.content_type === "short").map(a => ({
+          ...a, _savedId: a.id, _briefCreated: a.status === "brief_created",
+          viralityScore: a.virality_score, timecode: a.timecode_start, suggestedCTA: a.suggested_cta,
+        }));
+        const quotes = atomized.filter(a => a.content_type === "quote").map(a => ({
+          ...a, _savedId: a.id, _briefCreated: a.status === "brief_created",
+          viralityScore: a.virality_score, text: a.transcript_excerpt, timecode: a.timecode_start,
+          suggestedVisual: a.suggested_visual,
+        }));
+
+        const reconstructed = {
+          long_form_directions: longForm,
+          short_form_directions: shortForm,
+          total_directions: longForm.length + shortForm.length,
+          summary: transcript.analysis_summary || "",
+        };
+        if (clips.length > 0) reconstructed.clips = clips;
+        if (shorts.length > 0) reconstructed.shorts = shorts;
+        if (quotes.length > 0) reconstructed.quotes = quotes;
+
+        setResults(reconstructed);
+        setActiveTab(longForm.length > 0 ? "long_form" : shortForm.length > 0 ? "short_form" : "long_form");
+      } else {
+        setResults(null);
+      }
+    } catch (err) {
+      console.warn("[atomizer] Failed to load atomized content:", err.message);
+      setResults(null);
+    }
+  }, []);
+
   // ============================================
   // Render
   // ============================================
 
   return (
-    <div style={{ padding: "0" }}>
+    <div style={{ display: "flex", gap: "0" }}>
+    <div style={{ flex: 1, minWidth: 0, padding: "0" }}>
       {/* Header */}
       <div style={{
         background: "#1E1E1E", border: "1px solid #333",
@@ -782,6 +896,30 @@ export default function Atomizer({ activeClient }) {
             }}
           />
         </div>
+
+        {/* Channel picker (only if client has multiple channels) */}
+        {clientChannels.length > 0 && (
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ fontSize: "12px", fontWeight: "600", color: "#b0b0b0", display: "block", marginBottom: "6px" }}>
+              Channel
+            </label>
+            <select
+              value={selectedChannelId || ""}
+              onChange={(e) => setSelectedChannelId(e.target.value || null)}
+              style={{
+                width: "100%", background: "#252525", border: "1px solid #444",
+                borderRadius: "8px", padding: "10px 14px", color: "#fff",
+                fontSize: "14px", outline: "none", boxSizing: "border-box",
+                cursor: "pointer",
+              }}
+            >
+              <option value="">No channel assigned</option>
+              {clientChannels.map(ch => (
+                <option key={ch.id} value={ch.id}>{ch.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div style={{ marginBottom: "16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
@@ -1477,6 +1615,18 @@ export default function Atomizer({ activeClient }) {
           </div>
         </>
       )}
+    </div>
+
+    {/* History Sidebar */}
+    <AtomizerHistory
+      clientId={activeClient?.id}
+      channelFilter={channelFilter}
+      channels={clientChannels}
+      onChannelFilterChange={setChannelFilter}
+      activeTranscriptId={savedTranscriptId}
+      onSelectTranscript={handleLoadTranscript}
+      refreshKey={historyRefreshKey}
+    />
     </div>
   );
 }

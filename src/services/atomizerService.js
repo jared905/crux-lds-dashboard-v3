@@ -761,7 +761,7 @@ Create a single, production-ready brief that combines the best of these selectio
 /**
  * Save a transcript to Supabase.
  */
-export async function saveTranscript({ title, text, sourceType = 'paste', sourceUrl, clientId }) {
+export async function saveTranscript({ title, text, sourceType = 'paste', sourceUrl, clientId, channelId, contextSnapshot, analysisSummary }) {
   if (!supabase) throw new Error('Supabase not configured');
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -774,6 +774,9 @@ export async function saveTranscript({ title, text, sourceType = 'paste', source
       source_type: sourceType,
       source_url: sourceUrl || null,
       client_id: clientId || null,
+      channel_id: channelId || null,
+      context_snapshot: contextSnapshot || null,
+      analysis_summary: analysisSummary || null,
       word_count: text.trim().split(/\s+/).length,
       created_by: user?.id || null,
     })
@@ -802,7 +805,7 @@ export async function markTranscriptAnalyzed(transcriptId, model = 'claude-sonne
  * Save atomized content items from analysis results.
  * Handles both V2 (long_form_direction/short_form_direction) and legacy (clip/short/quote).
  */
-export async function saveAtomizedContent(transcriptId, analysisResults, clientId) {
+export async function saveAtomizedContent(transcriptId, analysisResults, clientId, channelId) {
   if (!supabase) throw new Error('Supabase not configured');
 
   const items = [];
@@ -812,6 +815,7 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
     items.push({
       transcript_id: transcriptId,
       client_id: clientId || null,
+      channel_id: channelId || null,
       content_type: 'long_form_direction',
       title: dir.title,
       timecode_start: dir.hook_timecode || null,
@@ -839,6 +843,7 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
     items.push({
       transcript_id: transcriptId,
       client_id: clientId || null,
+      channel_id: channelId || null,
       content_type: 'short_form_direction',
       title: dir.title,
       timecode_start: dir.hook_timecode || null,
@@ -868,6 +873,7 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
     items.push({
       transcript_id: transcriptId,
       client_id: clientId || null,
+      channel_id: channelId || null,
       content_type: 'clip',
       title: clip.title,
       timecode_start: clip.startTimecode,
@@ -885,6 +891,7 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
     items.push({
       transcript_id: transcriptId,
       client_id: clientId || null,
+      channel_id: channelId || null,
       content_type: 'short',
       title: short.title,
       timecode_start: short.timecode,
@@ -902,6 +909,7 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
     items.push({
       transcript_id: transcriptId,
       client_id: clientId || null,
+      channel_id: channelId || null,
       content_type: 'quote',
       transcript_excerpt: quote.text,
       timecode_start: quote.timecode,
@@ -1030,16 +1038,17 @@ export async function saveRemixAsBrief(remixResult, selectedElements, clientId) 
 /**
  * Get transcripts for a client, ordered by most recent.
  */
-export async function getTranscripts(clientId, { limit = 20 } = {}) {
+export async function getTranscripts(clientId, { limit = 50, channelId } = {}) {
   if (!supabase) throw new Error('Supabase not configured');
 
   let query = supabase
     .from('transcripts')
-    .select('*')
+    .select('id, title, channel_id, created_at, word_count, analysis_summary, context_snapshot, transcript_text, channels(name, thumbnail_url), atomized_content(id, status)')
     .order('created_at', { ascending: false })
     .limit(limit);
 
   if (clientId) query = query.eq('client_id', clientId);
+  if (channelId) query = query.eq('channel_id', channelId);
 
   const { data, error } = await query;
   if (error) throw error;
