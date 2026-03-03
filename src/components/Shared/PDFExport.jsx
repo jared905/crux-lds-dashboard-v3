@@ -902,11 +902,11 @@ MULTICHANNEL NETWORK:
 
     {showReviewModal && createPortal(
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={handleCancelModal}>
-        <div style={{ backgroundColor: '#1E1E1E', border: '1px solid #333', borderRadius: '12px', width: '820px', maxWidth: '90vw', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        <div style={{ backgroundColor: '#1E1E1E', border: '1px solid #333', borderRadius: '12px', width: '1100px', maxWidth: '95vw', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
           {/* Header */}
-          <div style={{ padding: '18px 24px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '20px 32px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: '18px', fontWeight: '700', color: '#fff' }}>Review PDF Content</div>
+              <div style={{ fontSize: '20px', fontWeight: '700', color: '#fff' }}>Review PDF Content</div>
               <div style={{ fontSize: '13px', color: '#888', marginTop: '4px' }}>Edit recommendations before exporting</div>
             </div>
             <button onClick={handleCancelModal} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: '4px' }}>
@@ -915,17 +915,17 @@ MULTICHANNEL NETWORK:
           </div>
 
           {/* Body */}
-          <div style={{ padding: '20px 24px', flex: 1, overflowY: 'auto' }}>
-            <div style={{ fontSize: '14px', fontWeight: '600', color: '#93c5fd', marginBottom: '14px', letterSpacing: '0.5px' }}>STRATEGIC RECOMMENDATIONS</div>
+          <div style={{ padding: '24px 32px', flex: 1, overflowY: 'auto' }}>
+            <div style={{ fontSize: '14px', fontWeight: '600', color: '#93c5fd', marginBottom: '16px', letterSpacing: '0.5px' }}>STRATEGIC RECOMMENDATIONS</div>
 
             {pendingOpportunities._opening !== undefined && (
-              <div style={{ padding: '12px 16px', background: '#1a2e1a', borderRadius: '8px', marginBottom: '16px', border: '1px solid #2d5a2d' }}>
-                <div style={{ fontSize: '11px', fontWeight: '600', color: '#10b981', marginBottom: '6px', letterSpacing: '0.5px' }}>OPENING</div>
+              <div style={{ padding: '16px 20px', background: '#1a2e1a', borderRadius: '8px', marginBottom: '20px', border: '1px solid #2d5a2d' }}>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: '#10b981', marginBottom: '8px', letterSpacing: '0.5px' }}>OPENING</div>
                 <textarea
                   value={pendingOpportunities._opening || ''}
                   onChange={e => updateOpeningClosing('_opening', e.target.value)}
-                  rows={3}
-                  style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '10px 12px', color: '#ccc', fontSize: '13px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                  rows={4}
+                  style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '12px 14px', color: '#ccc', fontSize: '14px', lineHeight: '1.7', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
                 />
               </div>
             )}
@@ -936,11 +936,11 @@ MULTICHANNEL NETWORK:
               </div>
             ) : (
               pendingOpportunities.map((opp, idx) => (
-                <div key={idx} style={{ background: opp.included ? '#1a2e1a' : '#2a2a2a', border: `1px solid ${opp.included ? '#2d5a2d' : '#444'}`, borderRadius: '10px', padding: '16px', marginBottom: '12px', transition: 'all 0.2s', opacity: opp.included ? 1 : 0.5 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                <div key={idx} style={{ background: opp.included ? '#1a2e1a' : '#2a2a2a', border: `1px solid ${opp.included ? '#2d5a2d' : '#444'}`, borderRadius: '10px', padding: '20px 24px', marginBottom: '16px', transition: 'all 0.2s', opacity: opp.included ? 1 : 0.5 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
                     <button
                       onClick={() => updateOpportunity(idx, 'included', !opp.included)}
-                      style={{ width: '28px', height: '28px', borderRadius: '6px', border: `2px solid ${opp.included ? '#10b981' : '#555'}`, background: opp.included ? '#10b981' : 'transparent', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}
+                      style={{ width: '30px', height: '30px', borderRadius: '6px', border: `2px solid ${opp.included ? '#10b981' : '#555'}`, background: opp.included ? '#10b981' : 'transparent', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}
                     >
                       {opp.included && <Check size={16} />}
                     </button>
@@ -949,41 +949,41 @@ MULTICHANNEL NETWORK:
                       value={opp.title}
                       onChange={e => updateOpportunity(idx, 'title', e.target.value)}
                       disabled={!opp.included}
-                      style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#fff', fontSize: '15px', fontWeight: '600', outline: 'none' }}
+                      style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '10px 14px', color: '#fff', fontSize: '16px', fontWeight: '600', outline: 'none' }}
                     />
                   </div>
-                  <div style={{ marginBottom: '8px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: '600', color: '#10b981', letterSpacing: '0.3px', marginBottom: '4px' }}>INSIGHT</div>
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: '#10b981', letterSpacing: '0.3px', marginBottom: '6px' }}>INSIGHT</div>
                     <textarea
                       value={opp.insight || ''}
                       onChange={e => updateOpportunity(idx, 'insight', e.target.value)}
                       disabled={!opp.included}
-                      rows={2}
-                      style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#ccc', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                      rows={3}
+                      style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '12px 14px', color: '#ccc', fontSize: '14px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
                     />
                   </div>
-                  <div style={{ marginBottom: '8px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: '600', color: '#f59e0b', letterSpacing: '0.3px', marginBottom: '4px' }}>OPPORTUNITY</div>
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: '#f59e0b', letterSpacing: '0.3px', marginBottom: '6px' }}>OPPORTUNITY</div>
                     <textarea
                       value={opp.opportunity || ''}
                       onChange={e => updateOpportunity(idx, 'opportunity', e.target.value)}
                       disabled={!opp.included}
-                      rows={2}
-                      style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#ccc', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                      rows={3}
+                      style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '12px 14px', color: '#ccc', fontSize: '14px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
                     />
                   </div>
                   {opp.steps && opp.steps.length > 0 && (
-                    <div style={{ marginTop: '8px', paddingLeft: '4px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#93c5fd', marginBottom: '6px', letterSpacing: '0.3px' }}>ACTION STEPS</div>
+                    <div style={{ marginTop: '12px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#93c5fd', marginBottom: '8px', letterSpacing: '0.3px' }}>ACTION STEPS</div>
                       {opp.steps.map((step, si) => (
-                        <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '4px' }}>
-                          <span style={{ fontSize: '13px', color: '#93c5fd', fontWeight: '600', minWidth: '16px', paddingTop: '7px' }}>{si + 1}.</span>
+                        <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '14px', color: '#93c5fd', fontWeight: '600', minWidth: '18px', paddingTop: '9px' }}>{si + 1}.</span>
                           <input
                             type="text"
                             value={step}
                             onChange={e => updateStep(idx, si, e.target.value)}
                             disabled={!opp.included}
-                            style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '6px 10px', color: '#ccc', fontSize: '13px', outline: 'none' }}
+                            style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#ccc', fontSize: '14px', outline: 'none' }}
                           />
                         </div>
                       ))}
@@ -994,24 +994,24 @@ MULTICHANNEL NETWORK:
             )}
 
             {pendingOpportunities._closing !== undefined && (
-              <div style={{ padding: '12px 16px', background: '#1a2e1a', borderRadius: '8px', marginTop: '8px', border: '1px solid #2d5a2d' }}>
-                <div style={{ fontSize: '11px', fontWeight: '600', color: '#10b981', marginBottom: '6px', letterSpacing: '0.5px' }}>CLOSING</div>
+              <div style={{ padding: '16px 20px', background: '#1a2e1a', borderRadius: '8px', marginTop: '12px', border: '1px solid #2d5a2d' }}>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: '#10b981', marginBottom: '8px', letterSpacing: '0.5px' }}>CLOSING</div>
                 <textarea
                   value={pendingOpportunities._closing || ''}
                   onChange={e => updateOpeningClosing('_closing', e.target.value)}
-                  rows={3}
-                  style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '10px 12px', color: '#ccc', fontSize: '13px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                  rows={4}
+                  style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '12px 14px', color: '#ccc', fontSize: '14px', lineHeight: '1.7', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
                 />
               </div>
             )}
           </div>
 
           {/* Footer */}
-          <div style={{ padding: '16px 24px', borderTop: '1px solid #333', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-            <button onClick={handleCancelModal} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #444', background: 'transparent', color: '#888', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
+          <div style={{ padding: '18px 32px', borderTop: '1px solid #333', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button onClick={handleCancelModal} style={{ padding: '10px 24px', borderRadius: '8px', border: '1px solid #444', background: 'transparent', color: '#888', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
               Cancel
             </button>
-            <button onClick={confirmAndExport} style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: '#2563eb', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button onClick={confirmAndExport} style={{ padding: '10px 28px', borderRadius: '8px', border: 'none', background: '#2563eb', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FileDown size={16} />
               Export PDF
             </button>
