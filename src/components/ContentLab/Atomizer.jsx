@@ -2,7 +2,8 @@ import React, { useState, useCallback, useMemo } from "react";
 import {
   Zap, FileText, Scissors, MessageSquare, Loader,
   ChevronDown, ChevronUp, Check, Plus, Shuffle,
-  Film, Smartphone, Image, Type, AlignLeft, X
+  Film, Smartphone, Image, Type, AlignLeft, X,
+  Copy, Video, Layers, ClipboardCheck, Target, BarChart3, Users, Swords,
 } from "lucide-react";
 import {
   analyzeTranscript, saveTranscript, markTranscriptAnalyzed,
@@ -49,16 +50,45 @@ function SelectBox({ checked, onChange, color = "#3b82f6" }) {
 // ============================================
 // Direction Card (expandable, with checkboxes)
 // ============================================
+
+const MOTION_GRAPHIC_LABELS = {
+  lower_third: "Lower Third",
+  title_card: "Title Card",
+  stat_callout: "Stat Callout",
+  animated_text: "Animated Text",
+  full_screen_text: "Full Screen Text",
+};
+
 function DirectionCard({
   dir, dirKey, isLongForm, expanded, onToggleExpand,
   selectedElements, onToggleElement, onCreateBrief,
   briefCreating, accentColor,
 }) {
+  const [edlCopied, setEdlCopied] = React.useState(false);
   const sc = scoreColor(dir.virality_score ?? dir.viralityScore);
   const hookPreview = dir.hook?.length > 100 ? dir.hook.slice(0, 100) + "..." : dir.hook;
+  const rationalePreview = dir.rationale?.length > 100 ? dir.rationale.slice(0, 100) + "..." : dir.rationale;
   const titleVars = dir.title_variations || [];
   const thumb = dir.thumbnail_suggestion || {};
+  const meta = dir.direction_metadata || {};
+  const timestamps = dir.timestamps || meta.timestamps || [];
+  const edl = dir.edl || meta.edl || [];
+  const bRoll = dir.b_roll || meta.b_roll || [];
+  const motionGraphics = dir.motion_graphics || meta.motion_graphics || [];
+  const formatType = dir.format_type || meta.format_type || null;
   const isSelected = (key) => selectedElements.has(key);
+
+  const formatEdlText = () => edl.map(e =>
+    `${String(e.step).padStart(2, "0")}. ${e.action} — ${e.segment}${e.pacing ? ` | ${e.pacing}` : ""}`
+  ).join("\n");
+
+  const copyEdl = async () => {
+    try {
+      await navigator.clipboard.writeText(formatEdlText());
+      setEdlCopied(true);
+      setTimeout(() => setEdlCopied(false), 2000);
+    } catch { /* ignore */ }
+  };
 
   return (
     <div style={{
@@ -78,13 +108,24 @@ function DirectionCard({
         }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff", marginBottom: "4px" }}>
-            {dir.title}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+            <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff" }}>
+              {dir.title}
+            </div>
+            {formatType && (
+              <span style={{
+                fontSize: "9px", fontWeight: "600", textTransform: "uppercase",
+                background: accentColor + "18", color: accentColor,
+                borderRadius: "4px", padding: "2px 6px", flexShrink: 0,
+              }}>
+                {formatType}
+              </span>
+            )}
           </div>
           <div style={{ fontSize: "11px", color: "#888", marginBottom: "6px" }}>
             {dir.hook_timecode ? `~${dir.hook_timecode}` : ""}
-            {dir.direction_metadata?.estimated_duration || dir.estimated_duration
-              ? ` / ${dir.direction_metadata?.estimated_duration || dir.estimated_duration}`
+            {meta.estimated_duration || dir.estimated_duration
+              ? ` / ${meta.estimated_duration || dir.estimated_duration}`
               : ""}
           </div>
           {!expanded && dir.hook && (
@@ -93,6 +134,14 @@ function DirectionCard({
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}>
               "{hookPreview}"
+            </div>
+          )}
+          {!expanded && dir.rationale && (
+            <div style={{
+              fontSize: "11px", color: "#777", marginTop: "4px",
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>
+              {rationalePreview}
             </div>
           )}
         </div>
@@ -250,10 +299,137 @@ function DirectionCard({
             </div>
           )}
 
+          {/* Timestamps */}
+          {timestamps.length > 0 && (
+            <div style={{ paddingLeft: "28px" }}>
+              <div style={{ fontSize: "10px", fontWeight: "600", color: "#888", textTransform: "uppercase", marginBottom: "8px" }}>
+                Timestamps
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {timestamps.map((ts, i) => (
+                  <div key={i} style={{
+                    display: "flex", gap: "8px", alignItems: "baseline",
+                    fontSize: "12px", color: "#b0b0b0",
+                  }}>
+                    <span style={{ color: accentColor, fontWeight: "600", fontFamily: "monospace", fontSize: "11px", flexShrink: 0 }}>
+                      IN: {ts.in}
+                    </span>
+                    <span style={{ color: "#666" }}>&rarr;</span>
+                    <span style={{ color: accentColor, fontWeight: "600", fontFamily: "monospace", fontSize: "11px", flexShrink: 0 }}>
+                      OUT: {ts.out}
+                    </span>
+                    {ts.note && <span style={{ color: "#888", fontSize: "11px" }}>({ts.note})</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* EDL — Edit Decision List */}
+          {edl.length > 0 && (
+            <div style={{ paddingLeft: "28px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <div style={{ fontSize: "10px", fontWeight: "600", color: "#888", textTransform: "uppercase" }}>
+                  Edit Decision List
+                </div>
+                <button
+                  onClick={copyEdl}
+                  style={{
+                    background: edlCopied ? "#166534" : "#333",
+                    border: `1px solid ${edlCopied ? "#22c55e" : "#555"}`,
+                    borderRadius: "4px", padding: "3px 8px",
+                    color: edlCopied ? "#22c55e" : "#ccc",
+                    fontSize: "10px", fontWeight: "600", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: "4px",
+                  }}
+                >
+                  {edlCopied ? <><ClipboardCheck size={10} /> Copied</> : <><Copy size={10} /> Copy EDL</>}
+                </button>
+              </div>
+              <div style={{
+                background: "#0d0d0d", border: "1px solid #333",
+                borderRadius: "6px", padding: "12px 14px",
+                fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
+                fontSize: "11px", lineHeight: "1.8", color: "#d4d4d4",
+                whiteSpace: "pre-wrap", overflowX: "auto",
+              }}>
+                {edl.map(e =>
+                  `${String(e.step).padStart(2, "0")}. ${e.action} — ${e.segment}${e.pacing ? `  |  ${e.pacing}` : ""}`
+                ).join("\n")}
+              </div>
+            </div>
+          )}
+
+          {/* B-Roll Directions */}
+          {bRoll.length > 0 && (
+            <div style={{ paddingLeft: "28px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+                <Video size={12} color="#06b6d4" />
+                <span style={{ fontSize: "10px", fontWeight: "600", color: "#06b6d4", textTransform: "uppercase" }}>
+                  B-Roll Directions
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {bRoll.map((br, i) => (
+                  <div key={i} style={{
+                    background: "#1a1a1a", border: "1px solid #2a2a2a",
+                    borderRadius: "6px", padding: "8px 12px",
+                  }}>
+                    <div style={{ fontSize: "10px", fontWeight: "600", color: "#06b6d4", marginBottom: "3px" }}>
+                      {br.segment}
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#b0b0b0", lineHeight: "1.5" }}>
+                      {br.direction}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Motion Graphics / Text Overlays */}
+          {motionGraphics.length > 0 && (
+            <div style={{ paddingLeft: "28px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+                <Type size={12} color="#a78bfa" />
+                <span style={{ fontSize: "10px", fontWeight: "600", color: "#a78bfa", textTransform: "uppercase" }}>
+                  Motion Graphics / Text Overlays
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {motionGraphics.map((mg, i) => (
+                  <div key={i} style={{
+                    background: "#1a1a1a", border: "1px solid #2a2a2a",
+                    borderRadius: "6px", padding: "8px 12px",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "3px" }}>
+                      <span style={{
+                        fontSize: "9px", fontWeight: "700", textTransform: "uppercase",
+                        background: "#a78bfa18", color: "#a78bfa",
+                        borderRadius: "3px", padding: "1px 6px",
+                      }}>
+                        {MOTION_GRAPHIC_LABELS[mg.type] || mg.type}
+                      </span>
+                      <span style={{ fontSize: "10px", color: "#888" }}>{mg.timecode_ref}</span>
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#e0e0e0", marginBottom: "2px" }}>
+                      {mg.content}
+                    </div>
+                    {mg.purpose && (
+                      <div style={{ fontSize: "11px", color: "#888", fontStyle: "italic" }}>
+                        {mg.purpose}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* CTA (short-form) */}
-          {(dir.cta || dir.direction_metadata?.cta || dir.suggested_cta) && (
+          {(dir.cta || meta.cta || dir.suggested_cta) && (
             <div style={{ paddingLeft: "28px", fontSize: "12px", color: "#ec4899" }}>
-              CTA: {dir.cta || dir.direction_metadata?.cta || dir.suggested_cta}
+              CTA: {dir.cta || meta.cta || dir.suggested_cta}
             </div>
           )}
 
@@ -318,6 +494,15 @@ export default function Atomizer({ activeClient }) {
   // Selection state for remix
   const [selections, setSelections] = useState({});
 
+  // Context inputs
+  const [contextOpen, setContextOpen] = useState(false);
+  const [contextInputs, setContextInputs] = useState({
+    strategyBrief: "",
+    performanceData: "",
+    audiencePersona: "",
+    competitorBenchmarks: "",
+  });
+
   // Remix state
   const [remixOpen, setRemixOpen] = useState(false);
   const [remixFeedback, setRemixFeedback] = useState("");
@@ -325,6 +510,15 @@ export default function Atomizer({ activeClient }) {
   const [remixResult, setRemixResult] = useState(null);
 
   const wordCount = transcriptText.trim() ? transcriptText.trim().split(/\s+/).length : 0;
+
+  const contextFilledCount = useMemo(() =>
+    Object.values(contextInputs).filter(v => v.trim()).length,
+    [contextInputs]
+  );
+
+  const updateContext = useCallback((key, value) => {
+    setContextInputs(prev => ({ ...prev, [key]: value }));
+  }, []);
 
   // Cost estimates
   const estimatedInputTokens = 2800 + Math.ceil(wordCount / 0.75);
@@ -406,6 +600,7 @@ export default function Atomizer({ activeClient }) {
         transcriptText,
         title || "Untitled",
         activeClient?.id,
+        { contextInputs },
       );
       setResults(data);
       setActiveTab(data.long_form_directions?.length ? "long_form" : "short_form");
@@ -452,7 +647,7 @@ export default function Atomizer({ activeClient }) {
     } finally {
       setAnalyzing(false);
     }
-  }, [transcriptText, title, activeClient]);
+  }, [transcriptText, title, activeClient, contextInputs]);
 
   const handleCreateBrief = useCallback(async (atomizedContentId) => {
     setBriefCreating(atomizedContentId);
@@ -567,6 +762,69 @@ export default function Atomizer({ activeClient }) {
               outline: "none", fontFamily: "inherit", boxSizing: "border-box",
             }}
           />
+        </div>
+
+        {/* Context Inputs (Collapsible) */}
+        <div style={{
+          background: "#1a1a1a", border: `1px solid ${contextFilledCount > 0 ? "#3b82f644" : "#333"}`,
+          borderRadius: "8px", marginBottom: "16px", overflow: "hidden",
+        }}>
+          <button
+            onClick={() => setContextOpen(prev => !prev)}
+            style={{
+              width: "100%", background: "transparent", border: "none",
+              padding: "12px 14px", cursor: "pointer", textAlign: "left",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Layers size={14} color="#888" />
+              <span style={{ fontSize: "12px", fontWeight: "600", color: "#b0b0b0" }}>
+                Context Inputs (Optional)
+              </span>
+              {contextFilledCount > 0 && (
+                <span style={{
+                  fontSize: "10px", fontWeight: "700", background: "#3b82f622",
+                  color: "#3b82f6", borderRadius: "10px", padding: "2px 8px",
+                }}>
+                  {contextFilledCount}/4 filled
+                </span>
+              )}
+            </div>
+            {contextOpen ? <ChevronUp size={14} color="#888" /> : <ChevronDown size={14} color="#888" />}
+          </button>
+
+          {contextOpen && (
+            <div style={{ padding: "0 14px 14px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              {[
+                { key: "strategyBrief", label: "Strategy Brief", icon: Target, placeholder: "Channel goals, content pillars, target outcomes, key messaging priorities..." },
+                { key: "performanceData", label: "Performance Data", icon: BarChart3, placeholder: "Top performing videos, avg view duration, CTR benchmarks, what's worked and what hasn't..." },
+                { key: "audiencePersona", label: "Audience Persona", icon: Users, placeholder: "Who the viewer is, what they care about, pain points, desired transformation..." },
+                { key: "competitorBenchmarks", label: "Competitor Benchmarks", icon: Swords, placeholder: "What formats, hooks, and topics are performing in this space..." },
+              ].map(f => (
+                <div key={f.key}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                    <f.icon size={12} color={contextInputs[f.key].trim() ? "#3b82f6" : "#666"} />
+                    <label style={{ fontSize: "11px", fontWeight: "600", color: contextInputs[f.key].trim() ? "#b0b0b0" : "#666" }}>
+                      {f.label}
+                    </label>
+                  </div>
+                  <textarea
+                    value={contextInputs[f.key]}
+                    onChange={(e) => updateContext(f.key, e.target.value)}
+                    placeholder={f.placeholder}
+                    rows={4}
+                    style={{
+                      width: "100%", background: "#252525", border: `1px solid ${contextInputs[f.key].trim() ? "#3b82f644" : "#333"}`,
+                      borderRadius: "6px", padding: "8px 10px", color: "#e0e0e0",
+                      fontSize: "12px", lineHeight: "1.5", resize: "vertical",
+                      outline: "none", fontFamily: "inherit", boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

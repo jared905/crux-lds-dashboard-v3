@@ -68,7 +68,7 @@ Guidelines:
 // V2 SYSTEM PROMPT — Edit Directions
 // ============================================
 
-const ATOMIZER_V2_SYSTEM_PROMPT = `You are a YouTube editor and content strategist. Your job is to analyze a transcript and propose EDIT DIRECTIONS — complete video concepts that an editor can execute using only the existing material.
+const ATOMIZER_V2_SYSTEM_PROMPT = `You are a YouTube editor and content strategist. Your job is to analyze a transcript and propose EDIT DIRECTIONS — complete, editor-ready video concepts that an editor can execute using only the existing material.
 
 You will produce two categories:
 
@@ -84,14 +84,18 @@ CRITICAL RULES:
   - "pattern_interrupt": Breaks expectations or uses unexpected framing
 - Thumbnail suggestions must reference a SPECIFIC moment from the transcript that has visual or emotional energy.
 - Narrative arcs should specify which transcript sections to include and in what order.
+- IMPORTANT: Most transcripts will NOT have precise timecodes. For timestamps and EDL references, use section descriptions (e.g., "Opening paragraph", "The story about X", "Closing remarks") rather than MM:SS. Only use MM:SS if the transcript contains actual timecodes.
+- If context sections (strategy brief, performance data, audience persona, competitor benchmarks) are provided, actively use them to calibrate your recommendations. If any are missing, note this briefly in the summary and explain that those recommendations are more general as a result.
+- Virality rationale MUST reference the strategy brief and performance data if provided. Do not give generic reasoning like "this has emotional resonance." Instead tie it to specific context: "This mirrors the hook structure of [top performer title] which drove X% CTR" or "This aligns with the stated goal of [strategy point]." If no context is provided, give the best reasoning you can based on the content itself.
 
 Respond with ONLY a JSON object (no markdown, no code fences) in this exact format:
 {
   "long_form_directions": [
     {
       "title": "Working title for the edit direction",
+      "format_type": "long-form re-edit",
       "hook": "EXACT transcript words for the first 5-15 seconds — verbatim quote from the speaker",
-      "hook_timecode": "MM:SS approximate location of the hook in the source",
+      "hook_timecode": "MM:SS or section reference if no timecodes available",
       "arc_summary": "Narrative arc: describe the structure (setup > development > payoff) and which transcript sections to include, in what order",
       "title_variations": [
         { "text": "Title option 1", "style": "curiosity_gap" },
@@ -105,15 +109,29 @@ Respond with ONLY a JSON object (no markdown, no code fences) in this exact form
         "visual_elements": ["element1", "element2", "element3"]
       },
       "estimated_duration": "8-12 min",
+      "timestamps": [
+        { "in": "Section or paragraph reference for segment start", "out": "Section or paragraph reference for segment end", "note": "What this segment covers" }
+      ],
+      "edl": [
+        { "step": 1, "action": "COLD OPEN on hook quote", "segment": "Opening paragraph or section reference", "pacing": "Quick cut, 3-5 seconds" },
+        { "step": 2, "action": "CUT TO main argument", "segment": "Section reference", "pacing": "Let it breathe, 45-60 sec" }
+      ],
+      "b_roll": [
+        { "segment": "Which edit segment this applies to", "direction": "Specific B-roll visual description — not generic. Example: 'close-up of hands typing on keyboard, office environment, warm lighting'" }
+      ],
+      "motion_graphics": [
+        { "timecode_ref": "When in the edit this appears (e.g., 'After hook lands, ~15 sec in')", "type": "lower_third", "content": "What the graphic says", "purpose": "Why it appears here (e.g., 'Builds credibility before the core argument')" }
+      ],
       "virality_score": 8,
-      "rationale": "Why this edit direction would perform well — reference the channel's performance patterns if context is provided"
+      "rationale": "1-2 sentences on why this edit direction would perform well — reference strategy brief, performance data, or competitor patterns if provided"
     }
   ],
   "short_form_directions": [
     {
       "title": "Short-form working title",
+      "format_type": "YouTube Short",
       "hook": "EXACT transcript words for the first 1-3 seconds — verbatim",
-      "hook_timecode": "MM:SS",
+      "hook_timecode": "MM:SS or section reference",
       "arc_summary": "Micro-arc: hook > core moment > punchline or CTA",
       "title_variations": [
         { "text": "Title option 1", "style": "curiosity_gap" },
@@ -127,19 +145,35 @@ Respond with ONLY a JSON object (no markdown, no code fences) in this exact form
       },
       "cta": "Call to action for the end of the Short",
       "estimated_duration": "30-45 sec",
+      "timestamps": [
+        { "in": "Section reference", "out": "Section reference", "note": "Segment description" }
+      ],
+      "edl": [
+        { "step": 1, "action": "OPEN on hook", "segment": "Section reference", "pacing": "Immediate, no delay" }
+      ],
+      "b_roll": [
+        { "segment": "Segment reference", "direction": "Specific B-roll description" }
+      ],
+      "motion_graphics": [
+        { "timecode_ref": "When this appears", "type": "lower_third", "content": "What it says", "purpose": "Why it's here" }
+      ],
       "virality_score": 7,
-      "rationale": "Why this works as short-form content"
+      "rationale": "Why this works as short-form content — reference context if provided"
     }
   ],
-  "summary": "One paragraph summarizing the transcript's themes and the overall editorial strategy behind these directions",
+  "summary": "One paragraph summarizing the transcript's themes and the overall editorial strategy behind these directions. Note which context inputs informed the strategy and which were unavailable.",
   "total_directions": 8
 }
 
 Guidelines:
-- Long-form: Propose 2-4 directions. Each should be a complete, self-contained video concept with a clear narrative arc. Think "editor's brief" — not just "this part was interesting."
-- Short-form: Propose 3-5 directions. Punchy, hook-driven, optimized for vertical scroll-stopping. Every Short needs a powerful opener from the transcript and a clear CTA.
+- Long-form: Propose 2-4 directions. Each should be a complete, editor-ready video concept with a clear narrative arc, full EDL, B-roll directions, and motion graphics notes. Think "editor's brief" — not just "this part was interesting."
+- Short-form: Propose 3-5 directions. Punchy, hook-driven, optimized for vertical scroll-stopping. Every Short needs a powerful opener from the transcript, a clear CTA, and at least a short EDL with B-roll notes.
 - Virality scores 1-10: Based on hook strength, topic novelty, emotional resonance, and alignment with the channel's proven performers.
-- If the transcript lacks timecodes, estimate position (beginning/middle/end) and note it.
+- EDL: Write each step as an edit decision an editor can follow. State what plays, what the editor does (cut to, trim, hold on, J-cut, etc.), and any pacing notes.
+- B-roll: Be SPECIFIC. Not "show person working" but "close-up of hands typing on keyboard, office environment, warm lighting." Reference what segment each B-roll accompanies.
+- Motion graphics types: lower_third, title_card, stat_callout, animated_text, full_screen_text. State exactly what the graphic says and why it appears at that moment.
+- Timestamps: If stitching multiple transcript segments, list each segment in order with its own in/out reference.
+- If the transcript lacks timecodes, estimate position (beginning/middle/end) and reference by content (e.g., "The section about retirement planning").
 - Prioritize moments with: emotional peaks, surprising data, contrarian takes, vulnerable admissions, strong storytelling, or concrete how-to value.`;
 
 // ============================================
@@ -170,6 +204,101 @@ Respond with ONLY a JSON object:
   "editor_notes": "Additional notes for the editor — pacing, tone, transitions, anything synthesized from the user's feedback",
   "rationale": "Why this combination works, referencing the source directions"
 }`;
+
+// ============================================
+// MANUAL CONTEXT BUILDER
+// ============================================
+
+/**
+ * Build a prompt injection block from user-provided context inputs.
+ * Each field is optional — only non-empty fields are included.
+ * Appends a note listing which sections were not provided.
+ *
+ * @param {{ strategyBrief?: string, performanceData?: string, audiencePersona?: string, competitorBenchmarks?: string }} inputs
+ * @returns {string} Prompt block wrapped in <manual_context> tags, or empty string
+ */
+export function buildManualContext(inputs) {
+  if (!inputs) return '';
+
+  const sections = [];
+  const missing = [];
+
+  const fields = [
+    { key: 'strategyBrief', label: 'Client Strategy Brief', missingLabel: 'strategy brief' },
+    { key: 'performanceData', label: 'Past Video Performance Data', missingLabel: 'performance data' },
+    { key: 'audiencePersona', label: 'Audience Persona Profile', missingLabel: 'audience persona' },
+    { key: 'competitorBenchmarks', label: 'Competitor Benchmarks', missingLabel: 'competitor benchmarks' },
+  ];
+
+  for (const f of fields) {
+    const val = inputs[f.key]?.trim();
+    if (val) {
+      sections.push(`## ${f.label}\n${val}`);
+    } else {
+      missing.push(f.missingLabel);
+    }
+  }
+
+  if (sections.length === 0) return '';
+
+  let block = `<manual_context>\n${sections.join('\n\n')}`;
+  if (missing.length > 0) {
+    block += `\n\nNote: The following context was not provided, so recommendations in those areas will be more general: ${missing.join(', ')}.`;
+  }
+  block += '\n</manual_context>';
+  return block;
+}
+
+// ============================================
+// COMPETITOR BENCHMARKS (auto-fetched)
+// ============================================
+
+/**
+ * Fetch top-performing competitor videos for a client.
+ * Returns a formatted prompt block for injection.
+ */
+export async function getCompetitorBenchmarks(clientId) {
+  if (!supabase || !clientId) return '';
+
+  try {
+    // Get competitor channel IDs for this client
+    const { data: competitors, error: compError } = await supabase
+      .from('channels')
+      .select('id, name')
+      .eq('client_id', clientId)
+      .eq('is_competitor', true);
+
+    if (compError || !competitors?.length) return '';
+
+    const channelIds = competitors.map(c => c.id);
+    const channelNames = Object.fromEntries(competitors.map(c => [c.id, c.name]));
+
+    // Get top-performing competitor videos
+    const { data: videos, error: vidError } = await supabase
+      .from('videos')
+      .select('title, view_count, channel_id, duration_seconds, published_at, description')
+      .in('channel_id', channelIds)
+      .order('view_count', { ascending: false })
+      .limit(20);
+
+    if (vidError || !videos?.length) return '';
+
+    const lines = videos.map(v => {
+      const channel = channelNames[v.channel_id] || 'Unknown';
+      const views = (v.view_count || 0).toLocaleString();
+      const dur = v.duration_seconds ? (v.duration_seconds < 62 ? 'Short' : `${Math.round(v.duration_seconds / 60)}min`) : '';
+      return `- "${v.title}" (${channel}) | ${views} views${dur ? ' | ' + dur : ''}`;
+    });
+
+    let block = `<competitor_benchmarks>\n## Top-Performing Competitor Videos\n${lines.join('\n')}`;
+    block += '\n\nUse these competitor patterns as calibration: note what formats, hooks, and topics are driving views in this space.';
+    block += '\n</competitor_benchmarks>';
+    return block;
+  } catch (e) {
+    console.warn('[atomizer] Competitor benchmarks fetch failed:', e.message);
+    return '';
+  }
+}
 
 // ============================================
 // PERFORMANCE CONTEXT
@@ -267,9 +396,10 @@ ${text}
  * @param {string|null} channelId - Client ID for brand/performance context
  * @param {Object} [options]
  * @param {boolean} [options.v2=true] - Use V2 edit directions prompt
+ * @param {Object} [options.contextInputs] - Manual context inputs { strategyBrief, performanceData, audiencePersona, competitorBenchmarks }
  * @returns {Promise<Object>} Parsed atomizer results
  */
-export async function analyzeTranscript(text, title = 'Untitled', channelId = null, { v2 = true } = {}) {
+export async function analyzeTranscript(text, title = 'Untitled', channelId = null, { v2 = true, contextInputs } = {}) {
   if (!v2) return analyzeTranscriptLegacy(text, title, channelId);
 
   const wordCount = text.trim().split(/\s+/).length;
@@ -292,9 +422,21 @@ export async function analyzeTranscript(text, title = 'Untitled', channelId = nu
     } catch (e) {
       console.warn('[atomizer] Performance context fetch failed, proceeding without:', e.message);
     }
+
+    // Inject competitor benchmarks (auto-fetched)
+    try {
+      const compBlock = await getCompetitorBenchmarks(channelId);
+      if (compBlock) systemPrompt += '\n\n' + compBlock;
+    } catch (e) {
+      console.warn('[atomizer] Competitor benchmarks fetch failed, proceeding without:', e.message);
+    }
   }
 
-  const prompt = `Analyze this transcript and propose edit directions for both long-form and short-form content:
+  // Inject manual context inputs (user-provided, optional)
+  const manualBlock = buildManualContext(contextInputs);
+  if (manualBlock) systemPrompt += '\n\n' + manualBlock;
+
+  const prompt = `Analyze this transcript and propose editor-ready edit directions for both long-form and short-form content. Include full EDL, B-roll directions, and motion graphics notes for each direction.
 
 Title: ${title}
 Word Count: ${wordCount}
@@ -303,7 +445,7 @@ Word Count: ${wordCount}
 ${text}
 --- END TRANSCRIPT ---`;
 
-  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_v2', 8192);
+  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_v2', 16384);
   const parsed = parseClaudeJSON(result.text);
 
   return { ...parsed, usage: result.usage, cost: result.cost };
@@ -447,6 +589,11 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
       description_text: dir.description,
       direction_metadata: {
         estimated_duration: dir.estimated_duration,
+        format_type: dir.format_type || 'long-form re-edit',
+        timestamps: dir.timestamps || [],
+        edl: dir.edl || [],
+        b_roll: dir.b_roll || [],
+        motion_graphics: dir.motion_graphics || [],
       },
       status: 'suggested',
     });
@@ -470,6 +617,11 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
       direction_metadata: {
         estimated_duration: dir.estimated_duration,
         cta: dir.cta,
+        format_type: dir.format_type || 'YouTube Short',
+        timestamps: dir.timestamps || [],
+        edl: dir.edl || [],
+        b_roll: dir.b_roll || [],
+        motion_graphics: dir.motion_graphics || [],
       },
       suggested_cta: dir.cta,
       status: 'suggested',
@@ -684,6 +836,8 @@ export default {
   createBriefFromAtomized,
   saveRemixAsBrief,
   getClientPerformanceContext,
+  getCompetitorBenchmarks,
+  buildManualContext,
   getTranscripts,
   getAtomizedContent,
 };
