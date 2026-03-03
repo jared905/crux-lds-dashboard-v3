@@ -122,17 +122,17 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
         // Refresh API key from localStorage in case it was set after module init
         if (!claudeAPI.apiKey) claudeAPI.apiKey = claudeAPI.loadAPIKey();
         if (claudeAPI.apiKey) {
-          const topByCtr = [...filtered].sort((a, b) => (b.ctr || 0) - (a.ctr || 0));
-          const topByRet = [...filtered].sort((a, b) => (b.retention || 0) - (a.retention || 0));
-          const bottomByCtr = [...topByCtr].reverse();
-          const bottomByRet = [...topByRet].reverse();
-
           const formatVid = (v) => `"${v.title}" (${(v.views||0).toLocaleString()} views, ${((v.ctr||0)*100).toFixed(1)}% CTR, ${((v.retention||0)*100).toFixed(1)}% retention)`;
 
           const shorts = filtered.filter(r => r.type === 'short');
           const longs = filtered.filter(r => r.type !== 'short');
           const shortsViews = shorts.reduce((s, r) => s + (r.views || 0), 0);
           const longsViews = longs.reduce((s, r) => s + (r.views || 0), 0);
+
+          const longsByCtr = [...longs].sort((a, b) => (b.ctr || 0) - (a.ctr || 0));
+          const longsByRet = [...longs].sort((a, b) => (b.retention || 0) - (a.retention || 0));
+          const shortsByCtr = [...shorts].sort((a, b) => (b.ctr || 0) - (a.ctr || 0));
+          const shortsByRet = [...shorts].sort((a, b) => (b.retention || 0) - (a.retention || 0));
 
           const dataPrompt = `Channel performance for ${getDateRangeLabel()}:
 - Total Views: ${kpis.views.toLocaleString()}${kpis.viewsChange !== undefined ? ` (${kpis.viewsChange >= 0 ? '+' : ''}${kpis.viewsChange.toFixed(1)}% vs previous period)` : ''}
@@ -143,21 +143,35 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
 - Shorts: ${shorts.length} videos, ${shortsViews.toLocaleString()} views
 - Long-form: ${longs.length} videos, ${longsViews.toLocaleString()} views
 
-Top 5 by CTR:
-${topByCtr.slice(0, 5).map(formatVid).join('\n')}
+=== LONG-FORM VIDEOS ===
+Top 5 Long-form by CTR:
+${longsByCtr.slice(0, 5).map(formatVid).join('\n')}
 
-Bottom 5 by CTR:
-${bottomByCtr.slice(0, 5).map(formatVid).join('\n')}
+Bottom 5 Long-form by CTR:
+${[...longsByCtr].reverse().slice(0, 5).map(formatVid).join('\n')}
 
-Top 5 by Retention:
-${topByRet.slice(0, 5).map(formatVid).join('\n')}
+Top 5 Long-form by Retention:
+${longsByRet.slice(0, 5).map(formatVid).join('\n')}
 
-Bottom 5 by Retention:
-${bottomByRet.slice(0, 5).map(formatVid).join('\n')}
+Bottom 5 Long-form by Retention:
+${[...longsByRet].reverse().slice(0, 5).map(formatVid).join('\n')}
+
+=== SHORTS ===
+Top 5 Shorts by CTR:
+${shortsByCtr.slice(0, 5).map(formatVid).join('\n')}
+
+Bottom 5 Shorts by CTR:
+${[...shortsByCtr].reverse().slice(0, 5).map(formatVid).join('\n')}
+
+Top 5 Shorts by Retention:
+${shortsByRet.slice(0, 5).map(formatVid).join('\n')}
+
+Bottom 5 Shorts by Retention:
+${[...shortsByRet].reverse().slice(0, 5).map(formatVid).join('\n')}
 
 Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action title", "recommendation": "2-3 sentence actionable recommendation"}]`;
 
-          const systemPrompt = 'You are a YouTube growth strategist. Given this period\'s performance data, provide exactly 3 concise, actionable recommendations to improve the channel. Focus on specific, data-backed actions the creator can take immediately. Return ONLY valid JSON, no markdown fences.';
+          const systemPrompt = 'You are a YouTube growth strategist. Given this period\'s performance data, provide exactly 3 concise, actionable recommendations to improve the channel. IMPORTANT: Shorts and long-form are different formats — when recommending title or thumbnail strategies, only reference long-form videos as examples (shorts do not have clickable thumbnails). Keep each format\'s insights separate. Focus on specific, data-backed actions the creator can take immediately. Return ONLY valid JSON, no markdown fences.';
 
           const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 1024);
           // Strip markdown fences if present (e.g. ```json ... ```)
