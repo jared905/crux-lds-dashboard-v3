@@ -155,18 +155,18 @@ ${shortsByRet.slice(0, 5).map(formatVid).join('\n')}
 Bottom 5 Shorts by Retention:
 ${[...shortsByRet].reverse().slice(0, 5).map(formatVid).join('\n')}
 
-Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action title", "recommendation": "2-3 sentence actionable recommendation"}]`;
+Respond with ONLY a JSON array of exactly 6 objects: [{"title": "short action title", "recommendation": "2-3 sentence actionable recommendation"}]`;
 
-          const systemPrompt = 'You are a YouTube growth strategist. Given this period\'s performance data, provide exactly 3 concise, actionable recommendations to improve the channel. IMPORTANT: Shorts and long-form are different formats — when recommending title or thumbnail strategies, only reference long-form videos as examples (shorts do not have clickable thumbnails). Keep each format\'s insights separate. Focus on specific, data-backed actions the creator can take immediately. Return ONLY valid JSON, no markdown fences.';
+          const systemPrompt = 'You are a YouTube growth strategist. Given this period\'s performance data, provide exactly 6 concise, actionable recommendations to improve the channel. IMPORTANT: Shorts and long-form are different formats — when recommending title or thumbnail strategies, only reference long-form videos as examples (shorts do not have clickable thumbnails). Keep each format\'s insights separate. Focus on specific, data-backed actions the creator can take immediately. Return ONLY valid JSON, no markdown fences.';
 
-          const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 1024);
+          const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 2048);
           // Strip markdown fences if present (e.g. ```json ... ```)
           let jsonText = result.text.trim();
           const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
           if (fenceMatch) jsonText = fenceMatch[1].trim();
           const parsed = JSON.parse(jsonText);
-          if (Array.isArray(parsed) && parsed.length >= 3) {
-            opportunities = parsed.slice(0, 3);
+          if (Array.isArray(parsed) && parsed.length >= 1) {
+            opportunities = parsed.slice(0, 6);
           }
         }
       } catch (err) {
@@ -510,7 +510,7 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
           ${opportunities.length > 0 ? `
           <!-- 3 Key Opportunities -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; padding-bottom: 10px; border-bottom: 3px solid #10b981; line-height: 1.3;">🎯 3 Key Opportunities</h2>
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; padding-bottom: 10px; border-bottom: 3px solid #10b981; line-height: 1.3;">🎯 Key Opportunities</h2>
             ${opportunities.map((opp, idx) => `
               <div style="display: flex; gap: 16px; margin-bottom: 16px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); padding: 22px; border-radius: 14px; border: 2px solid #86efac;">
                 <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #059669); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: white; flex-shrink: 0; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">
