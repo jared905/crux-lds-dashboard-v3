@@ -625,12 +625,20 @@ export default function App() {
       allRows = allRows.filter(r => r.channel === selectedChannel);
     }
 
-    const views = allRows.reduce((s, r) => s + (r.views || 0), 0);
-    const watchHours = allRows.reduce((s, r) => s + (r.watchHours || 0), 0);
-    const subs = allRows.reduce((s, r) => s + (r.subscribers || 0), 0);
+    let views = allRows.reduce((s, r) => s + (r.views || 0), 0);
+    let watchHours = allRows.reduce((s, r) => s + (r.watchHours || 0), 0);
+    let subs = allRows.reduce((s, r) => s + (r.subscribers || 0), 0);
     const imps = allRows.reduce((s, r) => s + (r.impressions || 0), 0);
     const avgCtr = imps > 0 ? allRows.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / imps : 0;
     const avgRet = views > 0 ? allRows.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / views : 0;
+
+    // Lifetime must be >= current period (snapshot data can exceed CSV-based lifetime
+    // when CSV is incomplete or stale). Floor lifetime to the current period values.
+    if (kpis) {
+      views = Math.max(views, kpis.views || 0);
+      watchHours = Math.max(watchHours, kpis.watchHours || 0);
+      subs = Math.max(subs, kpis.subs || 0);
+    }
 
     return {
       count: allRows.length,
@@ -640,7 +648,7 @@ export default function App() {
       avgCtr,
       avgRet
     };
-  }, [rows, selectedChannel]);
+  }, [rows, selectedChannel, kpis]);
 
   // Calculate previous period KPIs for delta indicators
   const previousKpis = useMemo(() => {
