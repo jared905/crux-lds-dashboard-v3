@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
-import { FileDown } from "lucide-react";
+import { FileDown, X, Check, RotateCcw } from "lucide-react";
 
 /**
  * PDF Export Component
@@ -10,6 +10,11 @@ import { FileDown } from "lucide-react";
  */
 export default function PDFExport({ kpis, top, filtered, dateRange, customDateRange, clientName, selectedChannel, allTimeKpis, channelStats }) {
   const [exporting, setExporting] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [pendingOpportunities, setPendingOpportunities] = useState([]);
+  const [pendingComments, setPendingComments] = useState([]);
+  const [pendingPublishedHtml, setPendingPublishedHtml] = useState('');
+  const [rendering, setRendering] = useState(false);
 
   // Load AI content from localStorage if it should be included
   const getAIContent = () => {
@@ -49,31 +54,12 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
     }
   };
 
-  const exportToPDF = async () => {
+  // Phase 1: Collect data (comments, AI opportunities, published section) then open review modal
+  const handleExportClick = async () => {
     setExporting(true);
 
     try {
-      // Create a temporary container for the PDF content
-      const container = document.createElement('div');
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
-      container.style.width = '1200px';
-      container.style.backgroundColor = '#ffffff';
-      container.style.padding = '50px 35px 35px 35px';
-      container.style.fontFamily = 'system-ui, -apple-system, sans-serif';
-      document.body.appendChild(container);
-
-      const dateLabel = getDateRangeLabel();
-      const dateStr = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-
-      // Get AI content
-      const aiContent = getAIContent();
-
-      // Fetch top comments from top 3 videos via server proxy (sorted by likes)
+      // Fetch top comments from top videos via server proxy (sorted by likes)
       let topComments = [];
       try {
         const videosWithIds = top.filter(v => v.youtubeVideoId).slice(0, 8);
@@ -275,6 +261,50 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
             + '</div>';
         }
       }
+
+      // Store collected data and open review modal
+      setPendingComments(topComments);
+      setPendingOpportunities(opportunities.map(o => ({ ...o, included: true })));
+      setPendingPublishedHtml(publishedSectionHtml);
+      setShowReviewModal(true);
+
+    } catch (error) {
+      console.error('PDF data collection failed:', error);
+      alert('Failed to prepare PDF data. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Phase 2: Render PDF with reviewed/edited opportunities
+  const confirmAndExport = async () => {
+    setRendering(true);
+    setShowReviewModal(false);
+
+    try {
+      const opportunities = pendingOpportunities.filter(o => o.included);
+      const topComments = pendingComments;
+      const publishedSectionHtml = pendingPublishedHtml;
+
+      // Create a temporary container for the PDF content
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.width = '1200px';
+      container.style.backgroundColor = '#ffffff';
+      container.style.padding = '50px 35px 35px 35px';
+      container.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+      document.body.appendChild(container);
+
+      const dateLabel = getDateRangeLabel();
+      const dateStr = new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+
+      // Get AI content
+      const aiContent = getAIContent();
 
       // Determine channel display name
       const uniqueChannels = [...new Set(filtered.map(r => r.channel).filter(Boolean))];
@@ -661,44 +691,125 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"title": "short action ti
       console.error('PDF export failed:', error);
       alert('Failed to generate PDF. Please try again.');
     } finally {
-      setExporting(false);
+      setRendering(false);
     }
   };
 
+  const handleCancelModal = () => {
+    setShowReviewModal(false);
+    setPendingOpportunities([]);
+    setPendingComments([]);
+    setPendingPublishedHtml('');
+  };
+
+  const updateOpportunity = (idx, field, value) => {
+    setPendingOpportunities(prev => prev.map((o, i) => i === idx ? { ...o, [field]: value } : o));
+  };
+
+  const isDisabled = exporting || rendering;
+
   return (
+    <>
     <button
-      onClick={exportToPDF}
-      disabled={exporting}
+      onClick={handleExportClick}
+      disabled={isDisabled}
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        backgroundColor: exporting ? '#94a3b8' : '#2563eb',
+        backgroundColor: isDisabled ? '#94a3b8' : '#2563eb',
         color: '#fff',
         border: 'none',
         borderRadius: '8px',
         padding: '10px 18px',
         fontSize: '14px',
         fontWeight: '600',
-        cursor: exporting ? 'not-allowed' : 'pointer',
+        cursor: isDisabled ? 'not-allowed' : 'pointer',
         transition: 'all 0.2s',
-        boxShadow: exporting ? 'none' : '0 2px 4px rgba(37, 99, 235, 0.2)',
+        boxShadow: isDisabled ? 'none' : '0 2px 4px rgba(37, 99, 235, 0.2)',
       }}
       onMouseEnter={(e) => {
-        if (!exporting) {
+        if (!isDisabled) {
           e.currentTarget.style.backgroundColor = '#1d4ed8';
           e.currentTarget.style.boxShadow = '0 4px 8px rgba(37, 99, 235, 0.3)';
         }
       }}
       onMouseLeave={(e) => {
-        if (!exporting) {
+        if (!isDisabled) {
           e.currentTarget.style.backgroundColor = '#2563eb';
           e.currentTarget.style.boxShadow = '0 2px 4px rgba(37, 99, 235, 0.2)';
         }
       }}
     >
       <FileDown size={18} />
-      {exporting ? 'Generating PDF...' : 'Export PDF'}
+      {exporting ? 'Preparing...' : rendering ? 'Rendering PDF...' : 'Export PDF'}
     </button>
+
+    {showReviewModal && (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={handleCancelModal}>
+        <div style={{ backgroundColor: '#1E1E1E', border: '1px solid #333', borderRadius: '12px', width: '640px', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+          {/* Header */}
+          <div style={{ padding: '18px 24px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: '18px', fontWeight: '700', color: '#fff' }}>Review PDF Content</div>
+              <div style={{ fontSize: '13px', color: '#888', marginTop: '4px' }}>Edit recommendations before exporting</div>
+            </div>
+            <button onClick={handleCancelModal} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: '4px' }}>
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div style={{ padding: '20px 24px', flex: 1, overflowY: 'auto' }}>
+            <div style={{ fontSize: '14px', fontWeight: '600', color: '#93c5fd', marginBottom: '14px', letterSpacing: '0.5px' }}>KEY OPPORTUNITIES</div>
+
+            {pendingOpportunities.length === 0 ? (
+              <div style={{ padding: '20px', background: '#2a2a2a', borderRadius: '8px', color: '#888', fontSize: '14px', textAlign: 'center' }}>
+                No recommendations generated. The PDF will export without this section.
+              </div>
+            ) : (
+              pendingOpportunities.map((opp, idx) => (
+                <div key={idx} style={{ background: opp.included ? '#1a2e1a' : '#2a2a2a', border: `1px solid ${opp.included ? '#2d5a2d' : '#444'}`, borderRadius: '10px', padding: '16px', marginBottom: '12px', transition: 'all 0.2s', opacity: opp.included ? 1 : 0.5 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <button
+                      onClick={() => updateOpportunity(idx, 'included', !opp.included)}
+                      style={{ width: '28px', height: '28px', borderRadius: '6px', border: `2px solid ${opp.included ? '#10b981' : '#555'}`, background: opp.included ? '#10b981' : 'transparent', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}
+                    >
+                      {opp.included && <Check size={16} />}
+                    </button>
+                    <input
+                      type="text"
+                      value={opp.title}
+                      onChange={e => updateOpportunity(idx, 'title', e.target.value)}
+                      disabled={!opp.included}
+                      style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#fff', fontSize: '15px', fontWeight: '600', outline: 'none' }}
+                    />
+                  </div>
+                  <textarea
+                    value={opp.recommendation}
+                    onChange={e => updateOpportunity(idx, 'recommendation', e.target.value)}
+                    disabled={!opp.included}
+                    rows={3}
+                    style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '10px 12px', color: '#ccc', fontSize: '14px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: '16px 24px', borderTop: '1px solid #333', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button onClick={handleCancelModal} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #444', background: 'transparent', color: '#888', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
+              Cancel
+            </button>
+            <button onClick={confirmAndExport} style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: '#2563eb', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileDown size={16} />
+              Export PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
