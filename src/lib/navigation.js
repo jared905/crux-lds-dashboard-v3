@@ -45,6 +45,7 @@ export const MAIN_SECTIONS = [
       { id: "ideation", label: "Ideation", icon: Lightbulb },
       { id: "intelligence", label: "Intelligence", icon: Brain },
       { id: "atomizer", label: "Atomizer", icon: Zap },
+      { id: "briefs", label: "Briefs", icon: FileText },
     ],
   },
   {
@@ -53,7 +54,6 @@ export const MAIN_SECTIONS = [
     icon: Map,
     tabs: [
       { id: "opportunities", label: "Opportunities", icon: Compass },
-      { id: "briefs", label: "Briefs", icon: FileText },
       { id: "actions", label: "Feedback", icon: Activity },
       { id: "calendar", label: "Calendar", icon: Calendar },
     ],

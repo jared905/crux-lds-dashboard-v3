@@ -751,7 +751,7 @@ export default function Atomizer({ activeClient }) {
 
       // Auto-save as brief
       try {
-        await saveRemixAsBrief(result, selectedArr, activeClient?.id);
+        await saveRemixAsBrief(result, selectedArr, activeClient?.id, selectedChannelId);
       } catch (saveErr) {
         console.warn("Failed to save remix brief:", saveErr);
       }

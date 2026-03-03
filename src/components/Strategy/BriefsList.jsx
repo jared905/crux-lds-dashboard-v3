@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  FileText, Trash2, ChevronDown, Loader, Link2, Unlink, TrendingUp, TrendingDown,
-  Check, X as XIcon,
+  FileText, Trash2, ChevronDown, ChevronUp, Loader, Link2, Unlink, TrendingUp, TrendingDown,
+  Check, X as XIcon, Copy, ClipboardCheck,
 } from "lucide-react";
 import { supabase } from "../../services/supabaseClient";
 
@@ -26,6 +26,447 @@ const SOURCE_LABELS = {
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
 
+// ─── Copy helper ────────────────────────────────────────────────────────
+function useCopyField() {
+  const [copiedField, setCopiedField] = useState(null);
+  const copyText = useCallback(async (text, fieldKey) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldKey);
+      setTimeout(() => setCopiedField(null), 1500);
+    } catch { /* silent */ }
+  }, []);
+  return { copiedField, copyText };
+}
+
+function CopyBtn({ fieldKey, text, copiedField, copyText }) {
+  const isCopied = copiedField === fieldKey;
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); copyText(text, fieldKey); }}
+      style={{
+        background: "transparent", border: "1px solid #444", borderRadius: "4px",
+        padding: "2px 6px", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px",
+        color: isCopied ? "#22c55e" : "#888", fontSize: "10px", flexShrink: 0,
+      }}
+      title="Copy"
+    >
+      {isCopied ? <Check size={10} /> : <Copy size={10} />}
+      {isCopied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
+// ─── Markdown export builder ────────────────────────────────────────────
+function buildBriefMarkdown(brief, channelName) {
+  const d = brief.brief_data || {};
+  const meta = d.direction_metadata || {};
+  const lines = [];
+
+  lines.push(`# ${brief.title || "Untitled Brief"}`);
+  if (channelName) lines.push(`Channel: ${channelName}`);
+  if (meta.format_type) lines.push(`Format: ${meta.format_type}`);
+  if (meta.estimated_duration) lines.push(`Duration: ${meta.estimated_duration}`);
+  lines.push("");
+
+  if (d.hook) {
+    lines.push("## Hook");
+    lines.push(d.hook);
+    lines.push("");
+  }
+
+  if (d.arc_summary || d.arc) {
+    lines.push("## Arc");
+    lines.push(d.arc_summary || d.arc);
+    lines.push("");
+  }
+
+  if (d.title_variations?.length) {
+    lines.push("## Title Options");
+    d.title_variations.forEach((tv, i) => {
+      const label = typeof tv === "string" ? tv : tv.text || tv.title || "";
+      const style = typeof tv === "object" && tv.style ? ` (${tv.style})` : "";
+      lines.push(`${i + 1}. ${label}${style}`);
+    });
+    lines.push("");
+  }
+
+  if (d.description) {
+    lines.push("## Description");
+    lines.push(d.description);
+    lines.push("");
+  }
+
+  const thumb = d.thumbnail_suggestion || d.thumbnail;
+  if (thumb) {
+    lines.push("## Thumbnail");
+    if (typeof thumb === "string") {
+      lines.push(thumb);
+    } else {
+      if (thumb.concept) lines.push(`Concept: ${thumb.concept}`);
+      if (thumb.transcript_reference) lines.push(`Reference: ${thumb.transcript_reference}`);
+      if (thumb.visual_elements?.length) lines.push(`Elements: ${thumb.visual_elements.join(", ")}`);
+      if (thumb.text_overlay) lines.push(`Text: ${thumb.text_overlay}`);
+    }
+    lines.push("");
+  }
+
+  if (meta.edl?.length) {
+    lines.push("## EDL");
+    meta.edl.forEach((step, i) => {
+      lines.push(`${i + 1}. ${step.action || step.description || ""} — ${step.segment || ""} (${step.pacing || ""})`);
+    });
+    lines.push("");
+  }
+
+  if (meta.b_roll?.length) {
+    lines.push("## B-Roll");
+    meta.b_roll.forEach(br => {
+      lines.push(`- ${br.segment || br.timecode || ""}: ${br.direction || br.description || ""}`);
+    });
+    lines.push("");
+  }
+
+  if (meta.motion_graphics?.length) {
+    lines.push("## Motion Graphics");
+    meta.motion_graphics.forEach(mg => {
+      lines.push(`- ${mg.type || "graphic"} at ${mg.timecode || "—"}: ${mg.content || mg.description || ""}`);
+    });
+    lines.push("");
+  }
+
+  if (meta.timestamps?.length) {
+    lines.push("## Timestamps");
+    meta.timestamps.forEach(ts => {
+      lines.push(`- ${ts.in || ts.timecode || "—"} → ${ts.out || ""}: ${ts.note || ts.label || ""}`);
+    });
+    lines.push("");
+  }
+
+  if (d.rationale) {
+    lines.push("## Rationale");
+    lines.push(d.rationale);
+    lines.push("");
+  }
+
+  const cta = d.suggested_cta || d.cta || meta.cta;
+  if (cta) {
+    lines.push("## CTA");
+    lines.push(cta);
+    lines.push("");
+  }
+
+  if (d.editor_notes) {
+    lines.push("## Editor Notes");
+    lines.push(d.editor_notes);
+    lines.push("");
+  }
+
+  return lines.join("\n").trim();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BriefDetailPanel
+// ═══════════════════════════════════════════════════════════════════════
+function BriefDetailPanel({ brief, channelName }) {
+  const { copiedField, copyText } = useCopyField();
+  const d = brief.brief_data || {};
+  const meta = d.direction_metadata || {};
+
+  const sectionHeader = (label) => (
+    <div style={{
+      fontSize: "11px", fontWeight: "700", color: "#888", textTransform: "uppercase",
+      letterSpacing: "0.05em", marginBottom: "6px",
+    }}>
+      {label}
+    </div>
+  );
+
+  const fullMarkdown = buildBriefMarkdown(brief, channelName);
+
+  return (
+    <div style={{
+      background: "#161616", border: "1px solid #2a2a2a", borderTop: "none",
+      borderRadius: "0 0 8px 8px", padding: "20px 24px",
+    }}>
+      {/* Copy All bar */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid #2a2a2a",
+      }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          {meta.format_type && (
+            <span style={{
+              fontSize: "11px", fontWeight: "600", color: "#f59e0b", background: "#f59e0b22",
+              borderRadius: "6px", padding: "2px 10px",
+            }}>
+              {meta.format_type}
+            </span>
+          )}
+          {meta.estimated_duration && (
+            <span style={{ fontSize: "11px", color: "#888" }}>{meta.estimated_duration}</span>
+          )}
+          {d.virality_score != null && (
+            <span style={{
+              fontSize: "11px", fontWeight: "600", color: "#22c55e", background: "#22c55e22",
+              borderRadius: "6px", padding: "2px 10px",
+            }}>
+              Score: {d.virality_score}/10
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => copyText(fullMarkdown, "_all")}
+          style={{
+            background: copiedField === "_all" ? "#16a34a" : "#252525",
+            border: `1px solid ${copiedField === "_all" ? "#22c55e" : "#444"}`,
+            borderRadius: "6px", padding: "6px 14px", cursor: "pointer",
+            display: "flex", alignItems: "center", gap: "6px",
+            color: copiedField === "_all" ? "#fff" : "#e0e0e0", fontSize: "12px", fontWeight: "600",
+          }}
+        >
+          {copiedField === "_all" ? <ClipboardCheck size={14} /> : <Copy size={14} />}
+          {copiedField === "_all" ? "Copied!" : "Copy Brief"}
+        </button>
+      </div>
+
+      {/* Hook */}
+      {d.hook && (
+        <div style={{ marginBottom: "16px", borderLeft: "3px solid #f59e0b", paddingLeft: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {sectionHeader("Hook")}
+            <CopyBtn fieldKey="hook" text={d.hook} copiedField={copiedField} copyText={copyText} />
+          </div>
+          <div style={{ fontSize: "13px", color: "#e0e0e0", lineHeight: "1.5" }}>{d.hook}</div>
+        </div>
+      )}
+
+      {/* Arc */}
+      {(d.arc_summary || d.arc) && (
+        <div style={{ marginBottom: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {sectionHeader("Arc")}
+            <CopyBtn fieldKey="arc" text={d.arc_summary || d.arc} copiedField={copiedField} copyText={copyText} />
+          </div>
+          <div style={{ fontSize: "13px", color: "#c0c0c0", lineHeight: "1.5" }}>{d.arc_summary || d.arc}</div>
+        </div>
+      )}
+
+      {/* Title Variations */}
+      {d.title_variations?.length > 0 && (
+        <div style={{ marginBottom: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {sectionHeader("Title Variations")}
+            <CopyBtn
+              fieldKey="titles"
+              text={d.title_variations.map((tv, i) => {
+                const label = typeof tv === "string" ? tv : tv.text || tv.title || "";
+                const style = typeof tv === "object" && tv.style ? ` (${tv.style})` : "";
+                return `${i + 1}. ${label}${style}`;
+              }).join("\n")}
+              copiedField={copiedField} copyText={copyText}
+            />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {d.title_variations.map((tv, i) => {
+              const label = typeof tv === "string" ? tv : tv.text || tv.title || "";
+              const style = typeof tv === "object" ? tv.style : null;
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "12px", color: "#666", minWidth: "18px" }}>{i + 1}.</span>
+                  <span style={{ fontSize: "13px", color: "#e0e0e0" }}>{label}</span>
+                  {style && (
+                    <span style={{
+                      fontSize: "10px", fontWeight: "600",
+                      color: style.includes("Curiosity") ? "#f59e0b" : style.includes("Direct") ? "#3b82f6" : "#a855f7",
+                      background: style.includes("Curiosity") ? "#f59e0b18" : style.includes("Direct") ? "#3b82f618" : "#a855f718",
+                      borderRadius: "6px", padding: "1px 8px",
+                    }}>
+                      {style}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Description */}
+      {d.description && (
+        <div style={{ marginBottom: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {sectionHeader("Description")}
+            <CopyBtn fieldKey="desc" text={d.description} copiedField={copiedField} copyText={copyText} />
+          </div>
+          <div style={{ fontSize: "13px", color: "#c0c0c0", lineHeight: "1.6", whiteSpace: "pre-wrap" }}>{d.description}</div>
+        </div>
+      )}
+
+      {/* Thumbnail */}
+      {(d.thumbnail_suggestion || d.thumbnail) && (() => {
+        const thumb = d.thumbnail_suggestion || d.thumbnail;
+        const thumbText = typeof thumb === "string"
+          ? thumb
+          : [thumb.concept, thumb.transcript_reference, thumb.visual_elements?.join(", "), thumb.text_overlay].filter(Boolean).join("\n");
+        return (
+          <div style={{ marginBottom: "16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              {sectionHeader("Thumbnail Direction")}
+              <CopyBtn fieldKey="thumb" text={thumbText} copiedField={copiedField} copyText={copyText} />
+            </div>
+            {typeof thumb === "string" ? (
+              <div style={{ fontSize: "13px", color: "#c0c0c0", lineHeight: "1.5" }}>{thumb}</div>
+            ) : (
+              <div style={{ fontSize: "13px", color: "#c0c0c0", lineHeight: "1.6" }}>
+                {thumb.concept && <div><span style={{ color: "#888", fontWeight: "600" }}>Concept:</span> {thumb.concept}</div>}
+                {thumb.transcript_reference && <div><span style={{ color: "#888", fontWeight: "600" }}>Reference:</span> {thumb.transcript_reference}</div>}
+                {thumb.visual_elements?.length > 0 && <div><span style={{ color: "#888", fontWeight: "600" }}>Elements:</span> {thumb.visual_elements.join(", ")}</div>}
+                {thumb.text_overlay && <div><span style={{ color: "#888", fontWeight: "600" }}>Text:</span> {thumb.text_overlay}</div>}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* EDL */}
+      {meta.edl?.length > 0 && (
+        <div style={{ marginBottom: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {sectionHeader("EDL")}
+            <CopyBtn
+              fieldKey="edl"
+              text={meta.edl.map((s, i) => `${i + 1}. ${s.action || s.description || ""}\t${s.segment || ""}\t${s.pacing || ""}`).join("\n")}
+              copiedField={copiedField} copyText={copyText}
+            />
+          </div>
+          <div style={{
+            background: "#0a0a0a", border: "1px solid #2a2a2a", borderRadius: "6px",
+            padding: "10px 14px", fontFamily: "monospace", fontSize: "12px",
+          }}>
+            {meta.edl.map((step, i) => (
+              <div key={i} style={{ color: "#c0c0c0", marginBottom: i < meta.edl.length - 1 ? "4px" : 0 }}>
+                <span style={{ color: "#f59e0b", fontWeight: "600" }}>{i + 1}.</span>{" "}
+                {step.action || step.description || "—"}{" "}
+                <span style={{ color: "#666" }}>—</span>{" "}
+                <span style={{ color: "#3b82f6" }}>{step.segment || ""}</span>{" "}
+                {step.pacing && <span style={{ color: "#888" }}>({step.pacing})</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* B-Roll */}
+      {meta.b_roll?.length > 0 && (
+        <div style={{ marginBottom: "16px", borderLeft: "3px solid #06b6d4", paddingLeft: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {sectionHeader("B-Roll")}
+            <CopyBtn
+              fieldKey="broll"
+              text={meta.b_roll.map(br => `${br.segment || br.timecode || ""}: ${br.direction || br.description || ""}`).join("\n")}
+              copiedField={copiedField} copyText={copyText}
+            />
+          </div>
+          {meta.b_roll.map((br, i) => (
+            <div key={i} style={{
+              fontSize: "13px", color: "#c0c0c0", marginBottom: "4px",
+              display: "flex", gap: "8px",
+            }}>
+              <span style={{ color: "#06b6d4", fontWeight: "600", flexShrink: 0 }}>{br.segment || br.timecode || `Shot ${i + 1}`}</span>
+              <span>{br.direction || br.description || ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Motion Graphics */}
+      {meta.motion_graphics?.length > 0 && (
+        <div style={{ marginBottom: "16px", borderLeft: "3px solid #a855f7", paddingLeft: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {sectionHeader("Motion Graphics")}
+            <CopyBtn
+              fieldKey="mfx"
+              text={meta.motion_graphics.map(mg => `${mg.type || "graphic"} at ${mg.timecode || "—"}: ${mg.content || mg.description || ""}`).join("\n")}
+              copiedField={copiedField} copyText={copyText}
+            />
+          </div>
+          {meta.motion_graphics.map((mg, i) => (
+            <div key={i} style={{
+              fontSize: "13px", color: "#c0c0c0", marginBottom: "4px",
+              display: "flex", gap: "8px",
+            }}>
+              <span style={{ color: "#a855f7", fontWeight: "600", flexShrink: 0 }}>{mg.type || "Graphic"}</span>
+              {mg.timecode && <span style={{ color: "#888" }}>at {mg.timecode}</span>}
+              <span>{mg.content || mg.description || ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Timestamps */}
+      {meta.timestamps?.length > 0 && (
+        <div style={{ marginBottom: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {sectionHeader("Timestamps")}
+            <CopyBtn
+              fieldKey="ts"
+              text={meta.timestamps.map(ts => `${ts.in || ts.timecode || ""} → ${ts.out || ""}: ${ts.note || ts.label || ""}`).join("\n")}
+              copiedField={copiedField} copyText={copyText}
+            />
+          </div>
+          <div style={{
+            background: "#0a0a0a", border: "1px solid #2a2a2a", borderRadius: "6px",
+            padding: "10px 14px", fontFamily: "monospace", fontSize: "12px",
+          }}>
+            {meta.timestamps.map((ts, i) => (
+              <div key={i} style={{ color: "#c0c0c0", marginBottom: i < meta.timestamps.length - 1 ? "3px" : 0 }}>
+                <span style={{ color: "#22c55e" }}>{ts.in || ts.timecode || "—"}</span>
+                {ts.out && <span style={{ color: "#666" }}> → </span>}
+                {ts.out && <span style={{ color: "#22c55e" }}>{ts.out}</span>}
+                <span style={{ color: "#888" }}> {ts.note || ts.label || ""}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Rationale */}
+      {d.rationale && (
+        <div style={{ marginBottom: "16px" }}>
+          {sectionHeader("Rationale")}
+          <div style={{ fontSize: "13px", color: "#999", lineHeight: "1.5", fontStyle: "italic" }}>{d.rationale}</div>
+        </div>
+      )}
+
+      {/* CTA */}
+      {(d.suggested_cta || d.cta || meta.cta) && (
+        <div style={{ marginBottom: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {sectionHeader("CTA")}
+            <CopyBtn fieldKey="cta" text={d.suggested_cta || d.cta || meta.cta} copiedField={copiedField} copyText={copyText} />
+          </div>
+          <div style={{ fontSize: "13px", color: "#c0c0c0" }}>{d.suggested_cta || d.cta || meta.cta}</div>
+        </div>
+      )}
+
+      {/* Editor Notes (remix) */}
+      {d.editor_notes && (
+        <div style={{ marginBottom: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {sectionHeader("Editor Notes")}
+            <CopyBtn fieldKey="notes" text={d.editor_notes} copiedField={copiedField} copyText={copyText} />
+          </div>
+          <div style={{ fontSize: "13px", color: "#c0c0c0", lineHeight: "1.5", whiteSpace: "pre-wrap" }}>{d.editor_notes}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BriefsList (main export)
+// ═══════════════════════════════════════════════════════════════════════
 export default function BriefsList({ activeClient, clientVideos = [] }) {
   const [briefs, setBriefs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +474,7 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
   const [error, setError] = useState("");
   const [linkingBriefId, setLinkingBriefId] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
+  const [expandedBriefId, setExpandedBriefId] = useState(null);
 
   const fetchBriefs = useCallback(async () => {
     if (!supabase) return;
@@ -40,7 +482,7 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
     try {
       let query = supabase
         .from("briefs")
-        .select("*")
+        .select("*, channels(name)")
         .order("created_at", { ascending: false });
 
       if (activeClient?.id) {
@@ -88,6 +530,7 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
 
       if (delErr) throw delErr;
       setBriefs(prev => prev.filter(b => b.id !== briefId));
+      if (expandedBriefId === briefId) setExpandedBriefId(null);
     } catch (err) {
       setError("Failed to delete: " + err.message);
     }
@@ -176,7 +619,7 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
               <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff" }}>Briefs</div>
             </div>
             <div style={{ fontSize: "12px", color: "#888" }}>
-              Planned content items — link published briefs to videos to track outcomes
+              Planned content items — click a brief to view details and copy for your editor
             </div>
           </div>
         </div>
@@ -274,30 +717,54 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
               const hasLink = !!brief.linked_video_id;
               const isLinking = linkingBriefId === brief.id;
               const outcome = brief.outcome_data;
+              const isExpanded = expandedBriefId === brief.id;
+              const channelName = brief.channels?.name || null;
+              const hasBriefData = brief.brief_data && Object.keys(brief.brief_data).length > 0;
 
               return (
                 <div key={brief.id} style={{ borderBottom: "1px solid #2a2a2a" }}>
                   {/* Main row */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 120px 120px 140px 80px",
-                    gap: "12px",
-                    padding: "14px 20px",
-                    alignItems: "center",
-                    fontSize: "13px",
-                  }}>
-                    <div style={{
-                      color: "#fff",
-                      fontWeight: "500",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap"
-                    }}>
-                      {brief.title}
+                  <div
+                    onClick={() => hasBriefData && setExpandedBriefId(isExpanded ? null : brief.id)}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 120px 120px 140px 80px",
+                      gap: "12px",
+                      padding: "14px 20px",
+                      alignItems: "center",
+                      fontSize: "13px",
+                      cursor: hasBriefData ? "pointer" : "default",
+                      background: isExpanded ? "#1a1a2e" : "transparent",
+                      transition: "background 0.1s",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden" }}>
+                      {hasBriefData && (
+                        isExpanded
+                          ? <ChevronUp size={14} color="#3b82f6" style={{ flexShrink: 0 }} />
+                          : <ChevronDown size={14} color="#666" style={{ flexShrink: 0 }} />
+                      )}
+                      <span style={{
+                        color: "#fff",
+                        fontWeight: "500",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}>
+                        {brief.title}
+                      </span>
+                      {channelName && (
+                        <span style={{
+                          fontSize: "10px", fontWeight: "600", color: "#3b82f6", background: "#3b82f622",
+                          borderRadius: "6px", padding: "1px 8px", flexShrink: 0,
+                        }}>
+                          {channelName}
+                        </span>
+                      )}
                     </div>
 
                     {/* Status dropdown */}
-                    <div style={{ position: "relative" }}>
+                    <div style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
                       <select
                         value={brief.status}
                         onChange={(e) => updateStatus(brief.id, e.target.value)}
@@ -341,7 +808,7 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
                         : "—"}
                     </div>
 
-                    <div style={{ display: "flex", gap: "4px" }}>
+                    <div style={{ display: "flex", gap: "4px" }} onClick={(e) => e.stopPropagation()}>
                       {/* Link/Unlink button for published briefs */}
                       {isPublished && !hasLink && clientVideos.length > 0 && (
                         <button
@@ -398,6 +865,11 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
                     </div>
                   </div>
 
+                  {/* Expanded detail panel */}
+                  {isExpanded && hasBriefData && (
+                    <BriefDetailPanel brief={brief} channelName={channelName} />
+                  )}
+
                   {/* Outcome display for linked briefs */}
                   {hasLink && outcome && (
                     <div style={{
@@ -427,7 +899,6 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
                         </div>
 
                         <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-                          {/* Views */}
                           <MetricDelta
                             label="Views"
                             actual={outcome.actual?.views}
@@ -435,7 +906,6 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
                             delta={outcome.delta?.views}
                             format="int"
                           />
-                          {/* CTR */}
                           <MetricDelta
                             label="CTR"
                             actual={outcome.actual?.ctr}
@@ -443,7 +913,6 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
                             delta={outcome.delta?.ctr}
                             format="pct"
                           />
-                          {/* Retention */}
                           <MetricDelta
                             label="Retention"
                             actual={outcome.actual?.retention}
@@ -452,7 +921,6 @@ export default function BriefsList({ activeClient, clientVideos = [] }) {
                             format="pct"
                           />
 
-                          {/* Prediction comparison */}
                           {outcome.predicted?.viewsPerMonth && outcome.baseline?.views > 0 && (
                             <div style={{
                               marginLeft: "auto",

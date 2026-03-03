@@ -970,6 +970,7 @@ export async function createBriefFromAtomized(atomizedContentId, clientId) {
     .from('briefs')
     .insert({
       client_id: clientId || item.client_id,
+      channel_id: item.channel_id || null,
       title: item.title || item.transcript_excerpt?.slice(0, 60) || 'Untitled Brief',
       status: 'draft',
       source_type: 'atomizer',
@@ -998,7 +999,7 @@ export async function createBriefFromAtomized(atomizedContentId, clientId) {
 /**
  * Save a remix result as a brief.
  */
-export async function saveRemixAsBrief(remixResult, selectedElements, clientId) {
+export async function saveRemixAsBrief(remixResult, selectedElements, clientId, channelId) {
   if (!supabase) throw new Error('Supabase not configured');
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -1012,6 +1013,7 @@ export async function saveRemixAsBrief(remixResult, selectedElements, clientId) 
     .from('briefs')
     .insert({
       client_id: clientId,
+      channel_id: channelId || null,
       title: remixResult.title || 'Remixed Edit Direction',
       status: 'draft',
       source_type: 'remix',
