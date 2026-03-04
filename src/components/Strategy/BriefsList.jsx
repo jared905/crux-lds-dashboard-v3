@@ -57,7 +57,35 @@ function CopyBtn({ fieldKey, text, copiedField, copyText }) {
   );
 }
 
-// ─── Markdown export builder ────────────────────────────────────────────
+// ─── Client markdown (clean, no AI branding) ───────────────────────────
+function buildClientMarkdown(brief) {
+  const d = brief.brief_data || {};
+  const lines = [];
+
+  lines.push(brief.title || "Untitled");
+  lines.push("");
+
+  if (d.description) {
+    lines.push(d.description);
+    lines.push("");
+  }
+
+  if (d.arc_summary || d.arc) {
+    lines.push("Theme");
+    lines.push(d.arc_summary || d.arc);
+    lines.push("");
+  }
+
+  if (d.edited_transcript) {
+    lines.push("Script");
+    lines.push(d.edited_transcript);
+    lines.push("");
+  }
+
+  return lines.join("\n").trim();
+}
+
+// ─── Editor markdown export builder ─────────────────────────────────────
 function buildBriefMarkdown(brief, channelName) {
   const d = brief.brief_data || {};
   const meta = d.direction_metadata || {};
@@ -432,12 +460,107 @@ async function exportBriefPDF(brief, channelName) {
   pdf.save(`Brief_${safeTitle}_${today}.pdf`);
 }
 
+// ─── Client PDF (clean, no AI branding) ─────────────────────────────────
+async function exportClientPDF(brief) {
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import("html2canvas"),
+    import("jspdf"),
+  ]);
+
+  const d = brief.brief_data || {};
+
+  const sections = [];
+
+  // Title — clean, prominent
+  sections.push(`
+    <div style="margin-bottom:32px;">
+      <div style="font-size:30px;font-weight:700;color:#1e293b;line-height:1.3;">${esc(brief.title || "Untitled")}</div>
+    </div>
+  `);
+
+  // Description — flows naturally after title
+  if (d.description) {
+    sections.push(`
+      <div style="margin-bottom:28px;">
+        <div style="font-size:15px;color:#334155;line-height:1.8;white-space:pre-wrap;">${esc(d.description)}</div>
+      </div>
+    `);
+  }
+
+  // Theme
+  if (d.arc_summary || d.arc) {
+    sections.push(`
+      <div style="margin-bottom:28px;">
+        <div style="font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Theme</div>
+        <div style="font-size:15px;color:#334155;line-height:1.8;">${esc(d.arc_summary || d.arc)}</div>
+      </div>
+    `);
+  }
+
+  // Script
+  if (d.edited_transcript) {
+    sections.push(`
+      <div style="margin-bottom:28px;">
+        <div style="font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Script</div>
+        <div style="font-size:14px;color:#334155;line-height:1.9;white-space:pre-wrap;">${esc(d.edited_transcript)}</div>
+      </div>
+    `);
+  }
+
+  // Build container — no footer
+  const container = document.createElement("div");
+  container.style.position = "absolute";
+  container.style.left = "-9999px";
+  container.style.width = "1200px";
+  container.style.backgroundColor = "#ffffff";
+  container.style.padding = "56px 64px";
+  container.style.fontFamily = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+  container.style.color = "#1e293b";
+  container.innerHTML = sections.join("");
+  document.body.appendChild(container);
+
+  await new Promise(r => setTimeout(r, 300));
+
+  const canvas = await html2canvas(container, {
+    scale: 2,
+    backgroundColor: "#ffffff",
+    logging: false,
+  });
+
+  document.body.removeChild(container);
+
+  const pdf = new jsPDF("p", "mm", "a4");
+  const pdfWidth = pdf.internal.pageSize.getWidth();
+  const pdfHeight = pdf.internal.pageSize.getHeight();
+  const imgWidth = pdfWidth;
+  const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+  const imgData = canvas.toDataURL("image/png");
+
+  let heightLeft = imgHeight;
+  let position = 0;
+
+  pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+  heightLeft -= pdfHeight;
+
+  while (heightLeft > 0) {
+    position -= pdfHeight;
+    pdf.addPage();
+    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+    heightLeft -= pdfHeight;
+  }
+
+  const safeTitle = (brief.title || "Brief").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
+  const today = new Date().toISOString().split("T")[0];
+  pdf.save(`${safeTitle}_${today}.pdf`);
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // BriefDetailPanel
 // ═══════════════════════════════════════════════════════════════════════
 function BriefDetailPanel({ brief, channelName }) {
   const { copiedField, copyText } = useCopyField();
   const [exportingPDF, setExportingPDF] = useState(false);
+  const [exportingClientPDF, setExportingClientPDF] = useState(false);
   const d = brief.brief_data || {};
   const meta = d.direction_metadata || {};
 
@@ -451,13 +574,20 @@ function BriefDetailPanel({ brief, channelName }) {
   );
 
   const fullMarkdown = buildBriefMarkdown(brief, channelName);
+  const clientMarkdown = buildClientMarkdown(brief);
+
+  const btnBase = {
+    borderRadius: "6px", padding: "6px 12px", cursor: "pointer",
+    display: "flex", alignItems: "center", gap: "5px",
+    fontSize: "11px", fontWeight: "600",
+  };
 
   return (
     <div style={{
       background: "#161616", border: "1px solid #2a2a2a", borderTop: "none",
       borderRadius: "0 0 8px 8px", padding: "20px 24px",
     }}>
-      {/* Copy All bar */}
+      {/* Toolbar */}
       <div style={{
         display: "flex", justifyContent: "space-between", alignItems: "center",
         marginBottom: "16px", paddingBottom: "12px", borderBottom: "1px solid #2a2a2a",
@@ -483,20 +613,55 @@ function BriefDetailPanel({ brief, channelName }) {
             </span>
           )}
         </div>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          {/* Client copy */}
+          <button
+            onClick={() => copyText(clientMarkdown, "_client")}
+            style={{
+              ...btnBase,
+              background: copiedField === "_client" ? "#16a34a" : "#252525",
+              border: `1px solid ${copiedField === "_client" ? "#22c55e" : "#334155"}`,
+              color: copiedField === "_client" ? "#fff" : "#93c5fd",
+            }}
+          >
+            {copiedField === "_client" ? <ClipboardCheck size={13} /> : <Copy size={13} />}
+            {copiedField === "_client" ? "Copied!" : "Copy for Client"}
+          </button>
+          {/* Editor copy */}
           <button
             onClick={() => copyText(fullMarkdown, "_all")}
             style={{
+              ...btnBase,
               background: copiedField === "_all" ? "#16a34a" : "#252525",
               border: `1px solid ${copiedField === "_all" ? "#22c55e" : "#444"}`,
-              borderRadius: "6px", padding: "6px 14px", cursor: "pointer",
-              display: "flex", alignItems: "center", gap: "6px",
-              color: copiedField === "_all" ? "#fff" : "#e0e0e0", fontSize: "12px", fontWeight: "600",
+              color: copiedField === "_all" ? "#fff" : "#e0e0e0",
             }}
           >
-            {copiedField === "_all" ? <ClipboardCheck size={14} /> : <Copy size={14} />}
-            {copiedField === "_all" ? "Copied!" : "Copy Brief"}
+            {copiedField === "_all" ? <ClipboardCheck size={13} /> : <Copy size={13} />}
+            {copiedField === "_all" ? "Copied!" : "Copy for Editor"}
           </button>
+          {/* Client PDF */}
+          <button
+            onClick={async () => {
+              setExportingClientPDF(true);
+              try { await exportClientPDF(brief); }
+              catch (err) { console.error("[ClientPDF] Export failed:", err); }
+              finally { setExportingClientPDF(false); }
+            }}
+            disabled={exportingClientPDF}
+            style={{
+              ...btnBase,
+              background: "#252525",
+              border: `1px solid #334155`,
+              color: "#93c5fd",
+              cursor: exportingClientPDF ? "wait" : "pointer",
+              opacity: exportingClientPDF ? 0.6 : 1,
+            }}
+          >
+            {exportingClientPDF ? <Loader size={13} style={{ animation: "spin 1s linear infinite" }} /> : <Download size={13} />}
+            {exportingClientPDF ? "Exporting..." : "Client PDF"}
+          </button>
+          {/* Editor PDF */}
           <button
             onClick={async () => {
               setExportingPDF(true);
@@ -506,16 +671,16 @@ function BriefDetailPanel({ brief, channelName }) {
             }}
             disabled={exportingPDF}
             style={{
+              ...btnBase,
               background: "#252525",
               border: "1px solid #444",
-              borderRadius: "6px", padding: "6px 14px", cursor: exportingPDF ? "wait" : "pointer",
-              display: "flex", alignItems: "center", gap: "6px",
-              color: "#e0e0e0", fontSize: "12px", fontWeight: "600",
+              color: "#e0e0e0",
+              cursor: exportingPDF ? "wait" : "pointer",
               opacity: exportingPDF ? 0.6 : 1,
             }}
           >
-            {exportingPDF ? <Loader size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Download size={14} />}
-            {exportingPDF ? "Exporting..." : "Export PDF"}
+            {exportingPDF ? <Loader size={13} style={{ animation: "spin 1s linear infinite" }} /> : <Download size={13} />}
+            {exportingPDF ? "Exporting..." : "Editor PDF"}
           </button>
         </div>
       </div>
