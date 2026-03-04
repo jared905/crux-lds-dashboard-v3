@@ -780,19 +780,43 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
         return `"${v.title}"${isMultiChannel && v.channel ? ` [${v.channel}]` : ''} (${(v.views||0).toLocaleString()} views${d ? ` in ${d}d` : ''}, ${((v.ctr||0)*100).toFixed(1)}% CTR, ${((v.retention||0)*100).toFixed(1)}% retention, ${(v.subscribers||0)} subs gained, ${Number((v.watchHours||0).toFixed(1))} watch hrs${v.likes ? `, ${v.likes} likes` : ''}${v.comments ? `, ${v.comments} comments` : ''}${pubStr ? `, pub ${pubStr}` : ''})`;
       };
 
-      const shorts = filtered.filter(r => r.type === 'short');
-      const longs = filtered.filter(r => r.type !== 'short');
+      // Filter to videos published in the selected period for accurate upload counts
+      // and video-level analysis (matches what the dashboard shows)
+      const periodPublished = filtered.filter(r => {
+        if (!r.publishDate) return false;
+        const pub = new Date(r.publishDate);
+        if (dateRange === 'all') return true;
+        if (dateRange === 'custom') {
+          if (customDateRange?.start && pub < new Date(customDateRange.start)) return false;
+          if (customDateRange?.end) {
+            const end = new Date(customDateRange.end);
+            end.setHours(23, 59, 59, 999);
+            if (pub > end) return false;
+          }
+          return true;
+        }
+        const now = new Date();
+        let start;
+        if (dateRange === '7d') start = new Date(now.getTime() - 7 * 86400000);
+        else if (dateRange === '28d') start = new Date(now.getTime() - 28 * 86400000);
+        else if (dateRange === '90d') start = new Date(now.getTime() - 90 * 86400000);
+        else if (dateRange === 'ytd') start = new Date(now.getFullYear(), 0, 1);
+        return start ? pub >= start : true;
+      });
+
+      const shorts = periodPublished.filter(r => r.type === 'short');
+      const longs = periodPublished.filter(r => r.type !== 'short');
       const shortsViews = shorts.reduce((s, r) => s + (r.views || 0), 0);
       const longsViews = longs.reduce((s, r) => s + (r.views || 0), 0);
 
       let channelBreakdownBlock = '';
       if (isMultiChannel) {
         const channelRows = uniqueChannels.map(ch => {
-          const chRows = filtered.filter(r => r.channel === ch);
+          const chRows = periodPublished.filter(r => r.channel === ch);
           const chViews = chRows.reduce((s, r) => s + (r.views || 0), 0);
           const chShorts = chRows.filter(r => r.type === 'short').length;
           const chLongs = chRows.filter(r => r.type !== 'short').length;
-          return `* ${ch}: ${chRows.length} videos (${chLongs} long-form, ${chShorts} Shorts), ${chViews.toLocaleString()} views`;
+          return `* ${ch}: ${chRows.length} uploads (${chLongs} long-form, ${chShorts} Shorts), ${chViews.toLocaleString()} views`;
         }).join('\n');
         channelBreakdownBlock = `\nNETWORK OVERVIEW\nThis is a multichannel network with ${uniqueChannels.length} channels. Recommendations should be channel-specific where possible — what works for one channel may not apply to another.\n${channelRows}\n`;
       }
@@ -837,9 +861,9 @@ Subscribers Gained: ${(kpis.subs || 0) >= 0 ? '+' : ''}${(kpis.subs || 0).toLoca
 Avg CTR: ${((kpis.avgCtr || 0) * 100).toFixed(1)}%
 Avg Retention: ${((kpis.avgRet || 0) * 100).toFixed(1)}%
 
-FORMAT BREAKDOWN
-Shorts: ${shorts.length} videos, ${shortsViews.toLocaleString()} views, ${((kpis.shortsMetrics?.avgCtr || 0) * 100).toFixed(1)}% avg CTR, ${((kpis.shortsMetrics?.avgRet || 0) * 100).toFixed(1)}% avg retention
-Long-form: ${longs.length} videos, ${longsViews.toLocaleString()} views, ${((kpis.longsMetrics?.avgCtr || 0) * 100).toFixed(1)}% avg CTR, ${((kpis.longsMetrics?.avgRet || 0) * 100).toFixed(1)}% avg retention
+UPLOADS THIS PERIOD
+Shorts uploaded: ${shorts.length} videos, ${shortsViews.toLocaleString()} period views, ${((kpis.shortsMetrics?.avgCtr || 0) * 100).toFixed(1)}% avg CTR, ${((kpis.shortsMetrics?.avgRet || 0) * 100).toFixed(1)}% avg retention
+Long-form uploaded: ${longs.length} videos, ${longsViews.toLocaleString()} period views, ${((kpis.longsMetrics?.avgCtr || 0) * 100).toFixed(1)}% avg CTR, ${((kpis.longsMetrics?.avgRet || 0) * 100).toFixed(1)}% avg retention
 
 ---
 
