@@ -895,7 +895,7 @@ VIEW COUNT CONTEXT:
 * CTR and retention are rate-based metrics and ARE directly comparable regardless of publish date.
 * When citing view counts in recommendations, include the time context (e.g. "12,000 views in just 5 days" or "only 3,000 views after 45 days").
 
-CRITICAL: Your entire response must be valid, complete JSON. Do NOT let it get truncated. Aim for 5 recommendations maximum. Keep each field concise — quality over quantity.
+CRITICAL: Your entire response must be valid, complete JSON. Do NOT let it get truncated. Provide 6-8 recommendations — cover every meaningful signal in the data. Each recommendation should address a distinct issue or opportunity.
 
 Respond with ONLY a JSON object (no markdown fences) matching this exact structure:
 {
