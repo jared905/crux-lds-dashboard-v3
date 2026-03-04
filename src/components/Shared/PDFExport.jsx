@@ -257,7 +257,7 @@ MULTICHANNEL NETWORK:
 * Cross-channel recommendations (e.g. cross-promotion, content repurposing between channels) are valuable when supported by the data.` : ''}`;
 
           console.log('[PDFExport] Calling Claude for recommendations...');
-          const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 4096);
+          const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 8192);
           console.log('[PDFExport] Claude response received, length:', result.text?.length);
           const { parseClaudeJSON } = await import('../../lib/parseClaudeJSON');
 
