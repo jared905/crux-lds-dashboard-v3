@@ -950,6 +950,8 @@ SERIES INTELLIGENCE:
 
 ---
 
+CRITICAL: Your entire response must be valid, complete JSON. Do NOT let it get truncated. Aim for 5 recommendations maximum. Keep each field concise — quality over quantity.
+
 Respond with ONLY a JSON object (no markdown fences) matching this exact structure:
 {
   "opening": "2-3 sentence state-of-the-channel paragraph. Ground it in the strongest signal from the data — a standout trend, a shift in momentum, or a clear pattern. Reference actual numbers. Set the tone: confident, clear-eyed, never alarming.",
@@ -1007,7 +1009,7 @@ MULTICHANNEL NETWORK:
 * Cross-channel recommendations (e.g. cross-promotion, content repurposing between channels) are valuable when supported by the data.` : ''}`;
 
       console.log('[PDFExport] Calling Claude for recommendations...');
-      const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 16384);
+      const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 32000);
       console.log('[PDFExport] Claude response received, length:', result.text?.length);
       const { parseClaudeJSON } = await import('../../lib/parseClaudeJSON');
 
