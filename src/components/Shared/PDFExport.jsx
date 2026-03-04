@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
-import { FileDown, X, Check, RotateCcw } from "lucide-react";
+import { FileDown, X, Check, RotateCcw, Plus, Trash2, PenLine } from "lucide-react";
 
 /**
  * PDF Export Component
@@ -893,44 +893,241 @@ MULTICHANNEL NETWORK:
     });
   };
 
+  const addRecommendation = () => {
+    setPendingOpportunities(prev => {
+      const updated = [...prev, { title: '', insight: '', opportunity: '', steps: ['', '', ''], included: true }];
+      updated._opening = prev._opening ?? '';
+      updated._closing = prev._closing ?? '';
+      return updated;
+    });
+  };
+
+  const removeRecommendation = (idx) => {
+    setPendingOpportunities(prev => {
+      const updated = prev.filter((_, i) => i !== idx);
+      updated._opening = prev._opening;
+      updated._closing = prev._closing;
+      return updated;
+    });
+  };
+
+  const addStep = (idx) => {
+    setPendingOpportunities(prev => {
+      const updated = prev.map((o, i) => {
+        if (i !== idx) return o;
+        return { ...o, steps: [...(o.steps || []), ''] };
+      });
+      updated._opening = prev._opening;
+      updated._closing = prev._closing;
+      return updated;
+    });
+  };
+
+  const removeStep = (idx, stepIdx) => {
+    setPendingOpportunities(prev => {
+      const updated = prev.map((o, i) => {
+        if (i !== idx) return o;
+        return { ...o, steps: o.steps.filter((_, si) => si !== stepIdx) };
+      });
+      updated._opening = prev._opening;
+      updated._closing = prev._closing;
+      return updated;
+    });
+  };
+
+  // Skip AI, collect data, and open review modal with empty recommendations
+  const handleWriteOwnClick = async () => {
+    setExporting(true);
+    try {
+      // Fetch top comments (same as handleExportClick)
+      let topComments = [];
+      try {
+        const videosWithIds = top.filter(v => v.youtubeVideoId).slice(0, 8);
+        const titleMap = {};
+        const channelMap = {};
+        videosWithIds.forEach(v => {
+          titleMap[v.youtubeVideoId] = v.title || 'Untitled';
+          channelMap[v.youtubeVideoId] = v.channel || '';
+        });
+        if (videosWithIds.length > 0) {
+          const videoIds = videosWithIds.map(v => v.youtubeVideoId);
+          const resp = await fetch('/api/youtube-comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ videoIds, maxPerVideo: 20 }),
+          });
+          if (resp.ok) {
+            const { results } = await resp.json();
+            const allComments = Object.entries(results)
+              .flatMap(([videoId, data]) =>
+                (data.comments || []).map(c => ({ ...c, videoId }))
+              );
+            topComments = allComments
+              .sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0))
+              .slice(0, 10)
+              .map(c => ({
+                text: c.text,
+                author: c.author,
+                likes: c.likeCount || 0,
+                videoTitle: titleMap[c.videoId] || 'Unknown Video',
+                channel: channelMap[c.videoId] || ''
+              }));
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch comments for PDF:', err);
+      }
+
+      // Build published section (reuse same logic as handleExportClick)
+      let publishedSectionHtml = '';
+      {
+        let periodStart = null;
+        const now = new Date();
+        if (dateRange === 'custom' && customDateRange?.start) {
+          periodStart = new Date(customDateRange.start + 'T00:00:00');
+        } else if (dateRange === '7d') {
+          periodStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        } else if (dateRange === '28d') {
+          periodStart = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+        } else if (dateRange === '90d') {
+          periodStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        } else if (dateRange === 'ytd') {
+          periodStart = new Date(now.getFullYear(), 0, 1);
+        }
+
+        const publishedVideos = periodStart
+          ? filtered.filter(r => r.publishDate && new Date(r.publishDate) >= periodStart)
+              .sort((a, b) => new Date(b.publishDate) - new Date(a.publishDate))
+          : [];
+
+        if (publishedVideos.length > 0) {
+          const pubShorts = publishedVideos.filter(r => r.type === 'short');
+          const pubLongs = publishedVideos.filter(r => r.type !== 'short');
+          const calcMetrics = (vids) => {
+            const views = vids.reduce((s, r) => s + (r.views || 0), 0);
+            const imps = vids.reduce((s, r) => s + (r.impressions || 0), 0);
+            const avgCtr = imps > 0 ? vids.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / imps : 0;
+            const avgRet = views > 0 ? vids.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / views : 0;
+            return { count: vids.length, views, avgCtr, avgRet };
+          };
+          const sm = calcMetrics(pubShorts);
+          const lm = calcMetrics(pubLongs);
+          const videoRows = publishedVideos.map(video => {
+            const typeBg = video.type === 'short' ? '#fff7ed' : '#eff6ff';
+            const typeColor = video.type === 'short' ? '#f97316' : '#0ea5e9';
+            const typeLabel = video.type === 'short' ? 'SHORT' : 'LONG';
+            const pubDate = video.publishDate ? new Date(video.publishDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+            const channelLine = video.channel ? '<div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">' + video.channel + '</div>' : '';
+            return '<tr style="border-bottom: 1px solid #e2e8f0;">'
+              + '<td style="padding: 8px 14px; font-size: 13px; color: #1e293b; max-width: 400px; font-weight: 500;"><div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + (video.title || 'Untitled') + '</div>' + channelLine + '</td>'
+              + '<td style="padding: 8px 14px; text-align: center;"><span style="display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; background: ' + typeBg + '; color: ' + typeColor + ';">' + typeLabel + '</span></td>'
+              + '<td style="padding: 8px 14px; text-align: center; font-size: 12px; color: #64748b; white-space: nowrap;">' + pubDate + '</td>'
+              + '<td style="padding: 8px 14px; text-align: right; font-size: 14px; font-weight: 600; color: #1e293b;">' + (video.views || 0).toLocaleString() + '</td>'
+              + '<td style="padding: 8px 14px; text-align: right; font-size: 13px; color: #64748b;">' + ((video.ctr || 0) * 100).toFixed(1) + '%</td>'
+              + '<td style="padding: 8px 14px; text-align: right; font-size: 13px; color: #64748b;">' + ((video.retention || 0) * 100).toFixed(1) + '%</td>'
+              + '</tr>';
+          }).join('');
+          publishedSectionHtml = '<div data-pdf-section style="margin-bottom: 28px;">'
+            + '<h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3;">📅 Content Published This Period</h2>'
+            + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px;">'
+            + '<div style="background: #fff7ed; padding: 18px; border-radius: 12px; border: 2px solid #fed7aa;"><div style="font-size: 18px; font-weight: 700; color: #ea580c; margin-bottom: 12px; line-height: 1.3;">📱 Shorts Published</div><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;"><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Count</div><div style="font-size: 26px; font-weight: 700; color: #f97316; line-height: 1.25;">' + sm.count + '</div></div><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #f97316; line-height: 1.25;">' + sm.views.toLocaleString() + '</div></div><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (sm.avgCtr * 100).toFixed(1) + '%</div></div><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (sm.avgRet * 100).toFixed(1) + '%</div></div></div></div>'
+            + '<div style="background: #eff6ff; padding: 18px; border-radius: 12px; border: 2px solid #bfdbfe;"><div style="font-size: 18px; font-weight: 700; color: #0284c7; margin-bottom: 12px; line-height: 1.3;">🎥 Long-form Published</div><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;"><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Count</div><div style="font-size: 26px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">' + lm.count + '</div></div><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">' + lm.views.toLocaleString() + '</div></div><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (lm.avgCtr * 100).toFixed(1) + '%</div></div><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (lm.avgRet * 100).toFixed(1) + '%</div></div></div></div>'
+            + '</div>'
+            + '<div style="background: #f8fafc; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0;"><table style="width: 100%; border-collapse: collapse;"><thead><tr style="background: #e2e8f0;"><th style="text-align: left; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TITLE</th><th style="text-align: center; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TYPE</th><th style="text-align: center; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">PUBLISHED</th><th style="text-align: right; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">VIEWS</th><th style="text-align: right; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">CTR</th><th style="text-align: right; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">RETENTION</th></tr></thead><tbody>' + videoRows + '</tbody></table></div>'
+            + '</div>';
+        }
+      }
+
+      // Open modal with empty recommendations
+      setPendingComments(topComments);
+      const emptyOpps = [];
+      emptyOpps._opening = '';
+      emptyOpps._closing = '';
+      setPendingOpportunities(emptyOpps);
+      setPendingPublishedHtml(publishedSectionHtml);
+      setRecError(null);
+      setShowReviewModal(true);
+    } catch (error) {
+      console.error('PDF data collection failed:', error);
+      alert('Failed to prepare PDF data. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const isDisabled = exporting || rendering;
 
   return (
     <>
-    <button
-      onClick={handleExportClick}
-      disabled={isDisabled}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        backgroundColor: isDisabled ? '#94a3b8' : '#2563eb',
-        color: '#fff',
-        border: 'none',
-        borderRadius: '8px',
-        padding: '10px 18px',
-        fontSize: '14px',
-        fontWeight: '600',
-        cursor: isDisabled ? 'not-allowed' : 'pointer',
-        transition: 'all 0.2s',
-        boxShadow: isDisabled ? 'none' : '0 2px 4px rgba(37, 99, 235, 0.2)',
-      }}
-      onMouseEnter={(e) => {
-        if (!isDisabled) {
-          e.currentTarget.style.backgroundColor = '#1d4ed8';
-          e.currentTarget.style.boxShadow = '0 4px 8px rgba(37, 99, 235, 0.3)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!isDisabled) {
-          e.currentTarget.style.backgroundColor = '#2563eb';
-          e.currentTarget.style.boxShadow = '0 2px 4px rgba(37, 99, 235, 0.2)';
-        }
-      }}
-    >
-      <FileDown size={18} />
-      {exporting ? 'Preparing...' : rendering ? 'Rendering PDF...' : 'Export PDF'}
-    </button>
+    <div style={{ display: 'flex', gap: '8px' }}>
+      <button
+        onClick={handleExportClick}
+        disabled={isDisabled}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          backgroundColor: isDisabled ? '#94a3b8' : '#2563eb',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '8px',
+          padding: '10px 18px',
+          fontSize: '14px',
+          fontWeight: '600',
+          cursor: isDisabled ? 'not-allowed' : 'pointer',
+          transition: 'all 0.2s',
+          boxShadow: isDisabled ? 'none' : '0 2px 4px rgba(37, 99, 235, 0.2)',
+        }}
+        onMouseEnter={(e) => {
+          if (!isDisabled) {
+            e.currentTarget.style.backgroundColor = '#1d4ed8';
+            e.currentTarget.style.boxShadow = '0 4px 8px rgba(37, 99, 235, 0.3)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isDisabled) {
+            e.currentTarget.style.backgroundColor = '#2563eb';
+            e.currentTarget.style.boxShadow = '0 2px 4px rgba(37, 99, 235, 0.2)';
+          }
+        }}
+      >
+        <FileDown size={18} />
+        {exporting ? 'Preparing...' : rendering ? 'Rendering PDF...' : 'Export PDF'}
+      </button>
+      <button
+        onClick={handleWriteOwnClick}
+        disabled={isDisabled}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          backgroundColor: isDisabled ? '#94a3b8' : 'transparent',
+          color: isDisabled ? '#fff' : '#94a3b8',
+          border: '1px solid #475569',
+          borderRadius: '8px',
+          padding: '10px 14px',
+          fontSize: '13px',
+          fontWeight: '500',
+          cursor: isDisabled ? 'not-allowed' : 'pointer',
+          transition: 'all 0.2s',
+        }}
+        onMouseEnter={(e) => {
+          if (!isDisabled) {
+            e.currentTarget.style.borderColor = '#93c5fd';
+            e.currentTarget.style.color = '#93c5fd';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isDisabled) {
+            e.currentTarget.style.borderColor = '#475569';
+            e.currentTarget.style.color = '#94a3b8';
+          }
+        }}
+      >
+        <PenLine size={16} />
+        Write My Own
+      </button>
+    </div>
 
     {showReviewModal && createPortal(
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={handleCancelModal}>
@@ -962,11 +1159,12 @@ MULTICHANNEL NETWORK:
               </div>
             )}
 
-            {pendingOpportunities.length === 0 ? (
-              <div style={{ padding: '20px', background: '#2a2a2a', borderRadius: '8px', color: recError ? '#f87171' : '#888', fontSize: '14px', textAlign: 'center' }}>
-                {recError || 'No recommendations generated. The PDF will export without this section.'}
+            {pendingOpportunities.length === 0 && (
+              <div style={{ padding: '20px', background: '#2a2a2a', borderRadius: '8px', color: recError ? '#f87171' : '#888', fontSize: '14px', textAlign: 'center', marginBottom: '16px' }}>
+                {recError || 'No recommendations yet. Add your own below.'}
               </div>
-            ) : (
+            )}
+            {pendingOpportunities.length > 0 && (
               pendingOpportunities.map((opp, idx) => (
                 <div key={idx} style={{ background: opp.included ? '#1a2e1a' : '#2a2a2a', border: `1px solid ${opp.included ? '#2d5a2d' : '#444'}`, borderRadius: '10px', padding: '20px 24px', marginBottom: '16px', transition: 'all 0.2s', opacity: opp.included ? 1 : 0.5 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
@@ -981,8 +1179,18 @@ MULTICHANNEL NETWORK:
                       value={opp.title}
                       onChange={e => updateOpportunity(idx, 'title', e.target.value)}
                       disabled={!opp.included}
+                      placeholder="Recommendation title..."
                       style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '10px 14px', color: '#fff', fontSize: '16px', fontWeight: '600', outline: 'none' }}
                     />
+                    <button
+                      onClick={() => removeRecommendation(idx)}
+                      style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: '6px', flexShrink: 0, transition: 'color 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                      onMouseLeave={e => e.currentTarget.style.color = '#666'}
+                      title="Delete recommendation"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                   <div style={{ marginBottom: '14px' }}>
                     <div style={{ fontSize: '12px', fontWeight: '600', color: '#10b981', letterSpacing: '0.3px', marginBottom: '6px' }}>INSIGHT</div>
@@ -1004,26 +1212,54 @@ MULTICHANNEL NETWORK:
                       style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '12px 14px', color: '#ccc', fontSize: '14px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
                     />
                   </div>
-                  {opp.steps && opp.steps.length > 0 && (
-                    <div style={{ marginTop: '12px' }}>
-                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#93c5fd', marginBottom: '8px', letterSpacing: '0.3px' }}>ACTION STEPS</div>
-                      {opp.steps.map((step, si) => (
-                        <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
-                          <span style={{ fontSize: '14px', color: '#93c5fd', fontWeight: '600', minWidth: '18px', paddingTop: '9px' }}>{si + 1}.</span>
-                          <input
-                            type="text"
-                            value={step}
-                            onChange={e => updateStep(idx, si, e.target.value)}
-                            disabled={!opp.included}
-                            style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#ccc', fontSize: '14px', outline: 'none' }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div style={{ marginTop: '12px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: '#93c5fd', marginBottom: '8px', letterSpacing: '0.3px' }}>ACTION STEPS</div>
+                    {(opp.steps || []).map((step, si) => (
+                      <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '14px', color: '#93c5fd', fontWeight: '600', minWidth: '18px', paddingTop: '9px' }}>{si + 1}.</span>
+                        <input
+                          type="text"
+                          value={step}
+                          onChange={e => updateStep(idx, si, e.target.value)}
+                          disabled={!opp.included}
+                          placeholder="Action step..."
+                          style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#ccc', fontSize: '14px', outline: 'none' }}
+                        />
+                        <button
+                          onClick={() => removeStep(idx, si)}
+                          disabled={!opp.included}
+                          style={{ background: 'none', border: 'none', color: '#555', cursor: opp.included ? 'pointer' : 'default', padding: '8px 4px', flexShrink: 0 }}
+                          onMouseEnter={e => { if (opp.included) e.currentTarget.style.color = '#f87171'; }}
+                          onMouseLeave={e => { if (opp.included) e.currentTarget.style.color = '#555'; }}
+                          title="Remove step"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                    {opp.included && (
+                      <button
+                        onClick={() => addStep(idx)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: '1px dashed #444', borderRadius: '6px', padding: '6px 12px', color: '#93c5fd', fontSize: '13px', cursor: 'pointer', marginTop: '6px', transition: 'all 0.2s' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#93c5fd'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#444'; }}
+                      >
+                        <Plus size={14} /> Add Step
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))
             )}
+
+            <button
+              onClick={addRecommendation}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', background: 'none', border: '2px dashed #444', borderRadius: '10px', padding: '14px', color: '#93c5fd', fontSize: '14px', fontWeight: '600', cursor: 'pointer', marginBottom: '16px', transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#93c5fd'; e.currentTarget.style.background = 'rgba(147, 197, 253, 0.05)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#444'; e.currentTarget.style.background = 'none'; }}
+            >
+              <Plus size={18} /> Add Recommendation
+            </button>
 
             {pendingOpportunities._closing !== undefined && (
               <div style={{ padding: '16px 20px', background: '#1a2e1a', borderRadius: '8px', marginTop: '12px', border: '1px solid #2d5a2d' }}>
