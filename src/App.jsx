@@ -107,6 +107,7 @@ export default function App() {
   const [snapshotRows, setSnapshotRows] = useState(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [snapshotDays, setSnapshotDays] = useState(0);
+  const [lifetimeSnapshotKpis, setLifetimeSnapshotKpis] = useState(null);
 
   // Load clients from Supabase on startup
   useEffect(() => {
@@ -470,6 +471,22 @@ export default function App() {
           setSnapshotRows(null);
           setSnapshotDays(0);
         }
+
+        // Also fetch all-time snapshot aggregates for accurate lifetime KPIs
+        const lifetimeResult = await getVideoSnapshotAggregates(
+          channelIds,
+          '2015-01-01',
+          new Date().toISOString().split('T')[0]
+        );
+        if (!cancelled && lifetimeResult) {
+          const ltRows = lifetimeResult.rows;
+          setLifetimeSnapshotKpis({
+            views: ltRows.reduce((s, r) => s + (r.views || 0), 0),
+            watchHours: ltRows.reduce((s, r) => s + (r.watchHours || 0), 0),
+            subs: ltRows.reduce((s, r) => s + (r.subscribers || 0), 0),
+          });
+          console.log(`[Snapshots] Lifetime: ${ltRows.length} videos, ${ltRows.reduce((s, r) => s + (r.watchHours || 0), 0).toFixed(1)} watch hours`);
+        }
       } catch (err) {
         console.error('[Snapshots] Fetch error:', err);
         if (!cancelled) {
@@ -632,8 +649,14 @@ export default function App() {
     const avgCtr = imps > 0 ? allRows.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / imps : 0;
     const avgRet = views > 0 ? allRows.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / views : 0;
 
-    // Lifetime must be >= current period (snapshot data can exceed CSV-based lifetime
-    // when CSV is incomplete or stale). Floor lifetime to the current period values.
+    // Use lifetime snapshot data when available (most accurate source)
+    if (lifetimeSnapshotKpis) {
+      views = Math.max(views, lifetimeSnapshotKpis.views || 0);
+      watchHours = Math.max(watchHours, lifetimeSnapshotKpis.watchHours || 0);
+      subs = Math.max(subs, lifetimeSnapshotKpis.subs || 0);
+    }
+
+    // Lifetime must be >= current period
     if (kpis) {
       views = Math.max(views, kpis.views || 0);
       watchHours = Math.max(watchHours, kpis.watchHours || 0);
@@ -648,7 +671,7 @@ export default function App() {
       avgCtr,
       avgRet
     };
-  }, [rows, selectedChannel, kpis]);
+  }, [rows, selectedChannel, kpis, lifetimeSnapshotKpis]);
 
   // Calculate previous period KPIs for delta indicators
   const previousKpis = useMemo(() => {
