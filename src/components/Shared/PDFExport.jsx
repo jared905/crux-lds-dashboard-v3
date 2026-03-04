@@ -458,7 +458,16 @@ MULTICHANNEL NETWORK:
           </div>
 
           <!-- Key Metrics Grid -->
-          <div data-pdf-section style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 28px;">
+          <div data-pdf-section style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px;">
+            <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #818cf8;">
+              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">VIEWS</div>
+              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1.25;">${(kpis.views || 0).toLocaleString()}</div>
+              ${kpis.viewsChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.viewsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 8px; font-weight: 600; line-height: 1.4;">${kpis.viewsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.viewsChange).toFixed(1)}% vs previous period</div>` : ''}
+              <div style="border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 8px;">
+                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Lifetime: <span style="color: #64748b; font-weight: 600;">${channelStats?.viewCount ? Number(channelStats.viewCount).toLocaleString() : allTimeKpis ? allTimeKpis.views.toLocaleString() : '—'}</span></div>
+              </div>
+            </div>
+
             <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #16a34a;">
               <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">WATCH HOURS</div>
               <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1.25;">${Number(kpis.watchHours.toFixed(1)).toLocaleString()}</div>
