@@ -108,6 +108,7 @@ export default function App() {
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [snapshotDays, setSnapshotDays] = useState(0);
   const [lifetimeSnapshotKpis, setLifetimeSnapshotKpis] = useState(null);
+  const [lifetimeAnalytics, setLifetimeAnalytics] = useState(null);
 
   // Load clients from Supabase on startup
   useEffect(() => {
@@ -502,6 +503,43 @@ export default function App() {
     return () => { cancelled = true; };
   }, [activeClient?.id, dateRangeDates]);
 
+  // Fetch lifetime watch hours from YouTube Analytics API (authoritative source)
+  useEffect(() => {
+    if (!activeClient) {
+      setLifetimeAnalytics(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchLifetimeStats = async () => {
+      const channelIds = activeClient.isNetwork && activeClient.networkMembers
+        ? activeClient.networkMembers.map(m => m.id)
+        : [activeClient.id];
+
+      try {
+        const response = await fetch('/api/youtube-lifetime-stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channelIds }),
+        });
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (!cancelled && data.totalWatchHours != null) {
+          setLifetimeAnalytics(data);
+          console.log(`[LifetimeStats] Total watch hours: ${data.totalWatchHours.toFixed(1)}`);
+        }
+      } catch (err) {
+        console.warn('[LifetimeStats] Fetch error:', err);
+      }
+    };
+
+    fetchLifetimeStats();
+    return () => { cancelled = true; };
+  }, [activeClient?.id]);
+
   const filtered = useMemo(() => {
     // When snapshot data is available AND has meaningful view data, use it
     const snapshotTotalViews = snapshotRows?.reduce((s, r) => s + (r.views || 0), 0) || 0;
@@ -675,6 +713,11 @@ export default function App() {
       views = Math.max(views, channelStats.viewCount);
     }
 
+    // Use YouTube Analytics API lifetime watch hours when available (authoritative)
+    if (lifetimeAnalytics?.totalWatchHours) {
+      watchHours = lifetimeAnalytics.totalWatchHours;
+    }
+
     // Lifetime must be >= current period
     if (kpis) {
       views = Math.max(views, kpis.views || 0);
@@ -690,7 +733,7 @@ export default function App() {
       avgCtr,
       avgRet
     };
-  }, [rows, selectedChannel, kpis, lifetimeSnapshotKpis, channelStats]);
+  }, [rows, selectedChannel, kpis, lifetimeSnapshotKpis, channelStats, lifetimeAnalytics]);
 
   // Calculate previous period KPIs for delta indicators
   const previousKpis = useMemo(() => {
