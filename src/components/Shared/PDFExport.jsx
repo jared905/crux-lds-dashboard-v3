@@ -657,8 +657,8 @@ MULTICHANNEL NETWORK:
                 </div>
                 <div style="flex: 1;">
                   <div style="font-size: 18px; font-weight: 700; color: #065f46; margin-bottom: 10px; line-height: 1.35;">${opp.title}</div>
-                  ${opp.insight ? `<div style="font-size: 14px; color: #1e293b; line-height: 1.65; margin-bottom: 8px;"><strong style="color: #065f46;">The Insight:</strong> ${opp.insight}</div>` : ''}
-                  ${opp.opportunity ? `<div style="font-size: 14px; color: #1e293b; line-height: 1.65; margin-bottom: 10px;"><strong style="color: #065f46;">The Opportunity:</strong> ${opp.opportunity}</div>` : ''}
+                  ${opp.insight ? `<div style="font-size: 14px; color: #1e293b; line-height: 1.65; margin-bottom: 8px;"><strong style="color: #1d4ed8;">The Insight:</strong> ${opp.insight}</div>` : ''}
+                  ${opp.opportunity ? `<div style="font-size: 14px; color: #1e293b; line-height: 1.65; margin-bottom: 10px;"><strong style="color: #b45309;">The Opportunity:</strong> ${opp.opportunity}</div>` : ''}
                   ${opp.steps && opp.steps.length > 0 ? `
                     <div style="margin-top: 6px; padding-left: 2px;">
                       ${opp.steps.map((step, si) => `<div style="font-size: 13px; color: #374151; line-height: 1.6; margin-bottom: 4px; padding-left: 16px; text-indent: -16px;">${si + 1}. ${step}</div>`).join('')}
