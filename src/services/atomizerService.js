@@ -177,6 +177,122 @@ Guidelines:
 - Prioritize moments with: emotional peaks, surprising data, contrarian takes, vulnerable admissions, strong storytelling, or concrete how-to value.`;
 
 // ============================================
+// STAGE 1 SYSTEM PROMPT — Direction Discovery
+// ============================================
+
+const ATOMIZER_STAGE1_SYSTEM_PROMPT = `You are a YouTube editor and content strategist. Your job is to analyze a transcript and propose CREATIVE DIRECTION OPTIONS — lightweight concepts that a creative director can evaluate before committing to full production.
+
+You will produce two categories:
+
+1. LONG-FORM DIRECTIONS — standalone YouTube videos (5-20 minutes)
+2. SHORT-FORM DIRECTIONS — YouTube Shorts / Reels (15-60 seconds)
+
+CRITICAL RULES:
+- Every hook MUST use EXACT WORDS from the transcript. Quote the speaker verbatim — do not paraphrase, summarize, or invent.
+- Do not suggest content, topics, or dialogue that does not exist in the transcript.
+- Title variations must use these specific styles:
+  - "curiosity_gap": Creates an information gap the viewer needs to close
+  - "direct_value": States the benefit or takeaway clearly
+  - "pattern_interrupt": Breaks expectations or uses unexpected framing
+- Thumbnail suggestions must reference a SPECIFIC moment from the transcript that has visual or emotional energy.
+- Descriptions must be written in FIRST PERSON as if the creator is speaking directly to their audience. Weave in 1-2 direct quotes from the transcript (use quotation marks) to give the description authenticity. Do NOT use generic marketing language.
+- If context sections (strategy brief, performance data, audience persona, competitor benchmarks) are provided, actively use them to calibrate your recommendations.
+- Virality rationale MUST reference the strategy brief and performance data if provided. Tie reasoning to specific context: "This mirrors the hook structure of [top performer title] which drove X% CTR" or "This aligns with the stated goal of [strategy point]."
+
+DO NOT include EDL, B-roll, motion graphics, timestamps, or edited transcript — those are generated separately after a direction is chosen.
+
+Respond with ONLY a JSON object (no markdown, no code fences) in this exact format:
+{
+  "long_form_directions": [
+    {
+      "title": "Working title for the edit direction",
+      "format_type": "long-form re-edit",
+      "hook": "EXACT transcript words for the first 5-15 seconds — verbatim quote from the speaker",
+      "hook_timecode": "MM:SS or section reference if no timecodes available",
+      "arc_summary": "Narrative arc: describe the structure (setup > development > payoff) and which transcript sections to include, in what order",
+      "title_variations": [
+        { "text": "Title option 1", "style": "curiosity_gap" },
+        { "text": "Title option 2", "style": "direct_value" },
+        { "text": "Title option 3", "style": "pattern_interrupt" }
+      ],
+      "description": "First-person YouTube description (2-3 paragraphs). Weave in direct transcript quotes. Include key takeaways and CTA.",
+      "thumbnail_suggestion": {
+        "concept": "What the thumbnail should communicate",
+        "transcript_reference": "The specific moment from the transcript that inspires this",
+        "visual_elements": ["element1", "element2", "element3"]
+      },
+      "estimated_duration": "8-12 min",
+      "virality_score": 8,
+      "virality_rationale": "1-2 sentences referencing strategy brief, performance data, or competitor patterns"
+    }
+  ],
+  "short_form_directions": [
+    {
+      "title": "Short-form working title",
+      "format_type": "YouTube Short",
+      "hook": "EXACT transcript words for the first 1-3 seconds — verbatim",
+      "hook_timecode": "MM:SS or section reference",
+      "arc_summary": "Micro-arc: hook > core moment > punchline or CTA",
+      "title_variations": [
+        { "text": "Title option 1", "style": "curiosity_gap" },
+        { "text": "Title option 2", "style": "direct_value" }
+      ],
+      "description": "First-person short description/caption. Weave in a key transcript quote.",
+      "thumbnail_suggestion": {
+        "concept": "Cover frame concept",
+        "transcript_reference": "Specific moment reference",
+        "visual_elements": ["element1"]
+      },
+      "estimated_duration": "30-45 sec",
+      "virality_score": 7,
+      "virality_rationale": "Why this works — reference context if provided"
+    }
+  ],
+  "summary": "One paragraph summarizing the transcript's themes and the overall editorial strategy behind these directions.",
+  "total_directions": 8
+}
+
+Guidelines:
+- Long-form: Propose 2-4 directions. Each should have a clear narrative arc and compelling hook.
+- Short-form: Propose 3-5 directions. Punchy, hook-driven, optimized for vertical scroll-stopping.
+- Virality scores 1-10: Based on hook strength, topic novelty, emotional resonance, and alignment with the channel's proven performers.
+- IMPORTANT: Most transcripts will NOT have precise timecodes. Use section descriptions (e.g., "Opening paragraph", "The story about X") rather than MM:SS. Only use MM:SS if the transcript contains actual timecodes.`;
+
+// ============================================
+// STAGE 2 SYSTEM PROMPT — Production Package
+// ============================================
+
+const ATOMIZER_STAGE2_SYSTEM_PROMPT = `You are a YouTube editor preparing a production package for a single chosen edit direction. You will receive:
+1. The CHOSEN DIRECTION (title, hook, arc, description, etc.)
+2. The ORIGINAL TRANSCRIPT
+
+Your job is to produce three things:
+
+1. EDITED TRANSCRIPT — Restructure the relevant transcript segments to match the direction's narrative arc. Remove all filler words (um, uh, like, you know, so, basically), false starts, repeated phrases, and off-topic tangents. If the arc calls for reordering sections, reorder them. The output should read as a polished spoken-word script that an editor can follow beat-by-beat. Preserve the speaker's authentic voice and vocabulary — just remove the noise. This is NOT a raw copy of the transcript.
+
+2. EDL (Edit Decision List) — Step-by-step instructions an editor can follow. State what plays, what the editor does (cut to, trim, hold on, J-cut, etc.), and pacing notes. Reference sections from the edited transcript.
+
+3. VISUAL DIRECTIONS — Combined B-roll and motion graphics, grouped by edit segment. Each entry should reference which EDL step it accompanies. B-roll descriptions must be specific enough to search stock footage: not "person working" but "close-up of hands typing on MacBook, warm office lighting, shallow depth of field." Motion graphics types: lower_third, title_card, stat_callout, animated_text, full_screen_text.
+
+Respond with ONLY a JSON object (no markdown, no code fences):
+{
+  "edited_transcript": "The restructured, cleaned transcript text...",
+  "edl": [
+    { "step": 1, "action": "COLD OPEN on hook quote", "segment": "Reference to edited transcript section", "pacing": "Quick cut, 3-5 seconds" },
+    { "step": 2, "action": "CUT TO main argument", "segment": "Reference", "pacing": "Let it breathe, 45-60 sec" }
+  ],
+  "visual_directions": [
+    {
+      "segment": "Which EDL step this accompanies (e.g. 'Step 1: Cold Open')",
+      "b_roll": "Specific B-roll description for this segment",
+      "motion_graphics": [
+        { "type": "lower_third", "content": "What it says", "purpose": "Why it appears here" }
+      ]
+    }
+  ]
+}`;
+
+// ============================================
 // REMIX SYSTEM PROMPT
 // ============================================
 
@@ -654,7 +770,7 @@ export async function analyzeTranscript(text, title = 'Untitled', channelId = nu
 
   const wordCount = text.trim().split(/\s+/).length;
 
-  let systemPrompt = ATOMIZER_V2_SYSTEM_PROMPT;
+  let systemPrompt = ATOMIZER_STAGE1_SYSTEM_PROMPT;
 
   if (channelId) {
     // Inject brand context (brand voice + content boundaries — foundational context)
@@ -671,7 +787,7 @@ export async function analyzeTranscript(text, title = 'Untitled', channelId = nu
   const manualBlock = buildManualContext(contextInputs);
   if (manualBlock) systemPrompt += '\n\n' + manualBlock;
 
-  const prompt = `Analyze this transcript and propose editor-ready edit directions for both long-form and short-form content. Include full EDL, B-roll directions, and motion graphics notes for each direction.
+  const prompt = `Analyze this transcript and propose creative direction options for both long-form and short-form content. Focus on titles, hooks, descriptions, thumbnails, and virality analysis. Do NOT include EDL, B-roll, motion graphics, or edited transcript — those come later when a direction is chosen.
 
 Title: ${title}
 Word Count: ${wordCount}
@@ -680,7 +796,7 @@ Word Count: ${wordCount}
 ${text}
 --- END TRANSCRIPT ---`;
 
-  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_v2', 16384);
+  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_stage1', 4096);
   const parsed = parseClaudeJSON(result.text);
 
   return { ...parsed, usage: result.usage, cost: result.cost };
@@ -755,6 +871,94 @@ Create a single, production-ready brief that combines the best of these selectio
 }
 
 // ============================================
+// STAGE 2: DEPLOY A CHOSEN DIRECTION
+// ============================================
+
+/**
+ * Generate the full production package for a single chosen direction.
+ * Called when the user clicks "Deploy to AI" on a direction card.
+ *
+ * @param {Object} direction - The Stage 1 direction object
+ * @param {string} transcript - The full original transcript text
+ * @param {string} title - Transcript title
+ * @param {string|null} channelId - For brand context injection
+ * @param {Object} [contextInputs] - Manual context inputs
+ * @returns {Promise<Object>} { edited_transcript, edl, visual_directions, usage, cost }
+ */
+export async function deployDirection(direction, transcript, title, channelId = null, contextInputs = null) {
+  let systemPrompt = ATOMIZER_STAGE2_SYSTEM_PROMPT;
+
+  if (channelId) {
+    try {
+      const brandBlock = await getBrandContextWithSignals(channelId, 'atomizer');
+      if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+    } catch (e) {
+      console.warn('[atomizer] Brand context for deploy failed:', e.message);
+    }
+  }
+
+  const manualBlock = buildManualContext(contextInputs);
+  if (manualBlock) systemPrompt += '\n\n' + manualBlock;
+
+  const directionJSON = JSON.stringify(direction, null, 2);
+
+  const prompt = `Generate a complete production package for this chosen edit direction.
+
+--- CHOSEN DIRECTION ---
+${directionJSON}
+--- END DIRECTION ---
+
+--- ORIGINAL TRANSCRIPT ---
+Title: ${title}
+${transcript}
+--- END TRANSCRIPT ---
+
+Produce the edited transcript (restructured for narrative flow, filler removed), EDL, and visual directions (B-roll + motion graphics combined by edit segment) for this SINGLE direction.`;
+
+  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_stage2', 8192);
+  const parsed = parseClaudeJSON(result.text);
+
+  return { ...parsed, usage: result.usage, cost: result.cost };
+}
+
+/**
+ * Update an existing atomized_content row with Stage 2 production data.
+ *
+ * @param {string} atomizedContentId - The existing row ID
+ * @param {Object} productionData - { edited_transcript, edl, visual_directions }
+ */
+export async function updateAtomizedContentWithProduction(atomizedContentId, productionData) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  // Fetch existing row to merge metadata
+  const { data: existing, error: fetchErr } = await supabase
+    .from('atomized_content')
+    .select('direction_metadata')
+    .eq('id', atomizedContentId)
+    .single();
+
+  if (fetchErr) throw fetchErr;
+
+  const updatedMetadata = {
+    ...(existing.direction_metadata || {}),
+    edl: productionData.edl || [],
+    visual_directions: productionData.visual_directions || [],
+    deployed_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from('atomized_content')
+    .update({
+      direction_metadata: updatedMetadata,
+      edited_transcript: productionData.edited_transcript || null,
+      deployed_at: new Date().toISOString(),
+    })
+    .eq('id', atomizedContentId);
+
+  if (error) throw error;
+}
+
+// ============================================
 // DATABASE OPERATIONS
 // ============================================
 
@@ -821,7 +1025,7 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
       timecode_start: dir.hook_timecode || null,
       hook: dir.hook,
       virality_score: dir.virality_score ?? dir.viralityScore,
-      rationale: dir.rationale,
+      rationale: dir.rationale || dir.virality_rationale,
       arc_summary: dir.arc_summary,
       title_variations: dir.title_variations,
       thumbnail_suggestion: dir.thumbnail_suggestion,
@@ -829,6 +1033,7 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
       direction_metadata: {
         estimated_duration: dir.estimated_duration,
         format_type: dir.format_type || 'long-form re-edit',
+        virality_rationale: dir.virality_rationale || dir.rationale,
         timestamps: dir.timestamps || [],
         edl: dir.edl || [],
         b_roll: dir.b_roll || [],
@@ -849,7 +1054,7 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
       timecode_start: dir.hook_timecode || null,
       hook: dir.hook,
       virality_score: dir.virality_score ?? dir.viralityScore,
-      rationale: dir.rationale,
+      rationale: dir.rationale || dir.virality_rationale,
       arc_summary: dir.arc_summary,
       title_variations: dir.title_variations,
       thumbnail_suggestion: dir.thumbnail_suggestion,
@@ -858,6 +1063,7 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
         estimated_duration: dir.estimated_duration,
         cta: dir.cta,
         format_type: dir.format_type || 'YouTube Short',
+        virality_rationale: dir.virality_rationale || dir.rationale,
         timestamps: dir.timestamps || [],
         edl: dir.edl || [],
         b_roll: dir.b_roll || [],
@@ -1075,6 +1281,8 @@ export async function getAtomizedContent(transcriptId) {
 
 export default {
   analyzeTranscript,
+  deployDirection,
+  updateAtomizedContentWithProduction,
   remixDirections,
   saveTranscript,
   markTranscriptAnalyzed,

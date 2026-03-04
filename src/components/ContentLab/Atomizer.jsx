@@ -4,12 +4,14 @@ import {
   ChevronDown, ChevronUp, Check, Plus, Shuffle,
   Film, Smartphone, Image, Type, AlignLeft, X,
   Copy, Video, Layers, ClipboardCheck, Target, BarChart3, Users, Swords,
+  Rocket,
 } from "lucide-react";
 import {
   analyzeTranscript, saveTranscript, markTranscriptAnalyzed,
   saveAtomizedContent, createBriefFromAtomized,
   remixDirections, saveRemixAsBrief, fetchAtomizerContext,
   getAtomizedContent,
+  deployDirection, updateAtomizedContentWithProduction,
 } from "../../services/atomizerService";
 import { getChannels } from "../../services/competitorDatabase";
 import AtomizerHistory from "./AtomizerHistory";
@@ -66,20 +68,33 @@ function DirectionCard({
   dir, dirKey, isLongForm, expanded, onToggleExpand,
   selectedElements, onToggleElement, onCreateBrief,
   briefCreating, accentColor,
+  onDeploy, deploying, deployedData,
 }) {
   const [edlCopied, setEdlCopied] = React.useState(false);
   const sc = scoreColor(dir.virality_score ?? dir.viralityScore);
   const hookPreview = dir.hook?.length > 100 ? dir.hook.slice(0, 100) + "..." : dir.hook;
-  const rationalePreview = dir.rationale?.length > 100 ? dir.rationale.slice(0, 100) + "..." : dir.rationale;
   const titleVars = dir.title_variations || [];
   const thumb = dir.thumbnail_suggestion || {};
   const meta = dir.direction_metadata || {};
-  const timestamps = dir.timestamps || meta.timestamps || [];
-  const edl = dir.edl || meta.edl || [];
-  const bRoll = dir.b_roll || meta.b_roll || [];
-  const motionGraphics = dir.motion_graphics || meta.motion_graphics || [];
   const formatType = dir.format_type || meta.format_type || null;
   const isSelected = (key) => selectedElements.has(key);
+  const viralityRationale = dir.virality_rationale || meta.virality_rationale || dir.rationale;
+  const thumbPreview = thumb.concept?.length > 80 ? thumb.concept.slice(0, 80) + "..." : thumb.concept;
+
+  // Stage 2 production data — from local state (fresh deploy) or database (loaded history)
+  const production = deployedData || {};
+  const editedTranscript = production.edited_transcript || dir.edited_transcript || meta.edited_transcript;
+  const prodEdl = production.edl || [];
+  const visualDirections = production.visual_directions || meta.visual_directions || [];
+  // Legacy fallback for old V2 data
+  const legacyEdl = dir.edl || meta.edl || [];
+  const legacyBRoll = dir.b_roll || meta.b_roll || [];
+  const legacyMotionGraphics = dir.motion_graphics || meta.motion_graphics || [];
+  const hasLegacyProduction = legacyEdl.length > 0 || legacyBRoll.length > 0;
+  // Use production EDL if available, otherwise legacy
+  const edl = prodEdl.length > 0 ? prodEdl : legacyEdl;
+  const hasProductionData = !!(editedTranscript || prodEdl.length > 0 || visualDirections.length > 0 || production.deployed_at || meta.deployed_at);
+  const isDeploying = deploying === dir._savedId;
 
   const formatEdlText = () => edl.map(e =>
     `${String(e.step).padStart(2, "0")}. ${e.action} — ${e.segment}${e.pacing ? ` | ${e.pacing}` : ""}`
@@ -96,7 +111,7 @@ function DirectionCard({
   return (
     <div style={{
       background: "#252525",
-      border: `1px solid ${selectedElements.size > 0 ? accentColor + "44" : "#333"}`,
+      border: `1px solid ${selectedElements.size > 0 ? accentColor + "44" : hasProductionData ? "#f59e0b33" : "#333"}`,
       borderRadius: "8px",
       overflow: "hidden",
       transition: "border-color 0.15s",
@@ -124,6 +139,15 @@ function DirectionCard({
                 {formatType}
               </span>
             )}
+            {hasProductionData && (
+              <span style={{
+                fontSize: "9px", fontWeight: "600", textTransform: "uppercase",
+                background: "#16a34a22", color: "#22c55e",
+                borderRadius: "4px", padding: "2px 6px", flexShrink: 0,
+              }}>
+                Deployed
+              </span>
+            )}
           </div>
           <div style={{ fontSize: "11px", color: "#888", marginBottom: "6px" }}>
             {dir.hook_timecode ? `~${dir.hook_timecode}` : ""}
@@ -131,20 +155,20 @@ function DirectionCard({
               ? ` / ${meta.estimated_duration || dir.estimated_duration}`
               : ""}
           </div>
+          {!expanded && thumbPreview && (
+            <div style={{
+              fontSize: "12px", color: "#b0b0b0",
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>
+              {thumbPreview}
+            </div>
+          )}
           {!expanded && dir.hook && (
             <div style={{
-              fontSize: "12px", color: "#b0b0b0", fontStyle: "italic",
+              fontSize: "11px", color: "#777", marginTop: "4px", fontStyle: "italic",
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}>
               "{hookPreview}"
-            </div>
-          )}
-          {!expanded && dir.rationale && (
-            <div style={{
-              fontSize: "11px", color: "#777", marginTop: "4px",
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            }}>
-              {rationalePreview}
             </div>
           )}
         </div>
@@ -162,105 +186,11 @@ function DirectionCard({
         </div>
       </button>
 
-      {/* Expanded detail */}
+      {/* Expanded detail — Stage 1 content */}
       {expanded && (
         <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: "12px" }}>
 
-          {/* Hook */}
-          {dir.hook && (
-            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-              <SelectBox
-                checked={isSelected("hook")}
-                onChange={() => onToggleElement(dirKey, "hook", dir)}
-                color={accentColor}
-              />
-              <div style={{
-                flex: 1, background: "#1a1a1a",
-                borderLeft: `3px solid ${accentColor}`,
-                borderRadius: "4px", padding: "10px 12px",
-              }}>
-                <div style={{ fontSize: "10px", fontWeight: "600", color: accentColor, textTransform: "uppercase", marginBottom: "4px" }}>
-                  Hook (verbatim)
-                </div>
-                <div style={{ fontSize: "13px", color: "#e0e0e0", fontStyle: "italic", lineHeight: "1.6" }}>
-                  "{dir.hook}"
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Arc */}
-          {dir.arc_summary && (
-            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-              <SelectBox
-                checked={isSelected("arc")}
-                onChange={() => onToggleElement(dirKey, "arc", dir)}
-                color={accentColor}
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "10px", fontWeight: "600", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>
-                  Narrative Arc
-                </div>
-                <div style={{ fontSize: "12px", color: "#b0b0b0", lineHeight: "1.6" }}>
-                  {dir.arc_summary}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Title Variations */}
-          {titleVars.length > 0 && (
-            <div>
-              <div style={{ fontSize: "10px", fontWeight: "600", color: "#888", textTransform: "uppercase", marginBottom: "8px", paddingLeft: "28px" }}>
-                Title Options
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {titleVars.map((tv, i) => (
-                  <div key={i} style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                    <SelectBox
-                      checked={isSelected(`title_${i}`)}
-                      onChange={() => onToggleElement(dirKey, `title_${i}`, dir)}
-                      color={accentColor}
-                    />
-                    <div style={{
-                      flex: 1, background: "#1a1a1a", borderRadius: "6px",
-                      padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center",
-                    }}>
-                      <span style={{ fontSize: "13px", color: "#e0e0e0" }}>{tv.text}</span>
-                      <span style={{
-                        fontSize: "10px", fontWeight: "600",
-                        color: accentColor, background: accentColor + "18",
-                        borderRadius: "4px", padding: "2px 8px", flexShrink: 0,
-                      }}>
-                        {TITLE_STYLE_LABELS[tv.style] || tv.style}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Description */}
-          {(dir.description_text || dir.description) && (
-            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-              <SelectBox
-                checked={isSelected("description")}
-                onChange={() => onToggleElement(dirKey, "description", dir)}
-                color={accentColor}
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "10px", fontWeight: "600", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>
-                  Description
-                </div>
-                <div style={{ fontSize: "12px", color: "#b0b0b0", lineHeight: "1.6", whiteSpace: "pre-line" }}>
-                  {dir.description_text || dir.description}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Thumbnail */}
+          {/* 1. Thumbnail */}
           {thumb.concept && (
             <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
               <SelectBox
@@ -302,127 +232,106 @@ function DirectionCard({
             </div>
           )}
 
-          {/* Timestamps */}
-          {timestamps.length > 0 && (
-            <div style={{ paddingLeft: "28px" }}>
-              <div style={{ fontSize: "10px", fontWeight: "600", color: "#888", textTransform: "uppercase", marginBottom: "8px" }}>
-                Timestamps
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                {timestamps.map((ts, i) => (
-                  <div key={i} style={{
-                    display: "flex", gap: "8px", alignItems: "baseline",
-                    fontSize: "12px", color: "#b0b0b0",
-                  }}>
-                    <span style={{ color: accentColor, fontWeight: "600", fontFamily: "monospace", fontSize: "11px", flexShrink: 0 }}>
-                      IN: {ts.in}
-                    </span>
-                    <span style={{ color: "#666" }}>&rarr;</span>
-                    <span style={{ color: accentColor, fontWeight: "600", fontFamily: "monospace", fontSize: "11px", flexShrink: 0 }}>
-                      OUT: {ts.out}
-                    </span>
-                    {ts.note && <span style={{ color: "#888", fontSize: "11px" }}>({ts.note})</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* EDL — Edit Decision List */}
-          {edl.length > 0 && (
-            <div style={{ paddingLeft: "28px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                <div style={{ fontSize: "10px", fontWeight: "600", color: "#888", textTransform: "uppercase" }}>
-                  Edit Decision List
+          {/* 2. Description */}
+          {(dir.description_text || dir.description) && (
+            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+              <SelectBox
+                checked={isSelected("description")}
+                onChange={() => onToggleElement(dirKey, "description", dir)}
+                color={accentColor}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "10px", fontWeight: "600", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>
+                  Description
                 </div>
-                <button
-                  onClick={copyEdl}
-                  style={{
-                    background: edlCopied ? "#166534" : "#333",
-                    border: `1px solid ${edlCopied ? "#22c55e" : "#555"}`,
-                    borderRadius: "4px", padding: "3px 8px",
-                    color: edlCopied ? "#22c55e" : "#ccc",
-                    fontSize: "10px", fontWeight: "600", cursor: "pointer",
-                    display: "flex", alignItems: "center", gap: "4px",
-                  }}
-                >
-                  {edlCopied ? <><ClipboardCheck size={10} /> Copied</> : <><Copy size={10} /> Copy EDL</>}
-                </button>
+                <div style={{ fontSize: "12px", color: "#b0b0b0", lineHeight: "1.6", whiteSpace: "pre-line" }}>
+                  {dir.description_text || dir.description}
+                </div>
               </div>
+            </div>
+          )}
+
+          {/* 3. Hook */}
+          {dir.hook && (
+            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+              <SelectBox
+                checked={isSelected("hook")}
+                onChange={() => onToggleElement(dirKey, "hook", dir)}
+                color={accentColor}
+              />
               <div style={{
-                background: "#0d0d0d", border: "1px solid #333",
-                borderRadius: "6px", padding: "12px 14px",
-                fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
-                fontSize: "11px", lineHeight: "1.8", color: "#d4d4d4",
-                whiteSpace: "pre-wrap", overflowX: "auto",
+                flex: 1, background: "#1a1a1a",
+                borderLeft: `3px solid ${accentColor}`,
+                borderRadius: "4px", padding: "10px 12px",
               }}>
-                {edl.map(e =>
-                  `${String(e.step).padStart(2, "0")}. ${e.action} — ${e.segment}${e.pacing ? `  |  ${e.pacing}` : ""}`
-                ).join("\n")}
+                <div style={{ fontSize: "10px", fontWeight: "600", color: accentColor, textTransform: "uppercase", marginBottom: "4px" }}>
+                  Hook (verbatim)
+                </div>
+                <div style={{ fontSize: "13px", color: "#e0e0e0", fontStyle: "italic", lineHeight: "1.6" }}>
+                  "{dir.hook}"
+                </div>
               </div>
             </div>
           )}
 
-          {/* B-Roll Directions */}
-          {bRoll.length > 0 && (
-            <div style={{ paddingLeft: "28px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
-                <Video size={12} color="#06b6d4" />
-                <span style={{ fontSize: "10px", fontWeight: "600", color: "#06b6d4", textTransform: "uppercase" }}>
-                  B-Roll Directions
-                </span>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {bRoll.map((br, i) => (
-                  <div key={i} style={{
-                    background: "#1a1a1a", border: "1px solid #2a2a2a",
-                    borderRadius: "6px", padding: "8px 12px",
-                  }}>
-                    <div style={{ fontSize: "10px", fontWeight: "600", color: "#06b6d4", marginBottom: "3px" }}>
-                      {br.segment}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#b0b0b0", lineHeight: "1.5" }}>
-                      {br.direction}
-                    </div>
-                  </div>
-                ))}
+          {/* 4. Arc Summary / Creative Direction */}
+          {dir.arc_summary && (
+            <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+              <SelectBox
+                checked={isSelected("arc")}
+                onChange={() => onToggleElement(dirKey, "arc", dir)}
+                color={accentColor}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "10px", fontWeight: "600", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>
+                  Creative Direction
+                </div>
+                <div style={{ fontSize: "12px", color: "#b0b0b0", lineHeight: "1.6" }}>
+                  {dir.arc_summary}
+                </div>
               </div>
             </div>
           )}
 
-          {/* Motion Graphics / Text Overlays */}
-          {motionGraphics.length > 0 && (
+          {/* 5. Virality Rationale */}
+          {viralityRationale && (
             <div style={{ paddingLeft: "28px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
-                <Type size={12} color="#a78bfa" />
-                <span style={{ fontSize: "10px", fontWeight: "600", color: "#a78bfa", textTransform: "uppercase" }}>
-                  Motion Graphics / Text Overlays
-                </span>
+              <div style={{ fontSize: "10px", fontWeight: "600", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>
+                Virality Rationale
+              </div>
+              <div style={{ fontSize: "12px", color: "#b0b0b0", lineHeight: "1.6" }}>
+                {viralityRationale}
+              </div>
+            </div>
+          )}
+
+          {/* 6. Title Variations */}
+          {titleVars.length > 0 && (
+            <div>
+              <div style={{ fontSize: "10px", fontWeight: "600", color: "#888", textTransform: "uppercase", marginBottom: "8px", paddingLeft: "28px" }}>
+                Title Options
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {motionGraphics.map((mg, i) => (
-                  <div key={i} style={{
-                    background: "#1a1a1a", border: "1px solid #2a2a2a",
-                    borderRadius: "6px", padding: "8px 12px",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "3px" }}>
+                {titleVars.map((tv, i) => (
+                  <div key={i} style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <SelectBox
+                      checked={isSelected(`title_${i}`)}
+                      onChange={() => onToggleElement(dirKey, `title_${i}`, dir)}
+                      color={accentColor}
+                    />
+                    <div style={{
+                      flex: 1, background: "#1a1a1a", borderRadius: "6px",
+                      padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center",
+                    }}>
+                      <span style={{ fontSize: "13px", color: "#e0e0e0" }}>{tv.text}</span>
                       <span style={{
-                        fontSize: "9px", fontWeight: "700", textTransform: "uppercase",
-                        background: "#a78bfa18", color: "#a78bfa",
-                        borderRadius: "3px", padding: "1px 6px",
+                        fontSize: "10px", fontWeight: "600",
+                        color: accentColor, background: accentColor + "18",
+                        borderRadius: "4px", padding: "2px 8px", flexShrink: 0,
                       }}>
-                        {MOTION_GRAPHIC_LABELS[mg.type] || mg.type}
+                        {TITLE_STYLE_LABELS[tv.style] || tv.style}
                       </span>
-                      <span style={{ fontSize: "10px", color: "#888" }}>{mg.timecode_ref}</span>
                     </div>
-                    <div style={{ fontSize: "12px", color: "#e0e0e0", marginBottom: "2px" }}>
-                      {mg.content}
-                    </div>
-                    {mg.purpose && (
-                      <div style={{ fontSize: "11px", color: "#888", fontStyle: "italic" }}>
-                        {mg.purpose}
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
@@ -436,14 +345,180 @@ function DirectionCard({
             </div>
           )}
 
-          {/* Rationale */}
-          {dir.rationale && (
-            <div style={{ paddingLeft: "28px", fontSize: "11px", color: "#888", lineHeight: "1.5" }}>
-              {dir.rationale}
+          {/* 7. Deploy to AI button (only if no production data yet) */}
+          {!hasProductionData && !hasLegacyProduction && (
+            <div style={{ paddingLeft: "28px" }}>
+              <button
+                onClick={() => onDeploy && onDeploy(dirKey, dir)}
+                disabled={!dir._savedId || isDeploying}
+                style={{
+                  background: isDeploying ? "#374151" : "linear-gradient(135deg, #f59e0b, #d97706)",
+                  border: "none", borderRadius: "8px", padding: "10px 20px",
+                  color: isDeploying ? "#ccc" : "#000", fontSize: "13px", fontWeight: "700",
+                  cursor: isDeploying ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", gap: "8px",
+                  opacity: dir._savedId ? 1 : 0.5,
+                }}
+              >
+                {isDeploying ? (
+                  <><Loader size={14} style={{ animation: "spin 1s linear infinite" }} /> Deploying...</>
+                ) : (
+                  <><Rocket size={14} /> Deploy to AI</>
+                )}
+              </button>
+              <div style={{ fontSize: "10px", color: "#666", marginTop: "4px" }}>
+                Generates edited transcript, EDL, and visual directions (~$0.30-0.60)
+              </div>
             </div>
           )}
 
-          {/* Create Brief button */}
+          {/* ========== STAGE 2: Production Package ========== */}
+          {(hasProductionData || hasLegacyProduction) && (
+            <>
+              {hasProductionData && (
+                <div style={{ paddingLeft: "28px" }}>
+                  <span style={{
+                    fontSize: "10px", fontWeight: "700", background: "#16a34a22",
+                    color: "#22c55e", borderRadius: "6px", padding: "3px 10px",
+                  }}>
+                    Production Package Ready
+                  </span>
+                </div>
+              )}
+
+              {/* Edited Transcript */}
+              {editedTranscript && (
+                <div style={{ paddingLeft: "28px" }}>
+                  <div style={{ fontSize: "10px", fontWeight: "600", color: "#22c55e", textTransform: "uppercase", marginBottom: "8px" }}>
+                    Edited Transcript
+                  </div>
+                  <div style={{
+                    background: "#0d0d0d", border: "1px solid #333",
+                    borderRadius: "6px", padding: "14px",
+                    fontSize: "12px", color: "#d4d4d4", lineHeight: "1.8",
+                    whiteSpace: "pre-wrap", maxHeight: "400px", overflowY: "auto",
+                  }}>
+                    {editedTranscript}
+                  </div>
+                </div>
+              )}
+
+              {/* EDL */}
+              {edl.length > 0 && (
+                <div style={{ paddingLeft: "28px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <div style={{ fontSize: "10px", fontWeight: "600", color: "#888", textTransform: "uppercase" }}>
+                      Edit Decision List
+                    </div>
+                    <button
+                      onClick={copyEdl}
+                      style={{
+                        background: edlCopied ? "#166534" : "#333",
+                        border: `1px solid ${edlCopied ? "#22c55e" : "#555"}`,
+                        borderRadius: "4px", padding: "3px 8px",
+                        color: edlCopied ? "#22c55e" : "#ccc",
+                        fontSize: "10px", fontWeight: "600", cursor: "pointer",
+                        display: "flex", alignItems: "center", gap: "4px",
+                      }}
+                    >
+                      {edlCopied ? <><ClipboardCheck size={10} /> Copied</> : <><Copy size={10} /> Copy EDL</>}
+                    </button>
+                  </div>
+                  <div style={{
+                    background: "#0d0d0d", border: "1px solid #333",
+                    borderRadius: "6px", padding: "12px 14px",
+                    fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
+                    fontSize: "11px", lineHeight: "1.8", color: "#d4d4d4",
+                    whiteSpace: "pre-wrap", overflowX: "auto",
+                  }}>
+                    {edl.map(e =>
+                      `${String(e.step).padStart(2, "0")}. ${e.action} — ${e.segment}${e.pacing ? `  |  ${e.pacing}` : ""}`
+                    ).join("\n")}
+                  </div>
+                </div>
+              )}
+
+              {/* Visual Directions (combined B-roll + motion graphics per segment) */}
+              {visualDirections.length > 0 && (
+                <div style={{ paddingLeft: "28px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+                    <Layers size={12} color="#06b6d4" />
+                    <span style={{ fontSize: "10px", fontWeight: "600", color: "#06b6d4", textTransform: "uppercase" }}>
+                      Visual Directions
+                    </span>
+                  </div>
+                  {visualDirections.map((vd, i) => (
+                    <div key={i} style={{
+                      background: "#1a1a1a", border: "1px solid #2a2a2a",
+                      borderRadius: "6px", padding: "10px 12px", marginBottom: "8px",
+                    }}>
+                      <div style={{ fontSize: "11px", fontWeight: "600", color: "#06b6d4", marginBottom: "6px" }}>
+                        {vd.segment}
+                      </div>
+                      {vd.b_roll && (
+                        <div style={{ fontSize: "12px", color: "#b0b0b0", lineHeight: "1.5", marginBottom: "6px" }}>
+                          <span style={{ fontSize: "9px", fontWeight: "600", color: "#06b6d4" }}>B-ROLL: </span>
+                          {vd.b_roll}
+                        </div>
+                      )}
+                      {(vd.motion_graphics || []).map((mg, j) => (
+                        <div key={j} style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                          <span style={{
+                            fontSize: "9px", fontWeight: "700", textTransform: "uppercase",
+                            background: "#a78bfa18", color: "#a78bfa",
+                            borderRadius: "3px", padding: "1px 6px",
+                          }}>
+                            {MOTION_GRAPHIC_LABELS[mg.type] || mg.type}
+                          </span>
+                          <span style={{ fontSize: "11px", color: "#e0e0e0" }}>{mg.content}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Legacy B-Roll fallback (old V2 data without visual_directions) */}
+              {visualDirections.length === 0 && legacyBRoll.length > 0 && (
+                <div style={{ paddingLeft: "28px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+                    <Video size={12} color="#06b6d4" />
+                    <span style={{ fontSize: "10px", fontWeight: "600", color: "#06b6d4", textTransform: "uppercase" }}>B-Roll Directions</span>
+                  </div>
+                  {legacyBRoll.map((br, i) => (
+                    <div key={i} style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "6px", padding: "8px 12px", marginBottom: "6px" }}>
+                      <div style={{ fontSize: "10px", fontWeight: "600", color: "#06b6d4", marginBottom: "3px" }}>{br.segment}</div>
+                      <div style={{ fontSize: "12px", color: "#b0b0b0", lineHeight: "1.5" }}>{br.direction}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Legacy Motion Graphics fallback */}
+              {visualDirections.length === 0 && legacyMotionGraphics.length > 0 && (
+                <div style={{ paddingLeft: "28px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+                    <Type size={12} color="#a78bfa" />
+                    <span style={{ fontSize: "10px", fontWeight: "600", color: "#a78bfa", textTransform: "uppercase" }}>Motion Graphics</span>
+                  </div>
+                  {legacyMotionGraphics.map((mg, i) => (
+                    <div key={i} style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "6px", padding: "8px 12px", marginBottom: "6px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "3px" }}>
+                        <span style={{ fontSize: "9px", fontWeight: "700", textTransform: "uppercase", background: "#a78bfa18", color: "#a78bfa", borderRadius: "3px", padding: "1px 6px" }}>
+                          {MOTION_GRAPHIC_LABELS[mg.type] || mg.type}
+                        </span>
+                        <span style={{ fontSize: "10px", color: "#888" }}>{mg.timecode_ref}</span>
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#e0e0e0", marginBottom: "2px" }}>{mg.content}</div>
+                      {mg.purpose && <div style={{ fontSize: "11px", color: "#888", fontStyle: "italic" }}>{mg.purpose}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Create Brief button (always at bottom) */}
           <div style={{ paddingLeft: "28px" }}>
             <button
               onClick={() => dir._savedId && onCreateBrief(dir._savedId)}
@@ -520,6 +595,10 @@ export default function Atomizer({ activeClient }) {
   const [remixing, setRemixing] = useState(false);
   const [remixResult, setRemixResult] = useState(null);
 
+  // Deploy state (Stage 2)
+  const [deploying, setDeploying] = useState(null);        // _savedId being deployed
+  const [deployedData, setDeployedData] = useState({});     // dirKey → Stage 2 data
+
   const wordCount = transcriptText.trim() ? transcriptText.trim().split(/\s+/).length : 0;
 
   const contextFilledCount = useMemo(() =>
@@ -579,10 +658,10 @@ export default function Atomizer({ activeClient }) {
       .catch(err => console.warn('[atomizer] Failed to fetch channels:', err.message));
   }, [activeClient?.id]);
 
-  // Cost estimates
+  // Cost estimates — Stage 1 uses 4096 output tokens
   const estimatedInputTokens = 2800 + Math.ceil(wordCount / 0.75);
   const estimatedCostAnalysis = wordCount > 0
-    ? Math.max(0.02, (estimatedInputTokens / 1000000) * 3.00 + (8192 / 1000000) * 15.00).toFixed(2)
+    ? Math.max(0.02, (estimatedInputTokens / 1000000) * 3.00 + (4096 / 1000000) * 15.00).toFixed(2)
     : "0.00";
 
   // Detect V2 vs legacy results
@@ -653,6 +732,8 @@ export default function Atomizer({ activeClient }) {
     setSelections({});
     setExpandedCards(new Set());
     setRemixResult(null);
+    setDeployedData({});
+    setDeploying(null);
 
     try {
       const data = await analyzeTranscript(
@@ -737,6 +818,41 @@ export default function Atomizer({ activeClient }) {
     }
   }, [activeClient]);
 
+  const handleDeploy = useCallback(async (dirKey, direction) => {
+    if (!direction._savedId) {
+      setError("Cannot deploy — direction not saved yet.");
+      return;
+    }
+    setDeploying(direction._savedId);
+    setError("");
+    try {
+      const result = await deployDirection(
+        direction,
+        transcriptText,
+        title || "Untitled",
+        selectedChannelId || activeClient?.id,
+        contextInputs,
+      );
+
+      // Save to database
+      await updateAtomizedContentWithProduction(direction._savedId, result);
+
+      // Store in local state for immediate rendering
+      setDeployedData(prev => ({ ...prev, [dirKey]: result }));
+
+      // Auto-expand the card
+      setExpandedCards(prev => {
+        const next = new Set(prev);
+        next.add(dirKey);
+        return next;
+      });
+    } catch (err) {
+      setError("Deploy failed: " + err.message);
+    } finally {
+      setDeploying(null);
+    }
+  }, [transcriptText, title, selectedChannelId, activeClient, contextInputs]);
+
   const handleRemix = useCallback(async () => {
     setRemixing(true);
     setError("");
@@ -785,11 +901,13 @@ export default function Atomizer({ activeClient }) {
       setContextOpen(true);
     }
 
-    // 3. Reset remix/selection state
+    // 3. Reset remix/selection/deploy state
     setSelections({});
     setExpandedCards(new Set());
     setRemixResult(null);
     setRemixOpen(false);
+    setDeployedData({});
+    setDeploying(null);
 
     // 4. Load atomized content and reconstruct results
     try {
@@ -803,6 +921,7 @@ export default function Atomizer({ activeClient }) {
           thumbnail_suggestion: a.thumbnail_suggestion || {},
           description: a.description_text,
           virality_score: a.virality_score,
+          virality_rationale: a.direction_metadata?.virality_rationale || a.direction_metadata?.rationale,
           direction_metadata: a.direction_metadata || {},
           estimated_duration: a.direction_metadata?.estimated_duration,
           format_type: a.direction_metadata?.format_type,
@@ -810,6 +929,9 @@ export default function Atomizer({ activeClient }) {
           edl: a.direction_metadata?.edl || [],
           b_roll: a.direction_metadata?.b_roll || [],
           motion_graphics: a.direction_metadata?.motion_graphics || [],
+          // Stage 2 fields
+          edited_transcript: a.edited_transcript || a.direction_metadata?.edited_transcript,
+          deployed_at: a.deployed_at || a.direction_metadata?.deployed_at,
         });
 
         const longForm = atomized.filter(a => a.content_type === "long_form_direction").map(mapDirection);
@@ -1014,7 +1136,7 @@ export default function Atomizer({ activeClient }) {
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: "11px", color: "#666" }}>
-            Est. ~${estimatedCostAnalysis} analysis{selectedCount > 0 ? " + ~$0.06 remix" : ""}
+            Est. ~${estimatedCostAnalysis} discovery{selectedCount > 0 ? " + ~$0.06 remix" : ""} (deploy: ~$0.30-0.60/direction)
           </div>
           <button
             onClick={handleAnalyze}
@@ -1150,6 +1272,9 @@ export default function Atomizer({ activeClient }) {
                     onCreateBrief={handleCreateBrief}
                     briefCreating={briefCreating}
                     accentColor={activeTab === "long_form" ? "#3b82f6" : "#ec4899"}
+                    onDeploy={handleDeploy}
+                    deploying={deploying}
+                    deployedData={deployedData[dirKey] || null}
                   />
                 );
               })}

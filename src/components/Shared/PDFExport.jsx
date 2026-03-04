@@ -9,7 +9,7 @@ import { FileDown, X, Check, RotateCcw, Plus, Trash2, Save } from "lucide-react"
  * Creates a clean, presentation-ready PDF with key executive metrics
  * Can optionally include AI-generated summary and video ideas
  */
-export default function PDFExport({ kpis, top, filtered, dateRange, customDateRange, clientName, selectedChannel, allTimeKpis, channelStats, activeClient, pendingDraftToLoad, setPendingDraftToLoad, onDraftSaved }) {
+export default function PDFExport({ kpis, top, filtered, rows, dateRange, customDateRange, clientName, selectedChannel, allTimeKpis, channelStats, activeClient, pendingDraftToLoad, setPendingDraftToLoad, onDraftSaved }) {
   const [exporting, setExporting] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [pendingOpportunities, setPendingOpportunities] = useState([]);
@@ -327,6 +327,36 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
         ? selectedChannel
         : clientName || uniqueChannels[0] || '';
 
+      // Count videos published in the selected period — uses ALL rows (not filtered/snapshot)
+      // to match dashboard's uploadCounts which also uses rows, not filtered
+      const allRows = rows || filtered;
+      const periodPublished = allRows.filter(r => {
+        if (r.isTotal || !r.publishDate) return false;
+        const pub = new Date(r.publishDate);
+        if (dateRange === 'all') return true;
+        if (dateRange === 'custom') {
+          if (customDateRange?.start && pub < new Date(customDateRange.start)) return false;
+          if (customDateRange?.end) {
+            const end = new Date(customDateRange.end);
+            end.setHours(23, 59, 59, 999);
+            if (pub > end) return false;
+          }
+          return true;
+        }
+        const now = new Date();
+        let start;
+        if (dateRange === '7d') start = new Date(now.getTime() - 7 * 86400000);
+        else if (dateRange === '28d') start = new Date(now.getTime() - 28 * 86400000);
+        else if (dateRange === '90d') start = new Date(now.getTime() - 90 * 86400000);
+        else if (dateRange === 'ytd') start = new Date(now.getFullYear(), 0, 1);
+        return start ? pub >= start : true;
+      });
+      const shorts = periodPublished.filter(r => r.type === 'short');
+      const longs = periodPublished.filter(r => r.type !== 'short');
+      // Use kpis views (from all active videos in period) to match dashboard Format Breakdown
+      const shortsViews = kpis.shortsMetrics?.views || shorts.reduce((s, r) => s + (r.views || 0), 0);
+      const longsViews = kpis.longsMetrics?.views || longs.reduce((s, r) => s + (r.views || 0), 0);
+
       // Build the PDF content
       container.innerHTML = `
         <div style="max-width: 1080px; margin: 0 auto;">
@@ -402,11 +432,11 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                 <div>
                   <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Videos</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #f97316; line-height: 1.25;">${kpis.shortsMetrics.count}</div>
+                  <div style="font-size: 28px; font-weight: 700; color: #f97316; line-height: 1.25;">${shorts.length}</div>
                 </div>
                 <div>
                   <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Views</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #f97316; line-height: 1.25;">${(kpis.shortsMetrics.views / 1000).toFixed(1)}K</div>
+                  <div style="font-size: 28px; font-weight: 700; color: #f97316; line-height: 1.25;">${(shortsViews / 1000).toFixed(1)}K</div>
                 </div>
                 <div>
                   <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg CTR</div>
@@ -424,11 +454,11 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                 <div>
                   <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Videos</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">${kpis.longsMetrics.count}</div>
+                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">${longs.length}</div>
                 </div>
                 <div>
                   <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Views</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">${(kpis.longsMetrics.views / 1000).toFixed(1)}K</div>
+                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">${(longsViews / 1000).toFixed(1)}K</div>
                 </div>
                 <div>
                   <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg CTR</div>
@@ -780,34 +810,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
         return `"${v.title}"${isMultiChannel && v.channel ? ` [${v.channel}]` : ''} (${(v.views||0).toLocaleString()} views${d ? ` in ${d}d` : ''}, ${((v.ctr||0)*100).toFixed(1)}% CTR, ${((v.retention||0)*100).toFixed(1)}% retention, ${(v.subscribers||0)} subs gained, ${Number((v.watchHours||0).toFixed(1))} watch hrs${v.likes ? `, ${v.likes} likes` : ''}${v.comments ? `, ${v.comments} comments` : ''}${pubStr ? `, pub ${pubStr}` : ''})`;
       };
 
-      // Filter to videos published in the selected period for accurate upload counts
-      // and video-level analysis (matches what the dashboard shows)
-      const periodPublished = filtered.filter(r => {
-        if (!r.publishDate) return false;
-        const pub = new Date(r.publishDate);
-        if (dateRange === 'all') return true;
-        if (dateRange === 'custom') {
-          if (customDateRange?.start && pub < new Date(customDateRange.start)) return false;
-          if (customDateRange?.end) {
-            const end = new Date(customDateRange.end);
-            end.setHours(23, 59, 59, 999);
-            if (pub > end) return false;
-          }
-          return true;
-        }
-        const now = new Date();
-        let start;
-        if (dateRange === '7d') start = new Date(now.getTime() - 7 * 86400000);
-        else if (dateRange === '28d') start = new Date(now.getTime() - 28 * 86400000);
-        else if (dateRange === '90d') start = new Date(now.getTime() - 90 * 86400000);
-        else if (dateRange === 'ytd') start = new Date(now.getFullYear(), 0, 1);
-        return start ? pub >= start : true;
-      });
-
-      const shorts = periodPublished.filter(r => r.type === 'short');
-      const longs = periodPublished.filter(r => r.type !== 'short');
-      const shortsViews = shorts.reduce((s, r) => s + (r.views || 0), 0);
-      const longsViews = longs.reduce((s, r) => s + (r.views || 0), 0);
+      // periodPublished, shorts, longs, shortsViews, longsViews already computed above (before HTML template)
 
       let channelBreakdownBlock = '';
       if (isMultiChannel) {

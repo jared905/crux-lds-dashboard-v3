@@ -1092,6 +1092,7 @@ export default function App() {
               kpis={kpisWithChanges}
               top={top}
               filtered={filtered}
+              rows={rows}
               dateRange={dateRange}
               customDateRange={customDateRange}
               clientName={activeClient?.name}
