@@ -212,20 +212,25 @@ Respond with ONLY a JSON object (no markdown fences) matching this exact structu
   "opening": "2-3 sentence state-of-the-channel paragraph. Ground it in the strongest signal from the data — a standout trend, a shift in momentum, or a clear pattern. Reference actual numbers. Set the tone: confident, clear-eyed, never alarming.",
   "recommendations": [
     {
-      "title": "Action-oriented title that names the specific lever (e.g. 'Double down on the hook structure driving 62% retention')",
-      "insight": "What the data shows. Name specific video titles, cite exact percentages, identify the pattern. 1-2 sentences. This must read like a data analyst wrote it.",
-      "opportunity": "Why this matters for growth. Connect the pattern to YouTube's algorithm mechanics or audience behavior. Explain the growth mechanism, not just 'this could improve performance.' 1-2 sentences.",
-      "steps": ["Concrete immediate action the team can execute this week", "Follow-through action for the next content cycle", "How to measure whether it worked"]
+      "title": "Action verb + specific situation + data point. Name the exact lever AND the strategic outcome. Example: 'Reverse-engineer [Channel]'s [X]-view breakthrough and apply the format to lagging channels' or 'Fix the 0.2%-0.5% CTR on [Channel] before the algorithm marks it as spam'",
+      "insight": "3-5 sentences. What the data shows and WHY it matters. Name specific video titles with their exact metrics (views, CTR%, retention%). Compare against network or channel averages to show the gap. Identify root causes, not just symptoms — e.g. if CTR is low, diagnose whether the bottleneck is title structure, thumbnail, topic selection, or audience mismatch. Cross-reference performance across channels when relevant.",
+      "opportunity": "3-5 sentences. Explain the specific YouTube algorithm mechanism at play. How does the algorithm interpret this signal? What happens if the trend continues vs. if we intervene? Reference proof-of-concept videos from the data that show the audience or format CAN work. Quantify the upside where possible (e.g. 'If the next 2-3 uploads maintain 7%+ CTR and 55%+ retention, YouTube expands impressions exponentially').",
+      "steps": [
+        "Each step should be a full paragraph (2-4 sentences). Include specific timeframes ('Within 10 days', 'for 7 days', 'in the first 48 hours'). Name exact actions with examples (e.g. rewrite a specific title, change thumbnail approach). End with a diagnostic measurement: state what metric to track, what threshold indicates success, and what it means if the threshold is NOT met ('If CTR exceeds 4% in the first 48 hours, the algorithm is responding. If it stays below 2%, the problem is deeper than titles').",
+        "Second step: follow-through action for the next content cycle. Again include timeframes and measurement criteria.",
+        "Third step: ongoing tracking and interpretation. Tell the client what continued metric to monitor and how to interpret the results diagnostically — what different outcomes mean about where the real bottleneck is."
+      ]
     }
   ],
   "closing": "2-3 sentence forward-looking statement. Anchor in the channel's momentum and biggest unlock ahead. End on a note that makes the client want to execute."
 }
 
-QUALITY FILTER: Generate however many recommendations are genuinely warranted by the data — typically 3-6. Apply these tests to every recommendation before including it:
+QUALITY FILTER: Generate however many recommendations are genuinely warranted by the data — typically 3-5. Apply these tests to every recommendation before including it:
 1. Does it cite a specific video title, metric, or pattern from THIS channel's data? If not, cut it.
 2. Could this recommendation apply to any YouTube channel without modification? If yes, cut it.
-3. Does the "opportunity" explain a specific growth mechanism, or is it just "this will improve performance"? If the latter, rewrite or cut it.
-4. Are the steps specific enough that the client could act on them tomorrow without further clarification? If not, make them specific.`;
+3. Does the "opportunity" explain a specific algorithm mechanism with consequences (what happens if we act vs. don't), or is it just "this could improve performance"? If the latter, rewrite or cut it.
+4. Are the steps specific enough that the client could act on them tomorrow without further clarification? Each step must include a timeframe, a concrete action, and a diagnostic metric with threshold. If any step is generic advice, make it specific or cut the recommendation.
+5. Does each step end with a conditional diagnostic? ("If X, the approach is working. If Y, the bottleneck is Z.") If not, add one.`;
 
           const systemPrompt = `You are the top YouTube strategist in the world, with deep expertise in platform algorithm behavior, audience psychology, retention mechanics, and content packaging across every vertical and channel size. You understand how YouTube's recommendation engine weighs watch time, session depth, click-through rate, and audience satisfaction signals at a granular level.
 
