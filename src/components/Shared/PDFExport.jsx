@@ -16,6 +16,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
   const [pendingComments, setPendingComments] = useState([]);
   const [pendingPublishedHtml, setPendingPublishedHtml] = useState('');
   const [rendering, setRendering] = useState(false);
+  const [recError, setRecError] = useState(null);
 
   // Load AI content from localStorage if it should be included
   const getAIContent = () => {
@@ -104,12 +105,18 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
 
       // Generate Strategic Recommendations via Claude AI
       let opportunities = [];
+      setRecError(null);
       try {
         const { default: claudeAPI } = await import('../../services/claudeAPI');
         // Refresh API key from localStorage in case it was set after module init
         if (!claudeAPI.apiKey) claudeAPI.apiKey = claudeAPI.loadAPIKey();
         console.log('[PDFExport] API key present:', !!claudeAPI.apiKey, '| filtered rows:', filtered?.length);
-        if (claudeAPI.apiKey) {
+        if (!claudeAPI.apiKey) {
+          setRecError('No Claude API key configured. Go to Settings to add your API key.');
+        } else if (!filtered || filtered.length === 0) {
+          setRecError('No video data available for the selected period.');
+        }
+        if (claudeAPI.apiKey && filtered?.length > 0) {
           // Detect multichannel
           const uniqueChannels = [...new Set(filtered.map(r => r.channel).filter(Boolean))];
           const isMultiChannel = uniqueChannels.length > 1;
@@ -286,11 +293,7 @@ MULTICHANNEL NETWORK:
         }
       } catch (err) {
         console.error('[PDFExport] RECOMMENDATION ERROR:', err?.message || err);
-        console.error('[PDFExport] Stack:', err?.stack);
-        // Surface budget errors to the user via an alert
-        if (err?.message?.includes('budget')) {
-          alert('PDF Recommendations skipped: ' + err.message);
-        }
+        setRecError(err?.message || 'Unknown error generating recommendations');
       }
 
       // Build "Content Published This Period" section
@@ -936,8 +939,8 @@ MULTICHANNEL NETWORK:
             )}
 
             {pendingOpportunities.length === 0 ? (
-              <div style={{ padding: '20px', background: '#2a2a2a', borderRadius: '8px', color: '#888', fontSize: '14px', textAlign: 'center' }}>
-                No recommendations generated. The PDF will export without this section.
+              <div style={{ padding: '20px', background: '#2a2a2a', borderRadius: '8px', color: recError ? '#f87171' : '#888', fontSize: '14px', textAlign: 'center' }}>
+                {recError || 'No recommendations generated. The PDF will export without this section.'}
               </div>
             ) : (
               pendingOpportunities.map((opp, idx) => (
