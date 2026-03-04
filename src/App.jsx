@@ -109,6 +109,7 @@ export default function App() {
   const [snapshotDays, setSnapshotDays] = useState(0);
   const [lifetimeSnapshotKpis, setLifetimeSnapshotKpis] = useState(null);
   const [lifetimeAnalytics, setLifetimeAnalytics] = useState(null);
+  const [previousSnapshotRows, setPreviousSnapshotRows] = useState(null);
 
   // Load clients from Supabase on startup
   useEffect(() => {
@@ -438,6 +439,20 @@ export default function App() {
     return startDate ? { startDate, endDate } : null;
   }, [dateRange, customDateRange]);
 
+  // Compute matching previous period dates for apples-to-apples comparison
+  const previousDateRangeDates = useMemo(() => {
+    if (!dateRangeDates) return null;
+    const start = new Date(dateRangeDates.startDate + 'T00:00:00');
+    const end = new Date(dateRangeDates.endDate + 'T00:00:00');
+    const periodMs = end.getTime() - start.getTime();
+    const prevEnd = new Date(start.getTime() - 1); // day before current start
+    const prevStart = new Date(prevEnd.getTime() - periodMs);
+    return {
+      startDate: prevStart.toISOString().split('T')[0],
+      endDate: prevEnd.toISOString().split('T')[0],
+    };
+  }, [dateRangeDates]);
+
   // Fetch snapshot-aggregated data when date range changes (for OAuth-synced channels)
   useEffect(() => {
     if (!activeClient || !dateRangeDates) {
@@ -473,6 +488,23 @@ export default function App() {
           setSnapshotDays(0);
         }
 
+        // Fetch previous period snapshots for accurate period-over-period comparison
+        if (previousDateRangeDates) {
+          const prevResult = await getVideoSnapshotAggregates(
+            channelIds,
+            previousDateRangeDates.startDate,
+            previousDateRangeDates.endDate
+          );
+          if (!cancelled) {
+            setPreviousSnapshotRows(prevResult?.rows || null);
+            if (prevResult) {
+              console.log(`[Snapshots] Previous period: ${prevResult.rows.length} videos`);
+            }
+          }
+        } else if (!cancelled) {
+          setPreviousSnapshotRows(null);
+        }
+
         // Also fetch all-time snapshot aggregates for accurate lifetime KPIs
         const lifetimeResult = await getVideoSnapshotAggregates(
           channelIds,
@@ -501,7 +533,7 @@ export default function App() {
 
     fetchSnapshots();
     return () => { cancelled = true; };
-  }, [activeClient?.id, dateRangeDates]);
+  }, [activeClient?.id, dateRangeDates, previousDateRangeDates]);
 
   // Fetch lifetime watch hours from YouTube Analytics API (authoritative source)
   useEffect(() => {
@@ -737,90 +769,124 @@ export default function App() {
 
   // Calculate previous period KPIs for delta indicators
   const previousKpis = useMemo(() => {
-    if (!rows.length) return {
-      views: 0,
-      watchHours: 0,
-      subs: 0,
-      avgCtr: 0,
-      avgRet: 0,
+    const emptyKpis = {
+      views: 0, watchHours: 0, subs: 0, avgCtr: 0, avgRet: 0, count: 0,
       shortsMetrics: { count: 0, views: 0, subs: 0, watchHours: 0, imps: 0, productionHours: 0, avgCtr: 0, avgRet: 0 },
       longsMetrics: { count: 0, views: 0, subs: 0, watchHours: 0, imps: 0, productionHours: 0, avgCtr: 0, avgRet: 0 },
       shortsROI: { viewsPerHour: 0, subsPerHour: 0, watchHoursPerHour: 0 },
       longsROI: { viewsPerHour: 0, subsPerHour: 0, watchHoursPerHour: 0 }
     };
 
-    const now = new Date();
-    let currentStart, previousStart, previousEnd;
+    // When previous period snapshot data is available, use it (actual period performance)
+    const prevSnapshotViews = previousSnapshotRows?.reduce((s, r) => s + (r.views || 0), 0) || 0;
+    if (previousSnapshotRows && previousSnapshotRows.length > 0 && prevSnapshotViews > 0) {
+      let previousFiltered = previousSnapshotRows;
+      if (selectedChannel !== 'all') {
+        previousFiltered = previousFiltered.filter(r => r.channel === selectedChannel);
+      }
+      if (query) {
+        previousFiltered = previousFiltered.filter(r => r.title?.toLowerCase().includes(query.toLowerCase()));
+      }
 
-    // Define current and previous periods based on dateRange filter
+      const views = previousFiltered.reduce((s, r) => s + (r.views || 0), 0);
+      const watchHours = previousFiltered.reduce((s, r) => s + (r.watchHours || 0), 0);
+      const subs = previousFiltered.reduce((s, r) => s + (r.subscribers || 0), 0);
+      const imps = previousFiltered.reduce((s, r) => s + (r.impressions || 0), 0);
+      const avgCtr = imps > 0 ? previousFiltered.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / imps : 0;
+      const avgRet = views > 0 ? previousFiltered.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / views : 0;
+
+      const shorts = previousFiltered.filter(r => r.type === 'short');
+      const longs = previousFiltered.filter(r => r.type !== 'short');
+
+      const shortsMetrics = {
+        count: shorts.length,
+        views: shorts.reduce((s, r) => s + (r.views || 0), 0),
+        subs: shorts.reduce((s, r) => s + (r.subscribers || 0), 0),
+        watchHours: shorts.reduce((s, r) => s + (r.watchHours || 0), 0),
+        imps: shorts.reduce((s, r) => s + (r.impressions || 0), 0),
+        productionHours: shorts.length * 2
+      };
+      shortsMetrics.avgCtr = shortsMetrics.imps > 0 ? shorts.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / shortsMetrics.imps : 0;
+      shortsMetrics.avgRet = shortsMetrics.views > 0 ? shorts.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / shortsMetrics.views : 0;
+
+      const longsMetrics = {
+        count: longs.length,
+        views: longs.reduce((s, r) => s + (r.views || 0), 0),
+        subs: longs.reduce((s, r) => s + (r.subscribers || 0), 0),
+        watchHours: longs.reduce((s, r) => s + (r.watchHours || 0), 0),
+        imps: longs.reduce((s, r) => s + (r.impressions || 0), 0),
+        productionHours: longs.length * 8
+      };
+      longsMetrics.avgCtr = longsMetrics.imps > 0 ? longs.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / longsMetrics.imps : 0;
+      longsMetrics.avgRet = longsMetrics.views > 0 ? longs.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / longsMetrics.views : 0;
+
+      const shortsROI = {
+        viewsPerHour: shortsMetrics.productionHours > 0 ? shortsMetrics.views / shortsMetrics.productionHours : 0,
+        subsPerHour: shortsMetrics.productionHours > 0 ? shortsMetrics.subs / shortsMetrics.productionHours : 0,
+        watchHoursPerHour: shortsMetrics.productionHours > 0 ? shortsMetrics.watchHours / shortsMetrics.productionHours : 0
+      };
+      const longsROI = {
+        viewsPerHour: longsMetrics.productionHours > 0 ? longsMetrics.views / longsMetrics.productionHours : 0,
+        subsPerHour: longsMetrics.productionHours > 0 ? longsMetrics.subs / longsMetrics.productionHours : 0,
+        watchHoursPerHour: longsMetrics.productionHours > 0 ? longsMetrics.watchHours / longsMetrics.productionHours : 0
+      };
+
+      return { views, watchHours, subs, avgCtr, avgRet, count: previousFiltered.length, shortsMetrics, longsMetrics, shortsROI, longsROI };
+    }
+
+    // Fallback: filter rows by publish date (original behavior for non-OAuth channels)
+    if (!rows.length) return emptyKpis;
+
+    const now = new Date();
+    let previousStart, previousEnd;
+
     switch(dateRange) {
       case 'custom': {
         if (customDateRange.start && customDateRange.end) {
-          currentStart = new Date(customDateRange.start);
+          const currentStart = new Date(customDateRange.start);
           const endDate = new Date(customDateRange.end);
           endDate.setHours(23, 59, 59, 999);
           const periodLength = endDate.getTime() - currentStart.getTime();
           previousStart = new Date(currentStart.getTime() - periodLength);
           previousEnd = currentStart;
         } else {
-          // Not enough info for comparison, treat like "all"
-          currentStart = null;
+          return emptyKpis;
         }
         break;
       }
       case '7d':
-        currentStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         previousStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-        previousEnd = currentStart;
+        previousEnd = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
       case '28d':
-        currentStart = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
         previousStart = new Date(now.getTime() - 56 * 24 * 60 * 60 * 1000);
-        previousEnd = currentStart;
+        previousEnd = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
         break;
       case '90d':
-        currentStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
         previousStart = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
-        previousEnd = currentStart;
+        previousEnd = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
         break;
       case 'ytd':
-        currentStart = new Date(now.getFullYear(), 0, 1);
         previousStart = new Date(now.getFullYear() - 1, 0, 1);
         previousEnd = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
         break;
-      default: // 'all'
-        // For "all time", compare first half vs second half of data
+      default: {
         const allDates = rows.map(r => r.publishDate).filter(Boolean).sort();
-        if (!allDates.length) return {
-          views: 0,
-          watchHours: 0,
-          subs: 0,
-          avgCtr: 0,
-          avgRet: 0,
-          shortsMetrics: { count: 0, views: 0, subs: 0, watchHours: 0, imps: 0, productionHours: 0, avgCtr: 0, avgRet: 0 },
-          longsMetrics: { count: 0, views: 0, subs: 0, watchHours: 0, imps: 0, productionHours: 0, avgCtr: 0, avgRet: 0 },
-          shortsROI: { viewsPerHour: 0, subsPerHour: 0, watchHoursPerHour: 0 },
-          longsROI: { viewsPerHour: 0, subsPerHour: 0, watchHoursPerHour: 0 }
-        };
+        if (!allDates.length) return emptyKpis;
         const midpoint = new Date((new Date(allDates[0]).getTime() + new Date(allDates[allDates.length - 1]).getTime()) / 2);
-        currentStart = midpoint;
         previousStart = new Date(allDates[0]);
         previousEnd = midpoint;
+      }
     }
 
-    // Filter data for previous period
     const previousFiltered = rows.filter(r => {
       if (!r.publishDate) return false;
       const pubDate = new Date(r.publishDate);
-
-      // Apply same channel and query filters
       if (selectedChannel !== 'all' && r.channel !== selectedChannel) return false;
       if (query && !r.title.toLowerCase().includes(query.toLowerCase())) return false;
-
       return pubDate >= previousStart && pubDate < previousEnd;
     });
 
-    // Calculate previous period metrics
     const views = previousFiltered.reduce((s, r) => s + (r.views || 0), 0);
     const watchHours = previousFiltered.reduce((s, r) => s + (r.watchHours || 0), 0);
     const subs = previousFiltered.reduce((s, r) => s + (r.subscribers || 0), 0);
@@ -828,7 +894,6 @@ export default function App() {
     const avgCtr = imps > 0 ? previousFiltered.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / imps : 0;
     const avgRet = views > 0 ? previousFiltered.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / views : 0;
 
-    // Calculate Content ROI by format for previous period
     const shorts = previousFiltered.filter(r => r.type === 'short');
     const longs = previousFiltered.filter(r => r.type !== 'short');
 
@@ -840,12 +905,8 @@ export default function App() {
       imps: shorts.reduce((s, r) => s + (r.impressions || 0), 0),
       productionHours: shorts.length * 2
     };
-    shortsMetrics.avgCtr = shortsMetrics.imps > 0
-      ? shorts.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / shortsMetrics.imps
-      : 0;
-    shortsMetrics.avgRet = shortsMetrics.views > 0
-      ? shorts.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / shortsMetrics.views
-      : 0;
+    shortsMetrics.avgCtr = shortsMetrics.imps > 0 ? shorts.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / shortsMetrics.imps : 0;
+    shortsMetrics.avgRet = shortsMetrics.views > 0 ? shorts.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / shortsMetrics.views : 0;
 
     const longsMetrics = {
       count: longs.length,
@@ -855,19 +916,14 @@ export default function App() {
       imps: longs.reduce((s, r) => s + (r.impressions || 0), 0),
       productionHours: longs.length * 8
     };
-    longsMetrics.avgCtr = longsMetrics.imps > 0
-      ? longs.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / longsMetrics.imps
-      : 0;
-    longsMetrics.avgRet = longsMetrics.views > 0
-      ? longs.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / longsMetrics.views
-      : 0;
+    longsMetrics.avgCtr = longsMetrics.imps > 0 ? longs.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / longsMetrics.imps : 0;
+    longsMetrics.avgRet = longsMetrics.views > 0 ? longs.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / longsMetrics.views : 0;
 
     const shortsROI = {
       viewsPerHour: shortsMetrics.productionHours > 0 ? shortsMetrics.views / shortsMetrics.productionHours : 0,
       subsPerHour: shortsMetrics.productionHours > 0 ? shortsMetrics.subs / shortsMetrics.productionHours : 0,
       watchHoursPerHour: shortsMetrics.productionHours > 0 ? shortsMetrics.watchHours / shortsMetrics.productionHours : 0
     };
-
     const longsROI = {
       viewsPerHour: longsMetrics.productionHours > 0 ? longsMetrics.views / longsMetrics.productionHours : 0,
       subsPerHour: longsMetrics.productionHours > 0 ? longsMetrics.subs / longsMetrics.productionHours : 0,
@@ -875,7 +931,7 @@ export default function App() {
     };
 
     return { views, watchHours, subs, avgCtr, avgRet, count: previousFiltered.length, shortsMetrics, longsMetrics, shortsROI, longsROI };
-  }, [rows, dateRange, customDateRange, selectedChannel, query]);
+  }, [rows, dateRange, customDateRange, selectedChannel, query, previousSnapshotRows]);
 
   // Combine KPIs with period-over-period changes
   const kpisWithChanges = useMemo(() => {
