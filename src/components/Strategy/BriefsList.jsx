@@ -76,9 +76,10 @@ function buildClientMarkdown(brief) {
     lines.push("");
   }
 
-  if (d.edited_transcript) {
+  const script = d.edited_transcript || (d.direction_metadata || {}).edited_transcript || d.transcript_excerpt;
+  if (script) {
     lines.push("Script");
-    lines.push(d.edited_transcript);
+    lines.push(script);
     lines.push("");
   }
 
@@ -92,7 +93,6 @@ function buildBriefMarkdown(brief, channelName) {
   const lines = [];
 
   lines.push(`# ${brief.title || "Untitled Brief"}`);
-  if (channelName) lines.push(`Channel: ${channelName}`);
   if (meta.format_type) lines.push(`Format: ${meta.format_type}`);
   if (meta.estimated_duration) lines.push(`Duration: ${meta.estimated_duration}`);
   lines.push("");
@@ -106,36 +106,6 @@ function buildBriefMarkdown(brief, channelName) {
   if (d.arc_summary || d.arc) {
     lines.push("## Arc");
     lines.push(d.arc_summary || d.arc);
-    lines.push("");
-  }
-
-  if (d.title_variations?.length) {
-    lines.push("## Title Options");
-    d.title_variations.forEach((tv, i) => {
-      const label = typeof tv === "string" ? tv : tv.text || tv.title || "";
-      const style = typeof tv === "object" && tv.style ? ` (${tv.style})` : "";
-      lines.push(`${i + 1}. ${label}${style}`);
-    });
-    lines.push("");
-  }
-
-  if (d.description) {
-    lines.push("## Description");
-    lines.push(d.description);
-    lines.push("");
-  }
-
-  const thumb = d.thumbnail_suggestion || d.thumbnail;
-  if (thumb) {
-    lines.push("## Thumbnail");
-    if (typeof thumb === "string") {
-      lines.push(thumb);
-    } else {
-      if (thumb.concept) lines.push(`Concept: ${thumb.concept}`);
-      if (thumb.transcript_reference) lines.push(`Reference: ${thumb.transcript_reference}`);
-      if (thumb.visual_elements?.length) lines.push(`Elements: ${thumb.visual_elements.join(", ")}`);
-      if (thumb.text_overlay) lines.push(`Text: ${thumb.text_overlay}`);
-    }
     lines.push("");
   }
 
@@ -153,7 +123,23 @@ function buildBriefMarkdown(brief, channelName) {
     lines.push("");
   }
 
-  if (meta.b_roll?.length) {
+  // Visual directions (Stage 2 combined format)
+  if (meta.visual_directions?.length) {
+    lines.push("## Visual Directions");
+    meta.visual_directions.forEach(vd => {
+      lines.push(`- ${vd.segment || ""}:`);
+      if (vd.b_roll) lines.push(`  B-Roll: ${vd.b_roll}`);
+      if (vd.motion_graphics?.length) {
+        vd.motion_graphics.forEach(mg => {
+          lines.push(`  ${mg.type || "graphic"}: ${mg.content || mg.description || ""}`);
+        });
+      }
+    });
+    lines.push("");
+  }
+
+  // Legacy b-roll / motion graphics (V2 format fallback)
+  if (!meta.visual_directions?.length && meta.b_roll?.length) {
     lines.push("## B-Roll");
     meta.b_roll.forEach(br => {
       lines.push(`- ${br.segment || br.timecode || ""}: ${br.direction || br.description || ""}`);
@@ -161,38 +147,11 @@ function buildBriefMarkdown(brief, channelName) {
     lines.push("");
   }
 
-  if (meta.motion_graphics?.length) {
+  if (!meta.visual_directions?.length && meta.motion_graphics?.length) {
     lines.push("## Motion Graphics");
     meta.motion_graphics.forEach(mg => {
       lines.push(`- ${mg.type || "graphic"} at ${mg.timecode || "—"}: ${mg.content || mg.description || ""}`);
     });
-    lines.push("");
-  }
-
-  if (meta.timestamps?.length) {
-    lines.push("## Timestamps");
-    meta.timestamps.forEach(ts => {
-      lines.push(`- ${ts.in || ts.timecode || "—"} → ${ts.out || ""}: ${ts.note || ts.label || ""}`);
-    });
-    lines.push("");
-  }
-
-  if (d.rationale) {
-    lines.push("## Rationale");
-    lines.push(d.rationale);
-    lines.push("");
-  }
-
-  const cta = d.suggested_cta || d.cta || meta.cta;
-  if (cta) {
-    lines.push("## CTA");
-    lines.push(cta);
-    lines.push("");
-  }
-
-  if (d.editor_notes) {
-    lines.push("## Editor Notes");
-    lines.push(d.editor_notes);
     lines.push("");
   }
 
@@ -213,23 +172,16 @@ async function exportBriefPDF(brief, channelName) {
 
   const d = brief.brief_data || {};
   const meta = d.direction_metadata || {};
-  const statusLabel = STATUS_CONFIG[brief.status]?.label || brief.status;
-  const dateStr = brief.created_at
-    ? new Date(brief.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
-    : "";
 
   const sections = [];
 
-  // Header
+  // Header — title with format/duration badges
   sections.push(`
     <div style="margin-bottom:28px;">
       <div style="font-size:28px;font-weight:800;color:#1e293b;margin-bottom:8px;line-height:1.3;">${esc(brief.title || "Untitled Brief")}</div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-        ${channelName ? `<span style="font-size:13px;font-weight:600;color:#2563eb;background:#dbeafe;border-radius:6px;padding:3px 12px;">${esc(channelName)}</span>` : ""}
         ${meta.format_type ? `<span style="font-size:13px;font-weight:600;color:#b45309;background:#fef3c7;border-radius:6px;padding:3px 12px;">${esc(meta.format_type)}</span>` : ""}
         ${meta.estimated_duration ? `<span style="font-size:13px;color:#64748b;">${esc(meta.estimated_duration)}</span>` : ""}
-        <span style="font-size:13px;font-weight:600;color:#64748b;background:#f1f5f9;border-radius:6px;padding:3px 12px;">${esc(statusLabel)}</span>
-        ${dateStr ? `<span style="font-size:13px;color:#94a3b8;">${esc(dateStr)}</span>` : ""}
       </div>
     </div>
   `);
@@ -250,56 +202,6 @@ async function exportBriefPDF(brief, channelName) {
       <div style="margin-bottom:22px;">
         <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Arc</div>
         <div style="font-size:15px;color:#334155;line-height:1.6;">${esc(d.arc_summary || d.arc)}</div>
-      </div>
-    `);
-  }
-
-  // Title Variations
-  if (d.title_variations?.length) {
-    const titlesHtml = d.title_variations.map((tv, i) => {
-      const label = typeof tv === "string" ? tv : tv.text || tv.title || "";
-      const style = typeof tv === "object" && tv.style ? tv.style : "";
-      return `<div style="font-size:14px;color:#1e293b;margin-bottom:4px;line-height:1.5;">
-        <span style="color:#64748b;margin-right:6px;">${i + 1}.</span> ${esc(label)}
-        ${style ? `<span style="font-size:11px;font-weight:600;color:#7c3aed;background:#f5f3ff;border-radius:4px;padding:1px 8px;margin-left:8px;">${esc(style)}</span>` : ""}
-      </div>`;
-    }).join("");
-    sections.push(`
-      <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Title Variations</div>
-        ${titlesHtml}
-      </div>
-    `);
-  }
-
-  // Description
-  if (d.description) {
-    sections.push(`
-      <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Description</div>
-        <div style="font-size:14px;color:#334155;line-height:1.7;white-space:pre-wrap;">${esc(d.description)}</div>
-      </div>
-    `);
-  }
-
-  // Thumbnail
-  const thumb = d.thumbnail_suggestion || d.thumbnail;
-  if (thumb) {
-    let thumbContent;
-    if (typeof thumb === "string") {
-      thumbContent = `<div style="font-size:14px;color:#334155;line-height:1.6;">${esc(thumb)}</div>`;
-    } else {
-      thumbContent = [
-        thumb.concept ? `<div style="font-size:14px;color:#334155;line-height:1.6;"><strong style="color:#64748b;">Concept:</strong> ${esc(thumb.concept)}</div>` : "",
-        thumb.transcript_reference ? `<div style="font-size:14px;color:#334155;line-height:1.6;"><strong style="color:#64748b;">Reference:</strong> ${esc(thumb.transcript_reference)}</div>` : "",
-        thumb.visual_elements?.length ? `<div style="font-size:14px;color:#334155;line-height:1.6;"><strong style="color:#64748b;">Elements:</strong> ${esc(thumb.visual_elements.join(", "))}</div>` : "",
-        thumb.text_overlay ? `<div style="font-size:14px;color:#334155;line-height:1.6;"><strong style="color:#64748b;">Text:</strong> ${esc(thumb.text_overlay)}</div>` : "",
-      ].filter(Boolean).join("");
-    }
-    sections.push(`
-      <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Thumbnail Direction</div>
-        ${thumbContent}
       </div>
     `);
   }
@@ -329,8 +231,30 @@ async function exportBriefPDF(brief, channelName) {
     `);
   }
 
-  // B-Roll
-  if (meta.b_roll?.length) {
+  // Visual Directions (Stage 2 combined format)
+  if (meta.visual_directions?.length) {
+    const vdRows = meta.visual_directions.map(vd => {
+      let html = `<div style="font-size:14px;color:#334155;margin-bottom:8px;line-height:1.5;">
+        <span style="color:#0891b2;font-weight:600;">${esc(vd.segment || "")}</span>`;
+      if (vd.b_roll) html += `<div style="margin-left:16px;margin-top:4px;"><span style="color:#64748b;font-weight:600;">B-Roll:</span> ${esc(vd.b_roll)}</div>`;
+      if (vd.motion_graphics?.length) {
+        vd.motion_graphics.forEach(mg => {
+          html += `<div style="margin-left:16px;margin-top:2px;"><span style="color:#7c3aed;font-weight:600;">${esc(mg.type || "Graphic")}:</span> ${esc(mg.content || mg.description || "")}</div>`;
+        });
+      }
+      html += `</div>`;
+      return html;
+    }).join("");
+    sections.push(`
+      <div style="margin-bottom:22px;border-left:4px solid #06b6d4;padding-left:16px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Visual Directions</div>
+        ${vdRows}
+      </div>
+    `);
+  }
+
+  // Legacy B-Roll (V2 fallback)
+  if (!meta.visual_directions?.length && meta.b_roll?.length) {
     const brollRows = meta.b_roll.map(br =>
       `<div style="font-size:14px;color:#334155;margin-bottom:4px;line-height:1.5;">
         <span style="color:#0891b2;font-weight:600;">${esc(br.segment || br.timecode || "Shot")}</span>: ${esc(br.direction || br.description || "")}
@@ -344,8 +268,8 @@ async function exportBriefPDF(brief, channelName) {
     `);
   }
 
-  // Motion Graphics
-  if (meta.motion_graphics?.length) {
+  // Legacy Motion Graphics (V2 fallback)
+  if (!meta.visual_directions?.length && meta.motion_graphics?.length) {
     const mfxRows = meta.motion_graphics.map(mg =>
       `<div style="font-size:14px;color:#334155;margin-bottom:4px;line-height:1.5;">
         <span style="color:#7c3aed;font-weight:600;">${esc(mg.type || "Graphic")}</span>${mg.timecode ? ` <span style="color:#94a3b8;">at ${esc(mg.timecode)}</span>` : ""}: ${esc(mg.content || mg.description || "")}
@@ -358,60 +282,6 @@ async function exportBriefPDF(brief, channelName) {
       </div>
     `);
   }
-
-  // Timestamps
-  if (meta.timestamps?.length) {
-    const tsRows = meta.timestamps.map(ts =>
-      `<div style="font-family:monospace;font-size:13px;color:#334155;margin-bottom:3px;line-height:1.5;">
-        <span style="color:#16a34a;">${esc(ts.in || ts.timecode || "—")}</span>${ts.out ? ` <span style="color:#94a3b8;">→</span> <span style="color:#16a34a;">${esc(ts.out)}</span>` : ""} <span style="color:#64748b;">${esc(ts.note || ts.label || "")}</span>
-      </div>`
-    ).join("");
-    sections.push(`
-      <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Timestamps</div>
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;">${tsRows}</div>
-      </div>
-    `);
-  }
-
-  // Rationale
-  if (d.rationale) {
-    sections.push(`
-      <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Rationale</div>
-        <div style="font-size:14px;color:#64748b;line-height:1.6;font-style:italic;">${esc(d.rationale)}</div>
-      </div>
-    `);
-  }
-
-  // CTA
-  const cta = d.suggested_cta || d.cta || meta.cta;
-  if (cta) {
-    sections.push(`
-      <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">CTA</div>
-        <div style="font-size:14px;color:#334155;line-height:1.6;">${esc(cta)}</div>
-      </div>
-    `);
-  }
-
-  // Editor Notes
-  if (d.editor_notes) {
-    sections.push(`
-      <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Editor Notes</div>
-        <div style="font-size:14px;color:#334155;line-height:1.6;white-space:pre-wrap;">${esc(d.editor_notes)}</div>
-      </div>
-    `);
-  }
-
-  // Footer
-  sections.push(`
-    <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:11px;color:#94a3b8;">Generated from Full View Studio</span>
-      <span style="font-size:11px;color:#94a3b8;">${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span>
-    </div>
-  `);
 
   // Build container
   const container = document.createElement("div");
@@ -497,12 +367,13 @@ async function exportClientPDF(brief) {
     `);
   }
 
-  // Script
-  if (d.edited_transcript) {
+  // Script — check brief_data, then direction_metadata, then transcript_excerpt
+  const clientScript = d.edited_transcript || (d.direction_metadata || {}).edited_transcript || d.transcript_excerpt;
+  if (clientScript) {
     sections.push(`
       <div style="margin-bottom:28px;">
         <div style="font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Script</div>
-        <div style="font-size:14px;color:#334155;line-height:1.9;white-space:pre-wrap;">${esc(d.edited_transcript)}</div>
+        <div style="font-size:14px;color:#334155;line-height:1.9;white-space:pre-wrap;">${esc(clientScript)}</div>
       </div>
     `);
   }
