@@ -406,8 +406,8 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
           <div data-pdf-section style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 24px 28px; border-radius: 12px; margin-bottom: 28px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; text-align: center;">
               <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">TOTAL VIDEOS</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${filtered.length}</div>
+                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">VIDEOS PUBLISHED</div>
+                <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${periodPublished.length}</div>
               </div>
               <div>
                 <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">AVG VIEWS/VIDEO</div>
