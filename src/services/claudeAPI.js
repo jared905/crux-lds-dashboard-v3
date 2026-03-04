@@ -132,8 +132,12 @@ class ClaudeAPIService {
   }
 
   // Post-process AI output: replace dash bullets with bullet dots, remove dash separators
+  // Skips JSON responses to avoid breaking structured data
   _sanitizeDashes(text) {
     if (!text) return text;
+    const trimmed = text.trim();
+    // Skip JSON responses — they'll be parsed by consumers
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) return text;
     return text
       // Replace "- " at the start of a line (bullet points) with "• "
       .replace(/^- /gm, '• ')
