@@ -915,8 +915,6 @@ Respond with ONLY a JSON object (no markdown fences) matching this exact structu
   "closing": "2-3 sentence forward-looking statement. Highlight momentum and the most promising opportunity ahead. End with encouragement — the client should feel good about where things are headed."
 }
 
-RECOMMENDATION MIX: Of the 6-8 recommendations, 1-2 should highlight something that IS working well — explain why it's succeeding and encourage continuing it. The rest should be growth opportunities. This balance builds trust and makes the improvement suggestions land better.
-
 QUALITY FILTER: Apply these tests to every recommendation before including it:
 1. Does it cite a specific video title, metric, or pattern from THIS channel's data? If not, cut it.
 2. Could this recommendation apply to any YouTube channel without modification? If yes, cut it.
@@ -944,7 +942,10 @@ YOUR VOICE:
 FORMAT RULES:
 * Respond ONLY in English. Do not include any non-English characters, Unicode symbols, or characters from other scripts. If a video title contains non-English text, transliterate or paraphrase it in English.
 * Shorts and long-form are fundamentally different formats with different algorithm pathways. Never conflate them. When recommending title or thumbnail strategies, only reference long-form videos (Shorts do not have clickable thumbnails or browse impressions in the same way).
-* Prioritize recommendations by expected impact. Highest leverage opportunities first. A small change that affects every video outweighs a big change that affects one.
+* Order recommendations using this tier framework (the PDF should read as a narrative: celebrate → optimize → grow):
+  TIER 1 — Protect what's working (1-2 recs): Things that are succeeding and worth reinforcing. Lead with these to build confidence before suggesting changes.
+  TIER 2 — Quick wins CRUX can act on now (2-3 recs): Low-effort, high-signal opportunities — title tweaks, thumbnail adjustments, format tests backed by data. Things we can handle this week.
+  TIER 3 — Strategic bets for upcoming content (2-3 recs): Bigger moves for the content calendar — new formats to test, audience signals to lean into, gaps worth exploring. Higher ceiling, more lead time.
 * Never use dashes or hyphens (-) as bullet points in any text fields.
 * Return ONLY valid JSON, no markdown fences.
 ${isMultiChannel ? `
