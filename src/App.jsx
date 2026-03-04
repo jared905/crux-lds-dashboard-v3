@@ -38,6 +38,7 @@ import GapDetection from "./components/Research/GapDetection.jsx";
 import UserManagement from "./components/Admin/UserManagement.jsx";
 import APISettings from "./components/Settings/APISettings.jsx";
 import SecurityDocs from "./components/Settings/SecurityDocs.jsx";
+import SavedReports from "./components/Reports/SavedReports.jsx";
 
 // Lazy-loaded features
 const AuditPage = lazy(() => import("./components/Audit/AuditPage.jsx"));
@@ -68,6 +69,9 @@ export default function App() {
     return urlTab || 'dashboard';
   });
   
+  // Draft loading state (for Saved Reports → PDFExport handoff)
+  const [pendingDraftToLoad, setPendingDraftToLoad] = useState(null);
+
   // Multi-client state with localStorage persistence
   const [clients, setClients] = useState(() => {
     try {
@@ -1095,6 +1099,8 @@ export default function App() {
               allTimeKpis={allTimeKpis}
               channelStats={channelStats}
               activeClient={activeClient}
+              pendingDraftToLoad={pendingDraftToLoad}
+              setPendingDraftToLoad={setPendingDraftToLoad}
             />
             <ClientManager
               clients={clients}
@@ -1270,6 +1276,14 @@ export default function App() {
 
             {tab === "series-analysis" && (
               <ContentSeriesAnalysis rows={filtered} activeClient={activeClient} />
+            )}
+
+            {tab === "saved-reports" && (
+              <SavedReports
+                activeClient={activeClient}
+                setPendingDraftToLoad={setPendingDraftToLoad}
+                setTab={setTab}
+              />
             )}
 
           </>

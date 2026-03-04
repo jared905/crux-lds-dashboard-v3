@@ -1,15 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
-import { FileDown, X, Check, RotateCcw, Plus, Trash2 } from "lucide-react";
+import { FileDown, X, Check, RotateCcw, Plus, Trash2, Save } from "lucide-react";
 
 /**
  * PDF Export Component
  * Creates a clean, presentation-ready PDF with key executive metrics
  * Can optionally include AI-generated summary and video ideas
  */
-export default function PDFExport({ kpis, top, filtered, dateRange, customDateRange, clientName, selectedChannel, allTimeKpis, channelStats, activeClient }) {
+export default function PDFExport({ kpis, top, filtered, dateRange, customDateRange, clientName, selectedChannel, allTimeKpis, channelStats, activeClient, pendingDraftToLoad, setPendingDraftToLoad, onDraftSaved }) {
   const [exporting, setExporting] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [pendingOpportunities, setPendingOpportunities] = useState([]);
@@ -18,6 +18,10 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
   const [rendering, setRendering] = useState(false);
   const [recError, setRecError] = useState(null);
   const [generatingAI, setGeneratingAI] = useState(false);
+  const [currentDraftId, setCurrentDraftId] = useState(null);
+  const [draftName, setDraftName] = useState('');
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftSavedFlash, setDraftSavedFlash] = useState(false);
 
   // Load AI content from localStorage if it should be included
   const getAIContent = () => {
@@ -57,9 +61,83 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
     }
   };
 
+  // Save current modal state as a draft
+  const saveDraftNow = useCallback(async (silent = false) => {
+    if (!activeClient?.id) return;
+    const hasContent = pendingOpportunities.length > 0 || pendingComments.length > 0;
+    if (!hasContent) return;
+
+    setSavingDraft(true);
+    try {
+      const { saveDraft } = await import('../../services/reportDraftService');
+      const autoName = draftName || `${clientName || 'Report'} — ${getDateRangeLabel()} — ${new Date().toLocaleDateString()}`;
+      const oppsData = pendingOpportunities.map(o => ({ title: o.title, insight: o.insight, opportunity: o.opportunity, steps: o.steps, included: o.included }));
+
+      const saved = await saveDraft({
+        id: currentDraftId || undefined,
+        clientId: activeClient.id,
+        name: autoName,
+        dateRange,
+        customDateRange: customDateRange || null,
+        selectedChannel: selectedChannel || 'all',
+        clientName: clientName || '',
+        opportunities: oppsData,
+        openingText: pendingOpportunities._opening || '',
+        closingText: pendingOpportunities._closing || '',
+        topComments: pendingComments,
+        publishedHtml: pendingPublishedHtml,
+      });
+
+      setCurrentDraftId(saved.id);
+      setDraftName(saved.name);
+      if (onDraftSaved) onDraftSaved();
+
+      if (!silent) {
+        setDraftSavedFlash(true);
+        setTimeout(() => setDraftSavedFlash(false), 2000);
+      }
+    } catch (e) {
+      console.error('Failed to save draft:', e);
+      if (!silent) alert('Failed to save draft.');
+    } finally {
+      setSavingDraft(false);
+    }
+  }, [activeClient?.id, currentDraftId, draftName, clientName, dateRange, customDateRange, selectedChannel, pendingOpportunities, pendingComments, pendingPublishedHtml, onDraftSaved]);
+
+  // Load a draft into the modal
+  const loadDraftIntoModal = useCallback((draft) => {
+    const opps = (draft.opportunities || []).map(o => ({
+      title: o.title || '',
+      insight: o.insight || '',
+      opportunity: o.opportunity || '',
+      steps: o.steps || [],
+      included: o.included !== false,
+    }));
+    opps._opening = draft.openingText || '';
+    opps._closing = draft.closingText || '';
+
+    setPendingOpportunities(opps);
+    setPendingComments(draft.topComments || []);
+    setPendingPublishedHtml(draft.publishedHtml || '');
+    setCurrentDraftId(draft.id);
+    setDraftName(draft.name || '');
+    setRecError(null);
+    setShowReviewModal(true);
+  }, []);
+
+  // When a draft is passed from Saved Reports, load it
+  useEffect(() => {
+    if (pendingDraftToLoad) {
+      loadDraftIntoModal(pendingDraftToLoad);
+      if (setPendingDraftToLoad) setPendingDraftToLoad(null);
+    }
+  }, [pendingDraftToLoad, setPendingDraftToLoad, loadDraftIntoModal]);
+
   // Phase 1: Collect data (comments, AI opportunities, published section) then open review modal
   const handleExportClick = async () => {
     setExporting(true);
+    setCurrentDraftId(null);
+    setDraftName('');
 
     try {
       // Fetch top comments from top videos via server proxy (sorted by likes)
@@ -641,6 +719,17 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
       const filename = `YouTube_Report_${dateLabel.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
       pdf.save(filename);
 
+      // Mark draft as exported
+      if (currentDraftId) {
+        try {
+          const { updateDraftStatus } = await import('../../services/reportDraftService');
+          await updateDraftStatus(currentDraftId, 'exported', new Date().toISOString());
+          if (onDraftSaved) onDraftSaved();
+        } catch (e) {
+          console.warn('Failed to update draft status:', e);
+        }
+      }
+
     } catch (error) {
       console.error('PDF export failed:', error);
       alert('Failed to generate PDF. Please try again.');
@@ -649,11 +738,18 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
     }
   };
 
-  const handleCancelModal = () => {
+  const handleCancelModal = async () => {
+    // Auto-save if there's content
+    const hasContent = pendingOpportunities.length > 0 || pendingComments.length > 0;
+    if (hasContent && activeClient?.id) {
+      await saveDraftNow(true);
+    }
     setShowReviewModal(false);
     setPendingOpportunities([]);
     setPendingComments([]);
     setPendingPublishedHtml('');
+    setCurrentDraftId(null);
+    setDraftName('');
   };
 
   // Generate AI recommendations (called from inside the modal)
@@ -674,7 +770,15 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
 
       const uniqueChannels = [...new Set(filtered.map(r => r.channel).filter(Boolean))];
       const isMultiChannel = uniqueChannels.length > 1;
-      const formatVid = (v) => `"${v.title}"${isMultiChannel && v.channel ? ` [${v.channel}]` : ''} (${(v.views||0).toLocaleString()} views, ${((v.ctr||0)*100).toFixed(1)}% CTR, ${((v.retention||0)*100).toFixed(1)}% retention)`;
+      const daysLive = (v) => {
+        if (!v.publishDate) return null;
+        return Math.max(1, Math.round((Date.now() - new Date(v.publishDate).getTime()) / (1000 * 60 * 60 * 24)));
+      };
+      const formatVid = (v) => {
+        const d = daysLive(v);
+        const pubStr = v.publishDate ? new Date(v.publishDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+        return `"${v.title}"${isMultiChannel && v.channel ? ` [${v.channel}]` : ''} (${(v.views||0).toLocaleString()} views${d ? ` in ${d}d` : ''}, ${((v.ctr||0)*100).toFixed(1)}% CTR, ${((v.retention||0)*100).toFixed(1)}% retention, ${(v.subscribers||0)} subs gained, ${Number((v.watchHours||0).toFixed(1))} watch hrs${v.likes ? `, ${v.likes} likes` : ''}${v.comments ? `, ${v.comments} comments` : ''}${pubStr ? `, pub ${pubStr}` : ''})`;
+      };
 
       const shorts = filtered.filter(r => r.type === 'short');
       const longs = filtered.filter(r => r.type !== 'short');
@@ -708,6 +812,81 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
         console.warn('Could not load brand context for PDF:', e);
       }
 
+      // Series detection + analytics
+      let seriesBlock = '';
+      try {
+        const { runPatternDetection } = await import('../../services/seriesDetectionAdapter');
+        const { patternSeries, uncategorizedRows } = runPatternDetection(filtered);
+
+        if (patternSeries.length > 0) {
+          // Channel baselines
+          const validRows = filtered.filter(r => r.views > 0);
+          const chAvgViews = validRows.reduce((s, r) => s + r.views, 0) / Math.max(validRows.length, 1);
+          const chAvgCtr = validRows.filter(r => r.ctr > 0).reduce((s, r) => s + r.ctr, 0) / Math.max(validRows.filter(r => r.ctr > 0).length, 1);
+          const chAvgRet = validRows.filter(r => r.retention > 0).reduce((s, r) => s + r.retention, 0) / Math.max(validRows.filter(r => r.retention > 0).length, 1);
+          const totalChViews = validRows.reduce((s, r) => s + r.views, 0);
+          const totalChSubs = validRows.reduce((s, r) => s + (r.subscribers || 0), 0);
+          const chSubsPerK = totalChViews > 0 ? (totalChSubs / totalChViews) * 1000 : 0;
+
+          const fmtLift = (lift) => lift >= 0 ? `+${(lift * 100).toFixed(0)}%` : `${(lift * 100).toFixed(0)}%`;
+
+          const analyzed = patternSeries.map(series => {
+            const vids = series.videos;
+            const count = vids.length;
+            const totalViews = vids.reduce((s, v) => s + v.views, 0);
+            const avgViews = totalViews / count;
+            const avgCtr = vids.reduce((s, v) => s + (v.ctr || 0), 0) / count;
+            const avgRet = vids.reduce((s, v) => s + (v.retention || 0), 0) / count;
+            const totalSubs = vids.reduce((s, v) => s + (v.subscribers || 0), 0);
+            const subsPerK = totalViews > 0 ? (totalSubs / totalViews) * 1000 : 0;
+
+            const viewLift = chAvgViews > 0 ? (avgViews - chAvgViews) / chAvgViews : 0;
+            const ctrLift = chAvgCtr > 0 ? (avgCtr - chAvgCtr) / chAvgCtr : 0;
+            const retLift = chAvgRet > 0 ? (avgRet - chAvgRet) / chAvgRet : 0;
+            const subsLift = chSubsPerK > 0 ? (subsPerK - chSubsPerK) / chSubsPerK : 0;
+
+            // Trend: first half vs second half by publish date
+            const sorted = [...vids].filter(v => v.publishDate).sort((a, b) => new Date(a.publishDate) - new Date(b.publishDate));
+            let trend = 'stable', trendPct = 0;
+            if (sorted.length >= 4) {
+              const mid = Math.floor(sorted.length / 2);
+              const firstAvg = sorted.slice(0, mid).reduce((s, v) => s + v.views, 0) / mid;
+              const secondAvg = sorted.slice(mid).reduce((s, v) => s + v.views, 0) / (sorted.length - mid);
+              trendPct = firstAvg > 0 ? (secondAvg - firstAvg) / firstAvg : 0;
+              if (trendPct > 0.15) trend = 'growing';
+              else if (trendPct < -0.15) trend = 'declining';
+            }
+
+            // Recommendation
+            const perfScore = (1 + viewLift) * (1 + ctrLift) * (1 + retLift) * (1 + subsLift * 0.5);
+            let rec = 'maintain';
+            if (perfScore > 1.3 && trend !== 'declining') rec = 'scale';
+            else if (avgCtr > chAvgCtr * 1.1 && avgRet > chAvgRet * 1.1 && viewLift < 0.2) rec = 'optimize';
+            else if (trend === 'growing' && trendPct > 0.2) rec = 'scale';
+            else if (perfScore < 0.7 && trend === 'declining') rec = 'sunset';
+
+            const byViews = [...vids].sort((a, b) => b.views - a.views);
+            return { name: series.name, count, avgViews, avgCtr, avgRet, subsPerK, viewLift, ctrLift, retLift, subsLift, trend, trendPct, rec, best: byViews[0], worst: byViews[byViews.length - 1] };
+          }).sort((a, b) => b.avgViews * b.count - a.avgViews * a.count);
+
+          const totalSeriesVids = analyzed.reduce((s, a) => s + a.count, 0);
+          const seriesLines = analyzed.map(s =>
+            `Series: "${s.name}" (${s.count} videos, ${s.rec})\n` +
+            `  Avg Views: ${Math.round(s.avgViews).toLocaleString()} (${fmtLift(s.viewLift)} vs channel avg)\n` +
+            `  Avg CTR: ${(s.avgCtr * 100).toFixed(1)}% (${fmtLift(s.ctrLift)} vs avg)\n` +
+            `  Avg Retention: ${(s.avgRet * 100).toFixed(1)}% (${fmtLift(s.retLift)} vs avg)\n` +
+            `  Sub Conversion: ${s.subsPerK.toFixed(1)} subs/1K views (${fmtLift(s.subsLift)} vs avg)\n` +
+            `  Trend: ${s.trend}${s.trendPct !== 0 ? ` (${fmtLift(s.trendPct)} views change)` : ''}\n` +
+            `  Best: "${s.best.title}" (${s.best.views.toLocaleString()} views)\n` +
+            `  Worst: "${s.worst.title}" (${s.worst.views.toLocaleString()} views)`
+          ).join('\n\n');
+
+          seriesBlock = `\nCONTENT SERIES ANALYSIS\n${analyzed.length} recurring series detected, covering ${totalSeriesVids} of ${filtered.length} videos.\n\n${seriesLines}\n\nUncategorized: ${uncategorizedRows.length} videos not in any series\n`;
+        }
+      } catch (e) {
+        console.warn('Series detection for PDF prompt failed:', e);
+      }
+
       const periodLabel = getDateRangeLabel();
       const periodFraming = dateRange === '7d' ? 'weekly performance snapshot'
         : dateRange === '28d' ? 'monthly performance review'
@@ -732,7 +911,7 @@ Avg Retention: ${((kpis.avgRet || 0) * 100).toFixed(1)}%
 FORMAT BREAKDOWN
 Shorts: ${shorts.length} videos, ${shortsViews.toLocaleString()} views, ${((kpis.shortsMetrics?.avgCtr || 0) * 100).toFixed(1)}% avg CTR, ${((kpis.shortsMetrics?.avgRet || 0) * 100).toFixed(1)}% avg retention
 Long-form: ${longs.length} videos, ${longsViews.toLocaleString()} views, ${((kpis.longsMetrics?.avgCtr || 0) * 100).toFixed(1)}% avg CTR, ${((kpis.longsMetrics?.avgRet || 0) * 100).toFixed(1)}% avg retention
-
+${seriesBlock}
 ---
 
 TOP PERFORMING LONG-FORM (by views):
@@ -754,6 +933,20 @@ BOTTOM PERFORMING SHORTS (by views):
 ${[...shorts].sort((a, b) => (a.views || 0) - (b.views || 0)).slice(0, 5).map(formatVid).join('\n')}
 
 ${brandContextBlock ? `---\n\n${brandContextBlock}` : ''}
+
+---
+
+VIEW COUNT CONTEXT:
+* Each video includes "Xd" indicating how many days it has been live. A video with 5,000 views in 3 days is dramatically outperforming one with 8,000 views in 60 days.
+* When comparing view counts across videos, ALWAYS account for days live. Never call a recently published video "underperforming" solely because its raw view count is lower than older videos.
+* CTR and retention are rate-based metrics and ARE directly comparable regardless of publish date.
+* When citing view counts in recommendations, include the time context (e.g. "12,000 views in just 5 days" or "only 3,000 views after 45 days").
+
+SERIES INTELLIGENCE:
+* Analyze series trends — if a series is growing, recommend scaling it. If declining, diagnose whether the issue is topic fatigue, format staleness, or audience mismatch.
+* Compare series against each other. Which series converts the most subscribers? Which has the best retention? Use these comparisons to prioritize recommendations.
+* Reference specific series by name in your recommendations when the data supports it.
+* If the best-performing series has fewer episodes than average, that's a scaling opportunity. If a high-volume series is underperforming, that's a resource reallocation signal.
 
 ---
 
@@ -793,13 +986,15 @@ ANALYTICAL LENS:
 * Separate signal from noise. A single underperforming video is not a trend. Three consecutive drops in retention with similar content structures IS a pattern worth addressing.
 
 YOUR VOICE:
-* Direct and confident. No hedging, no filler, no "it is important to" or "you should consider."
+* Direct and confident. No hedging, no filler, no "it is important to" or "we should consider."
 * Warm but authoritative. This is a partner who deeply understands their craft, not a vendor pitching or a textbook lecturing.
-* Obsessively specific. Every recommendation must reference actual video titles, percentages, patterns, or numbers from this channel's data. If you cannot cite the data, do not make the recommendation.
+* Always use "we" language — CRUX and the client are a team working together. Say "we should" not "you should", "our next move" not "your next move", "let's" not "you need to." The tone is a trusted partner rolling up their sleeves alongside the client.
+* Obsessively specific. Every recommendation must reference actual video titles, percentages, patterns, or numbers from this channel's data. If we cannot cite the data, do not make the recommendation.
 * Forward-looking. Every observation connects to a concrete growth opportunity with a clear mechanism.
 * Plain language. The client may not be a YouTube expert. Write so a marketing director or business owner understands every sentence without Googling. When you reference a platform concept (CTR, retention, impressions), briefly explain what it means in plain terms on first use — e.g. "click-through rate (the percentage of people who see your thumbnail and choose to click)" or "retention (how much of the video viewers actually watch)." Never assume the reader knows YouTube jargon. The insight should feel smart, not intimidating.
 
 FORMAT RULES:
+* Respond ONLY in English. Do not include any non-English characters, Unicode symbols, or characters from other scripts. If a video title contains non-English text, transliterate or paraphrase it in English.
 * Shorts and long-form are fundamentally different formats with different algorithm pathways. Never conflate them. When recommending title or thumbnail strategies, only reference long-form videos (Shorts do not have clickable thumbnails or browse impressions in the same way).
 * Prioritize recommendations by expected impact. Highest leverage opportunities first. A small change that affects every video outweighs a big change that affects one.
 * Never use dashes or hyphens (-) as bullet points in any text fields.
@@ -1090,13 +1285,13 @@ MULTICHANNEL NETWORK:
                     {(opp.steps || []).map((step, si) => (
                       <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
                         <span style={{ fontSize: '14px', color: '#93c5fd', fontWeight: '600', minWidth: '18px', paddingTop: '9px' }}>{si + 1}.</span>
-                        <input
-                          type="text"
+                        <textarea
                           value={step}
                           onChange={e => updateStep(idx, si, e.target.value)}
                           disabled={!opp.included}
                           placeholder="Action step..."
-                          style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#ccc', fontSize: '14px', outline: 'none' }}
+                          rows={4}
+                          style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#ccc', fontSize: '14px', outline: 'none', resize: 'vertical', lineHeight: '1.5', fontFamily: 'inherit' }}
                         />
                         <button
                           onClick={() => removeStep(idx, si)}
@@ -1151,11 +1346,26 @@ MULTICHANNEL NETWORK:
           </div>
 
           {/* Footer */}
-          <div style={{ padding: '18px 32px', borderTop: '1px solid #333', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-            <button onClick={handleCancelModal} style={{ padding: '10px 24px', borderRadius: '8px', border: '1px solid #444', background: 'transparent', color: '#888', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>
+          <div style={{ padding: '18px 32px', borderTop: '1px solid #333', display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <input
+              type="text"
+              value={draftName}
+              onChange={e => setDraftName(e.target.value)}
+              placeholder="Draft name..."
+              style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#ccc', fontSize: '13px', outline: 'none', minWidth: 0 }}
+            />
+            <button
+              onClick={() => saveDraftNow(false)}
+              disabled={savingDraft}
+              style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #444', background: 'transparent', color: draftSavedFlash ? '#10b981' : '#93c5fd', fontSize: '14px', fontWeight: '500', cursor: savingDraft ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'color 0.3s', whiteSpace: 'nowrap' }}
+            >
+              {draftSavedFlash ? <Check size={16} /> : <Save size={16} />}
+              {savingDraft ? 'Saving...' : draftSavedFlash ? 'Saved' : 'Save Draft'}
+            </button>
+            <button onClick={handleCancelModal} style={{ padding: '10px 24px', borderRadius: '8px', border: '1px solid #444', background: 'transparent', color: '#888', fontSize: '14px', fontWeight: '500', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               Cancel
             </button>
-            <button onClick={confirmAndExport} style={{ padding: '10px 28px', borderRadius: '8px', border: 'none', background: '#2563eb', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button onClick={confirmAndExport} style={{ padding: '10px 28px', borderRadius: '8px', border: 'none', background: '#2563eb', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
               <FileDown size={16} />
               Export PDF
             </button>
