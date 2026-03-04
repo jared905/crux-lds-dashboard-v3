@@ -812,80 +812,9 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
         console.warn('Could not load brand context for PDF:', e);
       }
 
-      // Series detection + analytics
-      let seriesBlock = '';
-      try {
-        const { runPatternDetection } = await import('../../services/seriesDetectionAdapter');
-        const { patternSeries, uncategorizedRows } = runPatternDetection(filtered);
-
-        if (patternSeries.length > 0) {
-          // Channel baselines
-          const validRows = filtered.filter(r => r.views > 0);
-          const chAvgViews = validRows.reduce((s, r) => s + r.views, 0) / Math.max(validRows.length, 1);
-          const chAvgCtr = validRows.filter(r => r.ctr > 0).reduce((s, r) => s + r.ctr, 0) / Math.max(validRows.filter(r => r.ctr > 0).length, 1);
-          const chAvgRet = validRows.filter(r => r.retention > 0).reduce((s, r) => s + r.retention, 0) / Math.max(validRows.filter(r => r.retention > 0).length, 1);
-          const totalChViews = validRows.reduce((s, r) => s + r.views, 0);
-          const totalChSubs = validRows.reduce((s, r) => s + (r.subscribers || 0), 0);
-          const chSubsPerK = totalChViews > 0 ? (totalChSubs / totalChViews) * 1000 : 0;
-
-          const fmtLift = (lift) => lift >= 0 ? `+${(lift * 100).toFixed(0)}%` : `${(lift * 100).toFixed(0)}%`;
-
-          const analyzed = patternSeries.map(series => {
-            const vids = series.videos;
-            const count = vids.length;
-            const totalViews = vids.reduce((s, v) => s + v.views, 0);
-            const avgViews = totalViews / count;
-            const avgCtr = vids.reduce((s, v) => s + (v.ctr || 0), 0) / count;
-            const avgRet = vids.reduce((s, v) => s + (v.retention || 0), 0) / count;
-            const totalSubs = vids.reduce((s, v) => s + (v.subscribers || 0), 0);
-            const subsPerK = totalViews > 0 ? (totalSubs / totalViews) * 1000 : 0;
-
-            const viewLift = chAvgViews > 0 ? (avgViews - chAvgViews) / chAvgViews : 0;
-            const ctrLift = chAvgCtr > 0 ? (avgCtr - chAvgCtr) / chAvgCtr : 0;
-            const retLift = chAvgRet > 0 ? (avgRet - chAvgRet) / chAvgRet : 0;
-            const subsLift = chSubsPerK > 0 ? (subsPerK - chSubsPerK) / chSubsPerK : 0;
-
-            // Trend: first half vs second half by publish date
-            const sorted = [...vids].filter(v => v.publishDate).sort((a, b) => new Date(a.publishDate) - new Date(b.publishDate));
-            let trend = 'stable', trendPct = 0;
-            if (sorted.length >= 4) {
-              const mid = Math.floor(sorted.length / 2);
-              const firstAvg = sorted.slice(0, mid).reduce((s, v) => s + v.views, 0) / mid;
-              const secondAvg = sorted.slice(mid).reduce((s, v) => s + v.views, 0) / (sorted.length - mid);
-              trendPct = firstAvg > 0 ? (secondAvg - firstAvg) / firstAvg : 0;
-              if (trendPct > 0.15) trend = 'growing';
-              else if (trendPct < -0.15) trend = 'declining';
-            }
-
-            // Recommendation
-            const perfScore = (1 + viewLift) * (1 + ctrLift) * (1 + retLift) * (1 + subsLift * 0.5);
-            let rec = 'maintain';
-            if (perfScore > 1.3 && trend !== 'declining') rec = 'scale';
-            else if (avgCtr > chAvgCtr * 1.1 && avgRet > chAvgRet * 1.1 && viewLift < 0.2) rec = 'optimize';
-            else if (trend === 'growing' && trendPct > 0.2) rec = 'scale';
-            else if (perfScore < 0.7 && trend === 'declining') rec = 'sunset';
-
-            const byViews = [...vids].sort((a, b) => b.views - a.views);
-            return { name: series.name, count, avgViews, avgCtr, avgRet, subsPerK, viewLift, ctrLift, retLift, subsLift, trend, trendPct, rec, best: byViews[0], worst: byViews[byViews.length - 1] };
-          }).sort((a, b) => b.avgViews * b.count - a.avgViews * a.count);
-
-          const totalSeriesVids = analyzed.reduce((s, a) => s + a.count, 0);
-          const seriesLines = analyzed.map(s =>
-            `Series: "${s.name}" (${s.count} videos, ${s.rec})\n` +
-            `  Avg Views: ${Math.round(s.avgViews).toLocaleString()} (${fmtLift(s.viewLift)} vs channel avg)\n` +
-            `  Avg CTR: ${(s.avgCtr * 100).toFixed(1)}% (${fmtLift(s.ctrLift)} vs avg)\n` +
-            `  Avg Retention: ${(s.avgRet * 100).toFixed(1)}% (${fmtLift(s.retLift)} vs avg)\n` +
-            `  Sub Conversion: ${s.subsPerK.toFixed(1)} subs/1K views (${fmtLift(s.subsLift)} vs avg)\n` +
-            `  Trend: ${s.trend}${s.trendPct !== 0 ? ` (${fmtLift(s.trendPct)} views change)` : ''}\n` +
-            `  Best: "${s.best.title}" (${s.best.views.toLocaleString()} views)\n` +
-            `  Worst: "${s.worst.title}" (${s.worst.views.toLocaleString()} views)`
-          ).join('\n\n');
-
-          seriesBlock = `\nCONTENT SERIES ANALYSIS\n${analyzed.length} recurring series detected, covering ${totalSeriesVids} of ${filtered.length} videos.\n\n${seriesLines}\n\nUncategorized: ${uncategorizedRows.length} videos not in any series\n`;
-        }
-      } catch (e) {
-        console.warn('Series detection for PDF prompt failed:', e);
-      }
+      // Series detection removed from PDF prompt — pattern matching is too aggressive
+      // for this context (groups unrelated videos by shared 2-word prefixes) and was
+      // causing recommendations to over-index on false series groupings.
 
       const periodLabel = getDateRangeLabel();
       const periodFraming = dateRange === '7d' ? 'weekly performance snapshot'
@@ -911,7 +840,7 @@ Avg Retention: ${((kpis.avgRet || 0) * 100).toFixed(1)}%
 FORMAT BREAKDOWN
 Shorts: ${shorts.length} videos, ${shortsViews.toLocaleString()} views, ${((kpis.shortsMetrics?.avgCtr || 0) * 100).toFixed(1)}% avg CTR, ${((kpis.shortsMetrics?.avgRet || 0) * 100).toFixed(1)}% avg retention
 Long-form: ${longs.length} videos, ${longsViews.toLocaleString()} views, ${((kpis.longsMetrics?.avgCtr || 0) * 100).toFixed(1)}% avg CTR, ${((kpis.longsMetrics?.avgRet || 0) * 100).toFixed(1)}% avg retention
-${seriesBlock}
+
 ---
 
 TOP PERFORMING LONG-FORM (by views):
@@ -941,14 +870,6 @@ VIEW COUNT CONTEXT:
 * When comparing view counts across videos, ALWAYS account for days live. Never call a recently published video "underperforming" solely because its raw view count is lower than older videos.
 * CTR and retention are rate-based metrics and ARE directly comparable regardless of publish date.
 * When citing view counts in recommendations, include the time context (e.g. "12,000 views in just 5 days" or "only 3,000 views after 45 days").
-
-SERIES INTELLIGENCE:
-* Analyze series trends — if a series is growing, recommend scaling it. If declining, diagnose whether the issue is topic fatigue, format staleness, or audience mismatch.
-* Compare series against each other. Which series converts the most subscribers? Which has the best retention? Use these comparisons to prioritize recommendations.
-* Reference specific series by name in your recommendations when the data supports it.
-* If the best-performing series has fewer episodes than average, that's a scaling opportunity. If a high-volume series is underperforming, that's a resource reallocation signal.
-
----
 
 CRITICAL: Your entire response must be valid, complete JSON. Do NOT let it get truncated. Aim for 5 recommendations maximum. Keep each field concise — quality over quantity.
 
