@@ -1171,6 +1171,7 @@ export async function createBriefFromAtomized(atomizedContentId, clientId) {
   if (item.description_text) briefData.description = item.description_text;
   if (item.arc_summary) briefData.arc_summary = item.arc_summary;
   if (item.direction_metadata) briefData.direction_metadata = item.direction_metadata;
+  if (item.edited_transcript) briefData.edited_transcript = item.edited_transcript;
 
   const { data: brief, error: briefError } = await supabase
     .from('briefs')

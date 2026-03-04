@@ -111,6 +111,12 @@ function buildBriefMarkdown(brief, channelName) {
     lines.push("");
   }
 
+  if (d.edited_transcript) {
+    lines.push("## Edited Transcript");
+    lines.push(d.edited_transcript);
+    lines.push("");
+  }
+
   if (meta.edl?.length) {
     lines.push("## EDL");
     meta.edl.forEach((step, i) => {
@@ -266,6 +272,16 @@ async function exportBriefPDF(brief, channelName) {
       <div style="margin-bottom:22px;">
         <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Thumbnail Direction</div>
         ${thumbContent}
+      </div>
+    `);
+  }
+
+  // Edited Transcript
+  if (d.edited_transcript) {
+    sections.push(`
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Edited Transcript</div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;font-size:14px;color:#334155;line-height:1.7;white-space:pre-wrap;">${esc(d.edited_transcript)}</div>
       </div>
     `);
   }
@@ -602,6 +618,23 @@ function BriefDetailPanel({ brief, channelName }) {
           </div>
         );
       })()}
+
+      {/* Edited Transcript */}
+      {d.edited_transcript && (
+        <div style={{ marginBottom: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {sectionHeader("Edited Transcript")}
+            <CopyBtn fieldKey="edited_transcript" text={d.edited_transcript} copiedField={copiedField} copyText={copyText} />
+          </div>
+          <div style={{
+            background: "#0a0a0a", border: "1px solid #2a2a2a", borderRadius: "6px",
+            padding: "14px 18px", fontSize: "13px", color: "#c0c0c0",
+            lineHeight: "1.7", whiteSpace: "pre-wrap", maxHeight: "400px", overflowY: "auto",
+          }}>
+            {d.edited_transcript}
+          </div>
+        </div>
+      )}
 
       {/* EDL */}
       {meta.edl?.length > 0 && (
