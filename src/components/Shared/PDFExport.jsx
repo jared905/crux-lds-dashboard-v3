@@ -108,6 +108,7 @@ export default function PDFExport({ kpis, top, filtered, dateRange, customDateRa
         const { default: claudeAPI } = await import('../../services/claudeAPI');
         // Refresh API key from localStorage in case it was set after module init
         if (!claudeAPI.apiKey) claudeAPI.apiKey = claudeAPI.loadAPIKey();
+        console.log('[PDFExport] API key present:', !!claudeAPI.apiKey, '| filtered rows:', filtered?.length);
         if (claudeAPI.apiKey) {
           // Detect multichannel
           const uniqueChannels = [...new Set(filtered.map(r => r.channel).filter(Boolean))];
@@ -165,15 +166,15 @@ CHANNEL OVERVIEW
 ${isMultiChannel ? `Network: ${clientName || 'Unknown'} (${uniqueChannels.length} channels)` : `Channel: ${clientName || 'Unknown'}`}
 Reporting Period: ${periodLabel}
 Total Subscribers: ${channelStats?.subscriberCount ? Number(channelStats.subscriberCount).toLocaleString() : 'N/A'}${kpis.subsChange !== undefined ? ` (${kpis.subsChange >= 0 ? '+' : ''}${kpis.subsChange.toFixed(1)}% change this period)` : ''}
-Total Views (period): ${kpis.views.toLocaleString()}${kpis.viewsChange !== undefined ? ` (${kpis.viewsChange >= 0 ? '+' : ''}${kpis.viewsChange.toFixed(1)}% vs previous period)` : ''}
-Watch Hours (period): ${Number(kpis.watchHours.toFixed(1)).toLocaleString()}${kpis.watchHoursChange !== undefined ? ` (${kpis.watchHoursChange >= 0 ? '+' : ''}${kpis.watchHoursChange.toFixed(1)}%)` : ''}
-Subscribers Gained: ${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}
-Avg CTR: ${(kpis.avgCtr * 100).toFixed(1)}%
-Avg Retention: ${(kpis.avgRet * 100).toFixed(1)}%
+Total Views (period): ${(kpis.views || 0).toLocaleString()}${kpis.viewsChange !== undefined ? ` (${kpis.viewsChange >= 0 ? '+' : ''}${kpis.viewsChange.toFixed(1)}% vs previous period)` : ''}
+Watch Hours (period): ${Number((kpis.watchHours || 0).toFixed(1)).toLocaleString()}${kpis.watchHoursChange !== undefined ? ` (${kpis.watchHoursChange >= 0 ? '+' : ''}${kpis.watchHoursChange.toFixed(1)}%)` : ''}
+Subscribers Gained: ${(kpis.subs || 0) >= 0 ? '+' : ''}${(kpis.subs || 0).toLocaleString()}
+Avg CTR: ${((kpis.avgCtr || 0) * 100).toFixed(1)}%
+Avg Retention: ${((kpis.avgRet || 0) * 100).toFixed(1)}%
 
 FORMAT BREAKDOWN
-Shorts: ${shorts.length} videos, ${shortsViews.toLocaleString()} views, ${(kpis.shortsMetrics.avgCtr * 100).toFixed(1)}% avg CTR, ${(kpis.shortsMetrics.avgRet * 100).toFixed(1)}% avg retention
-Long-form: ${longs.length} videos, ${longsViews.toLocaleString()} views, ${(kpis.longsMetrics.avgCtr * 100).toFixed(1)}% avg CTR, ${(kpis.longsMetrics.avgRet * 100).toFixed(1)}% avg retention
+Shorts: ${shorts.length} videos, ${shortsViews.toLocaleString()} views, ${((kpis.shortsMetrics?.avgCtr || 0) * 100).toFixed(1)}% avg CTR, ${((kpis.shortsMetrics?.avgRet || 0) * 100).toFixed(1)}% avg retention
+Long-form: ${longs.length} videos, ${longsViews.toLocaleString()} views, ${((kpis.longsMetrics?.avgCtr || 0) * 100).toFixed(1)}% avg CTR, ${((kpis.longsMetrics?.avgRet || 0) * 100).toFixed(1)}% avg retention
 
 ---
 
@@ -284,8 +285,12 @@ MULTICHANNEL NETWORK:
           }
         }
       } catch (err) {
-        console.error('Could not generate AI recommendations for PDF:', err);
-        console.error('Error details:', err?.message, err?.stack);
+        console.error('[PDFExport] RECOMMENDATION ERROR:', err?.message || err);
+        console.error('[PDFExport] Stack:', err?.stack);
+        // Surface budget errors to the user via an alert
+        if (err?.message?.includes('budget')) {
+          alert('PDF Recommendations skipped: ' + err.message);
+        }
       }
 
       // Build "Content Published This Period" section
