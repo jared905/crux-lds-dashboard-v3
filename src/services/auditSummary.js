@@ -93,7 +93,7 @@ ${opportunities?.format_insights?.format_balance || ''}
 
 ## Series (${seriesSummary?.total_series || 0} detected)
 ${seriesSummary?.series?.slice(0, 5).map(s =>
-  `- "${s.name}": ${s.videoCount} videos, ${s.avgViews.toLocaleString()} avg views, trend: ${s.performanceTrend}`
+  `• "${s.name}": ${s.videoCount} videos, ${s.avgViews.toLocaleString()} avg views, trend: ${s.performanceTrend}`
 ).join('\n') || 'None'}
 
 ## Peer Benchmarks
@@ -101,7 +101,7 @@ ${benchmarkData?.hasBenchmarks
   ? `Compared against ${benchmarkData.peer_count} peer channels.
 Overall score: ${benchmarkData.comparison?.overallScore || 'N/A'}x peer median.
 ${benchmarkData.comparison?.metrics?.map(m =>
-  `- ${m.name}: ${m.status} peers (${m.ratio}x)`
+  `• ${m.name}: ${m.status} peers (${m.ratio}x)`
 ).join('\n') || ''}`
   : 'No peer benchmarks available.'}
 

@@ -96,13 +96,13 @@ Balance: ${opportunities?.format_insights?.format_balance || 'N/A'}
 ## Series Analysis
 ${seriesSummary?.series?.length > 0
   ? seriesSummary.series.map(s =>
-      `- "${s.name}": ${s.videoCount} videos, ${s.avgViews.toLocaleString()} avg views, engagement: ${(s.avgEngagementRate * 100).toFixed(2)}%, trend: ${s.performanceTrend}, cadence: ${s.cadenceDays ? s.cadenceDays + ' days' : 'irregular'}${s.formatBreakdown ? ` (${s.formatBreakdown.longCount} long / ${s.formatBreakdown.shortCount} shorts)` : ''}`
+      `• "${s.name}": ${s.videoCount} videos, ${s.avgViews.toLocaleString()} avg views, engagement: ${(s.avgEngagementRate * 100).toFixed(2)}%, trend: ${s.performanceTrend}, cadence: ${s.cadenceDays ? s.cadenceDays + ' days' : 'irregular'}${s.formatBreakdown ? ` (${s.formatBreakdown.longCount} long / ${s.formatBreakdown.shortCount} shorts)` : ''}`
     ).join('\n')
   : 'No series detected'}
 
 ## Benchmark Comparison
 ${benchmarkData?.comparison?.metrics?.map(m =>
-  `- ${m.name}: ${m.value?.toLocaleString()} vs peer median ${m.benchmark?.toLocaleString()} (${m.ratio}x, ${m.status})`
+  `• ${m.name}: ${m.value?.toLocaleString()} vs peer median ${m.benchmark?.toLocaleString()} (${m.ratio}x, ${m.status})`
 ).join('\n') || 'No benchmarks available — base advice on the channel\'s own data and general best practices'}
 ${benchmarkData?.comparison?.overallScore ? `Overall benchmark score: ${benchmarkData.comparison.overallScore}x peer median` : ''}
 

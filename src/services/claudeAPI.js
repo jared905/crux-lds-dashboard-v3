@@ -131,6 +131,16 @@ class ClaudeAPIService {
     return Math.ceil(text.length / 4);
   }
 
+  // Post-process AI output: replace dash bullets with bullet dots, remove dash separators
+  _sanitizeDashes(text) {
+    if (!text) return text;
+    return text
+      // Replace "- " at the start of a line (bullet points) with "• "
+      .replace(/^- /gm, '• ')
+      // Replace "--- " or "-- " horizontal rules / separators with blank line
+      .replace(/^-{2,}\s*$/gm, '');
+  }
+
   // Global formatting rules appended to every system prompt
   _applyGlobalRules(systemPrompt) {
     const rules = '\n\nFORMATTING RULE: Never use dashes or hyphens (-) as bullet points, list markers, or separators in your response. Use numbered lists, letters, or plain sentences instead.';
@@ -189,7 +199,7 @@ class ClaudeAPIService {
       this.updateUsageStats(inputTokens, outputTokens, feature);
 
       return {
-        text: data.content[0].text,
+        text: this._sanitizeDashes(data.content[0].text),
         usage: data.usage,
         cost: this.calculateCost(inputTokens, outputTokens)
       };
@@ -281,7 +291,7 @@ class ClaudeAPIService {
       this.updateUsageStats(inputTokens, outputTokens, feature);
 
       return {
-        text: fullText,
+        text: this._sanitizeDashes(fullText),
         usage: { input_tokens: inputTokens, output_tokens: outputTokens },
         cost: this.calculateCost(inputTokens, outputTokens)
       };

@@ -595,9 +595,9 @@ DESCRIPTION: ${idea.description}
 DURATION: ${idea.duration}
 
 THUMBNAIL:
-- Visual: ${idea.thumbnailConcept?.visualFocus}
-- Text: ${idea.thumbnailConcept?.textOverlay}
-- Colors: ${idea.thumbnailConcept?.colorScheme}
+• Visual: ${idea.thumbnailConcept?.visualFocus}
+• Text: ${idea.thumbnailConcept?.textOverlay}
+• Colors: ${idea.thumbnailConcept?.colorScheme}
 
 RATIONALE: ${idea.strategicRationale}
     `.trim();

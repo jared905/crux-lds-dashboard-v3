@@ -227,7 +227,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
     if (content.teases.length > 0) {
       email += "A few other things I'd be curious to explore with you:\n";
       content.teases.forEach(t => {
-        email += `- ${t.text}\n`;
+        email += `• ${t.text}\n`;
       });
       email += "\n";
     }

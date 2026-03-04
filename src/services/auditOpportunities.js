@@ -97,7 +97,7 @@ ${!formatMix.hasLongForm ? '(No long-form videos published — this is a Shorts-
 ## Series Performance
 ${seriesSummary?.series?.length > 0
   ? seriesSummary.series.map(s =>
-      `- "${s.name}": ${s.videoCount} videos, ${s.avgViews.toLocaleString()} avg views, trend: ${s.performanceTrend}${s.formatBreakdown ? ` (${s.formatBreakdown.longCount} long / ${s.formatBreakdown.shortCount} shorts)` : ''}`
+      `• "${s.name}": ${s.videoCount} videos, ${s.avgViews.toLocaleString()} avg views, trend: ${s.performanceTrend}${s.formatBreakdown ? ` (${s.formatBreakdown.longCount} long / ${s.formatBreakdown.shortCount} shorts)` : ''}`
     ).join('\n')
   : 'No series detected'}
 Uncategorized videos: ${seriesSummary?.uncategorized_count || 0}
@@ -112,21 +112,21 @@ Peer median engagement: ${((benchmarkData.benchmarks?.engagementRate?.median || 
 Peer avg upload frequency: ${benchmarkData.benchmarks?.uploadFrequency?.median?.toFixed(1) || 'N/A'}/week
 Peer content mix: ${benchmarkData.benchmarks?.contentMix?.shortsRatio || 0}% shorts / ${benchmarkData.benchmarks?.contentMix?.longsRatio || 0}% long-form
 ${benchmarkData.comparison?.metrics?.map(m =>
-  `- ${m.name}: Channel ${m.value?.toLocaleString()} vs Peer ${m.benchmark?.toLocaleString()} (${m.ratio}x, ${m.status})`
+  `• ${m.name}: Channel ${m.value?.toLocaleString()} vs Peer ${m.benchmark?.toLocaleString()} (${m.ratio}x, ${m.status})`
 ).join('\n') || ''}`
   : 'No peer benchmarks available — compare against general YouTube best practices for this size tier instead'}
 
 ## Top Long-form Videos
-${topLongForm.length > 0 ? topLongForm.map(v => `- "${v.title}" — ${(v.view_count || 0).toLocaleString()} views`).join('\n') : 'None'}
+${topLongForm.length > 0 ? topLongForm.map(v => `• "${v.title}" — ${(v.view_count || 0).toLocaleString()} views`).join('\n') : 'None'}
 
 ## Top Shorts
-${topShorts.length > 0 ? topShorts.map(v => `- "${v.title}" — ${(v.view_count || 0).toLocaleString()} views`).join('\n') : 'None'}
+${topShorts.length > 0 ? topShorts.map(v => `• "${v.title}" — ${(v.view_count || 0).toLocaleString()} views`).join('\n') : 'None'}
 
 ## Recent Long-form (last 90 days)
-${recentLongForm.length > 0 ? recentLongForm.map(v => `- "${v.title}" — ${(v.view_count || 0).toLocaleString()} views`).join('\n') : 'None'}
+${recentLongForm.length > 0 ? recentLongForm.map(v => `• "${v.title}" — ${(v.view_count || 0).toLocaleString()} views`).join('\n') : 'None'}
 
 ## Recent Shorts (last 90 days)
-${recentShorts.length > 0 ? recentShorts.map(v => `- "${v.title}" — ${(v.view_count || 0).toLocaleString()} views`).join('\n') : 'None'}
+${recentShorts.length > 0 ? recentShorts.map(v => `• "${v.title}" — ${(v.view_count || 0).toLocaleString()} views`).join('\n') : 'None'}
 
 Identify opportunities in this JSON format. Tag each item with the format it applies to:
 {
