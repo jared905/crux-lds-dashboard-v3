@@ -796,7 +796,7 @@ Word Count: ${wordCount}
 ${text}
 --- END TRANSCRIPT ---`;
 
-  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_stage1', 4096);
+  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_stage1', 8192);
   const parsed = parseClaudeJSON(result.text);
 
   return { ...parsed, usage: result.usage, cost: result.cost };

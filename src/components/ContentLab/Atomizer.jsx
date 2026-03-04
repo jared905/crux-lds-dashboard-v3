@@ -658,10 +658,10 @@ export default function Atomizer({ activeClient }) {
       .catch(err => console.warn('[atomizer] Failed to fetch channels:', err.message));
   }, [activeClient?.id]);
 
-  // Cost estimates — Stage 1 uses 4096 output tokens
+  // Cost estimates — Stage 1 uses 8192 output tokens
   const estimatedInputTokens = 2800 + Math.ceil(wordCount / 0.75);
   const estimatedCostAnalysis = wordCount > 0
-    ? Math.max(0.02, (estimatedInputTokens / 1000000) * 3.00 + (4096 / 1000000) * 15.00).toFixed(2)
+    ? Math.max(0.02, (estimatedInputTokens / 1000000) * 3.00 + (8192 / 1000000) * 15.00).toFixed(2)
     : "0.00";
 
   // Detect V2 vs legacy results
