@@ -368,7 +368,7 @@ MULTICHANNEL NETWORK:
           }).join('');
 
           publishedSectionHtml = '<div data-pdf-section style="margin-bottom: 28px;">'
-            + '<h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3;">📅 Content Published This Period</h2>'
+            + '<h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3; word-spacing: -1px;">📅 Content Published This Period</h2>'
             + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px;">'
             + '<div style="background: #fff7ed; padding: 18px; border-radius: 12px; border: 2px solid #fed7aa;">'
             + '<div style="font-size: 18px; font-weight: 700; color: #ea580c; margin-bottom: 12px; line-height: 1.3;">📱 Shorts Published</div>'
@@ -466,7 +466,7 @@ MULTICHANNEL NETWORK:
               </div>
               <div style="border-left: 2px solid #cbd5e1; padding-left: 22px;">
                 ${displayName ? `<div style="font-size: 20px; font-weight: 700; color: #2563eb; margin-bottom: 6px;">${displayName}</div>` : ''}
-                <h1 style="margin: 0; font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1.3;">Strategic YouTube Insights</h1>
+                <h1 style="margin: 0; font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1.3; word-spacing: -1px;">Strategic YouTube Insights</h1>
                 <p style="margin: 10px 0 0 0; font-size: 16px; color: #64748b; font-weight: 500;">${dateLabel} • ${dateStr}</p>
               </div>
             </div>
@@ -578,7 +578,7 @@ MULTICHANNEL NETWORK:
 
           <!-- Top Performers -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3;">🏆 Top Performing Videos</h2>
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3; word-spacing: -1px;">🏆 Top Performing Videos</h2>
             <div style="background: #f8fafc; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0;">
               <table style="width: 100%; border-collapse: collapse;">
                 <thead>
@@ -627,7 +627,7 @@ MULTICHANNEL NETWORK:
           ${topComments.length > 0 ? `
           <!-- Top Comments -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; line-height: 1.3;">💬 Top Audience Comments</h2>
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; line-height: 1.3; word-spacing: -1px;">💬 Top Audience Comments</h2>
             ${topComments.map(c => `
               <div style="background: #f8fafc; padding: 18px 22px; border-radius: 12px; margin-bottom: 14px; border-left: 4px solid #2563eb;">
                 <div style="font-size: 15px; color: #1e293b; line-height: 1.7; margin-bottom: 12px;">"${c.text}"</div>
@@ -643,10 +643,12 @@ MULTICHANNEL NETWORK:
           </div>
           ` : ''}
 
+          <div data-pdf-pagebreak></div>
+
           ${opportunities.length > 0 ? `
           <!-- Strategic Recommendations -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 3px solid #10b981; line-height: 1.3;">🎯 Strategic Recommendations</h2>
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 3px solid #10b981; line-height: 1.3; word-spacing: -1px;">🎯 Strategic Recommendations</h2>
             ${opportunities._opening ? `<p style="font-size: 15px; color: #374151; line-height: 1.75; margin-bottom: 22px;">${opportunities._opening}</p>` : ''}
             ${opportunities.map((opp, idx) => `
               <div style="display: flex; gap: 16px; margin-bottom: 18px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); padding: 22px; border-radius: 14px; border: 2px solid #86efac;">
@@ -1028,7 +1030,7 @@ MULTICHANNEL NETWORK:
               + '</tr>';
           }).join('');
           publishedSectionHtml = '<div data-pdf-section style="margin-bottom: 28px;">'
-            + '<h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3;">📅 Content Published This Period</h2>'
+            + '<h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3; word-spacing: -1px;">📅 Content Published This Period</h2>'
             + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px;">'
             + '<div style="background: #fff7ed; padding: 18px; border-radius: 12px; border: 2px solid #fed7aa;"><div style="font-size: 18px; font-weight: 700; color: #ea580c; margin-bottom: 12px; line-height: 1.3;">📱 Shorts Published</div><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;"><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Count</div><div style="font-size: 26px; font-weight: 700; color: #f97316; line-height: 1.25;">' + sm.count + '</div></div><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #f97316; line-height: 1.25;">' + sm.views.toLocaleString() + '</div></div><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (sm.avgCtr * 100).toFixed(1) + '%</div></div><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (sm.avgRet * 100).toFixed(1) + '%</div></div></div></div>'
             + '<div style="background: #eff6ff; padding: 18px; border-radius: 12px; border: 2px solid #bfdbfe;"><div style="font-size: 18px; font-weight: 700; color: #0284c7; margin-bottom: 12px; line-height: 1.3;">🎥 Long-form Published</div><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;"><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Count</div><div style="font-size: 26px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">' + lm.count + '</div></div><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">' + lm.views.toLocaleString() + '</div></div><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (lm.avgCtr * 100).toFixed(1) + '%</div></div><div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (lm.avgRet * 100).toFixed(1) + '%</div></div></div></div>'
