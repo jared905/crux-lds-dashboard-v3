@@ -1189,6 +1189,7 @@ export default function App() {
                 allTimeKpis={allTimeKpis}
                 previousKpis={previousKpis}
                 dateRange={dateRange}
+                customDateRange={customDateRange}
                 chartMetric={chartMetric}
                 setChartMetric={setChartMetric}
                 channelStats={channelStats}

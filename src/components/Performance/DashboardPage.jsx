@@ -218,7 +218,7 @@ function KpiCard({ icon: Icon, iconSrc, label, value, allTimeLabel, allTimeValue
   );
 }
 
-export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, chartMetric, setChartMetric, channelStats, activeClient, setTab }) {
+export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, customDateRange, chartMetric, setChartMetric, channelStats, activeClient, setTab }) {
   const { isMobile } = useMediaQuery();
   // Channel stats (subscribers, views, videoCount) are fetched by the parent (App.jsx)
   // which correctly handles per-channel resolution and "all channels" aggregation.
@@ -231,7 +231,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
     [kpis, previousKpis, filtered]
   );
 
-  // Compute the start date for the active period (reused for upload counts)
+  // Compute the start/end dates for the active period (reused for upload counts)
   const periodStartDate = useMemo(() => {
     if (!isDateFiltered) return null;
     const now = new Date();
@@ -239,14 +239,35 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
     if (dateRange === "7d") return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     if (dateRange === "28d") return new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
     if (dateRange === "90d") return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    if (dateRange === "custom" && customDateRange?.start) return new Date(customDateRange.start);
     return null;
-  }, [dateRange, isDateFiltered]);
+  }, [dateRange, isDateFiltered, customDateRange]);
+
+  const periodEndDate = useMemo(() => {
+    if (!isDateFiltered) return null;
+    if (dateRange === "custom" && customDateRange?.end) {
+      const end = new Date(customDateRange.end);
+      end.setHours(23, 59, 59, 999);
+      return end;
+    }
+    return null; // standard ranges end at "now" — no cap needed
+  }, [dateRange, isDateFiltered, customDateRange]);
 
   // Count videos uploaded within the selected date range, split by type
+  // Uses ALL rows (not just filtered/snapshot) so upload count reflects actual publishes
   const uploadCounts = useMemo(() => {
-    const publishedInPeriod = periodStartDate
-      ? filtered.filter(r => r.publishDate && new Date(r.publishDate) >= periodStartDate)
-      : filtered;
+    const source = rows.filter(r => !r.isTotal && r.publishDate);
+    let publishedInPeriod;
+    if (periodStartDate) {
+      publishedInPeriod = source.filter(r => {
+        const pub = new Date(r.publishDate);
+        if (pub < periodStartDate) return false;
+        if (periodEndDate && pub > periodEndDate) return false;
+        return true;
+      });
+    } else {
+      publishedInPeriod = source;
+    }
     const shorts = publishedInPeriod.filter(r => r.type === 'short');
     const longs = publishedInPeriod.filter(r => r.type !== 'short');
     return {
@@ -254,7 +275,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
       shorts: shorts.length,
       longs: longs.length,
     };
-  }, [filtered, periodStartDate]);
+  }, [rows, periodStartDate, periodEndDate]);
 
   const uploadedInPeriod = uploadCounts.total;
 
