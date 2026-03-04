@@ -643,17 +643,36 @@ export default function App() {
     }
 
     let views = allRows.reduce((s, r) => s + (r.views || 0), 0);
-    let watchHours = allRows.reduce((s, r) => s + (r.watchHours || 0), 0);
     let subs = allRows.reduce((s, r) => s + (r.subscribers || 0), 0);
     const imps = allRows.reduce((s, r) => s + (r.impressions || 0), 0);
     const avgCtr = imps > 0 ? allRows.reduce((s, r) => s + (r.ctr || 0) * (r.impressions || 0), 0) / imps : 0;
     const avgRet = views > 0 ? allRows.reduce((s, r) => s + (r.retention || 0) * (r.views || 0), 0) / views : 0;
 
-    // Use lifetime snapshot data when available (most accurate source)
+    // Compute lifetime watch hours from cumulative view counts × duration × retention.
+    // The videos table watch_hours field is unreliable (overwritten with daily values),
+    // but view_count is the accurate cumulative lifetime total from YouTube Data API.
+    let watchHours = allRows.reduce((s, r) => {
+      const duration = r.duration || 0;
+      const retention = r.retention || r.avgViewPct || 0;
+      const rowViews = r.views || 0;
+      if (duration > 0 && retention > 0) {
+        // views × (duration_seconds × avg_pct_viewed) / 3600 = watch hours
+        return s + (rowViews * duration * retention / 3600);
+      }
+      // Fallback to stored watch_hours if we lack duration/retention
+      return s + (r.watchHours || 0);
+    }, 0);
+
+    // Use lifetime snapshot sum as a floor (covers period since tracking started)
     if (lifetimeSnapshotKpis) {
       views = Math.max(views, lifetimeSnapshotKpis.views || 0);
       watchHours = Math.max(watchHours, lifetimeSnapshotKpis.watchHours || 0);
       subs = Math.max(subs, lifetimeSnapshotKpis.subs || 0);
+    }
+
+    // Use YouTube Data API channel-level view count when available (authoritative)
+    if (channelStats?.viewCount) {
+      views = Math.max(views, channelStats.viewCount);
     }
 
     // Lifetime must be >= current period
@@ -671,7 +690,7 @@ export default function App() {
       avgCtr,
       avgRet
     };
-  }, [rows, selectedChannel, kpis, lifetimeSnapshotKpis]);
+  }, [rows, selectedChannel, kpis, lifetimeSnapshotKpis, channelStats]);
 
   // Calculate previous period KPIs for delta indicators
   const previousKpis = useMemo(() => {
