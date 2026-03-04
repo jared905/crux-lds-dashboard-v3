@@ -259,17 +259,27 @@ MULTICHANNEL NETWORK:
           console.log('[PDFExport] Calling Claude for recommendations...');
           const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 4096);
           console.log('[PDFExport] Claude response received, length:', result.text?.length);
-          // Strip markdown fences if present (e.g. ```json ... ```)
-          let jsonText = result.text.trim();
-          const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
-          if (fenceMatch) jsonText = fenceMatch[1].trim();
+          const { parseClaudeJSON } = await import('../../lib/parseClaudeJSON');
 
           let parsed;
           try {
-            parsed = JSON.parse(jsonText);
+            parsed = parseClaudeJSON(result.text);
           } catch (parseErr) {
-            console.error('[PDFExport] JSON parse failed. Raw response:', jsonText.slice(0, 500));
-            throw parseErr;
+            // Attempt repair: fix common JSON issues (unescaped quotes, smart quotes, trailing commas)
+            let repaired = result.text.trim();
+            const fence = repaired.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (fence) repaired = fence[1].trim();
+            // Replace smart quotes with standard quotes
+            repaired = repaired.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
+            // Remove trailing commas before } or ]
+            repaired = repaired.replace(/,\s*([\]}])/g, '$1');
+            try {
+              parsed = JSON.parse(repaired);
+              console.log('[PDFExport] JSON repair succeeded');
+            } catch (_) {
+              console.error('[PDFExport] JSON parse failed even after repair. Raw response:', result.text.slice(0, 500));
+              throw parseErr;
+            }
           }
 
           // Handle new structured format
