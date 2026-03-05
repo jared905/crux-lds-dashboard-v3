@@ -1,12 +1,14 @@
 /**
- * Atomizer Service — V2
+ * Atomizer Service — V3
  * Full View Analytics - Crux Media
  *
- * Two-pass architecture:
- *   Pass 1 — Analyze transcript → extract long-form & short-form edit directions
- *   Pass 2 — Remix selected elements → synthesize a final production brief
+ * Four-stage architecture:
+ *   Stage 0 — Beat analysis: structural deconstruction, emotional arc, diagnosis
+ *   Stage 1 — Direction discovery: beat-aware long-form & short-form edit directions
+ *   Stage 2 — Production package: edited transcript, EDL, visual directions per direction
+ *   Stage 3 — Recut (optional): beat reordering with edit instructions
  *
- * Results stored in Supabase (atomized_content + briefs tables).
+ * Results stored in Supabase (transcripts, atomized_content, briefs tables).
  */
 
 import { supabase } from './supabaseClient';
@@ -201,6 +203,15 @@ CRITICAL RULES:
 
 DO NOT include EDL, B-roll, motion graphics, timestamps, or edited transcript — those are generated separately after a direction is chosen.
 
+BEAT-AWARE INSTRUCTIONS (if beat analysis is provided):
+- Reference specific beat IDs in your arc_summary fields (e.g., "Opens with personal_testimony_1, builds through evidence_2, closes with call_to_action").
+- Use the hook analysis to inform your hook selection — if the best hook candidate differs from beat 1, consider using it.
+- Address at least one priority fix from the structural diagnosis in your directions.
+- For SHORT-FORM directions, produce a "subscores" object instead of a single virality_score:
+  { "standaloneComprehensibility": 8, "emotionalPunch": 7, "hookStrength": 9, "overall": 8, "subscoreRationale": "Brief explanation of scores" }
+  The "overall" subscore replaces virality_score for short-form when beats are available.
+- If no beat analysis is provided, ignore these instructions and produce directions normally.
+
 Respond with ONLY a JSON object (no markdown, no code fences) in this exact format:
 {
   "long_form_directions": [
@@ -291,6 +302,176 @@ Respond with ONLY a JSON object (no markdown, no code fences):
     }
   ]
 }`;
+
+// ============================================
+// STAGE 0: BEAT ANALYSIS PROMPT
+// ============================================
+
+const ATOMIZER_BEAT_ANALYSIS_PROMPT = `You are a narrative structure analyst for YouTube content. Your job is to deconstruct a transcript into its fundamental narrative BEATS — the structural building blocks that make up the content's flow.
+
+STEP 1: AUTO-DETECT CONTENT TYPE
+Classify the content as one of: faith, brand, thought_leadership, documentary.
+Provide a confidence score (0.0 - 1.0).
+
+Each content type has a "beat DNA" — the ideal structural template:
+
+FAITH: opening_hook → scripture_or_teaching → personal_testimony → application → call_to_action
+BRAND: pattern_interrupt → problem_statement → solution_reveal → social_proof → offer → cta
+THOUGHT LEADERSHIP: provocative_opening → thesis → evidence → counterargument → synthesis → call_to_action
+DOCUMENTARY: cold_open → context_setup → inciting_incident → rising_action → climax → resolution → epilogue
+
+STEP 2: IDENTIFY BEATS
+Find 5-10 narrative beats in the transcript. For each beat, provide:
+- id: snake_case identifier (e.g., "opening_hook", "personal_testimony_1")
+- label: The beat DNA label this maps to (from the template above), or "custom" if it doesn't fit
+- displayName: Human-readable name (e.g., "Opening Hook — The Question")
+- startApprox: Approximate position in transcript (e.g., "Opening paragraph", "~2:30", "Middle third")
+- endApprox: Approximate end position
+- emotionalIntensity: 1-5 scale (1=neutral, 3=engaged, 5=peak emotion)
+- emotionalQuality: The dominant emotion (e.g., "curiosity", "vulnerability", "conviction", "humor", "tension")
+- structuralStrength: "strong", "moderate", or "weak"
+- summary: 1-2 sentence description of what happens in this beat
+- productionNotes: { musicMood, musicTempo, brollSuggestions (array of 2-3 specific stock footage descriptions), pacing }
+- weaknessFlags: Array of issues (e.g., ["too long", "weak transition", "buried hook"]) — empty array if none
+- remediationSuggestion: How to fix weakness (null if no flags)
+
+STEP 3: EMOTIONAL ARC ANALYSIS
+- peakBeat: ID of the highest-intensity beat
+- valleyBeat: ID of the lowest-intensity beat
+- arcShape: One of "mountain" (builds to peak then resolves), "flat" (even intensity), "rising" (builds throughout), "late_peak" (slow start, strong finish), "erratic" (inconsistent), "double_peak" (two climaxes)
+- arcAnalysis: 2-3 sentences on the emotional journey and its effectiveness
+
+STEP 4: HOOK ANALYSIS
+- currentHookStrength: 1-10 rating of beat_1 as a hook
+- bestHookCandidate: ID of the beat that would make the strongest opening
+- reorderRecommendation: If bestHookCandidate != first beat, explain why reordering would improve the content
+
+STEP 5: STRUCTURAL DIAGNOSIS
+- missingBeats: Beats from the content type's DNA template that are absent, with severity ("critical", "recommended", "optional") and remediation suggestion
+- weakBeats: IDs of beats with structuralStrength = "weak"
+- strongBeats: IDs of beats with structuralStrength = "strong"
+- priorityFixes: 2-4 numbered action items, most impactful first
+
+Respond with ONLY a JSON object (no markdown, no code fences):
+{
+  "content_type": "faith",
+  "content_type_confidence": 0.85,
+  "beats": [
+    {
+      "id": "opening_hook",
+      "label": "opening_hook",
+      "displayName": "Opening Hook — The Question",
+      "startApprox": "Opening paragraph",
+      "endApprox": "~1:00",
+      "emotionalIntensity": 3,
+      "emotionalQuality": "curiosity",
+      "structuralStrength": "moderate",
+      "summary": "Speaker poses a provocative question about faith in modern life.",
+      "productionNotes": {
+        "musicMood": "contemplative, slightly tense",
+        "musicTempo": "slow",
+        "brollSuggestions": ["close-up of person looking thoughtful at window, natural light", "aerial shot of empty church pews", "hands clasped in prayer, shallow depth of field"],
+        "pacing": "measured, let the question land"
+      },
+      "weaknessFlags": ["could be more provocative"],
+      "remediationSuggestion": "Consider opening with the personal story from beat 3 instead — stronger emotional hook."
+    }
+  ],
+  "emotional_arc": {
+    "peakBeat": "personal_testimony_1",
+    "valleyBeat": "context_setup",
+    "arcShape": "mountain",
+    "arcAnalysis": "The content builds effectively from curiosity through teaching to an emotional peak during the personal testimony, then resolves with practical application. The arc is well-structured but the opening could be stronger."
+  },
+  "hook_analysis": {
+    "currentHookStrength": 5,
+    "bestHookCandidate": "personal_testimony_1",
+    "reorderRecommendation": "The personal story at beat 3 has far more emotional pull than the current opening question. Starting with 'I never thought I'd be standing here after what happened...' would immediately hook viewers and create a reason to watch."
+  },
+  "structural_diagnosis": {
+    "missingBeats": [
+      { "beat": "counterargument", "severity": "recommended", "remediation": "Adding a moment of doubt or opposing view before the call to action would make the message more credible and relatable." }
+    ],
+    "weakBeats": ["opening_hook"],
+    "strongBeats": ["personal_testimony_1", "call_to_action"],
+    "priorityFixes": [
+      "1. Reorder: Move personal testimony to open — strongest emotional hook",
+      "2. Add tension: Insert a brief counterargument before the application section",
+      "3. Trim context: The teaching section runs long — tighten to key points only",
+      "4. Strengthen transition from testimony to application — currently feels abrupt"
+    ]
+  }
+}
+
+CRITICAL:
+- Beats must be in chronological order as they appear in the transcript.
+- emotionalIntensity must accurately reflect the transcript content — don't inflate scores.
+- weaknessFlags should be honest and actionable, not generic praise.
+- Every beat DNA template beat that is ABSENT from the transcript should appear in missingBeats.
+- If the transcript lacks timecodes, use descriptive positions (beginning/middle/end, paragraph references).`;
+
+// ============================================
+// RECUT PROMPT (Stage 3)
+// ============================================
+
+const ATOMIZER_RECUT_PROMPT = `You are a YouTube editor creating a RECUT plan — a proposed reordering of transcript beats to improve narrative flow, hook strength, and viewer retention.
+
+You will receive:
+1. The BEAT ANALYSIS (structural beats with IDs, emotional intensity, diagnosis)
+2. A CHOSEN DIRECTION (from Stage 1 — title, hook, arc)
+3. The ORIGINAL TRANSCRIPT
+
+Your job is to propose a specific beat reordering with edit instructions.
+
+Respond with ONLY a JSON object (no markdown, no code fences):
+{
+  "original_sequence": ["beat_id_1", "beat_id_2", "beat_id_3"],
+  "proposed_sequence": ["beat_id_3", "beat_id_1", "beat_id_2"],
+  "moves": [
+    {
+      "action": "move_to_open",
+      "beatId": "personal_testimony_1",
+      "rationale": "Strongest emotional hook — moves from position 3 to open",
+      "transitionNote": "Cold open on this beat, then transition to context with 'But let me back up...'"
+    },
+    {
+      "action": "trim",
+      "beatId": "context_setup",
+      "rationale": "Running 3 minutes on setup — trim to 90 seconds of essential context",
+      "transitionNote": "Quick cuts, remove tangential stories"
+    },
+    {
+      "action": "remove",
+      "beatId": "tangent_1",
+      "rationale": "Off-topic tangent that breaks narrative momentum",
+      "transitionNote": "J-cut audio from previous beat to bridge the gap"
+    }
+  ],
+  "recut_script": [
+    {
+      "position": 1,
+      "beatId": "personal_testimony_1",
+      "editAction": "COLD OPEN — play from 'I never thought...' through 'that changed everything'",
+      "estimatedDuration": "45 sec",
+      "transitionOut": "Fade to black, 1 sec pause"
+    },
+    {
+      "position": 2,
+      "beatId": "opening_hook",
+      "editAction": "CONTEXT — pick up original opening question, but trimmed. Cut 'So today...' filler.",
+      "estimatedDuration": "30 sec",
+      "transitionOut": "Direct cut to teaching"
+    }
+  ],
+  "estimated_improvement": "Moving the personal testimony to open creates an immediate emotional hook (intensity 5 vs current opening's 3). Combined with trimming the context section and removing the tangent, this recut should improve early retention by keeping viewers engaged through the critical first 30 seconds. Estimated watch-time improvement: 15-25%."
+}
+
+RULES:
+- original_sequence and proposed_sequence must use the exact beat IDs from the beat analysis.
+- Every beat in original_sequence should appear in proposed_sequence OR in a "remove" move.
+- Moves should be specific enough that an editor can execute them.
+- recut_script entries should reference specific transcript text where possible.
+- Be conservative — don't reorder for the sake of it. Only propose changes that materially improve the content.`;
 
 // ============================================
 // REMIX SYSTEM PROMPT
@@ -768,12 +949,27 @@ ${text}
 export async function analyzeTranscript(text, title = 'Untitled', channelId = null, { v2 = true, contextInputs } = {}) {
   if (!v2) return analyzeTranscriptLegacy(text, title, channelId);
 
+  // --- Stage 0: Beat Analysis (graceful fallback) ---
+  let beatAnalysis = null;
+  let beatCost = null;
+  try {
+    console.log('[atomizer] Stage 0: Running beat analysis...');
+    const beatResult = await analyzeBeats(text, title, channelId, contextInputs);
+    // Separate cost/usage from the analysis data
+    beatCost = { usage: beatResult.usage, cost: beatResult.cost };
+    const { usage: _u, cost: _c, ...beatData } = beatResult;
+    beatAnalysis = beatData;
+    console.log('[atomizer] Stage 0: Beat analysis complete —', beatAnalysis.beats?.length || 0, 'beats found');
+  } catch (e) {
+    console.warn('[atomizer] Stage 0: Beat analysis failed, proceeding without beats:', e.message);
+  }
+
+  // --- Stage 1: Direction Discovery ---
   const wordCount = text.trim().split(/\s+/).length;
 
   let systemPrompt = ATOMIZER_STAGE1_SYSTEM_PROMPT;
 
   if (channelId) {
-    // Inject brand context (brand voice + content boundaries — foundational context)
     try {
       const brandBlock = await getBrandContextWithSignals(channelId, 'atomizer');
       if (brandBlock) systemPrompt += '\n\n' + brandBlock;
@@ -782,12 +978,14 @@ export async function analyzeTranscript(text, title = 'Untitled', channelId = nu
     }
   }
 
-  // Inject context from visible fields (auto-populated + user-edited)
-  // Performance data, competitor benchmarks, strategy, and audience now come through here
   const manualBlock = buildManualContext(contextInputs);
   if (manualBlock) systemPrompt += '\n\n' + manualBlock;
 
-  const prompt = `Analyze this transcript and propose creative direction options for both long-form and short-form content. Focus on titles, hooks, descriptions, thumbnails, and virality analysis. Do NOT include EDL, B-roll, motion graphics, or edited transcript — those come later when a direction is chosen.
+  // Inject beat context if available
+  const beatBlock = formatBeatContext(beatAnalysis);
+  if (beatBlock) systemPrompt += '\n\n' + beatBlock;
+
+  const prompt = `Analyze this transcript and propose creative direction options for both long-form and short-form content. Focus on titles, hooks, descriptions, thumbnails, and virality analysis. Do NOT include EDL, B-roll, motion graphics, or edited transcript — those come later when a direction is chosen.${beatAnalysis ? '\n\nBeat analysis is provided — reference specific beat IDs in arc summaries, use hook analysis to inform your hooks, and produce subscores for short-form directions.' : ''}
 
 Title: ${title}
 Word Count: ${wordCount}
@@ -799,7 +997,21 @@ ${text}
   const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_stage1', 8192);
   const parsed = parseClaudeJSON(result.text);
 
-  return { ...parsed, usage: result.usage, cost: result.cost };
+  // Combine costs from both stages
+  let totalCost = result.cost;
+  if (beatCost?.cost) {
+    totalCost = (parseFloat(totalCost) || 0) + (parseFloat(beatCost.cost) || 0);
+    totalCost = totalCost.toFixed(4);
+  }
+
+  return {
+    ...parsed,
+    beat_analysis: beatAnalysis,
+    usage: result.usage,
+    cost: totalCost,
+    beat_cost: beatCost?.cost || null,
+    direction_cost: result.cost,
+  };
 }
 
 // ============================================
@@ -921,6 +1133,176 @@ Produce the edited transcript (restructured for narrative flow, filler removed),
   return { ...parsed, usage: result.usage, cost: result.cost };
 }
 
+// ============================================
+// STAGE 0: BEAT ANALYSIS
+// ============================================
+
+/**
+ * Analyze transcript beats — structural building blocks with emotional intensity.
+ * Stage 0 of V3 pipeline. Called before Stage 1 direction discovery.
+ *
+ * @param {string} text - The transcript text
+ * @param {string} title - Title for the transcript
+ * @param {string|null} channelId - Client channel ID for brand context
+ * @param {Object} [contextInputs] - Manual context inputs
+ * @returns {Promise<Object>} Beat analysis with usage/cost
+ */
+export async function analyzeBeats(text, title = 'Untitled', channelId = null, contextInputs = null) {
+  const wordCount = text.trim().split(/\s+/).length;
+
+  let systemPrompt = ATOMIZER_BEAT_ANALYSIS_PROMPT;
+
+  if (channelId) {
+    try {
+      const brandBlock = await getBrandContextWithSignals(channelId, 'atomizer');
+      if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+    } catch (e) {
+      console.warn('[atomizer] Brand context for beat analysis failed, proceeding without:', e.message);
+    }
+  }
+
+  const manualBlock = buildManualContext(contextInputs);
+  if (manualBlock) systemPrompt += '\n\n' + manualBlock;
+
+  const prompt = `Deconstruct this transcript into its narrative beats. Identify the structural building blocks, emotional arc, hook quality, and structural diagnosis.
+
+Title: ${title}
+Word Count: ${wordCount}
+
+--- TRANSCRIPT ---
+${text}
+--- END TRANSCRIPT ---`;
+
+  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_beats', 8192);
+  const parsed = parseClaudeJSON(result.text);
+
+  return { ...parsed, usage: result.usage, cost: result.cost };
+}
+
+/**
+ * Format beat analysis into a prompt-injectable context block for Stage 1.
+ * Serializes key beat data so direction discovery can reference specific beats.
+ *
+ * @param {Object} beatAnalysis - Result from analyzeBeats()
+ * @returns {string} Prompt block wrapped in <beat_analysis> tags
+ */
+export function formatBeatContext(beatAnalysis) {
+  if (!beatAnalysis || !beatAnalysis.beats?.length) return '';
+
+  const lines = [];
+  lines.push(`Content Type: ${beatAnalysis.content_type} (confidence: ${beatAnalysis.content_type_confidence})`);
+  lines.push('');
+
+  // Beats summary
+  lines.push('Beats:');
+  beatAnalysis.beats.forEach(b => {
+    const flags = b.weaknessFlags?.length ? ` [WEAK: ${b.weaknessFlags.join(', ')}]` : '';
+    lines.push(`- ${b.id}: "${b.displayName}" | intensity=${b.emotionalIntensity}/5 | ${b.structuralStrength}${flags}`);
+    lines.push(`  ${b.summary}`);
+  });
+
+  // Arc
+  const arc = beatAnalysis.emotional_arc;
+  if (arc) {
+    lines.push('');
+    lines.push(`Arc Shape: ${arc.arcShape} | Peak: ${arc.peakBeat} | Valley: ${arc.valleyBeat}`);
+    lines.push(arc.arcAnalysis);
+  }
+
+  // Hook analysis
+  const hook = beatAnalysis.hook_analysis;
+  if (hook) {
+    lines.push('');
+    lines.push(`Current Hook Strength: ${hook.currentHookStrength}/10 | Best Hook Candidate: ${hook.bestHookCandidate}`);
+    if (hook.reorderRecommendation) lines.push(hook.reorderRecommendation);
+  }
+
+  // Priority fixes
+  const diag = beatAnalysis.structural_diagnosis;
+  if (diag?.priorityFixes?.length) {
+    lines.push('');
+    lines.push('Priority Fixes:');
+    diag.priorityFixes.forEach(fix => lines.push(fix));
+  }
+
+  return `<beat_analysis>\n${lines.join('\n')}\n</beat_analysis>`;
+}
+
+// ============================================
+// STAGE 3: RECUT GENERATION
+// ============================================
+
+/**
+ * Generate a recut plan for a deployed direction using beat analysis.
+ * Stage 3 of V3 pipeline — optional, called after Stage 2 deploy.
+ *
+ * @param {Object} direction - The direction object (from Stage 1)
+ * @param {Object} beatAnalysis - Beat analysis from Stage 0
+ * @param {string} transcript - The full original transcript
+ * @param {string} title - Transcript title
+ * @param {string|null} channelId - For brand context
+ * @param {Object} [contextInputs] - Manual context inputs
+ * @returns {Promise<Object>} Recut plan with usage/cost
+ */
+export async function generateRecut(direction, beatAnalysis, transcript, title, channelId = null, contextInputs = null) {
+  let systemPrompt = ATOMIZER_RECUT_PROMPT;
+
+  if (channelId) {
+    try {
+      const brandBlock = await getBrandContextWithSignals(channelId, 'atomizer');
+      if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+    } catch (e) {
+      console.warn('[atomizer] Brand context for recut failed:', e.message);
+    }
+  }
+
+  const manualBlock = buildManualContext(contextInputs);
+  if (manualBlock) systemPrompt += '\n\n' + manualBlock;
+
+  const beatContext = formatBeatContext(beatAnalysis);
+  const directionJSON = JSON.stringify(direction, null, 2);
+
+  const prompt = `Generate a recut plan for this direction based on the beat analysis.
+
+${beatContext}
+
+--- CHOSEN DIRECTION ---
+${directionJSON}
+--- END DIRECTION ---
+
+--- ORIGINAL TRANSCRIPT ---
+Title: ${title}
+${transcript}
+--- END TRANSCRIPT ---
+
+Propose a beat reordering that improves narrative flow, hook strength, and viewer retention for this specific direction.`;
+
+  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_recut', 8192);
+  const parsed = parseClaudeJSON(result.text);
+
+  return { ...parsed, usage: result.usage, cost: result.cost };
+}
+
+/**
+ * Save recut data to an existing atomized_content row.
+ *
+ * @param {string} atomizedContentId - The existing row ID
+ * @param {Object} recutData - The recut plan from generateRecut()
+ */
+export async function updateAtomizedContentWithRecut(atomizedContentId, recutData) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  const { error } = await supabase
+    .from('atomized_content')
+    .update({
+      recut_data: recutData,
+      recut_generated_at: new Date().toISOString(),
+    })
+    .eq('id', atomizedContentId);
+
+  if (error) throw error;
+}
+
 /**
  * Update an existing atomized_content row with Stage 2 production data.
  *
@@ -965,25 +1347,30 @@ export async function updateAtomizedContentWithProduction(atomizedContentId, pro
 /**
  * Save a transcript to Supabase.
  */
-export async function saveTranscript({ title, text, sourceType = 'paste', sourceUrl, clientId, channelId, contextSnapshot, analysisSummary }) {
+export async function saveTranscript({ title, text, sourceType = 'paste', sourceUrl, clientId, channelId, contextSnapshot, analysisSummary, beatAnalysis }) {
   if (!supabase) throw new Error('Supabase not configured');
 
   const { data: { user } } = await supabase.auth.getUser();
 
+  const insertData = {
+    title,
+    transcript_text: text,
+    source_type: sourceType,
+    source_url: sourceUrl || null,
+    client_id: clientId || null,
+    channel_id: channelId || null,
+    context_snapshot: contextSnapshot || null,
+    analysis_summary: analysisSummary || null,
+    word_count: text.trim().split(/\s+/).length,
+    created_by: user?.id || null,
+  };
+
+  // V3: Save beat analysis if available
+  if (beatAnalysis) insertData.beat_analysis = beatAnalysis;
+
   const { data, error } = await supabase
     .from('transcripts')
-    .insert({
-      title,
-      transcript_text: text,
-      source_type: sourceType,
-      source_url: sourceUrl || null,
-      client_id: clientId || null,
-      channel_id: channelId || null,
-      context_snapshot: contextSnapshot || null,
-      analysis_summary: analysisSummary || null,
-      word_count: text.trim().split(/\s+/).length,
-      created_by: user?.id || null,
-    })
+    .insert(insertData)
     .select()
     .single();
 
@@ -1045,7 +1432,7 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
 
   // V2: Short-form directions
   (analysisResults.short_form_directions || []).forEach(dir => {
-    items.push({
+    const item = {
       transcript_id: transcriptId,
       client_id: clientId || null,
       channel_id: channelId || null,
@@ -1053,7 +1440,7 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
       title: dir.title,
       timecode_start: dir.hook_timecode || null,
       hook: dir.hook,
-      virality_score: dir.virality_score ?? dir.viralityScore,
+      virality_score: dir.subscores?.overall ?? dir.virality_score ?? dir.viralityScore,
       rationale: dir.rationale || dir.virality_rationale,
       arc_summary: dir.arc_summary,
       title_variations: dir.title_variations,
@@ -1071,7 +1458,12 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
       },
       suggested_cta: dir.cta,
       status: 'suggested',
-    });
+    };
+
+    // V3: Save subscores if available
+    if (dir.subscores) item.subscores = dir.subscores;
+
+    items.push(item);
   });
 
   // Legacy: clips
@@ -1252,7 +1644,7 @@ export async function getTranscripts(clientId, { limit = 50, channelId } = {}) {
 
   let query = supabase
     .from('transcripts')
-    .select('id, title, channel_id, created_at, word_count, analysis_summary, context_snapshot, transcript_text, channels(name, thumbnail_url), atomized_content(id, status)')
+    .select('id, title, channel_id, created_at, word_count, analysis_summary, context_snapshot, transcript_text, beat_analysis, channels(name, thumbnail_url), atomized_content(id, status)')
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -1282,8 +1674,12 @@ export async function getAtomizedContent(transcriptId) {
 
 export default {
   analyzeTranscript,
+  analyzeBeats,
+  formatBeatContext,
   deployDirection,
+  generateRecut,
   updateAtomizedContentWithProduction,
+  updateAtomizedContentWithRecut,
   remixDirections,
   saveTranscript,
   markTranscriptAnalyzed,

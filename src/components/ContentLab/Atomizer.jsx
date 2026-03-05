@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronUp, Check, Plus, Shuffle,
   Film, Smartphone, Image, Type, AlignLeft, X,
   Copy, Video, Layers, ClipboardCheck, Target, BarChart3, Users, Swords,
-  Rocket,
+  Rocket, GitBranch, RefreshCw,
 } from "lucide-react";
 import {
   analyzeTranscript, saveTranscript, markTranscriptAnalyzed,
@@ -12,9 +12,11 @@ import {
   remixDirections, saveRemixAsBrief, fetchAtomizerContext,
   getAtomizedContent,
   deployDirection, updateAtomizedContentWithProduction,
+  generateRecut, updateAtomizedContentWithRecut,
 } from "../../services/atomizerService";
 import { getChannels } from "../../services/competitorDatabase";
 import AtomizerHistory from "./AtomizerHistory";
+import BeatMapPanel from "./BeatMapPanel";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 
@@ -69,6 +71,7 @@ function DirectionCard({
   selectedElements, onToggleElement, onCreateBrief,
   briefCreating, accentColor,
   onDeploy, deploying, deployedData,
+  onRecut, recutting, recutData, beatAnalysis,
 }) {
   const [edlCopied, setEdlCopied] = React.useState(false);
   const sc = scoreColor(dir.virality_score ?? dir.viralityScore);
@@ -173,14 +176,32 @@ function DirectionCard({
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+          {/* Subscores mini-badges for short-form */}
+          {!isLongForm && dir.subscores && (
+            <div style={{ display: "flex", gap: "3px", flexDirection: "column", alignItems: "flex-end" }}>
+              {[
+                { key: "hookStrength", label: "HOOK", color: "#f59e0b" },
+                { key: "emotionalPunch", label: "PUNCH", color: "#ec4899" },
+                { key: "standaloneComprehensibility", label: "COMP", color: "#3b82f6" },
+              ].map(s => dir.subscores[s.key] != null && (
+                <div key={s.key} style={{
+                  fontSize: "8px", fontWeight: "700", color: s.color,
+                  background: s.color + "15", borderRadius: "3px", padding: "1px 5px",
+                  display: "flex", gap: "3px", alignItems: "center",
+                }}>
+                  {s.label} <span style={{ fontSize: "9px", color: "#fff" }}>{dir.subscores[s.key]}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{
             background: sc.bg, border: `1px solid ${sc.border}`,
             borderRadius: "6px", padding: "4px 10px", textAlign: "center",
           }}>
             <div style={{ fontSize: "14px", fontWeight: "700", color: sc.text }}>
-              {dir.virality_score ?? dir.viralityScore}
+              {dir.subscores?.overall ?? dir.virality_score ?? dir.viralityScore}
             </div>
-            <div style={{ fontSize: "8px", color: "#888" }}>VIRAL</div>
+            <div style={{ fontSize: "8px", color: "#888" }}>{dir.subscores ? "SCORE" : "VIRAL"}</div>
           </div>
           {expanded ? <ChevronUp size={16} color="#888" /> : <ChevronDown size={16} color="#888" />}
         </div>
@@ -518,6 +539,114 @@ function DirectionCard({
             </>
           )}
 
+          {/* Recut button — appears when deployed + beats available */}
+          {hasProductionData && beatAnalysis && !recutData && (
+            <div style={{ paddingLeft: "28px" }}>
+              <button
+                onClick={() => onRecut && onRecut(dirKey, dir)}
+                disabled={recutting === dir._savedId}
+                style={{
+                  background: recutting === dir._savedId ? "#374151" : "linear-gradient(135deg, #8b5cf6, #6d28d9)",
+                  border: "none", borderRadius: "8px", padding: "8px 16px",
+                  color: "#fff", fontSize: "12px", fontWeight: "600",
+                  cursor: recutting === dir._savedId ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", gap: "8px",
+                }}
+              >
+                {recutting === dir._savedId ? (
+                  <><Loader size={14} style={{ animation: "spin 1s linear infinite" }} /> Generating Recut...</>
+                ) : (
+                  <><RefreshCw size={14} /> Generate Recut</>
+                )}
+              </button>
+              <div style={{ fontSize: "10px", color: "#666", marginTop: "4px" }}>
+                Proposes beat reordering to improve narrative flow (~$0.15-0.40)
+              </div>
+            </div>
+          )}
+
+          {/* Recut display */}
+          {recutData && (
+            <div style={{ paddingLeft: "28px" }}>
+              <div style={{ fontSize: "10px", fontWeight: "600", color: "#8b5cf6", textTransform: "uppercase", marginBottom: "8px" }}>
+                Recut Suggestion
+              </div>
+
+              {/* Sequence comparison */}
+              <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div style={{ flex: 1, background: "#0d0d0d", border: "1px solid #333", borderRadius: "6px", padding: "10px" }}>
+                  <div style={{ fontSize: "9px", fontWeight: "700", color: "#888", textTransform: "uppercase", marginBottom: "6px" }}>Original</div>
+                  {(recutData.original_sequence || []).map((id, i) => (
+                    <div key={i} style={{ fontSize: "11px", color: "#999", padding: "2px 0" }}>{i + 1}. {id}</div>
+                  ))}
+                </div>
+                <div style={{ flex: 1, background: "#0d0d0d", border: "1px solid #8b5cf622", borderRadius: "6px", padding: "10px" }}>
+                  <div style={{ fontSize: "9px", fontWeight: "700", color: "#8b5cf6", textTransform: "uppercase", marginBottom: "6px" }}>Proposed</div>
+                  {(recutData.proposed_sequence || []).map((id, i) => (
+                    <div key={i} style={{ fontSize: "11px", color: "#e0e0e0", padding: "2px 0" }}>{i + 1}. {id}</div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Moves */}
+              {recutData.moves?.length > 0 && (
+                <div style={{ marginBottom: "12px" }}>
+                  <div style={{ fontSize: "9px", fontWeight: "700", color: "#888", textTransform: "uppercase", marginBottom: "6px" }}>Moves</div>
+                  {recutData.moves.map((m, i) => (
+                    <div key={i} style={{
+                      background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "6px",
+                      padding: "8px 12px", marginBottom: "6px",
+                    }}>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "3px" }}>
+                        <span style={{
+                          fontSize: "9px", fontWeight: "700", textTransform: "uppercase",
+                          background: "#8b5cf618", color: "#8b5cf6", borderRadius: "3px", padding: "1px 6px",
+                        }}>{m.action}</span>
+                        <span style={{ fontSize: "11px", color: "#e0e0e0", fontWeight: "600" }}>{m.beatId}</span>
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#b0b0b0" }}>{m.rationale}</div>
+                      {m.transitionNote && <div style={{ fontSize: "10px", color: "#888", fontStyle: "italic", marginTop: "3px" }}>{m.transitionNote}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Recut script */}
+              {recutData.recut_script?.length > 0 && (
+                <div style={{ marginBottom: "12px" }}>
+                  <div style={{ fontSize: "9px", fontWeight: "700", color: "#888", textTransform: "uppercase", marginBottom: "6px" }}>Edit Script</div>
+                  {recutData.recut_script.map((s, i) => (
+                    <div key={i} style={{
+                      background: "#0d0d0d", border: "1px solid #333", borderRadius: "6px",
+                      padding: "8px 12px", marginBottom: "4px",
+                      display: "flex", gap: "10px", alignItems: "flex-start",
+                    }}>
+                      <span style={{ fontSize: "12px", fontWeight: "700", color: "#8b5cf6", flexShrink: 0 }}>{s.position}.</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: "11px", color: "#e0e0e0" }}>{s.editAction}</div>
+                        <div style={{ fontSize: "10px", color: "#888", marginTop: "2px" }}>
+                          {s.beatId} — {s.estimatedDuration}
+                          {s.transitionOut && ` → ${s.transitionOut}`}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Estimated improvement */}
+              {recutData.estimated_improvement && (
+                <div style={{
+                  background: "#8b5cf60a", border: "1px solid #8b5cf622",
+                  borderRadius: "6px", padding: "10px 12px",
+                  fontSize: "12px", color: "#c4b5fd", lineHeight: "1.6",
+                }}>
+                  {recutData.estimated_improvement}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Create Brief button (always at bottom) */}
           <div style={{ paddingLeft: "28px" }}>
             <button
@@ -599,6 +728,13 @@ export default function Atomizer({ activeClient }) {
   const [deploying, setDeploying] = useState(null);        // _savedId being deployed
   const [deployedData, setDeployedData] = useState({});     // dirKey → Stage 2 data
 
+  // V3: Beat analysis state (Stage 0)
+  const [beatAnalysis, setBeatAnalysis] = useState(null);
+
+  // V3: Recut state (Stage 3)
+  const [recutting, setRecutting] = useState(null);         // _savedId being recut
+  const [recutData, setRecutData] = useState({});           // dirKey → recut data
+
   const wordCount = transcriptText.trim() ? transcriptText.trim().split(/\s+/).length : 0;
 
   const contextFilledCount = useMemo(() =>
@@ -658,10 +794,10 @@ export default function Atomizer({ activeClient }) {
       .catch(err => console.warn('[atomizer] Failed to fetch channels:', err.message));
   }, [activeClient?.id]);
 
-  // Cost estimates — Stage 1 uses 8192 output tokens
+  // Cost estimates — Stage 0 (beats) + Stage 1 (directions), each uses 8192 output tokens
   const estimatedInputTokens = 2800 + Math.ceil(wordCount / 0.75);
   const estimatedCostAnalysis = wordCount > 0
-    ? Math.max(0.02, (estimatedInputTokens / 1000000) * 3.00 + (8192 / 1000000) * 15.00).toFixed(2)
+    ? Math.max(0.04, ((estimatedInputTokens * 2) / 1000000) * 3.00 + (16384 / 1000000) * 15.00).toFixed(2)
     : "0.00";
 
   // Detect V2 vs legacy results
@@ -734,6 +870,9 @@ export default function Atomizer({ activeClient }) {
     setRemixResult(null);
     setDeployedData({});
     setDeploying(null);
+    setBeatAnalysis(null);
+    setRecutData({});
+    setRecutting(null);
 
     try {
       const data = await analyzeTranscript(
@@ -743,7 +882,18 @@ export default function Atomizer({ activeClient }) {
         { contextInputs },
       );
       setResults(data);
-      setActiveTab(data.long_form_directions?.length ? "long_form" : "short_form");
+
+      // Store beat analysis separately for Structure tab
+      if (data.beat_analysis) {
+        setBeatAnalysis(data.beat_analysis);
+      }
+
+      // Default to Structure tab if beats found, otherwise first direction type
+      setActiveTab(
+        data.beat_analysis?.beats?.length ? "structure"
+        : data.long_form_directions?.length ? "long_form"
+        : "short_form"
+      );
 
       // Auto-save to Supabase
       try {
@@ -755,6 +905,7 @@ export default function Atomizer({ activeClient }) {
           channelId: selectedChannelId || null,
           contextSnapshot: contextInputs,
           analysisSummary: data.summary || null,
+          beatAnalysis: data.beat_analysis || null,
         });
         setSavedTranscriptId(saved.id);
         await markTranscriptAnalyzed(saved.id);
@@ -853,6 +1004,33 @@ export default function Atomizer({ activeClient }) {
     }
   }, [transcriptText, title, selectedChannelId, activeClient, contextInputs]);
 
+  // Stage 3: Generate recut for a deployed direction
+  const handleRecut = useCallback(async (dirKey, direction) => {
+    if (!direction._savedId || !beatAnalysis) {
+      setError("Cannot generate recut — missing beat analysis or unsaved direction.");
+      return;
+    }
+    setRecutting(direction._savedId);
+    setError("");
+    try {
+      const result = await generateRecut(
+        direction,
+        beatAnalysis,
+        transcriptText,
+        title || "Untitled",
+        selectedChannelId || activeClient?.id,
+        contextInputs,
+      );
+
+      await updateAtomizedContentWithRecut(direction._savedId, result);
+      setRecutData(prev => ({ ...prev, [dirKey]: result }));
+    } catch (err) {
+      setError("Recut generation failed: " + err.message);
+    } finally {
+      setRecutting(null);
+    }
+  }, [transcriptText, title, selectedChannelId, activeClient, contextInputs, beatAnalysis]);
+
   const handleRemix = useCallback(async () => {
     setRemixing(true);
     setError("");
@@ -901,13 +1079,18 @@ export default function Atomizer({ activeClient }) {
       setContextOpen(true);
     }
 
-    // 3. Reset remix/selection/deploy state
+    // 3. Reset remix/selection/deploy/recut state
     setSelections({});
     setExpandedCards(new Set());
     setRemixResult(null);
     setRemixOpen(false);
     setDeployedData({});
     setDeploying(null);
+    setRecutData({});
+    setRecutting(null);
+
+    // Restore beat analysis if available
+    setBeatAnalysis(transcript.beat_analysis || null);
 
     // 4. Load atomized content and reconstruct results
     try {
@@ -938,6 +1121,7 @@ export default function Atomizer({ activeClient }) {
         const shortForm = atomized.filter(a => a.content_type === "short_form_direction").map(a => ({
           ...mapDirection(a),
           cta: a.suggested_cta || a.direction_metadata?.cta,
+          subscores: a.subscores || null,
         }));
         const clips = atomized.filter(a => a.content_type === "clip").map(a => ({
           ...a, _savedId: a.id, _briefCreated: a.status === "brief_created",
@@ -963,8 +1147,27 @@ export default function Atomizer({ activeClient }) {
         if (shorts.length > 0) reconstructed.shorts = shorts;
         if (quotes.length > 0) reconstructed.quotes = quotes;
 
+        // Restore recut data from atomized content
+        const restoredRecutData = {};
+        [...longForm, ...shortForm].forEach((d, i) => {
+          const type = longForm.includes(d) ? "long_form" : "short_form";
+          const idx = type === "long_form" ? longForm.indexOf(d) : shortForm.indexOf(d);
+          const original = atomized.find(a => a.id === d._savedId);
+          if (original?.recut_data) {
+            restoredRecutData[`${type}_${idx}`] = original.recut_data;
+          }
+        });
+        if (Object.keys(restoredRecutData).length > 0) {
+          setRecutData(restoredRecutData);
+        }
+
         setResults(reconstructed);
-        setActiveTab(longForm.length > 0 ? "long_form" : shortForm.length > 0 ? "short_form" : "long_form");
+        setActiveTab(
+          transcript.beat_analysis?.beats?.length ? "structure"
+          : longForm.length > 0 ? "long_form"
+          : shortForm.length > 0 ? "short_form"
+          : "long_form"
+        );
       } else {
         setResults(null);
       }
@@ -1136,7 +1339,7 @@ export default function Atomizer({ activeClient }) {
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: "11px", color: "#666" }}>
-            Est. ~${estimatedCostAnalysis} discovery{selectedCount > 0 ? " + ~$0.06 remix" : ""} (deploy: ~$0.30-0.60/direction)
+            Est. ~${estimatedCostAnalysis} analysis{selectedCount > 0 ? " + ~$0.06 remix" : ""} (deploy: ~$0.30-0.60, recut: ~$0.15-0.40)
           </div>
           <button
             onClick={handleAnalyze}
@@ -1192,9 +1395,14 @@ export default function Atomizer({ activeClient }) {
               <span style={{ color: "#b0b0b0" }}>
                 <span style={{ color: "#ec4899", fontWeight: "600" }}>{tabCounts.short_form}</span> short-form
               </span>
+              {beatAnalysis && (
+                <span style={{ color: "#b0b0b0" }}>
+                  <span style={{ color: "#10b981", fontWeight: "600" }}>{beatAnalysis.beats?.length || 0}</span> beats
+                </span>
+              )}
             </div>
             <div style={{ fontSize: "11px", color: "#666" }}>
-              Cost: ${results.cost?.toFixed(4) || "0.00"}
+              Cost: ${typeof results.cost === 'string' ? results.cost : (results.cost?.toFixed?.(4) || "0.00")}
             </div>
           </div>
 
@@ -1216,6 +1424,7 @@ export default function Atomizer({ activeClient }) {
           {/* Tab Navigation */}
           <div style={{ display: "flex", gap: "2px", marginBottom: "2px" }}>
             {[
+              ...(beatAnalysis ? [{ id: "structure", label: "Structure", icon: GitBranch, count: beatAnalysis.beats?.length || 0, color: "#10b981" }] : []),
               { id: "long_form", label: "Long-Form", icon: Film, count: tabCounts.long_form, color: "#3b82f6" },
               { id: "short_form", label: "Short-Form", icon: Smartphone, count: tabCounts.short_form, color: "#ec4899" },
             ].map(t => (
@@ -1247,7 +1456,18 @@ export default function Atomizer({ activeClient }) {
             ))}
           </div>
 
+          {/* Tab Content — Structure (Beat Map) */}
+          {activeTab === "structure" && beatAnalysis && (
+            <div style={{
+              background: "#1E1E1E", border: "1px solid #333", borderTop: "none",
+              borderRadius: "0 0 12px 12px", padding: "20px 24px", marginBottom: "24px",
+            }}>
+              <BeatMapPanel beatAnalysis={beatAnalysis} />
+            </div>
+          )}
+
           {/* Tab Content — Direction Cards */}
+          {activeTab !== "structure" && (
           <div style={{
             background: "#1E1E1E", border: "1px solid #333", borderTop: "none",
             borderRadius: "0 0 12px 12px", padding: "20px 24px", marginBottom: "24px",
@@ -1275,11 +1495,16 @@ export default function Atomizer({ activeClient }) {
                     onDeploy={handleDeploy}
                     deploying={deploying}
                     deployedData={deployedData[dirKey] || null}
+                    onRecut={handleRecut}
+                    recutting={recutting}
+                    recutData={recutData[dirKey] || null}
+                    beatAnalysis={beatAnalysis}
                   />
                 );
               })}
             </div>
           </div>
+          )}
 
           {/* Remix Bar — appears when elements are selected */}
           {selectedCount > 0 && (
