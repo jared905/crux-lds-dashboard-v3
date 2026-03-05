@@ -60,9 +60,11 @@ function CopyBtn({ fieldKey, text, copiedField, copyText }) {
 // ─── Client markdown (clean, no AI branding) ───────────────────────────
 function buildClientMarkdown(brief) {
   const d = brief.brief_data || {};
+  const meta = d.direction_metadata || {};
   const lines = [];
 
   lines.push(brief.title || "Untitled");
+  if (meta.estimated_duration) lines.push(`Estimated Duration: ${meta.estimated_duration}`);
   lines.push("");
 
   if (d.description) {
@@ -338,13 +340,15 @@ async function exportClientPDF(brief) {
   ]);
 
   const d = brief.brief_data || {};
+  const meta = d.direction_metadata || {};
 
   const sections = [];
 
-  // Title — clean, prominent
+  // Title + duration — clean, prominent
   sections.push(`
     <div style="margin-bottom:32px;">
       <div style="font-size:30px;font-weight:700;color:#1e293b;line-height:1.3;">${esc(brief.title || "Untitled")}</div>
+      ${meta.estimated_duration ? `<div style="font-size:14px;color:#64748b;margin-top:8px;">Estimated Duration: ${esc(meta.estimated_duration)}</div>` : ""}
     </div>
   `);
 
