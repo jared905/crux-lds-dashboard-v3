@@ -384,21 +384,38 @@ export default async function handler(req, res) {
     const { updateVideos } = req.body;
     let updatedCount = 0;
     let matchedCount = 0;
+    let thumbnailMatchCount = 0;
     let ctrWrittenCount = 0;
 
     if (updateVideos !== false && dbChannel) {
       for (const [videoId, analytics] of Object.entries(videoAnalytics)) {
-          // Check if video exists and belongs to this channel
-          const { data: existingVideo } = await supabase
+          // Check if video exists — try exact youtube_video_id first,
+          // then fall back to thumbnail_url match for CSV-imported videos
+          // (CSV videos have youtube_video_id like "csv_abc123" but store
+          // the real YouTube ID in their thumbnail_url)
+          let { data: existingVideo } = await supabase
             .from('videos')
             .select('id')
             .eq('youtube_video_id', videoId)
             .eq('channel_id', dbChannel.id)
             .single();
 
+          if (!existingVideo) {
+            const { data: thumbMatch } = await supabase
+              .from('videos')
+              .select('id')
+              .eq('channel_id', dbChannel.id)
+              .like('thumbnail_url', `%/vi/${videoId}/%`)
+              .single();
+            existingVideo = thumbMatch;
+            if (thumbMatch) thumbnailMatchCount++;
+          }
+
           if (existingVideo) {
             matchedCount++;
             const updateFields = {
+                // Upgrade csv_ IDs to real YouTube video IDs for future direct matching
+                youtube_video_id: videoId,
                 avg_view_percentage: analytics.avgViewPercentage != null ? analytics.avgViewPercentage / 100 : null,
                 watch_hours: analytics.watchHours != null ? analytics.watchHours : null,
                 subscribers_gained: analytics.subscribersGained != null ? analytics.subscribersGained : null,
@@ -563,6 +580,7 @@ export default async function handler(req, res) {
       analytics: videoAnalytics,
       updatedCount,
       matchedCount,
+      thumbnailMatchCount,
       ctrWrittenCount,
       impressionsDiag,
       collabResult
