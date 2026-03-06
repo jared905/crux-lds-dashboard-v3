@@ -522,8 +522,15 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
         console.log('[Sync] Analytics result:', JSON.stringify(analyticsResult, null, 2));
 
         if (analyticsResult.success) {
-          if (analyticsResult.updatedCount > 0) {
-            summaryParts.push(`${analyticsResult.updatedCount} with analytics`);
+          // Show matching stats: how many videos matched by direct ID vs thumbnail fallback
+          const matched = analyticsResult.matchedCount || 0;
+          const thumbMatched = analyticsResult.thumbnailMatchCount || 0;
+          const updated = analyticsResult.updatedCount || 0;
+          const totalAnalytics = analyticsResult.videoCount || 0;
+          if (updated > 0) {
+            summaryParts.push(`${updated}/${matched} matched analytics (${thumbMatched} via thumbnail)`);
+          } else if (totalAnalytics > 0) {
+            summaryParts.push(`${totalAnalytics} from API but ${matched} matched in DB`);
           }
           // Log impressions diagnostic info (from Reporting API)
           if (analyticsResult.impressionsDiag) {
@@ -533,9 +540,13 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
               console.log(`[Sync] Impressions: ${diag.videosWithData} videos with data`);
               if (diag.videosWithData > 0) {
                 summaryParts.push(`${diag.videosWithData} with impressions`);
+              } else {
+                summaryParts.push('0 impressions (reports had no matching videos)');
               }
             } else {
-              console.warn('[Sync] Impressions not available:', diag.error || 'Unknown error (check diagnostics above)');
+              const errMsg = diag.error || 'Unknown error';
+              summaryParts.push(`impressions: ${errMsg}`);
+              console.warn('[Sync] Impressions not available:', errMsg);
             }
           }
           // Collab discovery results (merged into analytics endpoint)
