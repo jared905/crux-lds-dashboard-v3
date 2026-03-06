@@ -162,9 +162,9 @@ export default async function handler(req, res) {
 
     const channelId = connection.youtube_channel_id;
 
-    // Calculate date range (default to last 28 days)
+    // Calculate date range (default to last 365 days for comprehensive retention/CTR coverage)
     const end = endDate || new Date().toISOString().split('T')[0];
-    const start = startDate || new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const start = startDate || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     // Fetch video-level analytics from YouTube Analytics API
     // Note: Impressions/CTR are NOT available via Analytics API with video dimension.
@@ -178,7 +178,7 @@ export default async function handler(req, res) {
     analyticsUrl.searchParams.append('dimensions', 'video');
     analyticsUrl.searchParams.append('metrics', baseMetrics);
     analyticsUrl.searchParams.append('sort', '-views');
-    analyticsUrl.searchParams.append('maxResults', '200');
+    analyticsUrl.searchParams.append('maxResults', '500');
     if (videoIds && videoIds.length > 0) {
       analyticsUrl.searchParams.append('filters', `video==${videoIds.join(',')}`);
     }
