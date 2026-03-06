@@ -2,6 +2,7 @@
  * Vercel Serverless Function - YouTube Analytics Fetch
  * Fetches analytics data (retention, watch hours, subs) via YouTube Analytics API
  * and impressions/CTR via YouTube Reporting API (bulk CSV reports).
+ * Also discovers collaboration videos (guest + host) when discoverCollabs=true.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -123,7 +124,7 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Invalid or expired session' });
     }
 
-    const { connectionId, videoIds, startDate, endDate } = req.body;
+    const { connectionId, videoIds, startDate, endDate, discoverCollabs } = req.body;
 
     if (!connectionId) {
       return res.status(400).json({ error: 'connectionId required' });
@@ -424,6 +425,138 @@ export default async function handler(req, res) {
       }
     }
 
+    // Collaboration discovery (when discoverCollabs=true)
+    let collabResult = null;
+    if (discoverCollabs && dbChannel) {
+      try {
+        const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
+        const apiKey = process.env.YOUTUBE_API_KEY;
+        const analyticsVideoIdSet = new Set(Object.keys(videoAnalytics));
+
+        // Get known video IDs from DB
+        const { data: knownVideos } = await supabase
+          .from('videos')
+          .select('youtube_video_id')
+          .eq('channel_id', dbChannel.id);
+
+        const knownVideoIds = new Set((knownVideos || []).map(v => v.youtube_video_id));
+
+        // Diff: video IDs in analytics but not in DB
+        const unknownVideoIds = [...analyticsVideoIdSet].filter(vid => !knownVideoIds.has(vid));
+
+        console.log(`[CollabDiscovery] ${analyticsVideoIdSet.size} analytics, ${knownVideoIds.size} known, ${unknownVideoIds.length} unknown`);
+
+        let guestCollabs = [];
+        let savedGuests = 0;
+
+        if (unknownVideoIds.length > 0 && apiKey) {
+          // Fetch metadata for unknown videos
+          for (let i = 0; i < unknownVideoIds.length; i += 50) {
+            const batch = unknownVideoIds.slice(i, i + 50);
+            const videosUrl = new URL(`${YOUTUBE_API_BASE}/videos`);
+            videosUrl.searchParams.append('part', 'snippet,statistics,contentDetails');
+            videosUrl.searchParams.append('id', batch.join(','));
+            videosUrl.searchParams.append('key', apiKey);
+
+            const videosResponse = await fetch(videosUrl.toString());
+            if (!videosResponse.ok) continue;
+
+            const videosData = await videosResponse.json();
+            for (const item of (videosData.items || [])) {
+              const hostChannelId = item.snippet.channelId;
+              if (hostChannelId === channelId) continue; // Not a collab, just a missing upload
+
+              const durationMatch = item.contentDetails?.duration?.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+              const durationSeconds = durationMatch
+                ? (parseInt(durationMatch[1] || 0) * 3600) + (parseInt(durationMatch[2] || 0) * 60) + parseInt(durationMatch[3] || 0)
+                : 0;
+              const isShort = durationSeconds > 0 && durationSeconds <= 60;
+
+              const { error: insertError } = await supabase
+                .from('videos')
+                .upsert({
+                  youtube_video_id: item.id,
+                  channel_id: dbChannel.id,
+                  title: item.snippet.title,
+                  description: item.snippet.description?.substring(0, 500) || null,
+                  thumbnail_url: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+                  published_at: item.snippet.publishedAt,
+                  view_count: parseInt(item.statistics?.viewCount) || 0,
+                  like_count: parseInt(item.statistics?.likeCount) || 0,
+                  comment_count: parseInt(item.statistics?.commentCount) || 0,
+                  duration_seconds: durationSeconds,
+                  video_type: isShort ? 'short' : 'long',
+                  is_short: isShort,
+                  is_collaboration: true,
+                  collaboration_role: 'guest',
+                  collaboration_host_channel_id: hostChannelId,
+                  collaboration_host_channel_title: item.snippet.channelTitle,
+                  last_synced_at: new Date().toISOString(),
+                }, { onConflict: 'youtube_video_id' });
+
+              if (!insertError) savedGuests++;
+              guestCollabs.push({ title: item.snippet.title, host: item.snippet.channelTitle });
+            }
+          }
+        }
+
+        // Host-side detection: scan own uploads for collab indicators
+        const collabPatterns = [
+          /\bfeat\.?\s+/i, /\bft\.?\s+/i, /\bfeaturing\s+/i,
+          /\bcollab(?:oration)?\s+(?:with\s+)?/i, /\bwith\s+@/i,
+          /\bguest:\s*/i, /\bx\s+@/i,
+        ];
+
+        function extractCollaborator(text, pattern) {
+          const match = text.match(pattern);
+          if (!match) return null;
+          const after = text.substring(match.index + match[0].length).trim();
+          const nameMatch = after.match(/^@?([\w\s&'-]+?)(?:\s*[|\n\r,()[\]{}]|$)/);
+          return nameMatch ? nameMatch[1].trim() : null;
+        }
+
+        const { data: ownVideos } = await supabase
+          .from('videos')
+          .select('id, youtube_video_id, title, description')
+          .eq('channel_id', dbChannel.id)
+          .eq('is_collaboration', false);
+
+        let savedHosts = 0;
+        const hostCollabs = [];
+        for (const video of (ownVideos || [])) {
+          const textToScan = `${video.title || ''} ${video.description || ''}`;
+          for (const pattern of collabPatterns) {
+            if (pattern.test(textToScan)) {
+              const collabName = extractCollaborator(textToScan, pattern);
+              const { error: updateError } = await supabase
+                .from('videos')
+                .update({
+                  is_collaboration: true,
+                  collaboration_role: 'host',
+                  collaboration_host_channel_title: collabName,
+                })
+                .eq('id', video.id);
+
+              if (!updateError) savedHosts++;
+              hostCollabs.push({ title: video.title, collaborator: collabName });
+              break;
+            }
+          }
+        }
+
+        collabResult = {
+          guestCollabs: guestCollabs.length,
+          hostCollabs: hostCollabs.length,
+          savedGuests,
+          savedHosts,
+        };
+        console.log(`[CollabDiscovery] ${guestCollabs.length} guests, ${hostCollabs.length} hosts`);
+      } catch (collabErr) {
+        console.warn('[CollabDiscovery] Error:', collabErr.message);
+        collabResult = { error: collabErr.message };
+      }
+    }
+
     return res.status(200).json({
       success: true,
       dateRange: { start, end },
@@ -432,7 +565,8 @@ export default async function handler(req, res) {
       updatedCount,
       matchedCount,
       ctrWrittenCount,
-      impressionsDiag
+      impressionsDiag,
+      collabResult
     });
 
   } catch (error) {

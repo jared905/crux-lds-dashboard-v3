@@ -515,7 +515,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ connectionId: connection.id })
+          body: JSON.stringify({ connectionId: connection.id, discoverCollabs: true })
         });
 
         const analyticsResult = await analyticsResponse.json();
@@ -538,47 +538,23 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
               console.warn('[Sync] Impressions not available:', diag.error || 'Unknown error (check diagnostics above)');
             }
           }
+          // Collab discovery results (merged into analytics endpoint)
+          if (analyticsResult.collabResult) {
+            const cr = analyticsResult.collabResult;
+            const totalCollabs = (cr.guestCollabs || 0) + (cr.hostCollabs || 0);
+            if (totalCollabs > 0) {
+              const parts = [];
+              if (cr.guestCollabs > 0) parts.push(`${cr.guestCollabs} guest`);
+              if (cr.hostCollabs > 0) parts.push(`${cr.hostCollabs} hosted`);
+              summaryParts.push(`${parts.join(' + ')} collab${totalCollabs !== 1 ? 's' : ''}`);
+            }
+          }
         } else if (analyticsResult.errorCode === 'forbidden') {
           console.log('[Sync] Analytics API access not available for this channel');
         }
       } catch (analyticsError) {
         // Analytics sync failed, but video sync succeeded - don't fail the whole operation
         console.warn('[Sync] Analytics sync failed:', analyticsError.message);
-      }
-
-      // Step 4: Discover collaboration videos (videos where this channel is a guest collaborator)
-      setSyncStatus(prev => ({
-        ...prev,
-        [connection.id]: { stage: 'collabs', message: 'Checking for collaborations...' }
-      }));
-
-      try {
-        const collabToken = await youtubeOAuthService.getAuthToken();
-        const collabResponse = await fetch('/api/youtube-collab-discovery', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${collabToken}`
-          },
-          body: JSON.stringify({ connectionId: connection.id, save: true })
-        });
-
-        const collabResult = await collabResponse.json();
-        console.log('[Sync] Collab discovery result:', JSON.stringify(collabResult, null, 2));
-
-        if (collabResult.success) {
-          const guestCount = collabResult.guestCollabs?.length || 0;
-          const hostCount = collabResult.hostCollabs?.length || 0;
-          const totalCollabs = guestCount + hostCount;
-          if (totalCollabs > 0) {
-            const parts = [];
-            if (guestCount > 0) parts.push(`${guestCount} guest`);
-            if (hostCount > 0) parts.push(`${hostCount} hosted`);
-            summaryParts.push(`${parts.join(' + ')} collab${totalCollabs !== 1 ? 's' : ''}`);
-          }
-        }
-      } catch (collabError) {
-        console.warn('[Sync] Collab discovery failed:', collabError.message);
       }
 
       // Success!
