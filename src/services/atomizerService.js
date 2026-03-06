@@ -1168,7 +1168,7 @@ Word Count: ${wordCount}
 ${text}
 --- END TRANSCRIPT ---`;
 
-  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_stage1', 8192);
+  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_stage1', 16384);
   const parsed = parseClaudeJSON(result.text);
 
   // Combine costs from all stages
