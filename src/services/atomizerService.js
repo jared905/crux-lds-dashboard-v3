@@ -215,7 +215,14 @@ THREAD-AWARE INSTRUCTIONS (if beat analysis with threads is provided):
   The "overall" subscore replaces virality_score for short-form when beats are available.
 - Short-form clips should ideally pull from a single thread cluster — standalone comprehensibility suffers when a clip spans multiple unrelated threads.
 - Hybrid beats (beatRole = "hybrid") are excellent short-form candidates — they are both accessible and substantive.
-- If no beat analysis is provided, ignore these instructions and produce directions normally.
+- For EVERY direction (long-form and short-form), include these structured beat references:
+  - "thread_refs": Array of {thread_id, role} objects. role is "primary" (this direction orbits this thread), "supporting" (referenced but not central), or "featured" (for short-form, the one thread this clip is pulled from).
+  - "beat_flow": Ordered array of beat IDs showing the narrative sequence for this direction — the order the editor should follow.
+- For long-form directions, additionally include:
+  - "beat_role_counts": { "content": N, "pacing": N, "hybrid": N, "transition": N } — count of each beat role used in this direction.
+- For short-form directions, additionally include:
+  - "featured_hybrid_beats": Array of beat IDs that are hybrid beats (beatRole = "hybrid") featured in this clip. Empty array if none.
+- If no beat analysis is provided, ignore these instructions and produce directions normally (omit thread_refs, beat_flow, beat_role_counts, featured_hybrid_beats).
 
 Respond with ONLY a JSON object (no markdown, no code fences) in this exact format:
 {
@@ -238,6 +245,9 @@ Respond with ONLY a JSON object (no markdown, no code fences) in this exact form
         "visual_elements": ["element1", "element2", "element3"]
       },
       "estimated_duration": "8-12 min",
+      "thread_refs": [{"thread_id": "thread_1", "role": "primary"}, {"thread_id": "thread_2", "role": "supporting"}],
+      "beat_flow": ["hook_1", "story_1", "scripture_1", "doctrine_1", "application_1"],
+      "beat_role_counts": {"content": 4, "pacing": 1, "hybrid": 1, "transition": 0},
       "virality_score": 8,
       "virality_rationale": "1-2 sentences referencing strategy brief, performance data, or competitor patterns"
     }
@@ -260,6 +270,9 @@ Respond with ONLY a JSON object (no markdown, no code fences) in this exact form
         "visual_elements": ["element1"]
       },
       "estimated_duration": "30-45 sec",
+      "thread_refs": [{"thread_id": "thread_1", "role": "featured"}],
+      "beat_flow": ["humor_1", "application_1"],
+      "featured_hybrid_beats": ["humor_1"],
       "virality_score": 7,
       "virality_rationale": "Why this works — reference context if provided"
     }
@@ -1790,6 +1803,9 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
         edl: dir.edl || [],
         b_roll: dir.b_roll || [],
         motion_graphics: dir.motion_graphics || [],
+        thread_refs: dir.thread_refs || null,
+        beat_flow: dir.beat_flow || null,
+        beat_role_counts: dir.beat_role_counts || null,
       },
       status: 'suggested',
     });
@@ -1820,6 +1836,9 @@ export async function saveAtomizedContent(transcriptId, analysisResults, clientI
         edl: dir.edl || [],
         b_roll: dir.b_roll || [],
         motion_graphics: dir.motion_graphics || [],
+        thread_refs: dir.thread_refs || null,
+        beat_flow: dir.beat_flow || null,
+        featured_hybrid_beats: dir.featured_hybrid_beats || null,
       },
       suggested_cta: dir.cta,
       status: 'suggested',

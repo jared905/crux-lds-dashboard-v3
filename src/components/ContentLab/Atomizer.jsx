@@ -16,7 +16,7 @@ import {
 } from "../../services/atomizerService";
 import { getChannels } from "../../services/competitorDatabase";
 import AtomizerHistory from "./AtomizerHistory";
-import BeatMapPanel from "./BeatMapPanel";
+import BeatMapPanel, { THREAD_COLORS } from "./BeatMapPanel";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 
@@ -311,6 +311,88 @@ function DirectionCard({
                   {dir.arc_summary}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* 4b. Content Flow — Beat/Thread visualization (V3.1) */}
+          {dir.beat_flow?.length > 0 && beatAnalysis?.threads?.length > 0 && (
+            <div style={{ paddingLeft: "28px" }}>
+              {/* Thread principle labels */}
+              {dir.thread_refs?.length > 0 && (
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "8px" }}>
+                  {dir.thread_refs.map(ref => {
+                    const thread = beatAnalysis.threads.find(t => t.id === ref.thread_id);
+                    const threadIdx = beatAnalysis.threads.findIndex(t => t.id === ref.thread_id);
+                    const color = THREAD_COLORS[threadIdx % THREAD_COLORS.length];
+                    if (!thread) return null;
+                    return (
+                      <span key={ref.thread_id} style={{
+                        fontSize: "10px", fontWeight: "600",
+                        background: color + "18", color: color,
+                        borderRadius: "4px", padding: "2px 8px",
+                        border: ref.role === "primary" || ref.role === "featured" ? `1px solid ${color}44` : "none",
+                      }}>
+                        {(ref.role === "primary" || ref.role === "featured") && "\u25CF "}
+                        {thread.principle?.length > 50 ? thread.principle.slice(0, 50) + "..." : thread.principle}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              {/* Beat flow strip */}
+              <div style={{
+                display: "flex", gap: "3px", flexWrap: "wrap",
+                background: "#1a1a1a", borderRadius: "6px", padding: "8px 10px",
+                border: "1px solid #2a2a2a",
+              }}>
+                <div style={{ fontSize: "9px", fontWeight: "700", color: "#888", textTransform: "uppercase", marginBottom: "4px", width: "100%" }}>
+                  Content Flow
+                </div>
+                {dir.beat_flow.map((beatId, i) => {
+                  const beat = beatAnalysis.beats?.find(b => b.id === beatId);
+                  if (!beat) return (
+                    <span key={i} style={{ fontSize: "10px", background: "#333", color: "#888", borderRadius: "3px", padding: "2px 6px" }}>
+                      {beatId.replace(/_/g, " ")}
+                    </span>
+                  );
+                  const threadIdx = beat.primaryThread
+                    ? beatAnalysis.threads.findIndex(t => t.id === beat.primaryThread)
+                    : -1;
+                  const color = threadIdx >= 0 ? THREAD_COLORS[threadIdx % THREAD_COLORS.length] : "#6b7280";
+                  const isHybrid = beat.beatRole === "hybrid";
+                  const isFeatured = dir.featured_hybrid_beats?.includes(beatId);
+                  return (
+                    <span key={i} title={`${beat.displayName || beatId}\n${beat.beatType} (${beat.beatRole})\nThread: ${beat.primaryThread || "none"}`}
+                      style={{
+                        fontSize: "10px", fontWeight: isHybrid ? "700" : "500",
+                        background: color + "22", color: color,
+                        borderRadius: "3px", padding: "2px 7px",
+                        border: isFeatured ? `1px solid ${color}` : `1px solid ${color}33`,
+                      }}>
+                      {beat.beatType?.replace(/_/g, " ")}
+                      {isHybrid && " \u2605"}
+                    </span>
+                  );
+                })}
+              </div>
+              {/* Beat role counts — long-form only */}
+              {isLongForm && dir.beat_role_counts && (
+                <div style={{ display: "flex", gap: "8px", marginTop: "6px", fontSize: "10px", color: "#888" }}>
+                  {dir.beat_role_counts.content > 0 && <span><span style={{ color: "#3b82f6" }}>{dir.beat_role_counts.content}</span> content</span>}
+                  {dir.beat_role_counts.pacing > 0 && <span><span style={{ color: "#f59e0b" }}>{dir.beat_role_counts.pacing}</span> pacing</span>}
+                  {dir.beat_role_counts.hybrid > 0 && <span><span style={{ color: "#8b5cf6" }}>{dir.beat_role_counts.hybrid}</span> hybrid</span>}
+                  {dir.beat_role_counts.transition > 0 && <span><span style={{ color: "#6b7280" }}>{dir.beat_role_counts.transition}</span> transition</span>}
+                </div>
+              )}
+              {/* Featured hybrid callout — short-form only */}
+              {!isLongForm && dir.featured_hybrid_beats?.length > 0 && (
+                <div style={{ marginTop: "6px", fontSize: "10px", color: "#8b5cf6" }}>
+                  {"\u2605"} Hybrid beats featured: {dir.featured_hybrid_beats.map(id => {
+                    const b = beatAnalysis.beats?.find(x => x.id === id);
+                    return b?.displayName || id.replace(/_/g, " ");
+                  }).join(", ")}
+                </div>
+              )}
             </div>
           )}
 
@@ -731,6 +813,7 @@ export default function Atomizer({ activeClient }) {
   // V3.1: Beat analysis + thread state (Stages 0a/0b)
   const [beatAnalysis, setBeatAnalysis] = useState(null);
   const [stageCosts, setStageCosts] = useState(null);       // { segment, threads, strategy }
+  const [structureOpen, setStructureOpen] = useState(false); // Collapsible structure panel
 
   // V3: Recut state (Stage 3)
   const [recutting, setRecutting] = useState(null);         // _savedId being recut
@@ -893,12 +976,11 @@ export default function Atomizer({ activeClient }) {
         setStageCosts(data.stage_costs);
       }
 
-      // Default to Structure tab if beats found, otherwise first direction type
-      setActiveTab(
-        data.beat_analysis?.beats?.length ? "structure"
-        : data.long_form_directions?.length ? "long_form"
-        : "short_form"
-      );
+      // Default to Long-Form tab, open structure panel if beats found
+      setActiveTab(data.long_form_directions?.length ? "long_form" : "short_form");
+      if (data.beat_analysis?.beats?.length) {
+        setStructureOpen(true);
+      }
 
       // Auto-save to Supabase
       try {
@@ -1121,6 +1203,11 @@ export default function Atomizer({ activeClient }) {
           // Stage 2 fields
           edited_transcript: a.edited_transcript || a.direction_metadata?.edited_transcript,
           deployed_at: a.deployed_at || a.direction_metadata?.deployed_at,
+          // V3.1: Beat/thread references
+          thread_refs: a.direction_metadata?.thread_refs || null,
+          beat_flow: a.direction_metadata?.beat_flow || null,
+          beat_role_counts: a.direction_metadata?.beat_role_counts || null,
+          featured_hybrid_beats: a.direction_metadata?.featured_hybrid_beats || null,
         });
 
         const longForm = atomized.filter(a => a.content_type === "long_form_direction").map(mapDirection);
@@ -1434,10 +1521,47 @@ export default function Atomizer({ activeClient }) {
             </div>
           )}
 
+          {/* Collapsible Structure Panel */}
+          {beatAnalysis?.beats?.length > 0 && (
+            <div style={{ marginBottom: "2px" }}>
+              <button
+                onClick={() => setStructureOpen(prev => !prev)}
+                style={{
+                  width: "100%",
+                  background: "#1E1E1E", border: "1px solid #333",
+                  borderRadius: structureOpen ? "12px 12px 0 0" : "12px",
+                  padding: "14px 20px",
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  cursor: "pointer", color: "#fff",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <GitBranch size={14} color="#10b981" />
+                  <span style={{ fontSize: "13px", fontWeight: "600" }}>Structure</span>
+                  <span style={{
+                    background: "#10b98122", color: "#10b981",
+                    borderRadius: "10px", padding: "2px 8px",
+                    fontSize: "11px", fontWeight: "700",
+                  }}>
+                    {beatAnalysis.threads?.length ? `${beatAnalysis.threads.length}T / ${beatAnalysis.beats.length}B` : `${beatAnalysis.beats.length}B`}
+                  </span>
+                </div>
+                {structureOpen ? <ChevronUp size={16} color="#888" /> : <ChevronDown size={16} color="#888" />}
+              </button>
+              {structureOpen && (
+                <div style={{
+                  background: "#1E1E1E", border: "1px solid #333", borderTop: "none",
+                  borderRadius: "0 0 12px 12px", padding: "20px 24px",
+                }}>
+                  <BeatMapPanel beatAnalysis={beatAnalysis} />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Tab Navigation */}
           <div style={{ display: "flex", gap: "2px", marginBottom: "2px" }}>
             {[
-              ...(beatAnalysis ? [{ id: "structure", label: "Structure", icon: GitBranch, count: beatAnalysis.threads?.length ? `${beatAnalysis.threads.length}T / ${beatAnalysis.beats?.length || 0}B` : (beatAnalysis.beats?.length || 0), color: "#10b981" }] : []),
               { id: "long_form", label: "Long-Form", icon: Film, count: tabCounts.long_form, color: "#3b82f6" },
               { id: "short_form", label: "Short-Form", icon: Smartphone, count: tabCounts.short_form, color: "#ec4899" },
             ].map(t => (
@@ -1469,18 +1593,8 @@ export default function Atomizer({ activeClient }) {
             ))}
           </div>
 
-          {/* Tab Content — Structure (Beat Map) */}
-          {activeTab === "structure" && beatAnalysis && (
-            <div style={{
-              background: "#1E1E1E", border: "1px solid #333", borderTop: "none",
-              borderRadius: "0 0 12px 12px", padding: "20px 24px", marginBottom: "24px",
-            }}>
-              <BeatMapPanel beatAnalysis={beatAnalysis} />
-            </div>
-          )}
-
           {/* Tab Content — Direction Cards */}
-          {activeTab !== "structure" && (
+          {(
           <div style={{
             background: "#1E1E1E", border: "1px solid #333", borderTop: "none",
             borderRadius: "0 0 12px 12px", padding: "20px 24px", marginBottom: "24px",

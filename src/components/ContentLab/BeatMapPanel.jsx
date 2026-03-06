@@ -29,7 +29,7 @@ const WEIGHT_COLORS = {
   illustrative: { bg: "#6b728022", border: "#6b7280", text: "#9ca3af" },
 };
 
-const THREAD_COLORS = ["#3b82f6", "#ec4899", "#f59e0b", "#10b981", "#8b5cf6", "#06b6d4", "#f97316"];
+export const THREAD_COLORS = ["#3b82f6", "#ec4899", "#f59e0b", "#10b981", "#8b5cf6", "#06b6d4", "#f97316"];
 
 const INTERLEAVING_COLORS = { none: "#22c55e", mild: "#22c55e", moderate: "#f59e0b", heavy: "#ef4444" };
 
