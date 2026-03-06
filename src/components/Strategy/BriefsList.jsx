@@ -57,6 +57,31 @@ function CopyBtn({ fieldKey, text, copiedField, copyText }) {
   );
 }
 
+// ─── Direction-specific thread/beat filtering ───────────────────────────
+function getDirectionFlow(d) {
+  const meta = d.direction_metadata || {};
+  const threadRefs = meta.thread_refs;
+  const beatFlow = meta.beat_flow;
+
+  if (!threadRefs?.length || !d.threads?.length) {
+    return { threads: d.threads || [], beats: d.beats_summary || [], beatFlow: null, filtered: false };
+  }
+
+  const refIds = new Set(threadRefs.map(r => r.thread_id));
+  const threads = d.threads.filter(t => refIds.has(t.id)).map(t => {
+    const ref = threadRefs.find(r => r.thread_id === t.id);
+    return { ...t, directionRole: ref?.role || t.weight };
+  });
+
+  const beats = beatFlow?.length
+    ? beatFlow.map(id => d.beats_summary?.find(b => b.id === id)).filter(Boolean)
+    : d.beats_summary || [];
+
+  return { threads, beats, beatFlow, filtered: true, beatRoleCounts: meta.beat_role_counts, featuredHybrid: meta.featured_hybrid_beats };
+}
+
+function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ""; }
+
 // ─── Client markdown (clean, no AI branding) ───────────────────────────
 function buildClientMarkdown(brief) {
   const d = brief.brief_data || {};
@@ -64,7 +89,8 @@ function buildClientMarkdown(brief) {
   const lines = [];
 
   lines.push(brief.title || "Untitled");
-  if (meta.estimated_duration) lines.push(`Estimated Duration: ${meta.estimated_duration}`);
+  const subtitle = [meta.format_type, meta.estimated_duration].filter(Boolean).join(" | ");
+  if (subtitle) lines.push(subtitle);
   lines.push("");
 
   if (d.description) {
@@ -72,30 +98,30 @@ function buildClientMarkdown(brief) {
     lines.push("");
   }
 
-  // V3.1: Content Flow (thread-based structure)
-  if (d.threads?.length) {
-    lines.push("Content Flow");
-    lines.push("");
-    d.threads.forEach((t, i) => {
-      const beatTypes = d.beats_summary
-        ?.filter(b => t.beats?.includes(b.id))
-        .map(b => (b.beatType || "").replace(/_/g, " "))
-        .filter(Boolean) || [];
-      const beatFlow = beatTypes.length ? beatTypes.join(" \u2192 ") : "";
-      const weightLabel = t.weight === "primary" ? "primary" : t.weight;
-      lines.push(`${i + 1}. ${t.principle} (${weightLabel})`);
-      if (beatFlow) lines.push(`   ${beatFlow}`);
-      lines.push("");
-    });
-  }
-
   if (d.arc_summary || d.arc) {
-    lines.push("Theme");
+    lines.push("Creative Direction");
     lines.push(d.arc_summary || d.arc);
     lines.push("");
   }
 
-  const script = d.edited_transcript || (d.direction_metadata || {}).edited_transcript || d.transcript_excerpt;
+  // Direction-specific Story Structure
+  const flow = getDirectionFlow(d);
+  if (flow.threads.length) {
+    lines.push("Story Structure");
+    lines.push("");
+    flow.threads.forEach((t, i) => {
+      const role = t.directionRole || t.weight;
+      const beatTypes = flow.filtered && flow.beatFlow
+        ? flow.beats.filter(b => (t.beats || []).includes(b.id)).map(b => capitalize((b.beatType || "").replace(/_/g, " "))).filter(Boolean)
+        : (d.beats_summary || []).filter(b => (t.beats || []).includes(b.id)).map(b => capitalize((b.beatType || "").replace(/_/g, " "))).filter(Boolean);
+      const arrow = beatTypes.length ? beatTypes.join(" \u2192 ") : "";
+      lines.push(`${i + 1}. ${t.principle} (${role})`);
+      if (arrow) lines.push(`   ${arrow}`);
+      lines.push("");
+    });
+  }
+
+  const script = d.edited_transcript || meta.edited_transcript || d.transcript_excerpt;
   if (script) {
     lines.push("Script");
     lines.push(script);
@@ -112,51 +138,70 @@ function buildBriefMarkdown(brief, channelName) {
   const lines = [];
 
   lines.push(`# ${brief.title || "Untitled Brief"}`);
-  if (meta.format_type) lines.push(`Format: ${meta.format_type}`);
-  if (meta.estimated_duration) lines.push(`Duration: ${meta.estimated_duration}`);
+  const subtitle = [meta.format_type, meta.estimated_duration].filter(Boolean).join(" | ");
+  if (subtitle) lines.push(subtitle);
   lines.push("");
 
-  // V3.1: Subscores (editor-only, short-form)
+  // Scores (editor-only)
   if (d.subscores) {
+    const scores = [
+      d.subscores.overall != null ? `Overall: ${d.subscores.overall}/10` : "",
+      d.subscores.hookStrength != null ? `Hook: ${d.subscores.hookStrength}/10` : "",
+      d.subscores.emotionalPunch != null ? `Punch: ${d.subscores.emotionalPunch}/10` : "",
+      d.subscores.standaloneComprehensibility != null ? `Comprehensibility: ${d.subscores.standaloneComprehensibility}/10` : "",
+    ].filter(Boolean).join(" | ");
     lines.push("## Scores");
-    lines.push(`Overall: ${d.subscores.overall}/10`);
-    if (d.subscores.hookStrength != null) lines.push(`Hook Strength: ${d.subscores.hookStrength}/10`);
-    if (d.subscores.emotionalPunch != null) lines.push(`Emotional Punch: ${d.subscores.emotionalPunch}/10`);
-    if (d.subscores.standaloneComprehensibility != null) lines.push(`Standalone Comprehensibility: ${d.subscores.standaloneComprehensibility}/10`);
-    if (d.subscores.subscoreRationale) lines.push(`Rationale: ${d.subscores.subscoreRationale}`);
+    lines.push(scores);
+    if (d.subscores.subscoreRationale) lines.push(d.subscores.subscoreRationale);
     lines.push("");
   }
 
   if (d.hook) {
-    lines.push("## Hook");
+    lines.push("## Hook \u2014 Exact Words");
     lines.push(d.hook);
     lines.push("");
   }
 
   if (d.arc_summary || d.arc) {
-    lines.push("## Arc");
+    lines.push("## Creative Direction");
     lines.push(d.arc_summary || d.arc);
     lines.push("");
   }
 
-  // V3.1: Content Flow with completeness (editor sees full detail)
-  if (d.threads?.length) {
-    lines.push("## Content Flow");
-    d.threads.forEach((t, i) => {
-      const beatTypes = d.beats_summary
-        ?.filter(b => t.beats?.includes(b.id))
-        .map(b => (b.beatType || "").replace(/_/g, " "))
-        .filter(Boolean) || [];
-      const beatFlow = beatTypes.length ? beatTypes.join(" \u2192 ") : "";
-      lines.push(`${i + 1}. ${t.principle} (${t.weight})`);
-      if (beatFlow) lines.push(`   ${beatFlow}`);
+  // Direction-specific Story Structure with completeness
+  const flow = getDirectionFlow(d);
+  if (flow.threads.length) {
+    lines.push("## Story Structure");
+    flow.threads.forEach((t, i) => {
+      const role = t.directionRole || t.weight;
+      const beatTypes = flow.filtered && flow.beatFlow
+        ? flow.beats.filter(b => (t.beats || []).includes(b.id)).map(b => capitalize((b.beatType || "").replace(/_/g, " "))).filter(Boolean)
+        : (d.beats_summary || []).filter(b => (t.beats || []).includes(b.id)).map(b => capitalize((b.beatType || "").replace(/_/g, " "))).filter(Boolean);
+      const arrow = beatTypes.length ? beatTypes.join(" \u2192 ") : "";
+      lines.push(`${i + 1}. ${t.principle} (${role})`);
+      if (arrow) lines.push(`   ${arrow}`);
       if (t.completeness?.missing?.length) {
-        lines.push(`   Missing: ${t.completeness.missing.join(", ")}`);
+        lines.push(`   \u26A0 Missing: ${t.completeness.missing.join(", ")}`);
       }
       if (t.completeness?.assessment) {
         lines.push(`   ${t.completeness.assessment}`);
       }
     });
+    if (flow.beatRoleCounts) {
+      const parts = [];
+      if (flow.beatRoleCounts.content) parts.push(`${flow.beatRoleCounts.content} content`);
+      if (flow.beatRoleCounts.pacing) parts.push(`${flow.beatRoleCounts.pacing} pacing`);
+      if (flow.beatRoleCounts.hybrid) parts.push(`${flow.beatRoleCounts.hybrid} hybrid`);
+      if (flow.beatRoleCounts.transition) parts.push(`${flow.beatRoleCounts.transition} transition`);
+      if (parts.length) lines.push(`\u25C6 ${parts.join(" \u00B7 ")}`);
+    }
+    if (flow.featuredHybrid?.length) {
+      const names = flow.featuredHybrid.map(id => {
+        const b = (d.beats_summary || []).find(x => x.id === id);
+        return b?.displayName || id.replace(/_/g, " ");
+      }).join(", ");
+      lines.push(`\u2605 Featured: ${names}`);
+    }
     lines.push("");
   }
 
@@ -169,12 +214,11 @@ function buildBriefMarkdown(brief, channelName) {
   if (meta.edl?.length) {
     lines.push("## EDL");
     meta.edl.forEach((step, i) => {
-      lines.push(`${i + 1}. ${step.action || step.description || ""} — ${step.segment || ""} (${step.pacing || ""})`);
+      lines.push(`${i + 1}. ${step.action || step.description || ""} \u2014 ${step.segment || ""} (${step.pacing || ""})`);
     });
     lines.push("");
   }
 
-  // Visual directions (Stage 2 combined format)
   if (meta.visual_directions?.length) {
     lines.push("## Visual Directions");
     meta.visual_directions.forEach(vd => {
@@ -182,14 +226,13 @@ function buildBriefMarkdown(brief, channelName) {
       if (vd.b_roll) lines.push(`  B-Roll: ${vd.b_roll}`);
       if (vd.motion_graphics?.length) {
         vd.motion_graphics.forEach(mg => {
-          lines.push(`  ${mg.type || "graphic"}: ${mg.content || mg.description || ""}`);
+          lines.push(`  ${mg.type || "Graphic"}: ${mg.content || mg.description || ""}`);
         });
       }
     });
     lines.push("");
   }
 
-  // Legacy b-roll / motion graphics (V2 format fallback)
   if (!meta.visual_directions?.length && meta.b_roll?.length) {
     lines.push("## B-Roll");
     meta.b_roll.forEach(br => {
@@ -201,7 +244,7 @@ function buildBriefMarkdown(brief, channelName) {
   if (!meta.visual_directions?.length && meta.motion_graphics?.length) {
     lines.push("## Motion Graphics");
     meta.motion_graphics.forEach(mg => {
-      lines.push(`- ${mg.type || "graphic"} at ${mg.timecode || "—"}: ${mg.content || mg.description || ""}`);
+      lines.push(`- ${mg.type || "Graphic"} at ${mg.timecode || "\u2014"}: ${mg.content || mg.description || ""}`);
     });
     lines.push("");
   }
@@ -223,124 +266,164 @@ async function exportBriefPDF(brief, channelName) {
 
   const d = brief.brief_data || {};
   const meta = d.direction_metadata || {};
+  const flow = getDirectionFlow(d);
+
+  const label = (text) => `<div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">${text}</div>`;
+  const scoreColor = (v) => v >= 8 ? "#16a34a" : v >= 5 ? "#d97706" : "#dc2626";
+  const scoreBg = (v) => v >= 8 ? "#f0fdf4" : v >= 5 ? "#fefce8" : "#fef2f2";
 
   const sections = [];
 
-  // Header — title with format/duration badges
+  // 1. Header — title + metadata badges + score
+  const overallScore = d.subscores?.overall ?? d.virality_score;
   sections.push(`
-    <div style="margin-bottom:28px;">
+    <div style="margin-bottom:12px;">
       <div style="font-size:28px;font-weight:800;color:#1e293b;margin-bottom:8px;line-height:1.3;">${esc(brief.title || "Untitled Brief")}</div>
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-        ${meta.format_type ? `<span style="font-size:13px;font-weight:600;color:#b45309;background:#fef3c7;border-radius:6px;padding:3px 12px;">${esc(meta.format_type)}</span>` : ""}
+        ${meta.format_type ? `<span style="font-size:12px;font-weight:600;color:#b45309;background:#fef3c7;border-radius:6px;padding:3px 12px;">${esc(meta.format_type)}</span>` : ""}
         ${meta.estimated_duration ? `<span style="font-size:13px;color:#64748b;">${esc(meta.estimated_duration)}</span>` : ""}
+        ${overallScore != null ? `<span style="font-size:12px;font-weight:700;color:${scoreColor(overallScore)};background:${scoreBg(overallScore)};border-radius:6px;padding:3px 10px;">${overallScore}/10</span>` : ""}
       </div>
     </div>
+    <div style="border-bottom:1px solid #e2e8f0;margin-bottom:24px;"></div>
   `);
 
-  // V3.1: Subscores (editor PDF only)
+  // 2. Scores panel (editor-only)
   if (d.subscores) {
-    const scoreItems = [
-      d.subscores.overall != null ? `<span style="font-weight:700;color:#1e293b;">Overall: ${d.subscores.overall}/10</span>` : "",
-      d.subscores.hookStrength != null ? `Hook: ${d.subscores.hookStrength}/10` : "",
-      d.subscores.emotionalPunch != null ? `Punch: ${d.subscores.emotionalPunch}/10` : "",
-      d.subscores.standaloneComprehensibility != null ? `Comprehensibility: ${d.subscores.standaloneComprehensibility}/10` : "",
-    ].filter(Boolean).join(" &nbsp;|&nbsp; ");
+    const pills = [
+      d.subscores.overall != null ? { label: "Overall", value: d.subscores.overall } : null,
+      d.subscores.hookStrength != null ? { label: "Hook", value: d.subscores.hookStrength } : null,
+      d.subscores.emotionalPunch != null ? { label: "Punch", value: d.subscores.emotionalPunch } : null,
+      d.subscores.standaloneComprehensibility != null ? { label: "Clarity", value: d.subscores.standaloneComprehensibility } : null,
+    ].filter(Boolean).map(p =>
+      `<span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#334155;">
+        <span style="font-weight:600;color:#64748b;">${p.label}</span>
+        <span style="font-weight:700;color:${scoreColor(p.value)};background:${scoreBg(p.value)};border-radius:4px;padding:2px 8px;">${p.value}</span>
+      </span>`
+    ).join(`<span style="color:#d1d5db;margin:0 4px;">|</span>`);
+
     sections.push(`
-      <div style="margin-bottom:22px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Scores</div>
-        <div style="font-size:14px;color:#334155;">${scoreItems}</div>
-        ${d.subscores.subscoreRationale ? `<div style="font-size:12px;color:#64748b;margin-top:6px;">${esc(d.subscores.subscoreRationale)}</div>` : ""}
+      <div style="margin-bottom:24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;">
+        ${label("Scores")}
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">${pills}</div>
+        ${d.subscores.subscoreRationale ? `<div style="font-size:12px;color:#64748b;margin-top:8px;font-style:italic;">${esc(d.subscores.subscoreRationale)}</div>` : ""}
       </div>
     `);
   }
 
-  // Hook
+  // 3. Hook — exact words
   if (d.hook) {
     sections.push(`
-      <div style="margin-bottom:22px;border-left:4px solid #f59e0b;padding-left:16px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Hook</div>
-        <div style="font-size:15px;color:#1e293b;line-height:1.6;">${esc(d.hook)}</div>
+      <div style="margin-bottom:24px;border-left:4px solid #f59e0b;padding-left:16px;">
+        ${label("Hook \u2014 Exact Words")}
+        <div style="font-size:16px;font-weight:600;color:#1e293b;line-height:1.6;">${esc(d.hook)}</div>
       </div>
     `);
   }
 
-  // Arc
+  // 4. Creative Direction (arc)
   if (d.arc_summary || d.arc) {
     sections.push(`
-      <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Arc</div>
-        <div style="font-size:15px;color:#334155;line-height:1.6;">${esc(d.arc_summary || d.arc)}</div>
+      <div style="margin-bottom:24px;">
+        ${label("Creative Direction")}
+        <div style="font-size:15px;color:#334155;line-height:1.7;">${esc(d.arc_summary || d.arc)}</div>
       </div>
     `);
   }
 
-  // V3.1: Content Flow with completeness (editor PDF)
-  if (d.threads?.length) {
-    let flowHtml = `<div style="margin-bottom:22px;">
-      <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Content Flow</div>`;
+  // 5. Story Structure — direction-specific with completeness
+  if (flow.threads.length) {
+    let flowHtml = `<div style="margin-bottom:24px;">
+      ${label("Story Structure")}`;
 
-    d.threads.forEach((t, i) => {
-      const beatTypes = (d.beats_summary || [])
-        .filter(b => (t.beats || []).includes(b.id))
-        .map(b => esc((b.beatType || "").replace(/_/g, " ")))
-        .filter(Boolean);
-      const beatFlow = beatTypes.join(" &rarr; ");
-      const borderColor = t.weight === "primary" ? "#3b82f6" : t.weight === "supporting" ? "#f59e0b" : "#94a3b8";
+    flow.threads.forEach((t, i) => {
+      const role = t.directionRole || t.weight;
+      const beatTypes = flow.filtered && flow.beatFlow
+        ? flow.beats.filter(b => (t.beats || []).includes(b.id)).map(b => esc(capitalize((b.beatType || "").replace(/_/g, " ")))).filter(Boolean)
+        : (d.beats_summary || []).filter(b => (t.beats || []).includes(b.id)).map(b => esc(capitalize((b.beatType || "").replace(/_/g, " ")))).filter(Boolean);
+      const beatArrow = beatTypes.join(" &rarr; ");
+      const borderColor = role === "primary" ? "#3b82f6" : role === "supporting" ? "#f59e0b" : role === "featured" ? "#8b5cf6" : "#94a3b8";
+      const roleBg = role === "primary" ? "#dbeafe" : role === "supporting" ? "#fef3c7" : role === "featured" ? "#ede9fe" : "#f1f5f9";
+      const roleColor = role === "primary" ? "#1e40af" : role === "supporting" ? "#92400e" : role === "featured" ? "#5b21b6" : "#64748b";
 
-      flowHtml += `<div style="margin-bottom:10px;padding:8px 12px;background:#f8fafc;border-radius:6px;border-left:3px solid ${borderColor};">
-        <div style="font-size:13px;font-weight:600;color:#1e293b;">${i + 1}. ${esc(t.principle)}</div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px;">${esc(t.weight)}${beatFlow ? ` &mdash; ${beatFlow}` : ""}</div>
-        ${t.completeness?.missing?.length ? `<div style="font-size:11px;color:#dc2626;margin-top:3px;">Missing: ${esc(t.completeness.missing.join(", "))}</div>` : ""}
+      flowHtml += `<div style="margin-bottom:10px;padding:10px 14px;background:#f8fafc;border-radius:6px;border-left:4px solid ${borderColor};">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:3px;">
+          <span style="font-size:13px;font-weight:600;color:#1e293b;">${i + 1}. ${esc(t.principle)}</span>
+          <span style="font-size:9px;font-weight:700;color:${roleColor};background:${roleBg};border-radius:4px;padding:2px 8px;text-transform:uppercase;letter-spacing:0.05em;">${esc(role)}</span>
+        </div>
+        ${beatArrow ? `<div style="font-size:12px;color:#475569;margin-top:3px;">${beatArrow}</div>` : ""}
+        ${t.completeness?.missing?.length ? `<div style="font-size:11px;color:#dc2626;margin-top:4px;">\u26A0 Missing: ${esc(t.completeness.missing.join(", "))}</div>` : ""}
         ${t.completeness?.assessment ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">${esc(t.completeness.assessment)}</div>` : ""}
       </div>`;
     });
+
+    // Beat role summary
+    if (flow.beatRoleCounts) {
+      const parts = [];
+      if (flow.beatRoleCounts.content) parts.push(`<span style="color:#3b82f6;">${flow.beatRoleCounts.content}</span> content`);
+      if (flow.beatRoleCounts.pacing) parts.push(`<span style="color:#d97706;">${flow.beatRoleCounts.pacing}</span> pacing`);
+      if (flow.beatRoleCounts.hybrid) parts.push(`<span style="color:#8b5cf6;">${flow.beatRoleCounts.hybrid}</span> hybrid`);
+      if (flow.beatRoleCounts.transition) parts.push(`<span style="color:#6b7280;">${flow.beatRoleCounts.transition}</span> transition`);
+      if (parts.length) {
+        flowHtml += `<div style="font-size:12px;color:#64748b;margin-top:8px;">\u25C6 ${parts.join(" &middot; ")}</div>`;
+      }
+    }
+
+    // Featured hybrid beats (short-form)
+    if (flow.featuredHybrid?.length) {
+      const names = flow.featuredHybrid.map(id => {
+        const b = (d.beats_summary || []).find(x => x.id === id);
+        return esc(b?.displayName || id.replace(/_/g, " "));
+      }).join(", ");
+      flowHtml += `<div style="font-size:12px;color:#8b5cf6;margin-top:4px;">\u2605 Featured: ${names}</div>`;
+    }
 
     flowHtml += `</div>`;
     sections.push(flowHtml);
   }
 
-  // Edited Transcript
+  // 6. Edited Transcript
   if (d.edited_transcript) {
     sections.push(`
-      <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Edited Transcript</div>
+      <div style="margin-bottom:24px;">
+        ${label("Edited Transcript")}
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;font-size:14px;color:#334155;line-height:1.7;white-space:pre-wrap;">${esc(d.edited_transcript)}</div>
       </div>
     `);
   }
 
-  // EDL
+  // 7. EDL
   if (meta.edl?.length) {
     const edlRows = meta.edl.map((step, i) =>
-      `<div style="font-family:monospace;font-size:13px;color:#334155;margin-bottom:3px;line-height:1.5;">
-        <span style="color:#b45309;font-weight:700;">${i + 1}.</span> ${esc(step.action || step.description || "")} <span style="color:#94a3b8;">—</span> <span style="color:#2563eb;">${esc(step.segment || "")}</span> ${step.pacing ? `<span style="color:#94a3b8;">(${esc(step.pacing)})</span>` : ""}
+      `<div style="font-family:monospace;font-size:13px;color:#334155;margin-bottom:4px;line-height:1.5;">
+        <span style="color:#b45309;font-weight:700;">${i + 1}.</span> <span style="font-weight:600;">${esc(step.action || step.description || "")}</span> <span style="color:#94a3b8;">\u2014</span> <span style="color:#2563eb;">${esc(step.segment || "")}</span> ${step.pacing ? `<span style="color:#94a3b8;">(${esc(step.pacing)})</span>` : ""}
       </div>`
     ).join("");
     sections.push(`
-      <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">EDL</div>
+      <div style="margin-bottom:24px;">
+        ${label("EDL")}
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;">${edlRows}</div>
       </div>
     `);
   }
 
-  // Visual Directions (Stage 2 combined format)
+  // 8. Visual Directions (Stage 2 combined format)
   if (meta.visual_directions?.length) {
     const vdRows = meta.visual_directions.map(vd => {
-      let html = `<div style="font-size:14px;color:#334155;margin-bottom:8px;line-height:1.5;">
+      let html = `<div style="font-size:14px;color:#334155;margin-bottom:10px;line-height:1.5;">
         <span style="color:#0891b2;font-weight:600;">${esc(vd.segment || "")}</span>`;
       if (vd.b_roll) html += `<div style="margin-left:16px;margin-top:4px;"><span style="color:#64748b;font-weight:600;">B-Roll:</span> ${esc(vd.b_roll)}</div>`;
       if (vd.motion_graphics?.length) {
         vd.motion_graphics.forEach(mg => {
-          html += `<div style="margin-left:16px;margin-top:2px;"><span style="color:#7c3aed;font-weight:600;">${esc(mg.type || "Graphic")}:</span> ${esc(mg.content || mg.description || "")}</div>`;
+          html += `<div style="margin-left:16px;margin-top:3px;"><span style="color:#7c3aed;font-weight:600;">${esc(mg.type || "Graphic")}:</span> ${esc(mg.content || mg.description || "")}</div>`;
         });
       }
       html += `</div>`;
       return html;
     }).join("");
     sections.push(`
-      <div style="margin-bottom:22px;border-left:4px solid #06b6d4;padding-left:16px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Visual Directions</div>
+      <div style="margin-bottom:24px;border-left:4px solid #06b6d4;padding-left:16px;">
+        ${label("Visual Directions")}
         ${vdRows}
       </div>
     `);
@@ -354,8 +437,8 @@ async function exportBriefPDF(brief, channelName) {
       </div>`
     ).join("");
     sections.push(`
-      <div style="margin-bottom:22px;border-left:4px solid #06b6d4;padding-left:16px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">B-Roll</div>
+      <div style="margin-bottom:24px;border-left:4px solid #06b6d4;padding-left:16px;">
+        ${label("B-Roll")}
         ${brollRows}
       </div>
     `);
@@ -369,8 +452,8 @@ async function exportBriefPDF(brief, channelName) {
       </div>`
     ).join("");
     sections.push(`
-      <div style="margin-bottom:22px;border-left:4px solid #a855f7;padding-left:16px;">
-        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Motion Graphics</div>
+      <div style="margin-bottom:24px;border-left:4px solid #a855f7;padding-left:16px;">
+        ${label("Motion Graphics")}
         ${mfxRows}
       </div>
     `);
@@ -432,43 +515,64 @@ async function exportClientPDF(brief) {
 
   const d = brief.brief_data || {};
   const meta = d.direction_metadata || {};
+  const flow = getDirectionFlow(d);
+
+  const label = (text) => `<div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">${text}</div>`;
 
   const sections = [];
 
-  // Title + duration — clean, prominent
+  // 1. Title + format badge + duration
   sections.push(`
-    <div style="margin-bottom:32px;">
-      <div style="font-size:30px;font-weight:700;color:#1e293b;line-height:1.3;">${esc(brief.title || "Untitled")}</div>
-      ${meta.estimated_duration ? `<div style="font-size:14px;color:#64748b;margin-top:8px;">Estimated Duration: ${esc(meta.estimated_duration)}</div>` : ""}
+    <div style="margin-bottom:12px;">
+      <div style="font-size:32px;font-weight:700;color:#1e293b;line-height:1.3;">${esc(brief.title || "Untitled")}</div>
+      <div style="display:flex;gap:12px;align-items:center;margin-top:10px;">
+        ${meta.format_type ? `<span style="font-size:12px;font-weight:600;color:#1e40af;background:#dbeafe;border-radius:6px;padding:4px 12px;">${esc(meta.format_type)}</span>` : ""}
+        ${meta.estimated_duration ? `<span style="font-size:13px;color:#64748b;">${esc(meta.estimated_duration)}</span>` : ""}
+      </div>
     </div>
+    <div style="border-bottom:1px solid #e2e8f0;margin-bottom:32px;"></div>
   `);
 
-  // Description — flows naturally after title
+  // 2. Description
   if (d.description) {
     sections.push(`
-      <div style="margin-bottom:28px;">
+      <div style="margin-bottom:32px;">
         <div style="font-size:15px;color:#334155;line-height:1.8;white-space:pre-wrap;">${esc(d.description)}</div>
       </div>
     `);
   }
 
-  // V3.1: Content Flow (thread-based structure)
-  if (d.threads?.length) {
-    let flowHtml = `<div style="margin-bottom:28px;">
-      <div style="font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Content Flow</div>`;
+  // 3. Creative Direction (arc)
+  if (d.arc_summary || d.arc) {
+    sections.push(`
+      <div style="margin-bottom:32px;border-left:3px solid #3b82f6;padding-left:16px;">
+        ${label("Creative Direction")}
+        <div style="font-size:15px;color:#334155;line-height:1.8;">${esc(d.arc_summary || d.arc)}</div>
+      </div>
+    `);
+  }
 
-    d.threads.forEach((t, i) => {
-      const beatTypes = (d.beats_summary || [])
-        .filter(b => (t.beats || []).includes(b.id))
-        .map(b => esc((b.beatType || "").replace(/_/g, " ")))
-        .filter(Boolean);
-      const beatFlow = beatTypes.join(" &rarr; ");
-      const borderColor = t.weight === "primary" ? "#3b82f6" : t.weight === "supporting" ? "#f59e0b" : "#94a3b8";
+  // 4. Story Structure (direction-specific)
+  if (flow.threads.length) {
+    let flowHtml = `<div style="margin-bottom:32px;">
+      ${label("Story Structure")}`;
 
-      flowHtml += `<div style="margin-bottom:12px;padding:10px 14px;background:#f8fafc;border-radius:6px;border-left:3px solid ${borderColor};">
-        <div style="font-size:14px;font-weight:600;color:#1e293b;">${i + 1}. ${esc(t.principle)}</div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px;">${esc(t.weight)}</div>
-        ${beatFlow ? `<div style="font-size:12px;color:#475569;margin-top:6px;">${beatFlow}</div>` : ""}
+    flow.threads.forEach((t, i) => {
+      const role = t.directionRole || t.weight;
+      const beatTypes = flow.filtered && flow.beatFlow
+        ? flow.beats.filter(b => (t.beats || []).includes(b.id)).map(b => esc(capitalize((b.beatType || "").replace(/_/g, " ")))).filter(Boolean)
+        : (d.beats_summary || []).filter(b => (t.beats || []).includes(b.id)).map(b => esc(capitalize((b.beatType || "").replace(/_/g, " ")))).filter(Boolean);
+      const beatArrow = beatTypes.join(" &rarr; ");
+      const borderColor = role === "primary" ? "#3b82f6" : role === "supporting" ? "#f59e0b" : role === "featured" ? "#8b5cf6" : "#94a3b8";
+      const roleBg = role === "primary" ? "#dbeafe" : role === "supporting" ? "#fef3c7" : role === "featured" ? "#ede9fe" : "#f1f5f9";
+      const roleColor = role === "primary" ? "#1e40af" : role === "supporting" ? "#92400e" : role === "featured" ? "#5b21b6" : "#64748b";
+
+      flowHtml += `<div style="margin-bottom:12px;padding:12px 16px;background:#f8fafc;border-radius:8px;border-left:4px solid ${borderColor};">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+          <span style="font-size:14px;font-weight:600;color:#1e293b;">${i + 1}. ${esc(t.principle)}</span>
+          <span style="font-size:9px;font-weight:700;color:${roleColor};background:${roleBg};border-radius:4px;padding:2px 8px;text-transform:uppercase;letter-spacing:0.05em;">${esc(role)}</span>
+        </div>
+        ${beatArrow ? `<div style="font-size:13px;color:#475569;margin-top:4px;">${beatArrow}</div>` : ""}
       </div>`;
     });
 
@@ -476,28 +580,25 @@ async function exportClientPDF(brief) {
     sections.push(flowHtml);
   }
 
-  // Theme
-  if (d.arc_summary || d.arc) {
-    sections.push(`
-      <div style="margin-bottom:28px;">
-        <div style="font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Theme</div>
-        <div style="font-size:15px;color:#334155;line-height:1.8;">${esc(d.arc_summary || d.arc)}</div>
-      </div>
-    `);
-  }
-
-  // Script — check brief_data, then direction_metadata, then transcript_excerpt
-  const clientScript = d.edited_transcript || (d.direction_metadata || {}).edited_transcript || d.transcript_excerpt;
+  // 5. Script
+  const clientScript = d.edited_transcript || meta.edited_transcript || d.transcript_excerpt;
   if (clientScript) {
     sections.push(`
-      <div style="margin-bottom:28px;">
-        <div style="font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Script</div>
-        <div style="font-size:14px;color:#334155;line-height:1.9;white-space:pre-wrap;">${esc(clientScript)}</div>
+      <div style="margin-bottom:32px;">
+        ${label("Script")}
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;font-size:14px;color:#334155;line-height:1.9;white-space:pre-wrap;">${esc(clientScript)}</div>
       </div>
     `);
   }
 
-  // Build container — no footer
+  // 6. Footer
+  sections.push(`
+    <div style="border-top:1px solid #e2e8f0;padding-top:16px;margin-top:16px;">
+      <div style="font-size:11px;color:#94a3b8;">Prepared by Full View Studio</div>
+    </div>
+  `);
+
+  // Build container
   const container = document.createElement("div");
   container.style.position = "absolute";
   container.style.left = "-9999px";
