@@ -250,6 +250,9 @@ async function loadChannelData(channel) {
       subscribers: video.subscribers_gained,
       watchHours: video.watch_hours,
       channel: contentSource,
+      isCollaboration: video.is_collaboration || false,
+      collabRole: video.collaboration_role || null,
+      collabChannel: video.collaboration_host_channel_title || null,
     };
   };
 

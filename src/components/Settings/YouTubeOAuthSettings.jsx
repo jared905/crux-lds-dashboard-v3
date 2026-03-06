@@ -546,6 +546,41 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
         console.warn('[Sync] Analytics sync failed:', analyticsError.message);
       }
 
+      // Step 4: Discover collaboration videos (videos where this channel is a guest collaborator)
+      setSyncStatus(prev => ({
+        ...prev,
+        [connection.id]: { stage: 'collabs', message: 'Checking for collaborations...' }
+      }));
+
+      try {
+        const collabToken = await youtubeOAuthService.getAuthToken();
+        const collabResponse = await fetch('/api/youtube-collab-discovery', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${collabToken}`
+          },
+          body: JSON.stringify({ connectionId: connection.id, save: true })
+        });
+
+        const collabResult = await collabResponse.json();
+        console.log('[Sync] Collab discovery result:', JSON.stringify(collabResult, null, 2));
+
+        if (collabResult.success) {
+          const guestCount = collabResult.guestCollabs?.length || 0;
+          const hostCount = collabResult.hostCollabs?.length || 0;
+          const totalCollabs = guestCount + hostCount;
+          if (totalCollabs > 0) {
+            const parts = [];
+            if (guestCount > 0) parts.push(`${guestCount} guest`);
+            if (hostCount > 0) parts.push(`${hostCount} hosted`);
+            summaryParts.push(`${parts.join(' + ')} collab${totalCollabs !== 1 ? 's' : ''}`);
+          }
+        }
+      } catch (collabError) {
+        console.warn('[Sync] Collab discovery failed:', collabError.message);
+      }
+
       // Success!
       const now = new Date();
       setLastSynced(prev => ({ ...prev, [connection.id]: now }));

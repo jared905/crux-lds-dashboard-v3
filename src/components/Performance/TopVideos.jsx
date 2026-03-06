@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   Smartphone, MonitorPlay, Eye,
-  Percent, MousePointerClick, UserPlus, Clock, ExternalLink, ChevronDown, ChevronUp
+  Percent, MousePointerClick, UserPlus, Clock, ExternalLink, ChevronDown, ChevronUp, Users
 } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/utils";
 import { getYouTubeThumbnailUrl } from "../../lib/schema";
@@ -370,6 +370,40 @@ export default function TopVideos({ rows, n = 10 }) {
                       {isShort ? <Smartphone size={11} /> : <MonitorPlay size={11} />}
                       {isShort ? "Short" : "Long"}
                     </div>
+
+                    {video.isCollaboration && (() => {
+                      const isHost = video.collabRole === 'host';
+                      const roleLabel = isHost ? 'Host' : 'Guest';
+                      const partnerLabel = video.collabChannel
+                        ? (isHost ? `w/ ${video.collabChannel}` : `on ${video.collabChannel}`)
+                        : '';
+                      return (
+                        <>
+                          <span style={{color: "#666"}}>•</span>
+                          <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            backgroundColor: isHost ? "rgba(34, 197, 94, 0.15)" : "rgba(168, 85, 247, 0.15)",
+                            padding: "3px 8px",
+                            borderRadius: "4px",
+                            color: isHost ? "#4ade80" : "#c084fc",
+                            fontSize: "10px",
+                            fontWeight: "700",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                            border: isHost ? "1px solid rgba(34, 197, 94, 0.3)" : "1px solid rgba(168, 85, 247, 0.3)",
+                          }}
+                            title={video.collabChannel
+                              ? `${roleLabel} collaboration ${isHost ? 'with' : 'on'} ${video.collabChannel}`
+                              : `${roleLabel} collaboration`}
+                          >
+                            <Users size={11} />
+                            {roleLabel}{partnerLabel ? ` · ${partnerLabel}` : ''}
+                          </div>
+                        </>
+                      );
+                    })()}
 
                     <span style={{color: "#666"}}>•</span>
 

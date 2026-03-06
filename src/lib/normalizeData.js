@@ -111,6 +111,9 @@ export function normalizeData(rawData) {
       thumbnailUrl,
       youtubeUrl,
       isTotal,
+      isCollaboration: r.isCollaboration || false,
+      collabRole: r.collabRole || null,
+      collabChannel: r.collabChannel || null,
     };
   });
 
