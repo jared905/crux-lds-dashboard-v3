@@ -1,12 +1,14 @@
 /**
- * Atomizer Service — V3
+ * Atomizer Service — V3.1 (Thread-Based Architecture)
  * Full View Analytics - Crux Media
  *
- * Four-stage architecture:
- *   Stage 0 — Beat analysis: structural deconstruction, emotional arc, diagnosis
- *   Stage 1 — Direction discovery: beat-aware long-form & short-form edit directions
- *   Stage 2 — Production package: edited transcript, EDL, visual directions per direction
- *   Stage 3 — Recut (optional): beat reordering with edit instructions
+ * Five-stage architecture:
+ *   Stage 0a — segmentBeats():      form-based beat identification (vocabulary palette)
+ *              validateBeatSegmentation(): deterministic check (no AI)
+ *   Stage 0b — analyzeThreads():    intent-based thread/principle identification
+ *   Stage 1  — generateStrategy():  thread-aware direction discovery
+ *   Stage 2  — deployDirection():   production package per direction (unchanged)
+ *   Stage 3  — generateRecut():     cluster-level recuts (optional)
  *
  * Results stored in Supabase (transcripts, atomized_content, briefs tables).
  */
@@ -203,13 +205,16 @@ CRITICAL RULES:
 
 DO NOT include EDL, B-roll, motion graphics, timestamps, or edited transcript — those are generated separately after a direction is chosen.
 
-BEAT-AWARE INSTRUCTIONS (if beat analysis is provided):
-- Reference specific beat IDs in your arc_summary fields (e.g., "Opens with personal_testimony_1, builds through evidence_2, closes with call_to_action").
+THREAD-AWARE INSTRUCTIONS (if beat analysis with threads is provided):
+- Reference THREAD PRINCIPLES in your arc_summary fields (e.g., "Opens with the divine_timing principle — story_1 into scripture_1, builds through faith_action, closes with testimony").
 - Use the hook analysis to inform your hook selection — if the best hook candidate differs from beat 1, consider using it.
 - Address at least one priority fix from the structural diagnosis in your directions.
+- For long-form directions, indicate which threads are included and in what order.
 - For SHORT-FORM directions, produce a "subscores" object instead of a single virality_score:
   { "standaloneComprehensibility": 8, "emotionalPunch": 7, "hookStrength": 9, "overall": 8, "subscoreRationale": "Brief explanation of scores" }
   The "overall" subscore replaces virality_score for short-form when beats are available.
+- Short-form clips should ideally pull from a single thread cluster — standalone comprehensibility suffers when a clip spans multiple unrelated threads.
+- Hybrid beats (beatRole = "hybrid") are excellent short-form candidates — they are both accessible and substantive.
 - If no beat analysis is provided, ignore these instructions and produce directions normally.
 
 Respond with ONLY a JSON object (no markdown, no code fences) in this exact format:
@@ -304,53 +309,63 @@ Respond with ONLY a JSON object (no markdown, no code fences):
 }`;
 
 // ============================================
-// STAGE 0: BEAT ANALYSIS PROMPT
+// V3.1: BEAT TYPE VOCABULARY & THREAD COMPLETENESS
 // ============================================
 
-const ATOMIZER_BEAT_ANALYSIS_PROMPT = `You are a narrative structure analyst for YouTube content. Your job is to deconstruct a transcript into its fundamental narrative BEATS — the structural building blocks that make up the content's flow.
+const BEAT_TYPE_VOCABULARY = {
+  faith: ['hook', 'story', 'scripture', 'doctrine', 'application', 'testimony', 'transition', 'invitation', 'humor', 'context'],
+  brand: ['pattern_interrupt', 'problem', 'solution', 'proof', 'offer', 'cta', 'transition', 'humor'],
+  thought_leadership: ['provocative_opening', 'thesis', 'evidence', 'counterargument', 'synthesis', 'invitation', 'transition'],
+  documentary: ['cold_open', 'context', 'inciting_incident', 'rising_action', 'climax', 'resolution', 'epilogue', 'transition'],
+};
+
+const THREAD_COMPLETENESS_CRITERIA = {
+  faith: { required: ['story', 'application'], either: [['scripture', 'doctrine'], ['testimony']], label: 'well-grounded' },
+  brand: { required: ['problem', 'solution', 'proof'], label: 'complete argument' },
+  thought_leadership: { required: ['thesis', 'evidence', 'synthesis'], label: 'rigorous' },
+  documentary: { required: ['context', 'rising_action', 'resolution'], label: 'complete narrative' },
+};
+
+// ============================================
+// STAGE 0a: SEGMENT BEATS PROMPT
+// ============================================
+
+const SEGMENT_BEATS_PROMPT = `You are a narrative structure analyst for YouTube content. Your job is to segment a transcript into its fundamental narrative BEATS — the structural building blocks that make up the content's flow.
+
+This is FORM-BASED analysis only. Identify WHAT each beat IS (story, scripture, humor, etc.), not what principle it teaches. Thread/principle analysis happens separately.
 
 STEP 1: AUTO-DETECT CONTENT TYPE
 Classify the content as one of: faith, brand, thought_leadership, documentary.
 Provide a confidence score (0.0 - 1.0).
 
-Each content type has a "beat DNA" — the ideal structural template:
+STEP 2: BEAT TYPE VOCABULARY
+These are a PALETTE, not a sequence. A talk may have three "story" beats and zero "testimony" beats. Use ONLY these types for the detected content type:
 
-FAITH: opening_hook → scripture_or_teaching → personal_testimony → application → call_to_action
-BRAND: pattern_interrupt → problem_statement → solution_reveal → social_proof → offer → cta
-THOUGHT LEADERSHIP: provocative_opening → thesis → evidence → counterargument → synthesis → call_to_action
-DOCUMENTARY: cold_open → context_setup → inciting_incident → rising_action → climax → resolution → epilogue
+- faith: hook, story, scripture, doctrine, application, testimony, transition, invitation, humor, context
+- brand: pattern_interrupt, problem, solution, proof, offer, cta, transition, humor
+- thought_leadership: provocative_opening, thesis, evidence, counterargument, synthesis, invitation, transition
+- documentary: cold_open, context, inciting_incident, rising_action, climax, resolution, epilogue, transition
 
-STEP 2: IDENTIFY BEATS
-Find 5-10 narrative beats in the transcript. For each beat, provide:
-- id: snake_case identifier (e.g., "opening_hook", "personal_testimony_1")
-- label: The beat DNA label this maps to (from the template above), or "custom" if it doesn't fit
-- displayName: Human-readable name (e.g., "Opening Hook — The Question")
-- startApprox: Approximate position in transcript (e.g., "Opening paragraph", "~2:30", "Middle third")
+STEP 3: SEGMENT BEATS
+Find all narrative beats in the transcript (typically 5-20 depending on length). For each beat, provide:
+- id: snake_case with number suffix (e.g., "story_1", "scripture_2", "humor_1")
+- beatType: One of the vocabulary types above
+- beatRole: One of:
+  - "content" — substantive beat that carries meaning (a story, a teaching, a scripture reading)
+  - "pacing" — pure energy management (a joke that's ONLY a joke, a pause, a musical moment). These beats do NOT carry substantive content — they manage audience energy.
+  - "hybrid" — simultaneously entertaining AND substantive. The humor IS the illustration. The funny story IS the principle being taught. These are the beats where the speaker earns a laugh AND makes their point in the same breath. Hybrid beats are valuable short-form candidates because they are both accessible and substantive.
+  - "transition" — connective tissue between sections. Bridges, recaps, "let me shift to..."
+- displayName: Human-readable name (e.g., "Personal Story — The Car Accident")
+- startApprox: Approximate position (e.g., "Opening paragraph", "~2:30", "Middle third")
 - endApprox: Approximate end position
+- approximateWordCount: Rough word count for this beat (REQUIRED — used for validation)
 - emotionalIntensity: 1-5 scale (1=neutral, 3=engaged, 5=peak emotion)
-- emotionalQuality: The dominant emotion (e.g., "curiosity", "vulnerability", "conviction", "humor", "tension")
+- emotionalQuality: Dominant emotion (e.g., "curiosity", "vulnerability", "conviction", "humor", "tension")
 - structuralStrength: "strong", "moderate", or "weak"
 - summary: 1-2 sentence description of what happens in this beat
 - productionNotes: { musicMood, musicTempo, brollSuggestions (array of 2-3 specific stock footage descriptions), pacing }
 - weaknessFlags: Array of issues (e.g., ["too long", "weak transition", "buried hook"]) — empty array if none
 - remediationSuggestion: How to fix weakness (null if no flags)
-
-STEP 3: EMOTIONAL ARC ANALYSIS
-- peakBeat: ID of the highest-intensity beat
-- valleyBeat: ID of the lowest-intensity beat
-- arcShape: One of "mountain" (builds to peak then resolves), "flat" (even intensity), "rising" (builds throughout), "late_peak" (slow start, strong finish), "erratic" (inconsistent), "double_peak" (two climaxes)
-- arcAnalysis: 2-3 sentences on the emotional journey and its effectiveness
-
-STEP 4: HOOK ANALYSIS
-- currentHookStrength: 1-10 rating of beat_1 as a hook
-- bestHookCandidate: ID of the beat that would make the strongest opening
-- reorderRecommendation: If bestHookCandidate != first beat, explain why reordering would improve the content
-
-STEP 5: STRUCTURAL DIAGNOSIS
-- missingBeats: Beats from the content type's DNA template that are absent, with severity ("critical", "recommended", "optional") and remediation suggestion
-- weakBeats: IDs of beats with structuralStrength = "weak"
-- strongBeats: IDs of beats with structuralStrength = "strong"
-- priorityFixes: 2-4 numbered action items, most impactful first
 
 Respond with ONLY a JSON object (no markdown, no code fences):
 {
@@ -358,11 +373,13 @@ Respond with ONLY a JSON object (no markdown, no code fences):
   "content_type_confidence": 0.85,
   "beats": [
     {
-      "id": "opening_hook",
-      "label": "opening_hook",
+      "id": "hook_1",
+      "beatType": "hook",
+      "beatRole": "content",
       "displayName": "Opening Hook — The Question",
       "startApprox": "Opening paragraph",
       "endApprox": "~1:00",
+      "approximateWordCount": 150,
       "emotionalIntensity": 3,
       "emotionalQuality": "curiosity",
       "structuralStrength": "moderate",
@@ -373,102 +390,217 @@ Respond with ONLY a JSON object (no markdown, no code fences):
         "brollSuggestions": ["close-up of person looking thoughtful at window, natural light", "aerial shot of empty church pews", "hands clasped in prayer, shallow depth of field"],
         "pacing": "measured, let the question land"
       },
-      "weaknessFlags": ["could be more provocative"],
-      "remediationSuggestion": "Consider opening with the personal story from beat 3 instead — stronger emotional hook."
+      "weaknessFlags": [],
+      "remediationSuggestion": null
+    }
+  ]
+}
+
+CRITICAL:
+- Beats must be in CHRONOLOGICAL ORDER as they appear in the transcript.
+- Beats must cover the ENTIRE transcript — no gaps. Every word in the transcript should belong to a beat.
+- Every beat MUST have an approximateWordCount (this is validated).
+- emotionalIntensity must accurately reflect the transcript content — don't inflate scores.
+- weaknessFlags should be honest and actionable, not generic praise.
+- beatRole "hybrid" is specifically for beats that serve dual purpose (the humor IS the illustration, the funny story IS the teaching). Do NOT mark all humorous content beats as hybrid — only those where entertainment and substance are inseparable.
+- If the transcript lacks timecodes, use descriptive positions (beginning/middle/end, paragraph references).`;
+
+// ============================================
+// STAGE 0b: ANALYZE THREADS PROMPT
+// ============================================
+
+const ANALYZE_THREADS_PROMPT = `You are a seminary teacher reviewing a lesson plan. Your job is to identify the PRINCIPLES being taught and how the structural beats serve those principles. Think like an instructor identifying lesson objectives, not an editor identifying shot types.
+
+You will receive a list of segmented beats from a transcript, along with the detected content type. The beats tell you WHAT is in the transcript (stories, scriptures, teachings, etc.). Your job is to identify WHY — what principles or arguments these beats collectively build.
+
+STEP 1: IDENTIFY THREADS
+A "thread" is a principle, argument, or narrative arc that one or more beats serve. Most talks have 2-5 threads. For each thread:
+- id: snake_case (e.g., "divine_timing", "faith_requires_action")
+- principle: 1-sentence statement of the core idea
+- weight: "primary" (load-bearing — the whole talk orbits this principle), "supporting" (reinforces or extends the primary), "illustrative" (standalone example, tangent, or aside)
+- beats: array of beat IDs that serve this thread
+
+STEP 2: ASSESS THREAD COMPLETENESS
+For each thread, evaluate whether it has the beat types needed to be well-developed.
+
+THREAD_COMPLETENESS_CRITERIA:
+{COMPLETENESS_CRITERIA}
+
+For each thread, report:
+- has: array of beat types present (e.g., ["story", "scripture", "doctrine"])
+- missing: array of beat types that would strengthen this thread
+- assessment: 1-sentence evaluation (e.g., "Strong theological grounding but lacks practical application")
+
+STEP 3: ASSIGN BEATS TO THREADS
+For EACH beat from the input, provide:
+- beatId: the beat's id
+- threads: array of thread IDs this beat serves (beats CAN serve multiple threads — bridge beats, testimony beats, and humor releases often complete one thread while planting seeds for the next)
+- primaryThread: the main thread this beat serves (or null for pure pacing/transition beats with no thread)
+- threadConfidence: 0.0-1.0 — how certain you are about this assignment. Low confidence (< 0.7) means this beat's thread membership is ambiguous and an editor should make the judgment call. Surface this uncertainty rather than hiding it.
+
+STEP 4: DETECT INTERLEAVING
+Analyze whether threads are delivered sequentially (one at a time) or interleaved (woven together).
+- detected: boolean
+- severity: "none" (threads delivered sequentially), "mild" (minor overlap at boundaries), "moderate" (threads share a region), "heavy" (threads are continuously interwoven throughout)
+- details: explanation of where and how threads interleave
+
+STEP 5: EMOTIONAL ARC ANALYSIS
+- peakBeat: ID of the highest-intensity beat
+- valleyBeat: ID of the lowest-intensity beat
+- arcShape: One of "mountain" (builds to peak then resolves), "flat" (even intensity), "rising" (builds throughout), "late_peak" (slow start, strong finish), "erratic" (inconsistent), "double_peak" (two climaxes)
+- arcAnalysis: 2-3 sentences on the emotional journey and its effectiveness
+
+STEP 6: HOOK ANALYSIS
+- currentHookStrength: 1-10 rating of the first beat as a hook
+- bestHookCandidate: ID of the beat that would make the strongest opening
+- reorderRecommendation: If bestHookCandidate != first beat, explain why reordering would improve the content
+
+STEP 7: STRUCTURAL DIAGNOSIS
+Thread-aware diagnosis:
+- weightInversions: Flag when a supporting/illustrative thread gets more beats or development time than the primary thread
+- incompleteThreads: Threads missing required beat types for their content type
+- ambiguousBeats: Beats with threadConfidence < 0.7 that need editor judgment
+- weakBeats: IDs of beats with structuralStrength = "weak"
+- strongBeats: IDs of beats with structuralStrength = "strong"
+- priorityFixes: 2-4 numbered action items, most impactful first
+
+Respond with ONLY a JSON object (no markdown, no code fences):
+{
+  "threads": [
+    {
+      "id": "divine_timing",
+      "principle": "God's timing often differs from our expectations, and that's part of the plan",
+      "weight": "primary",
+      "beats": ["story_1", "scripture_1", "doctrine_1", "humor_1"],
+      "completeness": {
+        "has": ["story", "scripture", "doctrine", "humor"],
+        "missing": ["application"],
+        "assessment": "Strong theological grounding with effective emotional engagement, but lacks practical application the audience can take home."
+      }
     }
   ],
+  "beat_thread_assignments": [
+    {
+      "beatId": "story_1",
+      "threads": ["divine_timing"],
+      "primaryThread": "divine_timing",
+      "threadConfidence": 0.95
+    },
+    {
+      "beatId": "humor_1",
+      "threads": ["divine_timing", "faith_action"],
+      "primaryThread": "divine_timing",
+      "threadConfidence": 0.7
+    }
+  ],
+  "interleaving": {
+    "detected": false,
+    "severity": "none",
+    "details": "Threads are delivered sequentially — divine_timing occupies the first two-thirds, faith_action the final third."
+  },
   "emotional_arc": {
-    "peakBeat": "personal_testimony_1",
-    "valleyBeat": "context_setup",
+    "peakBeat": "testimony_1",
+    "valleyBeat": "context_1",
     "arcShape": "mountain",
-    "arcAnalysis": "The content builds effectively from curiosity through teaching to an emotional peak during the personal testimony, then resolves with practical application. The arc is well-structured but the opening could be stronger."
+    "arcAnalysis": "Builds effectively from curiosity through teaching to emotional peak at testimony, then resolves. Well-structured but opening could be stronger."
   },
   "hook_analysis": {
     "currentHookStrength": 5,
-    "bestHookCandidate": "personal_testimony_1",
-    "reorderRecommendation": "The personal story at beat 3 has far more emotional pull than the current opening question. Starting with 'I never thought I'd be standing here after what happened...' would immediately hook viewers and create a reason to watch."
+    "bestHookCandidate": "story_1",
+    "reorderRecommendation": "The personal story has far more emotional pull than the current context opening."
   },
   "structural_diagnosis": {
-    "missingBeats": [
-      { "beat": "counterargument", "severity": "recommended", "remediation": "Adding a moment of doubt or opposing view before the call to action would make the message more credible and relatable." }
+    "weightInversions": [],
+    "incompleteThreads": [
+      { "threadId": "divine_timing", "missing": ["application"], "severity": "recommended" }
     ],
-    "weakBeats": ["opening_hook"],
-    "strongBeats": ["personal_testimony_1", "call_to_action"],
+    "ambiguousBeats": ["humor_1"],
+    "weakBeats": ["context_1"],
+    "strongBeats": ["story_1", "testimony_1"],
     "priorityFixes": [
-      "1. Reorder: Move personal testimony to open — strongest emotional hook",
-      "2. Add tension: Insert a brief counterargument before the application section",
-      "3. Trim context: The teaching section runs long — tighten to key points only",
-      "4. Strengthen transition from testimony to application — currently feels abrupt"
+      "1. Add application: divine_timing thread lacks practical takeaway — the audience hears the principle but doesn't know what to do with it",
+      "2. Strengthen opening: current context beat is neutral — consider reordering to lead with story_1",
+      "3. Resolve humor_1 ambiguity: this beat bridges two threads — editor should decide primary placement"
     ]
   }
 }
 
 CRITICAL:
-- Beats must be in chronological order as they appear in the transcript.
-- emotionalIntensity must accurately reflect the transcript content — don't inflate scores.
-- weaknessFlags should be honest and actionable, not generic praise.
-- Every beat DNA template beat that is ABSENT from the transcript should appear in missingBeats.
-- If the transcript lacks timecodes, use descriptive positions (beginning/middle/end, paragraph references).`;
+- Every beat from the input MUST appear in beat_thread_assignments — do not skip any.
+- threadConfidence must be honest. If a beat genuinely could belong to either thread, say 0.5-0.6, not 0.9.
+- weight classification matters: "primary" means the talk would collapse without this thread. Most talks have exactly ONE primary thread.
+- Completeness assessment must reference the content type's criteria, not generic standards.
+- weightInversions should flag when supporting threads get disproportionate development vs the primary.`;
 
 // ============================================
-// RECUT PROMPT (Stage 3)
+// RECUT PROMPT (Stage 3 — Cluster-Level)
 // ============================================
 
 const ATOMIZER_RECUT_PROMPT = `You are a YouTube editor creating a RECUT plan — a proposed reordering of transcript beats to improve narrative flow, hook strength, and viewer retention.
 
 You will receive:
-1. The BEAT ANALYSIS (structural beats with IDs, emotional intensity, diagnosis)
+1. The BEAT ANALYSIS with THREADS (structural beats grouped into principle-based threads)
 2. A CHOSEN DIRECTION (from Stage 1 — title, hook, arc)
 3. The ORIGINAL TRANSCRIPT
 
-Your job is to propose a specific beat reordering with edit instructions.
+Your job is to propose beat reordering with edit instructions. Think in THREAD CLUSTERS, not individual beats.
 
 Respond with ONLY a JSON object (no markdown, no code fences):
 {
   "original_sequence": ["beat_id_1", "beat_id_2", "beat_id_3"],
   "proposed_sequence": ["beat_id_3", "beat_id_1", "beat_id_2"],
-  "moves": [
+  "cluster_moves": [
     {
-      "action": "move_to_open",
-      "beatId": "personal_testimony_1",
-      "rationale": "Strongest emotional hook — moves from position 3 to open",
-      "transitionNote": "Cold open on this beat, then transition to context with 'But let me back up...'"
+      "action": "move_cluster",
+      "threadId": "divine_timing",
+      "beats": ["story_1", "scripture_1", "doctrine_1"],
+      "from_position": "beats 3-5 (middle section)",
+      "to_position": "opening",
+      "rationale": "This thread's story beat has the strongest emotional hook — moving the entire cluster to open preserves the story→scripture→doctrine flow while creating immediate engagement",
+      "transitionNote": "Cold open on story_1, then natural flow into scripture_1 with 'And that's when I remembered...'"
     },
     {
-      "action": "trim",
-      "beatId": "context_setup",
+      "action": "trim_beat",
+      "beatId": "context_1",
       "rationale": "Running 3 minutes on setup — trim to 90 seconds of essential context",
-      "transitionNote": "Quick cuts, remove tangential stories"
+      "transitionNote": "Quick cuts, remove tangential details"
     },
     {
-      "action": "remove",
-      "beatId": "tangent_1",
-      "rationale": "Off-topic tangent that breaks narrative momentum",
+      "action": "remove_beat",
+      "beatId": "transition_2",
+      "rationale": "This transition bridges two sections that are now adjacent — no longer needed",
       "transitionNote": "J-cut audio from previous beat to bridge the gap"
     }
   ],
   "recut_script": [
     {
       "position": 1,
-      "beatId": "personal_testimony_1",
+      "beatId": "story_1",
+      "threadId": "divine_timing",
       "editAction": "COLD OPEN — play from 'I never thought...' through 'that changed everything'",
       "estimatedDuration": "45 sec",
       "transitionOut": "Fade to black, 1 sec pause"
     },
     {
       "position": 2,
-      "beatId": "opening_hook",
-      "editAction": "CONTEXT — pick up original opening question, but trimmed. Cut 'So today...' filler.",
+      "beatId": "scripture_1",
+      "threadId": "divine_timing",
+      "editAction": "SCRIPTURE — pick up the D&C reference, keep full reading",
       "estimatedDuration": "30 sec",
-      "transitionOut": "Direct cut to teaching"
+      "transitionOut": "Direct cut to doctrine"
     }
   ],
-  "estimated_improvement": "Moving the personal testimony to open creates an immediate emotional hook (intensity 5 vs current opening's 3). Combined with trimming the context section and removing the tangent, this recut should improve early retention by keeping viewers engaged through the critical first 30 seconds. Estimated watch-time improvement: 15-25%."
+  "estimated_improvement": "Moving the divine_timing cluster to open creates immediate emotional engagement. The story→scripture→doctrine flow is preserved as a unit, maintaining narrative coherence. Combined with trimming context_1, this recut front-loads the strongest content while keeping thread completeness intact."
 }
 
 RULES:
+- Think in THREAD CLUSTERS first. When moving beats, prefer moving entire thread groups together to preserve narrative coherence.
+- NEVER propose removing a "pacing" beat (beatRole = "pacing") unless its surrounding cluster is also being removed — pacing beats manage audience energy and their removal creates fatigue.
+- "hybrid" beats (beatRole = "hybrid") are strong candidates for short-form extraction — they are both accessible and substantive.
+- When moving a thread cluster, all beats in that thread should move together unless there is a specific editorial justification for splitting.
+- Thread completeness must be preserved: do not separate a story from the scripture or doctrine it anchors.
 - original_sequence and proposed_sequence must use the exact beat IDs from the beat analysis.
-- Every beat in original_sequence should appear in proposed_sequence OR in a "remove" move.
+- Every beat in original_sequence should appear in proposed_sequence OR in a "remove_beat" move.
 - Moves should be specific enough that an editor can execute them.
 - recut_script entries should reference specific transcript text where possible.
 - Be conservative — don't reorder for the sake of it. Only propose changes that materially improve the content.`;
@@ -936,37 +1068,73 @@ ${text}
 }
 
 /**
- * Analyze a transcript to extract edit directions (V2) or legacy clips/shorts/quotes.
+ * Generate strategy — the main orchestrator (V3.1).
+ * Runs Stage 0a (segment beats) → validation → Stage 0b (analyze threads) → Stage 1 (directions).
+ * Renamed from analyzeTranscript for clarity.
  *
  * @param {string} text - The transcript text
  * @param {string} title - Title for the transcript
  * @param {string|null} channelId - Client ID for brand/performance context
  * @param {Object} [options]
- * @param {boolean} [options.v2=true] - Use V2 edit directions prompt
- * @param {Object} [options.contextInputs] - Manual context inputs { strategyBrief, performanceData, audiencePersona, competitorBenchmarks }
- * @returns {Promise<Object>} Parsed atomizer results
+ * @param {boolean} [options.v2=true] - Use V2+ edit directions prompt (false = legacy)
+ * @param {Object} [options.contextInputs] - Manual context inputs
+ * @returns {Promise<Object>} Parsed directions + beat_analysis + stage_costs
  */
-export async function analyzeTranscript(text, title = 'Untitled', channelId = null, { v2 = true, contextInputs } = {}) {
+export async function generateStrategy(text, title = 'Untitled', channelId = null, { v2 = true, contextInputs } = {}) {
   if (!v2) return analyzeTranscriptLegacy(text, title, channelId);
 
-  // --- Stage 0: Beat Analysis (graceful fallback) ---
+  const wordCount = text.trim().split(/\s+/).length;
   let beatAnalysis = null;
-  let beatCost = null;
+  let segCost = null;
+  let threadCost = null;
+
+  // --- Stage 0a: Segment Beats (graceful fallback) ---
   try {
-    console.log('[atomizer] Stage 0: Running beat analysis...');
-    const beatResult = await analyzeBeats(text, title, channelId, contextInputs);
-    // Separate cost/usage from the analysis data
-    beatCost = { usage: beatResult.usage, cost: beatResult.cost };
-    const { usage: _u, cost: _c, ...beatData } = beatResult;
-    beatAnalysis = beatData;
-    console.log('[atomizer] Stage 0: Beat analysis complete —', beatAnalysis.beats?.length || 0, 'beats found');
+    console.log('[atomizer] Stage 0a: Segmenting beats...');
+    const segResult = await segmentBeats(text, title, channelId, contextInputs);
+    segCost = { usage: segResult.usage, cost: segResult.cost };
+    const { usage: _u1, cost: _c1, ...segData } = segResult;
+    console.log('[atomizer] Stage 0a: Segmentation complete —', segData.beats?.length || 0, 'beats found');
+
+    // Validation (deterministic, no AI call)
+    const validation = validateBeatSegmentation(segData.beats || [], wordCount);
+    if (!validation.valid) {
+      console.error('[atomizer] Beat validation failed:', validation.errors);
+      // Don't throw — fall through to Stage 1 without beats
+      console.warn('[atomizer] Proceeding without beat analysis due to validation failure');
+    } else {
+      if (validation.warnings.length) {
+        console.warn('[atomizer] Beat validation warnings:', validation.warnings);
+      }
+      console.log('[atomizer] Beat validation passed — coverage:', validation.coverage);
+
+      // --- Stage 0b: Analyze Threads ---
+      try {
+        console.log('[atomizer] Stage 0b: Analyzing threads...');
+        const threadResult = await analyzeThreads(segData.beats, segData.content_type, text, title, channelId, contextInputs);
+        threadCost = { usage: threadResult.usage, cost: threadResult.cost };
+        const { usage: _u2, cost: _c2, ...threadData } = threadResult;
+
+        // Merge beats + threads into unified analysis
+        beatAnalysis = mergeBeatsAndThreads(segData, threadData);
+        console.log('[atomizer] Stage 0b: Thread analysis complete —', beatAnalysis.threads?.length || 0, 'threads identified');
+      } catch (e) {
+        console.warn('[atomizer] Stage 0b: Thread analysis failed, proceeding with beats only:', e.message);
+        // Fall back to segment-only beats (no threads)
+        beatAnalysis = {
+          content_type: segData.content_type,
+          content_type_confidence: segData.content_type_confidence,
+          beats: segData.beats,
+          threads: [],
+          interleaving: { detected: false, severity: 'none', details: '' },
+        };
+      }
+    }
   } catch (e) {
-    console.warn('[atomizer] Stage 0: Beat analysis failed, proceeding without beats:', e.message);
+    console.warn('[atomizer] Stage 0a: Beat segmentation failed, proceeding without beats:', e.message);
   }
 
-  // --- Stage 1: Direction Discovery ---
-  const wordCount = text.trim().split(/\s+/).length;
-
+  // --- Stage 1: Direction Discovery (generateStrategy) ---
   let systemPrompt = ATOMIZER_STAGE1_SYSTEM_PROMPT;
 
   if (channelId) {
@@ -981,11 +1149,17 @@ export async function analyzeTranscript(text, title = 'Untitled', channelId = nu
   const manualBlock = buildManualContext(contextInputs);
   if (manualBlock) systemPrompt += '\n\n' + manualBlock;
 
-  // Inject beat context if available
+  // Inject beat/thread context if available
   const beatBlock = formatBeatContext(beatAnalysis);
   if (beatBlock) systemPrompt += '\n\n' + beatBlock;
 
-  const prompt = `Analyze this transcript and propose creative direction options for both long-form and short-form content. Focus on titles, hooks, descriptions, thumbnails, and virality analysis. Do NOT include EDL, B-roll, motion graphics, or edited transcript — those come later when a direction is chosen.${beatAnalysis ? '\n\nBeat analysis is provided — reference specific beat IDs in arc summaries, use hook analysis to inform your hooks, and produce subscores for short-form directions.' : ''}
+  const threadNote = beatAnalysis?.threads?.length
+    ? '\n\nThread-based beat analysis is provided — reference thread principles in arc summaries, use hook analysis to inform your hooks, and produce subscores for short-form directions. Short-form clips should ideally pull from a single thread cluster.'
+    : beatAnalysis?.beats?.length
+      ? '\n\nBeat analysis is provided (without thread grouping) — reference beat IDs in arc summaries, use hook analysis, and produce subscores for short-form.'
+      : '';
+
+  const prompt = `Analyze this transcript and propose creative direction options for both long-form and short-form content. Focus on titles, hooks, descriptions, thumbnails, and virality analysis. Do NOT include EDL, B-roll, motion graphics, or edited transcript — those come later when a direction is chosen.${threadNote}
 
 Title: ${title}
 Word Count: ${wordCount}
@@ -997,22 +1171,26 @@ ${text}
   const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_stage1', 8192);
   const parsed = parseClaudeJSON(result.text);
 
-  // Combine costs from both stages
-  let totalCost = result.cost;
-  if (beatCost?.cost) {
-    totalCost = (parseFloat(totalCost) || 0) + (parseFloat(beatCost.cost) || 0);
-    totalCost = totalCost.toFixed(4);
-  }
+  // Combine costs from all stages
+  const costs = [segCost?.cost, threadCost?.cost, result.cost].filter(Boolean);
+  let totalCost = costs.reduce((sum, c) => sum + (parseFloat(c) || 0), 0);
+  totalCost = totalCost.toFixed(4);
 
   return {
     ...parsed,
     beat_analysis: beatAnalysis,
     usage: result.usage,
     cost: totalCost,
-    beat_cost: beatCost?.cost || null,
-    direction_cost: result.cost,
+    stage_costs: {
+      segment: segCost?.cost || null,
+      threads: threadCost?.cost || null,
+      strategy: result.cost,
+    },
   };
 }
+
+// Backward compatibility alias
+export const analyzeTranscript = generateStrategy;
 
 // ============================================
 // REMIX
@@ -1134,37 +1312,38 @@ Produce the edited transcript (restructured for narrative flow, filler removed),
 }
 
 // ============================================
-// STAGE 0: BEAT ANALYSIS
+// STAGE 0a: SEGMENT BEATS
 // ============================================
 
 /**
- * Analyze transcript beats — structural building blocks with emotional intensity.
- * Stage 0 of V3 pipeline. Called before Stage 1 direction discovery.
+ * Segment transcript into narrative beats — form-based identification.
+ * Stage 0a of V3.1 pipeline. Identifies what each beat IS (story, scripture, etc.)
+ * but does NOT assign meaning or thread grouping.
  *
  * @param {string} text - The transcript text
  * @param {string} title - Title for the transcript
  * @param {string|null} channelId - Client channel ID for brand context
  * @param {Object} [contextInputs] - Manual context inputs
- * @returns {Promise<Object>} Beat analysis with usage/cost
+ * @returns {Promise<Object>} { content_type, content_type_confidence, beats[], usage, cost }
  */
-export async function analyzeBeats(text, title = 'Untitled', channelId = null, contextInputs = null) {
+export async function segmentBeats(text, title = 'Untitled', channelId = null, contextInputs = null) {
   const wordCount = text.trim().split(/\s+/).length;
 
-  let systemPrompt = ATOMIZER_BEAT_ANALYSIS_PROMPT;
+  let systemPrompt = SEGMENT_BEATS_PROMPT;
 
   if (channelId) {
     try {
       const brandBlock = await getBrandContextWithSignals(channelId, 'atomizer');
       if (brandBlock) systemPrompt += '\n\n' + brandBlock;
     } catch (e) {
-      console.warn('[atomizer] Brand context for beat analysis failed, proceeding without:', e.message);
+      console.warn('[atomizer] Brand context for beat segmentation failed, proceeding without:', e.message);
     }
   }
 
   const manualBlock = buildManualContext(contextInputs);
   if (manualBlock) systemPrompt += '\n\n' + manualBlock;
 
-  const prompt = `Deconstruct this transcript into its narrative beats. Identify the structural building blocks, emotional arc, hook quality, and structural diagnosis.
+  const prompt = `Segment this transcript into its narrative beats. Identify the structural building blocks — what each section IS (story, scripture, doctrine, humor, etc.) — and provide emotional intensity, production notes, and weakness analysis for each.
 
 Title: ${title}
 Word Count: ${wordCount}
@@ -1173,17 +1352,182 @@ Word Count: ${wordCount}
 ${text}
 --- END TRANSCRIPT ---`;
 
-  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_beats', 8192);
+  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_segment', 8192);
   const parsed = parseClaudeJSON(result.text);
 
   return { ...parsed, usage: result.usage, cost: result.cost };
 }
 
+// ============================================
+// VALIDATION: BEAT SEGMENTATION CHECK
+// ============================================
+
 /**
- * Format beat analysis into a prompt-injectable context block for Stage 1.
- * Serializes key beat data so direction discovery can reference specific beats.
+ * Deterministic validation of beat segmentation output.
+ * Runs between Stage 0a and 0b — NOT an AI call.
+ * Checks schema, word-count coverage, unique IDs, and valid roles.
  *
- * @param {Object} beatAnalysis - Result from analyzeBeats()
+ * @param {Array} beats - Beats array from segmentBeats()
+ * @param {number} transcriptWordCount - Total words in transcript
+ * @returns {{ valid: boolean, errors: string[], warnings: string[], coverage: string }}
+ */
+export function validateBeatSegmentation(beats, transcriptWordCount) {
+  const errors = [];
+  const warnings = [];
+
+  if (!Array.isArray(beats) || beats.length === 0) {
+    return { valid: false, errors: ['No beats returned from segmentation'], warnings: [], coverage: '0%' };
+  }
+
+  // 1. Required fields
+  const requiredFields = ['id', 'beatType', 'beatRole', 'displayName', 'approximateWordCount', 'emotionalIntensity', 'summary'];
+  beats.forEach((b, i) => {
+    requiredFields.forEach(f => {
+      if (b[f] === undefined || b[f] === null) {
+        errors.push(`Beat ${i} (${b.id || 'unknown'}) missing required field: ${f}`);
+      }
+    });
+
+    // beatRole validation
+    if (b.beatRole && !['content', 'pacing', 'hybrid', 'transition'].includes(b.beatRole)) {
+      errors.push(`Beat ${b.id} has invalid beatRole: ${b.beatRole}`);
+    }
+
+    // emotionalIntensity range
+    if (b.emotionalIntensity != null && (b.emotionalIntensity < 1 || b.emotionalIntensity > 5)) {
+      warnings.push(`Beat ${b.id} has out-of-range emotionalIntensity: ${b.emotionalIntensity}`);
+    }
+  });
+
+  // 2. Word count reconciliation
+  const totalBeatWords = beats.reduce((sum, b) => sum + (b.approximateWordCount || 0), 0);
+  const coverage = transcriptWordCount > 0 ? totalBeatWords / transcriptWordCount : 0;
+  if (coverage < 0.85) {
+    errors.push(`Beat word count (${totalBeatWords}) covers only ${(coverage * 100).toFixed(0)}% of transcript (${transcriptWordCount} words). Expected 85%+.`);
+  }
+  if (coverage > 1.3) {
+    warnings.push(`Beat word count (${totalBeatWords}) exceeds transcript by ${((coverage - 1) * 100).toFixed(0)}%. Possible overlapping beats.`);
+  }
+
+  // 3. Unique IDs
+  const ids = beats.map(b => b.id);
+  const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+  if (dupes.length) errors.push(`Duplicate beat IDs: ${[...new Set(dupes)].join(', ')}`);
+
+  // 4. Minimum beat count
+  if (beats.length < 3) errors.push(`Only ${beats.length} beats found. Expected at least 3.`);
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+    coverage: (coverage * 100).toFixed(1) + '%',
+  };
+}
+
+// ============================================
+// STAGE 0b: ANALYZE THREADS
+// ============================================
+
+/**
+ * Analyze threads (principles/arguments) from segmented beats.
+ * Stage 0b of V3.1 pipeline. Intent-based — "what principles are being taught?"
+ *
+ * @param {Array} beats - Validated beats from segmentBeats()
+ * @param {string} contentType - Detected content type from Stage 0a
+ * @param {string} text - Original transcript text (for context)
+ * @param {string} title - Transcript title
+ * @param {string|null} channelId - For brand context
+ * @param {Object} [contextInputs] - Manual context inputs
+ * @returns {Promise<Object>} { threads, beat_thread_assignments, interleaving, emotional_arc, hook_analysis, structural_diagnosis, usage, cost }
+ */
+export async function analyzeThreads(beats, contentType, text, title = 'Untitled', channelId = null, contextInputs = null) {
+  // Build completeness criteria string for the detected content type
+  const criteria = THREAD_COMPLETENESS_CRITERIA[contentType] || THREAD_COMPLETENESS_CRITERIA.faith;
+  let criteriaStr = `Required beat types: ${criteria.required.join(', ')}`;
+  if (criteria.either) {
+    criteriaStr += `\nPlus at least one of: ${criteria.either.map(g => g.join(' or ')).join('; ')}`;
+  }
+  criteriaStr += `\nA complete thread is "${criteria.label}"`;
+
+  // Build the prompt with completeness criteria injected
+  let systemPrompt = ANALYZE_THREADS_PROMPT.replace('{COMPLETENESS_CRITERIA}', criteriaStr);
+
+  if (channelId) {
+    try {
+      const brandBlock = await getBrandContextWithSignals(channelId, 'atomizer');
+      if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+    } catch (e) {
+      console.warn('[atomizer] Brand context for thread analysis failed, proceeding without:', e.message);
+    }
+  }
+
+  const manualBlock = buildManualContext(contextInputs);
+  if (manualBlock) systemPrompt += '\n\n' + manualBlock;
+
+  const beatsJSON = JSON.stringify(beats, null, 2);
+
+  const prompt = `Analyze the threads (principles, arguments, narrative arcs) in this ${contentType} transcript based on the segmented beats below.
+
+Title: ${title}
+Content Type: ${contentType}
+
+--- SEGMENTED BEATS ---
+${beatsJSON}
+--- END BEATS ---
+
+--- ORIGINAL TRANSCRIPT (for context) ---
+${text}
+--- END TRANSCRIPT ---
+
+Identify the principles being taught, assign beats to threads, detect interleaving, and provide structural diagnosis.`;
+
+  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_threads', 8192);
+  const parsed = parseClaudeJSON(result.text);
+
+  return { ...parsed, usage: result.usage, cost: result.cost };
+}
+
+// ============================================
+// MERGE: BEATS + THREADS → UNIFIED ANALYSIS
+// ============================================
+
+/**
+ * Merge Stage 0a beats with Stage 0b thread assignments into a unified object.
+ * Pure function — no AI call.
+ *
+ * @param {Object} segmentResult - From segmentBeats() (content_type, beats)
+ * @param {Object} threadResult - From analyzeThreads() (threads, beat_thread_assignments, etc.)
+ * @returns {Object} Unified beat analysis with thread-enriched beats
+ */
+export function mergeBeatsAndThreads(segmentResult, threadResult) {
+  const enrichedBeats = segmentResult.beats.map(beat => {
+    const assignment = threadResult.beat_thread_assignments?.find(a => a.beatId === beat.id);
+    return {
+      ...beat,
+      threads: assignment?.threads || [],
+      primaryThread: assignment?.primaryThread || null,
+      threadConfidence: assignment?.threadConfidence ?? 1.0,
+    };
+  });
+
+  return {
+    content_type: segmentResult.content_type,
+    content_type_confidence: segmentResult.content_type_confidence,
+    beats: enrichedBeats,
+    threads: threadResult.threads || [],
+    interleaving: threadResult.interleaving || { detected: false, severity: 'none', details: '' },
+    emotional_arc: threadResult.emotional_arc,
+    hook_analysis: threadResult.hook_analysis,
+    structural_diagnosis: threadResult.structural_diagnosis,
+  };
+}
+
+/**
+ * Format beat+thread analysis into a prompt-injectable context block for Stage 1.
+ * Serializes thread and beat data so direction discovery can reference specific threads and beats.
+ *
+ * @param {Object} beatAnalysis - Merged result from mergeBeatsAndThreads()
  * @returns {string} Prompt block wrapped in <beat_analysis> tags
  */
 export function formatBeatContext(beatAnalysis) {
@@ -1193,13 +1537,34 @@ export function formatBeatContext(beatAnalysis) {
   lines.push(`Content Type: ${beatAnalysis.content_type} (confidence: ${beatAnalysis.content_type_confidence})`);
   lines.push('');
 
-  // Beats summary
+  // Threads summary
+  if (beatAnalysis.threads?.length) {
+    lines.push('Threads (Principles/Arguments):');
+    beatAnalysis.threads.forEach(t => {
+      const beatList = t.beats?.join(', ') || 'none';
+      const missing = t.completeness?.missing?.length ? ` [MISSING: ${t.completeness.missing.join(', ')}]` : '';
+      lines.push(`- ${t.id} (${t.weight}): "${t.principle}" — beats: [${beatList}]${missing}`);
+      if (t.completeness?.assessment) lines.push(`  Assessment: ${t.completeness.assessment}`);
+    });
+    lines.push('');
+  }
+
+  // Beats summary with thread info
   lines.push('Beats:');
   beatAnalysis.beats.forEach(b => {
+    const threadInfo = b.primaryThread ? ` → thread:${b.primaryThread}` : '';
+    const roleTag = b.beatRole && b.beatRole !== 'content' ? ` [${b.beatRole.toUpperCase()}]` : '';
     const flags = b.weaknessFlags?.length ? ` [WEAK: ${b.weaknessFlags.join(', ')}]` : '';
-    lines.push(`- ${b.id}: "${b.displayName}" | intensity=${b.emotionalIntensity}/5 | ${b.structuralStrength}${flags}`);
+    const conf = b.threadConfidence != null && b.threadConfidence < 0.7 ? ` [LOW CONF: ${(b.threadConfidence * 100).toFixed(0)}%]` : '';
+    lines.push(`- ${b.id} (${b.beatType || b.label}${roleTag}): "${b.displayName}" | intensity=${b.emotionalIntensity}/5 | ${b.structuralStrength}${threadInfo}${conf}${flags}`);
     lines.push(`  ${b.summary}`);
   });
+
+  // Interleaving
+  if (beatAnalysis.interleaving?.detected) {
+    lines.push('');
+    lines.push(`Interleaving: ${beatAnalysis.interleaving.severity} — ${beatAnalysis.interleaving.details}`);
+  }
 
   // Arc
   const arc = beatAnalysis.emotional_arc;
@@ -1537,9 +1902,10 @@ export async function createBriefFromAtomized(atomizedContentId, clientId) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
+  // V3.1: Join to parent transcript to get beat_analysis (thread data)
   const { data: item, error: fetchError } = await supabase
     .from('atomized_content')
-    .select('*')
+    .select('*, transcripts!transcript_id(beat_analysis)')
     .eq('id', atomizedContentId)
     .single();
 
@@ -1564,6 +1930,26 @@ export async function createBriefFromAtomized(atomizedContentId, clientId) {
   if (item.arc_summary) briefData.arc_summary = item.arc_summary;
   if (item.direction_metadata) briefData.direction_metadata = item.direction_metadata;
   if (item.edited_transcript) briefData.edited_transcript = item.edited_transcript;
+
+  // V3.1: Thread/beat data from parent transcript
+  const beatAnalysis = item.transcripts?.beat_analysis;
+  if (beatAnalysis?.threads?.length) {
+    briefData.threads = beatAnalysis.threads.map(t => ({
+      id: t.id,
+      principle: t.principle,
+      weight: t.weight,
+      beats: t.beats,
+      completeness: t.completeness,
+    }));
+    briefData.beats_summary = beatAnalysis.beats?.map(b => ({
+      id: b.id,
+      beatType: b.beatType || b.label,
+      beatRole: b.beatRole || 'content',
+      displayName: b.displayName,
+      primaryThread: b.primaryThread,
+    }));
+  }
+  if (item.subscores) briefData.subscores = item.subscores;
 
   const { data: brief, error: briefError } = await supabase
     .from('briefs')
@@ -1673,8 +2059,12 @@ export async function getAtomizedContent(transcriptId) {
 }
 
 export default {
+  generateStrategy,
   analyzeTranscript,
-  analyzeBeats,
+  segmentBeats,
+  analyzeThreads,
+  validateBeatSegmentation,
+  mergeBeatsAndThreads,
   formatBeatContext,
   deployDirection,
   generateRecut,

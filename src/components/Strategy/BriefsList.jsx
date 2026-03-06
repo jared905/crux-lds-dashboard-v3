@@ -72,6 +72,23 @@ function buildClientMarkdown(brief) {
     lines.push("");
   }
 
+  // V3.1: Content Flow (thread-based structure)
+  if (d.threads?.length) {
+    lines.push("Content Flow");
+    lines.push("");
+    d.threads.forEach((t, i) => {
+      const beatTypes = d.beats_summary
+        ?.filter(b => t.beats?.includes(b.id))
+        .map(b => (b.beatType || "").replace(/_/g, " "))
+        .filter(Boolean) || [];
+      const beatFlow = beatTypes.length ? beatTypes.join(" \u2192 ") : "";
+      const weightLabel = t.weight === "primary" ? "primary" : t.weight;
+      lines.push(`${i + 1}. ${t.principle} (${weightLabel})`);
+      if (beatFlow) lines.push(`   ${beatFlow}`);
+      lines.push("");
+    });
+  }
+
   if (d.arc_summary || d.arc) {
     lines.push("Theme");
     lines.push(d.arc_summary || d.arc);
@@ -99,6 +116,17 @@ function buildBriefMarkdown(brief, channelName) {
   if (meta.estimated_duration) lines.push(`Duration: ${meta.estimated_duration}`);
   lines.push("");
 
+  // V3.1: Subscores (editor-only, short-form)
+  if (d.subscores) {
+    lines.push("## Scores");
+    lines.push(`Overall: ${d.subscores.overall}/10`);
+    if (d.subscores.hookStrength != null) lines.push(`Hook Strength: ${d.subscores.hookStrength}/10`);
+    if (d.subscores.emotionalPunch != null) lines.push(`Emotional Punch: ${d.subscores.emotionalPunch}/10`);
+    if (d.subscores.standaloneComprehensibility != null) lines.push(`Standalone Comprehensibility: ${d.subscores.standaloneComprehensibility}/10`);
+    if (d.subscores.subscoreRationale) lines.push(`Rationale: ${d.subscores.subscoreRationale}`);
+    lines.push("");
+  }
+
   if (d.hook) {
     lines.push("## Hook");
     lines.push(d.hook);
@@ -108,6 +136,27 @@ function buildBriefMarkdown(brief, channelName) {
   if (d.arc_summary || d.arc) {
     lines.push("## Arc");
     lines.push(d.arc_summary || d.arc);
+    lines.push("");
+  }
+
+  // V3.1: Content Flow with completeness (editor sees full detail)
+  if (d.threads?.length) {
+    lines.push("## Content Flow");
+    d.threads.forEach((t, i) => {
+      const beatTypes = d.beats_summary
+        ?.filter(b => t.beats?.includes(b.id))
+        .map(b => (b.beatType || "").replace(/_/g, " "))
+        .filter(Boolean) || [];
+      const beatFlow = beatTypes.length ? beatTypes.join(" \u2192 ") : "";
+      lines.push(`${i + 1}. ${t.principle} (${t.weight})`);
+      if (beatFlow) lines.push(`   ${beatFlow}`);
+      if (t.completeness?.missing?.length) {
+        lines.push(`   Missing: ${t.completeness.missing.join(", ")}`);
+      }
+      if (t.completeness?.assessment) {
+        lines.push(`   ${t.completeness.assessment}`);
+      }
+    });
     lines.push("");
   }
 
@@ -188,6 +237,23 @@ async function exportBriefPDF(brief, channelName) {
     </div>
   `);
 
+  // V3.1: Subscores (editor PDF only)
+  if (d.subscores) {
+    const scoreItems = [
+      d.subscores.overall != null ? `<span style="font-weight:700;color:#1e293b;">Overall: ${d.subscores.overall}/10</span>` : "",
+      d.subscores.hookStrength != null ? `Hook: ${d.subscores.hookStrength}/10` : "",
+      d.subscores.emotionalPunch != null ? `Punch: ${d.subscores.emotionalPunch}/10` : "",
+      d.subscores.standaloneComprehensibility != null ? `Comprehensibility: ${d.subscores.standaloneComprehensibility}/10` : "",
+    ].filter(Boolean).join(" &nbsp;|&nbsp; ");
+    sections.push(`
+      <div style="margin-bottom:22px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;">
+        <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Scores</div>
+        <div style="font-size:14px;color:#334155;">${scoreItems}</div>
+        ${d.subscores.subscoreRationale ? `<div style="font-size:12px;color:#64748b;margin-top:6px;">${esc(d.subscores.subscoreRationale)}</div>` : ""}
+      </div>
+    `);
+  }
+
   // Hook
   if (d.hook) {
     sections.push(`
@@ -206,6 +272,31 @@ async function exportBriefPDF(brief, channelName) {
         <div style="font-size:15px;color:#334155;line-height:1.6;">${esc(d.arc_summary || d.arc)}</div>
       </div>
     `);
+  }
+
+  // V3.1: Content Flow with completeness (editor PDF)
+  if (d.threads?.length) {
+    let flowHtml = `<div style="margin-bottom:22px;">
+      <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Content Flow</div>`;
+
+    d.threads.forEach((t, i) => {
+      const beatTypes = (d.beats_summary || [])
+        .filter(b => (t.beats || []).includes(b.id))
+        .map(b => esc((b.beatType || "").replace(/_/g, " ")))
+        .filter(Boolean);
+      const beatFlow = beatTypes.join(" &rarr; ");
+      const borderColor = t.weight === "primary" ? "#3b82f6" : t.weight === "supporting" ? "#f59e0b" : "#94a3b8";
+
+      flowHtml += `<div style="margin-bottom:10px;padding:8px 12px;background:#f8fafc;border-radius:6px;border-left:3px solid ${borderColor};">
+        <div style="font-size:13px;font-weight:600;color:#1e293b;">${i + 1}. ${esc(t.principle)}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px;">${esc(t.weight)}${beatFlow ? ` &mdash; ${beatFlow}` : ""}</div>
+        ${t.completeness?.missing?.length ? `<div style="font-size:11px;color:#dc2626;margin-top:3px;">Missing: ${esc(t.completeness.missing.join(", "))}</div>` : ""}
+        ${t.completeness?.assessment ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">${esc(t.completeness.assessment)}</div>` : ""}
+      </div>`;
+    });
+
+    flowHtml += `</div>`;
+    sections.push(flowHtml);
   }
 
   // Edited Transcript
@@ -359,6 +450,30 @@ async function exportClientPDF(brief) {
         <div style="font-size:15px;color:#334155;line-height:1.8;white-space:pre-wrap;">${esc(d.description)}</div>
       </div>
     `);
+  }
+
+  // V3.1: Content Flow (thread-based structure)
+  if (d.threads?.length) {
+    let flowHtml = `<div style="margin-bottom:28px;">
+      <div style="font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Content Flow</div>`;
+
+    d.threads.forEach((t, i) => {
+      const beatTypes = (d.beats_summary || [])
+        .filter(b => (t.beats || []).includes(b.id))
+        .map(b => esc((b.beatType || "").replace(/_/g, " ")))
+        .filter(Boolean);
+      const beatFlow = beatTypes.join(" &rarr; ");
+      const borderColor = t.weight === "primary" ? "#3b82f6" : t.weight === "supporting" ? "#f59e0b" : "#94a3b8";
+
+      flowHtml += `<div style="margin-bottom:12px;padding:10px 14px;background:#f8fafc;border-radius:6px;border-left:3px solid ${borderColor};">
+        <div style="font-size:14px;font-weight:600;color:#1e293b;">${i + 1}. ${esc(t.principle)}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px;">${esc(t.weight)}</div>
+        ${beatFlow ? `<div style="font-size:12px;color:#475569;margin-top:6px;">${beatFlow}</div>` : ""}
+      </div>`;
+    });
+
+    flowHtml += `</div>`;
+    sections.push(flowHtml);
   }
 
   // Theme

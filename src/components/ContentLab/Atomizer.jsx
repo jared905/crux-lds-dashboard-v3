@@ -7,7 +7,7 @@ import {
   Rocket, GitBranch, RefreshCw,
 } from "lucide-react";
 import {
-  analyzeTranscript, saveTranscript, markTranscriptAnalyzed,
+  generateStrategy, saveTranscript, markTranscriptAnalyzed,
   saveAtomizedContent, createBriefFromAtomized,
   remixDirections, saveRemixAsBrief, fetchAtomizerContext,
   getAtomizedContent,
@@ -728,8 +728,9 @@ export default function Atomizer({ activeClient }) {
   const [deploying, setDeploying] = useState(null);        // _savedId being deployed
   const [deployedData, setDeployedData] = useState({});     // dirKey → Stage 2 data
 
-  // V3: Beat analysis state (Stage 0)
+  // V3.1: Beat analysis + thread state (Stages 0a/0b)
   const [beatAnalysis, setBeatAnalysis] = useState(null);
+  const [stageCosts, setStageCosts] = useState(null);       // { segment, threads, strategy }
 
   // V3: Recut state (Stage 3)
   const [recutting, setRecutting] = useState(null);         // _savedId being recut
@@ -794,10 +795,10 @@ export default function Atomizer({ activeClient }) {
       .catch(err => console.warn('[atomizer] Failed to fetch channels:', err.message));
   }, [activeClient?.id]);
 
-  // Cost estimates — Stage 0 (beats) + Stage 1 (directions), each uses 8192 output tokens
+  // Cost estimates — Stages 0a + 0b + 1, each uses ~8192 output tokens
   const estimatedInputTokens = 2800 + Math.ceil(wordCount / 0.75);
   const estimatedCostAnalysis = wordCount > 0
-    ? Math.max(0.04, ((estimatedInputTokens * 2) / 1000000) * 3.00 + (16384 / 1000000) * 15.00).toFixed(2)
+    ? Math.max(0.06, ((estimatedInputTokens * 3) / 1000000) * 3.00 + (24576 / 1000000) * 15.00).toFixed(2)
     : "0.00";
 
   // Detect V2 vs legacy results
@@ -871,11 +872,12 @@ export default function Atomizer({ activeClient }) {
     setDeployedData({});
     setDeploying(null);
     setBeatAnalysis(null);
+    setStageCosts(null);
     setRecutData({});
     setRecutting(null);
 
     try {
-      const data = await analyzeTranscript(
+      const data = await generateStrategy(
         transcriptText,
         title || "Untitled",
         activeClient?.id,
@@ -883,9 +885,12 @@ export default function Atomizer({ activeClient }) {
       );
       setResults(data);
 
-      // Store beat analysis separately for Structure tab
+      // Store beat analysis and per-stage costs
       if (data.beat_analysis) {
         setBeatAnalysis(data.beat_analysis);
+      }
+      if (data.stage_costs) {
+        setStageCosts(data.stage_costs);
       }
 
       // Default to Structure tab if beats found, otherwise first direction type
@@ -1089,8 +1094,9 @@ export default function Atomizer({ activeClient }) {
     setRecutData({});
     setRecutting(null);
 
-    // Restore beat analysis if available
+    // Restore beat analysis if available (V3.1 thread data or V3 flat beats)
     setBeatAnalysis(transcript.beat_analysis || null);
+    setStageCosts(null); // Per-stage costs not available for historical items
 
     // 4. Load atomized content and reconstruct results
     try {
@@ -1339,7 +1345,7 @@ export default function Atomizer({ activeClient }) {
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: "11px", color: "#666" }}>
-            Est. ~${estimatedCostAnalysis} analysis{selectedCount > 0 ? " + ~$0.06 remix" : ""} (deploy: ~$0.30-0.60, recut: ~$0.15-0.40)
+            Est. ~${estimatedCostAnalysis} analysis (3 stages: segment + threads + strategy){selectedCount > 0 ? " + ~$0.06 remix" : ""} (deploy: ~$0.30-0.60, recut: ~$0.15-0.40)
           </div>
           <button
             onClick={handleAnalyze}
@@ -1397,12 +1403,19 @@ export default function Atomizer({ activeClient }) {
               </span>
               {beatAnalysis && (
                 <span style={{ color: "#b0b0b0" }}>
+                  {beatAnalysis.threads?.length > 0 && (
+                    <><span style={{ color: "#8b5cf6", fontWeight: "600" }}>{beatAnalysis.threads.length}</span> threads / </>
+                  )}
                   <span style={{ color: "#10b981", fontWeight: "600" }}>{beatAnalysis.beats?.length || 0}</span> beats
                 </span>
               )}
             </div>
             <div style={{ fontSize: "11px", color: "#666" }}>
-              Cost: ${typeof results.cost === 'string' ? results.cost : (results.cost?.toFixed?.(4) || "0.00")}
+              {stageCosts ? (
+                <>Seg: ${parseFloat(stageCosts.segment || 0).toFixed(4)} | Threads: ${parseFloat(stageCosts.threads || 0).toFixed(4)} | Strategy: ${parseFloat(stageCosts.strategy || 0).toFixed(4)} | Total: ${typeof results.cost === 'string' ? results.cost : (results.cost?.toFixed?.(4) || "0.00")}</>
+              ) : (
+                <>Cost: ${typeof results.cost === 'string' ? results.cost : (results.cost?.toFixed?.(4) || "0.00")}</>
+              )}
             </div>
           </div>
 
@@ -1424,7 +1437,7 @@ export default function Atomizer({ activeClient }) {
           {/* Tab Navigation */}
           <div style={{ display: "flex", gap: "2px", marginBottom: "2px" }}>
             {[
-              ...(beatAnalysis ? [{ id: "structure", label: "Structure", icon: GitBranch, count: beatAnalysis.beats?.length || 0, color: "#10b981" }] : []),
+              ...(beatAnalysis ? [{ id: "structure", label: "Structure", icon: GitBranch, count: beatAnalysis.threads?.length ? `${beatAnalysis.threads.length}T / ${beatAnalysis.beats?.length || 0}B` : (beatAnalysis.beats?.length || 0), color: "#10b981" }] : []),
               { id: "long_form", label: "Long-Form", icon: Film, count: tabCounts.long_form, color: "#3b82f6" },
               { id: "short_form", label: "Short-Form", icon: Smartphone, count: tabCounts.short_form, color: "#ec4899" },
             ].map(t => (
