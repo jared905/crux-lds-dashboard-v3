@@ -765,6 +765,7 @@ function DirectionCard({
 export default function Atomizer({ activeClient }) {
   // Input state
   const [title, setTitle] = useState("");
+  const [subtitle, setSubtitle] = useState("");
   const [transcriptText, setTranscriptText] = useState("");
 
   // Analysis state
@@ -986,6 +987,7 @@ export default function Atomizer({ activeClient }) {
       try {
         const saved = await saveTranscript({
           title: title || "Untitled",
+          subtitle: subtitle || null,
           text: transcriptText,
           sourceType: "paste",
           clientId: activeClient?.id,
@@ -1149,6 +1151,7 @@ export default function Atomizer({ activeClient }) {
   const handleLoadTranscript = useCallback(async (transcript) => {
     // 1. Restore input fields
     setTitle(transcript.title || "");
+    setSubtitle(transcript.subtitle || "");
     setTranscriptText(transcript.transcript_text || "");
     setSavedTranscriptId(transcript.id);
     setSelectedChannelId(transcript.channel_id || null);
@@ -1307,6 +1310,23 @@ export default function Atomizer({ activeClient }) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Episode title or video name"
+            style={{
+              width: "100%", background: "#252525", border: "1px solid #444",
+              borderRadius: "8px", padding: "10px 14px", color: "#fff",
+              fontSize: "14px", outline: "none", boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        <div style={{ marginBottom: "16px" }}>
+          <label style={{ fontSize: "12px", fontWeight: "600", color: "#b0b0b0", display: "block", marginBottom: "6px" }}>
+            Subtitle
+          </label>
+          <input
+            type="text"
+            value={subtitle}
+            onChange={(e) => setSubtitle(e.target.value)}
+            placeholder="Brief description of the content"
             style={{
               width: "100%", background: "#252525", border: "1px solid #444",
               borderRadius: "8px", padding: "10px 14px", color: "#fff",

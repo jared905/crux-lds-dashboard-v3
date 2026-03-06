@@ -1725,13 +1725,14 @@ export async function updateAtomizedContentWithProduction(atomizedContentId, pro
 /**
  * Save a transcript to Supabase.
  */
-export async function saveTranscript({ title, text, sourceType = 'paste', sourceUrl, clientId, channelId, contextSnapshot, analysisSummary, beatAnalysis }) {
+export async function saveTranscript({ title, subtitle, text, sourceType = 'paste', sourceUrl, clientId, channelId, contextSnapshot, analysisSummary, beatAnalysis }) {
   if (!supabase) throw new Error('Supabase not configured');
 
   const { data: { user } } = await supabase.auth.getUser();
 
   const insertData = {
     title,
+    subtitle: subtitle || null,
     transcript_text: text,
     source_type: sourceType,
     source_url: sourceUrl || null,
@@ -1921,10 +1922,10 @@ export async function createBriefFromAtomized(atomizedContentId, clientId) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // V3.1: Join to parent transcript to get beat_analysis (thread data)
+  // V3.1: Join to parent transcript for beat_analysis, subtitle; join channel for name
   const { data: item, error: fetchError } = await supabase
     .from('atomized_content')
-    .select('*, transcripts!transcript_id(beat_analysis)')
+    .select('*, transcripts!transcript_id(beat_analysis, subtitle), channels!channel_id(name)')
     .eq('id', atomizedContentId)
     .single();
 
@@ -1941,6 +1942,10 @@ export async function createBriefFromAtomized(atomizedContentId, clientId) {
     suggested_cta: item.suggested_cta,
     suggested_visual: item.suggested_visual,
   };
+
+  // Subtitle and channel name from joins
+  briefData.subtitle = item.transcripts?.subtitle || null;
+  briefData.channel_name = item.channels?.name || null;
 
   // V2 fields
   if (item.title_variations) briefData.title_variations = item.title_variations;

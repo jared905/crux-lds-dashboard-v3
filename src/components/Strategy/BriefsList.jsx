@@ -86,25 +86,17 @@ function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
 function buildClientMarkdown(brief) {
   const d = brief.brief_data || {};
   const meta = d.direction_metadata || {};
+  const channelName = d.channel_name || brief.channels?.name;
   const lines = [];
 
+  if (channelName) lines.push(channelName);
   lines.push(brief.title || "Untitled");
-  const subtitle = [meta.format_type, meta.estimated_duration].filter(Boolean).join(" | ");
-  if (subtitle) lines.push(subtitle);
+  if (d.subtitle) lines.push(d.subtitle);
+  const formatLine = [meta.format_type, meta.estimated_duration].filter(Boolean).join(" | ");
+  if (formatLine) lines.push(formatLine);
   lines.push("");
 
-  if (d.description) {
-    lines.push(d.description);
-    lines.push("");
-  }
-
-  if (d.arc_summary || d.arc) {
-    lines.push("Creative Direction");
-    lines.push(d.arc_summary || d.arc);
-    lines.push("");
-  }
-
-  // Direction-specific Story Structure
+  // Story Structure
   const flow = getDirectionFlow(d);
   if (flow.threads.length) {
     lines.push("Story Structure");
@@ -121,6 +113,25 @@ function buildClientMarkdown(brief) {
     });
   }
 
+  // Title Options
+  const titleVars = d.title_variations || [];
+  if (titleVars.length) {
+    lines.push("Title Options");
+    titleVars.forEach((tv, i) => {
+      const style = tv.style ? ` (${tv.style.replace(/_/g, " ")})` : "";
+      lines.push(`${i + 1}. ${tv.text}${style}`);
+    });
+    lines.push("");
+  }
+
+  // Hook
+  if (d.hook) {
+    lines.push("Hook");
+    lines.push(d.hook);
+    lines.push("");
+  }
+
+  // Script
   const script = d.edited_transcript || meta.edited_transcript || d.transcript_excerpt;
   if (script) {
     lines.push("Script");
@@ -135,11 +146,14 @@ function buildClientMarkdown(brief) {
 function buildBriefMarkdown(brief, channelName) {
   const d = brief.brief_data || {};
   const meta = d.direction_metadata || {};
+  const cn = d.channel_name || channelName;
   const lines = [];
 
+  if (cn) lines.push(cn);
   lines.push(`# ${brief.title || "Untitled Brief"}`);
-  const subtitle = [meta.format_type, meta.estimated_duration].filter(Boolean).join(" | ");
-  if (subtitle) lines.push(subtitle);
+  if (d.subtitle) lines.push(d.subtitle);
+  const formatLine = [meta.format_type, meta.estimated_duration].filter(Boolean).join(" | ");
+  if (formatLine) lines.push(formatLine);
   lines.push("");
 
   // Scores (editor-only)
@@ -156,19 +170,7 @@ function buildBriefMarkdown(brief, channelName) {
     lines.push("");
   }
 
-  if (d.hook) {
-    lines.push("## Hook \u2014 Exact Words");
-    lines.push(d.hook);
-    lines.push("");
-  }
-
-  if (d.arc_summary || d.arc) {
-    lines.push("## Creative Direction");
-    lines.push(d.arc_summary || d.arc);
-    lines.push("");
-  }
-
-  // Direction-specific Story Structure with completeness
+  // Story Structure (before hook/arc for editor too)
   const flow = getDirectionFlow(d);
   if (flow.threads.length) {
     lines.push("## Story Structure");
@@ -202,6 +204,31 @@ function buildBriefMarkdown(brief, channelName) {
       }).join(", ");
       lines.push(`\u2605 Featured: ${names}`);
     }
+    lines.push("");
+  }
+
+  // Title Options
+  const titleVars = d.title_variations || [];
+  if (titleVars.length) {
+    lines.push("## Title Options");
+    titleVars.forEach((tv, i) => {
+      const style = tv.style ? ` (${tv.style.replace(/_/g, " ")})` : "";
+      lines.push(`${i + 1}. ${tv.text}${style}`);
+    });
+    lines.push("");
+  }
+
+  // Hook
+  if (d.hook) {
+    lines.push("## Hook");
+    lines.push(d.hook);
+    lines.push("");
+  }
+
+  // Creative Direction
+  if (d.arc_summary || d.arc) {
+    lines.push("## Creative Direction");
+    lines.push(d.arc_summary || d.arc);
     lines.push("");
   }
 
@@ -267,6 +294,7 @@ async function exportBriefPDF(brief, channelName) {
   const d = brief.brief_data || {};
   const meta = d.direction_metadata || {};
   const flow = getDirectionFlow(d);
+  const cn = d.channel_name || channelName;
 
   const label = (text) => `<div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">${text}</div>`;
   const scoreColor = (v) => v >= 8 ? "#16a34a" : v >= 5 ? "#d97706" : "#dc2626";
@@ -274,21 +302,31 @@ async function exportBriefPDF(brief, channelName) {
 
   const sections = [];
 
-  // 1. Header — title + metadata badges + score
+  // 1. Channel name
+  if (cn) {
+    sections.push(`<div style="font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">${esc(cn)}</div>`);
+  }
+
+  // 2. Title
+  sections.push(`<div style="font-size:28px;font-weight:800;color:#1e293b;margin-bottom:4px;line-height:1.3;">${esc(brief.title || "Untitled Brief")}</div>`);
+
+  // 3. Subtitle
+  if (d.subtitle) {
+    sections.push(`<div style="font-size:15px;color:#64748b;margin-bottom:8px;line-height:1.5;">${esc(d.subtitle)}</div>`);
+  }
+
+  // 4. Format + Duration + Score badges
   const overallScore = d.subscores?.overall ?? d.virality_score;
   sections.push(`
-    <div style="margin-bottom:12px;">
-      <div style="font-size:28px;font-weight:800;color:#1e293b;margin-bottom:8px;line-height:1.3;">${esc(brief.title || "Untitled Brief")}</div>
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-        ${meta.format_type ? `<span style="font-size:12px;font-weight:600;color:#b45309;background:#fef3c7;border-radius:6px;padding:3px 12px;">${esc(meta.format_type)}</span>` : ""}
-        ${meta.estimated_duration ? `<span style="font-size:13px;color:#64748b;">${esc(meta.estimated_duration)}</span>` : ""}
-        ${overallScore != null ? `<span style="font-size:12px;font-weight:700;color:${scoreColor(overallScore)};background:${scoreBg(overallScore)};border-radius:6px;padding:3px 10px;">${overallScore}/10</span>` : ""}
-      </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">
+      ${meta.format_type ? `<span style="font-size:12px;font-weight:600;color:#b45309;background:#fef3c7;border-radius:6px;padding:3px 12px;">${esc(meta.format_type)}</span>` : ""}
+      ${meta.estimated_duration ? `<span style="font-size:13px;color:#64748b;">${esc(meta.estimated_duration)}</span>` : ""}
+      ${overallScore != null ? `<span style="font-size:12px;font-weight:700;color:${scoreColor(overallScore)};background:${scoreBg(overallScore)};border-radius:6px;padding:3px 10px;">${overallScore}/10</span>` : ""}
     </div>
     <div style="border-bottom:1px solid #e2e8f0;margin-bottom:24px;"></div>
   `);
 
-  // 2. Scores panel (editor-only)
+  // 5. Scores panel (editor-only)
   if (d.subscores) {
     const pills = [
       d.subscores.overall != null ? { label: "Overall", value: d.subscores.overall } : null,
@@ -311,27 +349,7 @@ async function exportBriefPDF(brief, channelName) {
     `);
   }
 
-  // 3. Hook — exact words
-  if (d.hook) {
-    sections.push(`
-      <div style="margin-bottom:24px;border-left:4px solid #f59e0b;padding-left:16px;">
-        ${label("Hook \u2014 Exact Words")}
-        <div style="font-size:16px;font-weight:600;color:#1e293b;line-height:1.6;">${esc(d.hook)}</div>
-      </div>
-    `);
-  }
-
-  // 4. Creative Direction (arc)
-  if (d.arc_summary || d.arc) {
-    sections.push(`
-      <div style="margin-bottom:24px;">
-        ${label("Creative Direction")}
-        <div style="font-size:15px;color:#334155;line-height:1.7;">${esc(d.arc_summary || d.arc)}</div>
-      </div>
-    `);
-  }
-
-  // 5. Story Structure — direction-specific with completeness
+  // 6. Story Structure — direction-specific with completeness
   if (flow.threads.length) {
     let flowHtml = `<div style="margin-bottom:24px;">
       ${label("Story Structure")}`;
@@ -382,7 +400,46 @@ async function exportBriefPDF(brief, channelName) {
     sections.push(flowHtml);
   }
 
-  // 6. Edited Transcript
+  // 7. Title Options
+  const titleVars = d.title_variations || [];
+  if (titleVars.length) {
+    const styleBg = { curiosity_gap: "#fef3c7", direct_value: "#dbeafe", pattern_interrupt: "#ede9fe" };
+    const styleColor = { curiosity_gap: "#92400e", direct_value: "#1e40af", pattern_interrupt: "#5b21b6" };
+    const titleRows = titleVars.map((tv, i) => {
+      const bg = styleBg[tv.style] || "#f1f5f9";
+      const col = styleColor[tv.style] || "#475569";
+      const badge = tv.style ? `<span style="font-size:9px;font-weight:700;color:${col};background:${bg};border-radius:4px;padding:2px 8px;text-transform:uppercase;letter-spacing:0.04em;margin-left:8px;">${esc(tv.style.replace(/_/g, " "))}</span>` : "";
+      return `<div style="font-size:14px;color:#1e293b;margin-bottom:6px;line-height:1.5;">${i + 1}. ${esc(tv.text)}${badge}</div>`;
+    }).join("");
+    sections.push(`
+      <div style="margin-bottom:24px;">
+        ${label("Title Options")}
+        ${titleRows}
+      </div>
+    `);
+  }
+
+  // 8. Hook — exact words
+  if (d.hook) {
+    sections.push(`
+      <div style="margin-bottom:24px;border-left:4px solid #f59e0b;padding-left:16px;">
+        ${label("Hook \u2014 Exact Words")}
+        <div style="font-size:16px;font-weight:600;color:#1e293b;line-height:1.6;">${esc(d.hook)}</div>
+      </div>
+    `);
+  }
+
+  // 9. Creative Direction (arc)
+  if (d.arc_summary || d.arc) {
+    sections.push(`
+      <div style="margin-bottom:24px;">
+        ${label("Creative Direction")}
+        <div style="font-size:15px;color:#334155;line-height:1.7;">${esc(d.arc_summary || d.arc)}</div>
+      </div>
+    `);
+  }
+
+  // 10. Edited Transcript
   if (d.edited_transcript) {
     sections.push(`
       <div style="margin-bottom:24px;">
@@ -392,7 +449,7 @@ async function exportBriefPDF(brief, channelName) {
     `);
   }
 
-  // 7. EDL
+  // 11. EDL
   if (meta.edl?.length) {
     const edlRows = meta.edl.map((step, i) =>
       `<div style="font-family:monospace;font-size:13px;color:#334155;margin-bottom:4px;line-height:1.5;">
@@ -507,7 +564,7 @@ async function exportBriefPDF(brief, channelName) {
 }
 
 // ─── Client PDF (clean, no AI branding) ─────────────────────────────────
-async function exportClientPDF(brief) {
+async function exportClientPDF(brief, channelName) {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
     import("html2canvas"),
     import("jspdf"),
@@ -516,43 +573,35 @@ async function exportClientPDF(brief) {
   const d = brief.brief_data || {};
   const meta = d.direction_metadata || {};
   const flow = getDirectionFlow(d);
+  const cn = d.channel_name || channelName;
 
   const label = (text) => `<div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">${text}</div>`;
 
   const sections = [];
 
-  // 1. Title + format badge + duration
+  // 1. Channel name
+  if (cn) {
+    sections.push(`<div style="font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">${esc(cn)}</div>`);
+  }
+
+  // 2. Title
+  sections.push(`<div style="font-size:32px;font-weight:700;color:#1e293b;line-height:1.3;">${esc(brief.title || "Untitled")}</div>`);
+
+  // 3. Subtitle
+  if (d.subtitle) {
+    sections.push(`<div style="font-size:15px;color:#64748b;margin-top:6px;line-height:1.5;">${esc(d.subtitle)}</div>`);
+  }
+
+  // 4. Format + Duration badges
   sections.push(`
-    <div style="margin-bottom:12px;">
-      <div style="font-size:32px;font-weight:700;color:#1e293b;line-height:1.3;">${esc(brief.title || "Untitled")}</div>
-      <div style="display:flex;gap:12px;align-items:center;margin-top:10px;">
-        ${meta.format_type ? `<span style="font-size:12px;font-weight:600;color:#1e40af;background:#dbeafe;border-radius:6px;padding:4px 12px;">${esc(meta.format_type)}</span>` : ""}
-        ${meta.estimated_duration ? `<span style="font-size:13px;color:#64748b;">${esc(meta.estimated_duration)}</span>` : ""}
-      </div>
+    <div style="display:flex;gap:12px;align-items:center;margin-top:12px;">
+      ${meta.format_type ? `<span style="font-size:12px;font-weight:600;color:#1e40af;background:#dbeafe;border-radius:6px;padding:4px 12px;">${esc(meta.format_type)}</span>` : ""}
+      ${meta.estimated_duration ? `<span style="font-size:13px;color:#64748b;">${esc(meta.estimated_duration)}</span>` : ""}
     </div>
-    <div style="border-bottom:1px solid #e2e8f0;margin-bottom:32px;"></div>
+    <div style="border-bottom:1px solid #e2e8f0;margin-top:12px;margin-bottom:32px;"></div>
   `);
 
-  // 2. Description
-  if (d.description) {
-    sections.push(`
-      <div style="margin-bottom:32px;">
-        <div style="font-size:15px;color:#334155;line-height:1.8;white-space:pre-wrap;">${esc(d.description)}</div>
-      </div>
-    `);
-  }
-
-  // 3. Creative Direction (arc)
-  if (d.arc_summary || d.arc) {
-    sections.push(`
-      <div style="margin-bottom:32px;border-left:3px solid #3b82f6;padding-left:16px;">
-        ${label("Creative Direction")}
-        <div style="font-size:15px;color:#334155;line-height:1.8;">${esc(d.arc_summary || d.arc)}</div>
-      </div>
-    `);
-  }
-
-  // 4. Story Structure (direction-specific)
+  // 5. Story Structure (direction-specific)
   if (flow.threads.length) {
     let flowHtml = `<div style="margin-bottom:32px;">
       ${label("Story Structure")}`;
@@ -580,7 +629,36 @@ async function exportClientPDF(brief) {
     sections.push(flowHtml);
   }
 
-  // 5. Script
+  // 6. Title Options
+  const titleVars = d.title_variations || [];
+  if (titleVars.length) {
+    const styleBg = { curiosity_gap: "#fef3c7", direct_value: "#dbeafe", pattern_interrupt: "#ede9fe" };
+    const styleColor = { curiosity_gap: "#92400e", direct_value: "#1e40af", pattern_interrupt: "#5b21b6" };
+    const titleRows = titleVars.map((tv, i) => {
+      const bg = styleBg[tv.style] || "#f1f5f9";
+      const col = styleColor[tv.style] || "#475569";
+      const badge = tv.style ? `<span style="font-size:9px;font-weight:700;color:${col};background:${bg};border-radius:4px;padding:2px 8px;text-transform:uppercase;letter-spacing:0.04em;margin-left:8px;">${esc(tv.style.replace(/_/g, " "))}</span>` : "";
+      return `<div style="font-size:14px;color:#1e293b;margin-bottom:8px;line-height:1.5;">${i + 1}. ${esc(tv.text)}${badge}</div>`;
+    }).join("");
+    sections.push(`
+      <div style="margin-bottom:32px;">
+        ${label("Title Options")}
+        ${titleRows}
+      </div>
+    `);
+  }
+
+  // 7. Hook
+  if (d.hook) {
+    sections.push(`
+      <div style="margin-bottom:32px;border-left:4px solid #f59e0b;padding-left:16px;">
+        ${label("Hook")}
+        <div style="font-size:16px;font-weight:600;color:#1e293b;line-height:1.6;">${esc(d.hook)}</div>
+      </div>
+    `);
+  }
+
+  // 8. Script
   const clientScript = d.edited_transcript || meta.edited_transcript || d.transcript_excerpt;
   if (clientScript) {
     sections.push(`
@@ -591,7 +669,7 @@ async function exportClientPDF(brief) {
     `);
   }
 
-  // 6. Footer
+  // 9. Footer
   sections.push(`
     <div style="border-top:1px solid #e2e8f0;padding-top:16px;margin-top:16px;">
       <div style="font-size:11px;color:#94a3b8;">Prepared by Full View Studio</div>
@@ -735,7 +813,7 @@ function BriefDetailPanel({ brief, channelName }) {
           <button
             onClick={async () => {
               setExportingClientPDF(true);
-              try { await exportClientPDF(brief); }
+              try { await exportClientPDF(brief, channelName); }
               catch (err) { console.error("[ClientPDF] Export failed:", err); }
               finally { setExportingClientPDF(false); }
             }}
