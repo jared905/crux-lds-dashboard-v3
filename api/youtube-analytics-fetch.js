@@ -246,10 +246,10 @@ export default async function handler(req, res) {
           if (reports.length === 0) {
             impressionsDiag.error = 'No reports available yet (reports take ~48h after job creation)';
           } else {
-            // Step 2: Download recent reports (14 days) and aggregate
+            // Step 2: Download recent reports (30 days) and aggregate
             // A single day's data is too sparse for meaningful CTR — need multi-day aggregation
-            // Limited to 14 to stay under YouTube API rate limits when syncing multiple channels
-            const reportsToProcess = reports.slice(0, 14);
+            // 30 days gives wider coverage for videos with infrequent impressions
+            const reportsToProcess = reports.slice(0, 30);
             impressionsDiag.reportDate = reports[0].createTime;
             impressionsDiag.reportsProcessed = reportsToProcess.length;
 
@@ -368,6 +368,17 @@ export default async function handler(req, res) {
       impressionsDiag.error = 'No reporting job configured. Go to Settings > Reporting API > Setup to enable impressions tracking.';
     }
 
+    // Find the client channel in the database (prefer is_client=true)
+    // Declared outside updateVideos block so collab discovery can also use it
+    const { data: dbChannel } = await supabase
+      .from('channels')
+      .select('id')
+      .eq('youtube_channel_id', channelId)
+      .eq('is_client', true)
+      .single();
+
+    console.log(`[Analytics] Looking for channel ${channelId}, found:`, dbChannel?.id || 'none');
+
     // Update videos in the database with analytics data
     // This is done server-side to bypass RLS restrictions
     const { updateVideos } = req.body;
@@ -375,19 +386,8 @@ export default async function handler(req, res) {
     let matchedCount = 0;
     let ctrWrittenCount = 0;
 
-    if (updateVideos !== false) {
-      // Find the client channel in the database (prefer is_client=true)
-      const { data: dbChannel } = await supabase
-        .from('channels')
-        .select('id')
-        .eq('youtube_channel_id', channelId)
-        .eq('is_client', true)
-        .single();
-
-      console.log(`[Analytics] Looking for channel ${channelId}, found:`, dbChannel?.id || 'none');
-
-      if (dbChannel) {
-        for (const [videoId, analytics] of Object.entries(videoAnalytics)) {
+    if (updateVideos !== false && dbChannel) {
+      for (const [videoId, analytics] of Object.entries(videoAnalytics)) {
           // Check if video exists and belongs to this channel
           const { data: existingVideo } = await supabase
             .from('videos')
@@ -422,7 +422,6 @@ export default async function handler(req, res) {
             }
           }
         }
-      }
     }
 
     // Collaboration discovery (when discoverCollabs=true)
