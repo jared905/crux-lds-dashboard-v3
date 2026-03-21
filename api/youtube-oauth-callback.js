@@ -250,6 +250,75 @@ export default async function handler(req, res) {
       return res.redirect(`${frontendUrl}?tab=api-keys&oauth_error=storage_failed`);
     }
 
+    // Auto-setup Reporting API job for impressions/CTR data
+    try {
+      // List available report types
+      const reportTypesRes = await fetch(
+        'https://youtubereporting.googleapis.com/v1/reportTypes',
+        { headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json' } }
+      );
+      if (reportTypesRes.ok) {
+        const reportTypes = await reportTypesRes.json();
+        const reachType = reportTypes.reportTypes?.find(rt =>
+          rt.id === 'channel_reach_basic_a1' ||
+          rt.id === 'channel_reach_combined_a1' ||
+          rt.id.includes('channel_reach_')
+        );
+
+        if (reachType) {
+          // Check for existing job first
+          const jobsRes = await fetch(
+            'https://youtubereporting.googleapis.com/v1/jobs',
+            { headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json' } }
+          );
+          const jobsData = jobsRes.ok ? await jobsRes.json() : {};
+          const existingJob = jobsData.jobs?.find(j =>
+            j.reportTypeId === reachType.id || j.reportTypeId?.includes('channel_reach_')
+          );
+
+          if (existingJob) {
+            // Link existing job
+            await supabase
+              .from('youtube_oauth_connections')
+              .update({
+                reporting_job_id: existingJob.id,
+                reporting_job_type: existingJob.reportTypeId,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('user_id', stateRecord.user_id)
+              .eq('youtube_channel_id', channelInfo.channelId);
+            console.log(`[OAuth] Linked existing reporting job ${existingJob.id} for ${channelInfo.title}`);
+          } else {
+            // Create new job
+            const createRes = await fetch(
+              'https://youtubereporting.googleapis.com/v1/jobs',
+              {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${tokens.access_token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ reportTypeId: reachType.id, name: `Dashboard Reach Report - ${channelInfo.title}` }),
+              }
+            );
+            if (createRes.ok) {
+              const newJob = await createRes.json();
+              await supabase
+                .from('youtube_oauth_connections')
+                .update({
+                  reporting_job_id: newJob.id,
+                  reporting_job_type: newJob.reportTypeId,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('user_id', stateRecord.user_id)
+                .eq('youtube_channel_id', channelInfo.channelId);
+              console.log(`[OAuth] Created reporting job ${newJob.id} for ${channelInfo.title}`);
+            }
+          }
+        }
+      }
+    } catch (reportingErr) {
+      // Non-fatal — reporting setup failure shouldn't block OAuth
+      console.warn('[OAuth] Auto-setup reporting failed (non-fatal):', reportingErr.message);
+    }
+
     // Log success
     await logAuditEvent(stateRecord.user_id, 'oauth_success', {
       ip_address: stateRecord.ip_address,
