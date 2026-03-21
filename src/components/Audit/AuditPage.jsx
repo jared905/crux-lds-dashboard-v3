@@ -102,6 +102,7 @@ export default function AuditPage({ activeClient }) {
       <AuditCreateFlow
         onBack={() => setView("list")}
         onAuditStarted={handleAuditStarted}
+        activeClient={activeClient}
       />
     );
   }

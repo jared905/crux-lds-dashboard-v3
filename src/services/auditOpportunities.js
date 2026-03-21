@@ -48,7 +48,7 @@ export async function analyzeOpportunities(auditId, context) {
   await updateAuditProgress(auditId, { step: 'opportunity_analysis', pct: 57, message: 'Analyzing opportunities...' });
 
   try {
-    const { channelId, channelSnapshot, seriesSummary, benchmarkData, longFormVideos = [], shortFormVideos = [], formatMix = {} } = context;
+    const { channelId, channelSnapshot, seriesSummary, benchmarkData, competitorData, longFormVideos = [], shortFormVideos = [], formatMix = {} } = context;
 
     // Fetch brand context for prompt enrichment
     let brandContextBlock = '';
@@ -127,6 +127,17 @@ ${recentLongForm.length > 0 ? recentLongForm.map(v => `• "${v.title}" — ${(v
 
 ## Recent Shorts (last 90 days)
 ${recentShorts.length > 0 ? recentShorts.map(v => `• "${v.title}" — ${(v.view_count || 0).toLocaleString()} views`).join('\n') : 'None'}
+${competitorData?.competitors?.length > 0 ? `
+## Head-to-Head Competitors
+${competitorData.competitors.map(c => {
+  const topFormats = Object.entries(c.metrics?.contentFormats || {})
+    .filter(([k]) => k !== 'unclassified')
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 3)
+    .map(([name, { pct }]) => `${name} (${pct}%)`);
+  return `• ${c.channel.name} (${(c.channel.subscriber_count || 0).toLocaleString()} subs): avg views ${(c.metrics.avgViews || 0).toLocaleString()}, engagement ${((c.metrics.avgEngagement || 0) * 100).toFixed(2)}%, ${c.metrics.uploadFrequency}/week, top formats: ${topFormats.join(', ') || 'N/A'}`;
+}).join('\n')}
+Use these specific competitors to identify where the audited channel is losing ground and where it has competitive advantages.` : ''}
 
 Identify opportunities in this JSON format. Tag each item with the format it applies to:
 {

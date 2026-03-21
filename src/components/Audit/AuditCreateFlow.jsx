@@ -12,6 +12,10 @@ import {
   Sparkles,
   Check,
   SkipForward,
+  X,
+  Plus,
+  Crosshair,
+  Map,
 } from "lucide-react";
 import { youtubeAPI } from "../../services/youtubeAPI";
 import { claudeAPI } from "../../services/claudeAPI";
@@ -21,6 +25,7 @@ import {
   getContextByYoutubeChannelId,
   extractBrandContext,
 } from "../../services/brandContextService";
+import { getChannels } from "../../services/competitorDatabase";
 import CategorySelector from "../Research/CategorySelector";
 
 const TIER_LABELS = {
@@ -39,10 +44,10 @@ const TIER_COLORS = {
   elite: "#ef4444",
 };
 
-const STEP_LABELS = ["Channel", "Preview", "Brand Context", "Configure"];
+const STEP_LABELS = ["Channel", "Preview", "Brand Context", "Competitors", "Configure"];
 
-export default function AuditCreateFlow({ onBack, onAuditStarted }) {
-  const [step, setStep] = useState(1); // 1: input, 2: preview, 3: brand context, 4: config
+export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }) {
+  const [step, setStep] = useState(1); // 1: input, 2: preview, 3: brand context, 4: competitors, 5: config
   const [channelInput, setChannelInput] = useState("");
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState("");
@@ -59,6 +64,14 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
   const [bcExtracting, setBcExtracting] = useState(false);
   const [pasteContent, setPasteContent] = useState("");
   const [brandName, setBrandName] = useState("");
+
+  // Competitors (step 4)
+  const [competitorUrl, setCompetitorUrl] = useState("");
+  const [resolvedCompetitors, setResolvedCompetitors] = useState([]);
+  const [competitorSuggestions, setCompetitorSuggestions] = useState([]);
+  const [competitorResolving, setCompetitorResolving] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [landscapeOptIn, setLandscapeOptIn] = useState(false);
 
   // Config
   const [auditType, setAuditType] = useState("prospect");
@@ -120,6 +133,77 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
     return () => { cancelled = true; };
   }, [step, channelPreview?.youtube_channel_id]);
 
+  // ── Step 4: Load competitor suggestions when entering step 4 ──
+  useEffect(() => {
+    if (step !== 4) return;
+    let cancelled = false;
+    setSuggestionsLoading(true);
+
+    (async () => {
+      try {
+        // Load competitors from DB (client-scoped if available, else all)
+        const { data } = await getChannels({
+          isCompetitor: true,
+          ...(activeClient?.id && { clientId: activeClient.id }),
+        });
+        if (!cancelled && data?.length > 0) {
+          // Filter out already-selected and the channel being audited
+          const auditedYtId = channelPreview?.youtube_channel_id;
+          const selectedIds = new Set(resolvedCompetitors.map(c => c.youtube_channel_id));
+          const filtered = data.filter(c =>
+            c.youtube_channel_id !== auditedYtId && !selectedIds.has(c.youtube_channel_id)
+          );
+          setCompetitorSuggestions(filtered.slice(0, 20));
+        }
+      } catch (err) {
+        console.warn("[AuditCreateFlow] Failed to load competitor suggestions:", err.message);
+      } finally {
+        if (!cancelled) setSuggestionsLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [step, activeClient?.id]);
+
+  // ── Resolve competitor URL ──
+  const handleAddCompetitor = async () => {
+    if (!competitorUrl.trim() || resolvedCompetitors.length >= 5) return;
+    setCompetitorResolving(true);
+    setError("");
+    try {
+      const channelId = await youtubeAPI.resolveChannelId(competitorUrl.trim());
+      // Check for duplicates
+      if (resolvedCompetitors.some(c => c.youtube_channel_id === channelId)) {
+        setError("This channel is already in your competitor list.");
+        return;
+      }
+      if (channelId === channelPreview?.youtube_channel_id) {
+        setError("You can't add the audited channel as a competitor.");
+        return;
+      }
+      const details = await youtubeAPI.fetchChannelDetails(channelId);
+      setResolvedCompetitors(prev => [...prev, details]);
+      setCompetitorUrl("");
+      // Remove from suggestions if present
+      setCompetitorSuggestions(prev => prev.filter(c => c.youtube_channel_id !== channelId));
+    } catch (err) {
+      setError(err.message || "Could not resolve channel. Check the URL or handle.");
+    } finally {
+      setCompetitorResolving(false);
+    }
+  };
+
+  const handleAddSuggestion = (channel) => {
+    if (resolvedCompetitors.length >= 5) return;
+    if (resolvedCompetitors.some(c => c.youtube_channel_id === channel.youtube_channel_id)) return;
+    setResolvedCompetitors(prev => [...prev, channel]);
+    setCompetitorSuggestions(prev => prev.filter(c => c.id !== channel.id));
+  };
+
+  const handleRemoveCompetitor = (ytChannelId) => {
+    setResolvedCompetitors(prev => prev.filter(c => c.youtube_channel_id !== ytChannelId));
+  };
+
   // ── Step 3: Extract brand context ──
   const handleExtract = async () => {
     if (!pasteContent.trim()) {
@@ -147,7 +231,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
     return keys.filter(k => data[k] && typeof data[k] === "object" && Object.keys(data[k]).length > 0).length;
   };
 
-  // ── Step 4: Launch audit ──
+  // ── Step 5: Launch audit ──
   const handleLaunch = async () => {
     // Pre-flight: check API keys before creating audit record
     if (!claudeAPI.apiKey) {
@@ -169,6 +253,10 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
           forceRefresh,
           categoryIds: selectedCategoryIds.length > 0 ? selectedCategoryIds : null,
           brandContext: brandContextData || null,
+          competitorChannelIds: resolvedCompetitors.length > 0
+            ? resolvedCompetitors.map(c => c.youtube_channel_id)
+            : null,
+          landscapeOptIn: landscapeOptIn && resolvedCompetitors.length > 0,
         },
       });
 
@@ -631,8 +719,196 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
         </div>
       )}
 
-      {/* ── Step 4: Configure ── */}
+      {/* ── Step 4: Competitors (optional) ── */}
       {step === 4 && (
+        <div style={{ maxWidth: "600px" }}>
+          <div style={{
+            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
+            padding: "32px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <Crosshair size={20} style={{ color: "#60a5fa" }} />
+              <div style={{ fontSize: "16px", fontWeight: "600" }}>Add Competitors</div>
+              <span style={{ fontSize: "11px", color: "#9E9E9E", background: "#333", padding: "2px 8px", borderRadius: "4px" }}>
+                Optional
+              </span>
+            </div>
+            <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "20px" }}>
+              Add up to 5 competitor channels for head-to-head benchmarking. Paste YouTube URLs or select from your tracked competitors.
+            </div>
+
+            {/* Manual URL input */}
+            <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+              <input
+                type="text"
+                value={competitorUrl}
+                onChange={(e) => setCompetitorUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddCompetitor()}
+                placeholder="https://youtube.com/@channel or UCxxxxxxx"
+                disabled={resolvedCompetitors.length >= 5}
+                style={{
+                  flex: 1, padding: "10px 12px", background: "#252525",
+                  border: "1px solid #444", borderRadius: "8px", color: "#E0E0E0",
+                  fontSize: "13px", outline: "none",
+                  opacity: resolvedCompetitors.length >= 5 ? 0.5 : 1,
+                }}
+              />
+              <button
+                onClick={handleAddCompetitor}
+                disabled={competitorResolving || !competitorUrl.trim() || resolvedCompetitors.length >= 5}
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  padding: "10px 16px", background: "#2962FF", border: "none",
+                  borderRadius: "8px", color: "#fff", cursor: "pointer",
+                  fontWeight: "600", fontSize: "13px",
+                  opacity: competitorResolving || !competitorUrl.trim() || resolvedCompetitors.length >= 5 ? 0.5 : 1,
+                }}
+              >
+                {competitorResolving ? <Loader size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Plus size={14} />}
+                Add
+              </button>
+            </div>
+
+            {/* Selected competitors */}
+            {resolvedCompetitors.length > 0 && (
+              <div style={{ marginBottom: "16px" }}>
+                <div style={{ fontSize: "12px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Selected ({resolvedCompetitors.length}/5)
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {resolvedCompetitors.map(c => (
+                    <div key={c.youtube_channel_id} style={{
+                      display: "flex", alignItems: "center", gap: "10px",
+                      padding: "8px 12px", background: "#252525", borderRadius: "8px",
+                      border: "1px solid #444",
+                    }}>
+                      {c.thumbnail_url && (
+                        <img src={c.thumbnail_url} alt="" style={{ width: "28px", height: "28px", borderRadius: "50%" }} />
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "13px", fontWeight: "600", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {c.name}
+                        </div>
+                        <div style={{ fontSize: "11px", color: "#9E9E9E" }}>
+                          {(c.subscriber_count || 0).toLocaleString()} subscribers
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveCompetitor(c.youtube_channel_id)}
+                        style={{
+                          background: "none", border: "none", color: "#9E9E9E",
+                          cursor: "pointer", padding: "4px",
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Suggestions from database */}
+            {suggestionsLoading && (
+              <div style={{ textAlign: "center", padding: "16px", color: "#9E9E9E", fontSize: "12px" }}>
+                <Loader size={14} style={{ animation: "spin 1s linear infinite", marginRight: "6px", verticalAlign: "middle" }} />
+                Loading tracked competitors...
+              </div>
+            )}
+
+            {!suggestionsLoading && competitorSuggestions.length > 0 && resolvedCompetitors.length < 5 && (
+              <div style={{ marginBottom: "16px" }}>
+                <div style={{ fontSize: "12px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  From Your Competitor Database
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  {competitorSuggestions.slice(0, 10).map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => handleAddSuggestion(c)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "6px",
+                        padding: "6px 10px", background: "#252525",
+                        border: "1px solid #444", borderRadius: "20px",
+                        color: "#E0E0E0", cursor: "pointer", fontSize: "12px",
+                      }}
+                    >
+                      {c.thumbnail_url && (
+                        <img src={c.thumbnail_url} alt="" style={{ width: "18px", height: "18px", borderRadius: "50%" }} />
+                      )}
+                      {c.name}
+                      <Plus size={12} style={{ color: "#60a5fa" }} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Landscape opt-in */}
+            {resolvedCompetitors.length > 0 && (
+              <div style={{
+                padding: "12px 14px", background: "rgba(41, 98, 255, 0.08)",
+                border: "1px solid rgba(41, 98, 255, 0.2)", borderRadius: "8px",
+                marginBottom: "16px",
+              }}>
+                <label style={{
+                  display: "flex", alignItems: "flex-start", gap: "10px",
+                  cursor: "pointer",
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={landscapeOptIn}
+                    onChange={(e) => setLandscapeOptIn(e.target.checked)}
+                    style={{ accentColor: "#2962FF", marginTop: "2px" }}
+                  />
+                  <div>
+                    <div style={{ fontSize: "13px", fontWeight: "600", color: "#E0E0E0" }}>
+                      <Map size={14} style={{ verticalAlign: "middle", marginRight: "6px", color: "#60a5fa" }} />
+                      Include Landscape Analysis
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "4px" }}>
+                      AI-generated competitive positioning, content saturation map, and white space identification.
+                    </div>
+                  </div>
+                </label>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setStep(3)}
+                style={{
+                  padding: "10px 20px", background: "transparent",
+                  border: "1px solid #444", borderRadius: "8px",
+                  color: "#9E9E9E", cursor: "pointer", fontSize: "13px",
+                }}
+              >
+                Back
+              </button>
+              <button
+                onClick={() => setStep(5)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  padding: "10px 16px", background: resolvedCompetitors.length === 0 ? "transparent" : "#2962FF",
+                  border: resolvedCompetitors.length === 0 ? "1px solid #444" : "none",
+                  borderRadius: "8px",
+                  color: resolvedCompetitors.length === 0 ? "#9E9E9E" : "#fff",
+                  cursor: "pointer", fontSize: "13px", fontWeight: "600",
+                }}
+              >
+                {resolvedCompetitors.length === 0 ? (
+                  <><SkipForward size={14} /> Skip</>
+                ) : (
+                  "Continue"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 5: Configure ── */}
+      {step === 5 && (
         <div style={{ maxWidth: "600px" }}>
           <div style={{
             background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
@@ -648,12 +924,36 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
                 display: "flex", alignItems: "center", gap: "8px",
                 padding: "10px 14px", background: "rgba(34, 197, 94, 0.08)",
                 border: "1px solid rgba(34, 197, 94, 0.2)", borderRadius: "8px",
-                marginBottom: "20px", fontSize: "13px", color: "#22c55e",
+                marginBottom: "12px", fontSize: "13px", color: "#22c55e",
               }}>
                 <Palette size={16} />
                 Brand context will be included ({countFilledSections(brandContextData)} sections)
                 <button
                   onClick={() => { setBrandContextData(null); setStep(3); }}
+                  style={{
+                    marginLeft: "auto", background: "none", border: "none",
+                    color: "#9E9E9E", fontSize: "12px", cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Change
+                </button>
+              </div>
+            )}
+
+            {/* Competitor indicator */}
+            {resolvedCompetitors.length > 0 && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: "8px",
+                padding: "10px 14px", background: "rgba(41, 98, 255, 0.08)",
+                border: "1px solid rgba(41, 98, 255, 0.2)", borderRadius: "8px",
+                marginBottom: "20px", fontSize: "13px", color: "#60a5fa",
+              }}>
+                <Crosshair size={16} />
+                {resolvedCompetitors.length} competitor{resolvedCompetitors.length !== 1 ? "s" : ""} selected
+                {landscapeOptIn && <span style={{ color: "#8b5cf6" }}> + Landscape Analysis</span>}
+                <button
+                  onClick={() => setStep(4)}
                   style={{
                     marginLeft: "auto", background: "none", border: "none",
                     color: "#9E9E9E", fontSize: "12px", cursor: "pointer",
@@ -751,13 +1051,20 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
                 <li>Channel data ingestion & video analysis</li>
                 <li>Content series detection (pattern + AI)</li>
                 <li>
-                  Tier-stratified peer benchmarking
-                  {selectedCategoryIds.length > 0 && (
-                    <span style={{ color: "#60a5fa" }}>
-                      {" "}(scoped to {selectedCategoryIds.length} selected categor{selectedCategoryIds.length === 1 ? "y" : "ies"})
-                    </span>
-                  )}
+                  {resolvedCompetitors.length > 0
+                    ? <span>Head-to-head benchmarking <span style={{ color: "#60a5fa" }}>({resolvedCompetitors.length} competitor{resolvedCompetitors.length !== 1 ? "s" : ""})</span></span>
+                    : <>Tier-stratified peer benchmarking
+                      {selectedCategoryIds.length > 0 && (
+                        <span style={{ color: "#60a5fa" }}>
+                          {" "}(scoped to {selectedCategoryIds.length} selected categor{selectedCategoryIds.length === 1 ? "y" : "ies"})
+                        </span>
+                      )}
+                    </>
+                  }
                 </li>
+                {landscapeOptIn && resolvedCompetitors.length > 0 && (
+                  <li>AI landscape analysis <span style={{ color: "#8b5cf6" }}>(positioning + white space)</span></li>
+                )}
                 <li>AI opportunity analysis{brandContextData ? <span style={{ color: "#22c55e" }}> (brand-aware)</span> : ""}</li>
                 <li>Stop/Start/Optimize recommendations{brandContextData ? <span style={{ color: "#22c55e" }}> (brand-aware)</span> : ""}</li>
                 <li>Executive summary{brandContextData ? <span style={{ color: "#22c55e" }}> (brand-aware)</span> : ""}</li>
@@ -766,7 +1073,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted }) {
 
             <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
               <button
-                onClick={() => setStep(3)}
+                onClick={() => setStep(4)}
                 style={{
                   padding: "10px 20px", background: "transparent",
                   border: "1px solid #444", borderRadius: "8px",

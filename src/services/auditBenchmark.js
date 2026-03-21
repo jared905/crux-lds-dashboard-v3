@@ -286,23 +286,61 @@ export function compareAgainstBenchmarks(channelMetrics, benchmarks) {
  * @param {Object} [options]
  * @param {string} [options.clientId] - Limit benchmarks to competitors from this client only
  * @param {string[]} [options.categoryIds] - Limit benchmarks to competitors in these categories
+ * @param {Object} [options.specifiedCompetitors] - Pre-fetched competitor data from auditCompetitorFetch
  */
-export async function runBenchmarking(auditId, channel, sizeTier, { clientId, categoryIds } = {}) {
+export async function runBenchmarking(auditId, channel, sizeTier, { clientId, categoryIds, specifiedCompetitors } = {}) {
   await updateAuditSection(auditId, 'competitor_matching', { status: 'running' });
   await updateAuditProgress(auditId, { step: 'competitor_matching', pct: 32, message: 'Finding peer channels...' });
 
   try {
-    // Find peers - optionally scoped by category or client
-    // Priority: explicit categoryIds > explicit clientId > channel's own client
-    const peers = await findPeerChannels(channel.id, sizeTier, {
-      category: !categoryIds?.length ? channel.category : undefined,  // Only use legacy category if no categoryIds
-      categoryIds: categoryIds?.length > 0 ? categoryIds : undefined,
-      clientId: !categoryIds?.length ? (clientId || channel.client_id) : undefined,  // Only use clientId if no categoryIds
-    });
+    // If we have manually specified competitors, use their DB IDs as the peer set
+    let peers;
+    if (specifiedCompetitors?.competitors?.length > 0) {
+      // Use specified competitors as peers (their channel records should already be in DB from auditCompetitorFetch)
+      const specifiedIds = specifiedCompetitors.competitors
+        .map(c => c.channel.id)
+        .filter(Boolean);
+
+      if (specifiedIds.length > 0) {
+        const { data: specifiedPeers } = await supabase
+          .from('channels')
+          .select('*')
+          .in('id', specifiedIds);
+        peers = specifiedPeers || [];
+      } else {
+        peers = [];
+      }
+
+      // If fewer than 3 specified, supplement with auto-discovered peers
+      if (peers.length < 3) {
+        const autoPeers = await findPeerChannels(channel.id, sizeTier, {
+          category: !categoryIds?.length ? channel.category : undefined,
+          categoryIds: categoryIds?.length > 0 ? categoryIds : undefined,
+          clientId: !categoryIds?.length ? (clientId || channel.client_id) : undefined,
+        });
+        const existingIds = new Set(peers.map(p => p.id));
+        for (const ap of autoPeers) {
+          if (!existingIds.has(ap.id) && peers.length < 10) {
+            peers.push(ap);
+          }
+        }
+      }
+    } else {
+      // Standard auto-discovery
+      peers = await findPeerChannels(channel.id, sizeTier, {
+        category: !categoryIds?.length ? channel.category : undefined,
+        categoryIds: categoryIds?.length > 0 ? categoryIds : undefined,
+        clientId: !categoryIds?.length ? (clientId || channel.client_id) : undefined,
+      });
+    }
 
     await updateAuditSection(auditId, 'competitor_matching', {
       status: 'completed',
-      result_data: { peer_count: peers.length, peer_names: peers.map(p => p.name) },
+      result_data: {
+        peer_count: peers.length,
+        peer_names: peers.map(p => p.name),
+        source: specifiedCompetitors ? 'manual' : 'auto',
+      },
     });
 
     await updateAuditSection(auditId, 'benchmarking', { status: 'running' });
@@ -359,6 +397,22 @@ export async function runBenchmarking(auditId, channel, sizeTier, { clientId, ca
       benchmarks
     );
 
+    // Build head-to-head comparison if specified competitors were provided
+    let headToHead = null;
+    if (specifiedCompetitors?.competitors?.length > 0) {
+      headToHead = specifiedCompetitors.competitors.map(comp => ({
+        name: comp.channel.name,
+        thumbnail_url: comp.channel.thumbnail_url,
+        subscriber_count: comp.channel.subscriber_count,
+        avgViews: comp.metrics.avgViews,
+        avgEngagement: comp.metrics.avgEngagement,
+        uploadFrequency: comp.metrics.uploadFrequency,
+        contentMix: comp.metrics.contentMix,
+        titlePatterns: comp.metrics.titlePatterns,
+        contentFormats: comp.metrics.contentFormats,
+      }));
+    }
+
     const benchmarkData = {
       hasBenchmarks: true,
       peer_count: peers.length,
@@ -372,6 +426,7 @@ export async function runBenchmarking(auditId, channel, sizeTier, { clientId, ca
         uploadFrequency: Math.round(uploadFrequency * 10) / 10,
         videosAnalyzed: recentVideos.length,
       },
+      ...(headToHead && { head_to_head: headToHead }),
     };
 
     await updateAuditProgress(auditId, { step: 'benchmarking', pct: 55, message: 'Benchmarking complete' });

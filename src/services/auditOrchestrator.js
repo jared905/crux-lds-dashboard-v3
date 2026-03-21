@@ -27,6 +27,8 @@ import { analyzeOpportunities } from './auditOpportunities';
 import { generateRecommendations } from './auditRecommendations';
 import { generateExecutiveSummary } from './auditSummary';
 import { saveBrandContext } from './brandContextService';
+import { fetchAuditCompetitors } from './auditCompetitorFetch';
+import { generateLandscapeAnalysis } from './auditLandscape';
 
 const AUDIT_STEPS = [
   'ingestion',
@@ -117,16 +119,36 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
     notify({ step: 'series_detection', pct: 30, message: `Detected ${seriesSummary.total_series} series` });
 
     // ── Steps 3-4: Competitor Matching + Benchmarking ──
-    // These are handled together in runBenchmarking, which manages both
-    // the competitor_matching and benchmarking audit sections.
-    // If categoryIds are specified, benchmarks will only compare against those categories.
-    notify({ step: 'benchmarking', pct: 32, message: 'Finding peers and benchmarking...' });
+    // If manual competitors are specified, fetch their data and use them for benchmarking.
+    let competitorData = null;
+    if (config.competitorChannelIds?.length > 0) {
+      notify({ step: 'competitor_matching', pct: 31, message: `Fetching data for ${config.competitorChannelIds.length} competitors...` });
+      competitorData = await fetchAuditCompetitors(config.competitorChannelIds);
+      await updateAudit(auditId, { competitor_data: competitorData });
+    }
+
+    notify({ step: 'benchmarking', pct: 35, message: 'Finding peers and benchmarking...' });
     const benchmarkData = await runBenchmarking(auditId, channel, sizeTier, {
       clientId: config.clientId,
       categoryIds: config.categoryIds,
+      specifiedCompetitors: competitorData,
     });
 
     await updateAudit(auditId, { benchmark_data: benchmarkData });
+
+    // ── Optional: Landscape Analysis ──
+    let landscapeData = null;
+    if (config.landscapeOptIn && competitorData?.competitors?.length > 0) {
+      notify({ step: 'benchmarking', pct: 50, message: 'Generating landscape analysis...' });
+      landscapeData = await generateLandscapeAnalysis(auditId, {
+        channel,
+        channelSnapshot,
+        competitorData,
+        benchmarkData,
+      });
+      await updateAudit(auditId, { landscape_data: landscapeData });
+    }
+
     notify({ step: 'benchmarking', pct: 55, message: 'Benchmarking complete' });
 
     // ── Step 5: Opportunity Analysis ──
@@ -136,6 +158,7 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
       channelSnapshot,
       seriesSummary,
       benchmarkData,
+      competitorData,
       videos,
       longFormVideos,
       shortFormVideos,
@@ -294,12 +317,31 @@ export async function resumeAudit(auditId, onProgress) {
       if (step === 'competitor_matching' || step === 'benchmarking') {
         // These run together; skip competitor_matching, handle at benchmarking
         if (step === 'competitor_matching') continue;
+
+        // Re-fetch competitors if specified
+        let competitorData = audit.competitor_data;
+        if (!competitorData && audit.config?.competitorChannelIds?.length > 0) {
+          notify({ step, pct: 31, message: 'Re-fetching competitor data...' });
+          competitorData = await fetchAuditCompetitors(audit.config.competitorChannelIds);
+          await updateAudit(auditId, { competitor_data: competitorData });
+        }
+
         notify({ step, pct: 32, message: 'Resuming benchmarking...' });
         benchmarkData = await runBenchmarking(auditId, channel, sizeTier, {
           clientId: audit.config?.clientId,
           categoryIds: audit.config?.categoryIds,
+          specifiedCompetitors: competitorData,
         });
         await updateAudit(auditId, { benchmark_data: benchmarkData });
+
+        // Landscape analysis if opted in
+        if (audit.config?.landscapeOptIn && competitorData?.competitors?.length > 0 && !audit.landscape_data) {
+          notify({ step, pct: 50, message: 'Generating landscape analysis...' });
+          const landscapeData = await generateLandscapeAnalysis(auditId, {
+            channel, channelSnapshot, competitorData, benchmarkData,
+          });
+          await updateAudit(auditId, { landscape_data: landscapeData });
+        }
       }
 
       if (step === 'opportunity_analysis') {

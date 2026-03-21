@@ -20,6 +20,8 @@ import {
   Info,
   Calendar,
   UserPlus,
+  Crosshair,
+  Map,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -44,14 +46,17 @@ import {
 } from "recharts";
 import AuditPDFExport from "./AuditPDFExport";
 import OutreachBuilder from "./OutreachBuilder";
+import AuditCompetitiveBenchmark from "./AuditCompetitiveBenchmark";
+import AuditLandscapeAnalysis from "./AuditLandscapeAnalysis";
 import { categorizeVideos, getQuadrantBreakdown } from "../../services/videoCategorizationService";
 
-const TABS = [
+const BASE_TABS = [
   { id: "summary", label: "Summary", icon: FileText },
   { id: "overview", label: "Overview", icon: BarChart3 },
   { id: "insights", label: "Video Performance", icon: BarChart3 },
   { id: "series", label: "Series", icon: Layers },
   { id: "benchmarks", label: "Benchmarks", icon: Users },
+  // "competitive" and "landscape" are injected dynamically after "benchmarks"
   { id: "opportunities", label: "Opportunities", icon: Lightbulb },
   { id: "recommendations", label: "Recommendations", icon: Target },
   { id: "outreach", label: "Outreach", icon: Mail },
@@ -85,6 +90,24 @@ export default function AuditResults({ audit, onBack }) {
   const recommendations = audit.recommendations || {};
   const summary = audit.executive_summary || "";
   const videos = audit.videos || [];
+  const competitorData = audit.competitor_data;
+  const landscapeData = audit.landscape_data;
+
+  // Build dynamic tabs — inject competitive/landscape after benchmarks when data exists
+  const tabs = useMemo(() => {
+    const result = [...BASE_TABS];
+    const benchmarkIdx = result.findIndex(t => t.id === "benchmarks");
+    const insertIdx = benchmarkIdx >= 0 ? benchmarkIdx + 1 : result.length;
+    const extras = [];
+    if (benchmark.head_to_head?.length > 0 || competitorData?.competitors?.length > 0) {
+      extras.push({ id: "competitive", label: "Competitive", icon: Crosshair });
+    }
+    if (landscapeData) {
+      extras.push({ id: "landscape", label: "Landscape", icon: Map });
+    }
+    result.splice(insertIdx, 0, ...extras);
+    return result;
+  }, [benchmark.head_to_head, competitorData, landscapeData]);
 
   // Format breakdown
   const formatMix = useMemo(() => {
@@ -176,7 +199,7 @@ export default function AuditResults({ audit, onBack }) {
         display: "flex", gap: "4px", marginBottom: "24px",
         overflowX: "auto", paddingBottom: "4px",
       }}>
-        {TABS.map(({ id, label, icon: Icon }) => (
+        {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
@@ -1079,6 +1102,16 @@ export default function AuditResults({ audit, onBack }) {
       )}
 
       {/* ── Outreach Tab ── */}
+      {/* ── Competitive Tab ── */}
+      {activeTab === "competitive" && (
+        <AuditCompetitiveBenchmark audit={audit} />
+      )}
+
+      {/* ── Landscape Tab ── */}
+      {activeTab === "landscape" && (
+        <AuditLandscapeAnalysis audit={audit} />
+      )}
+
       {activeTab === "outreach" && (
         <OutreachBuilder audit={audit} videoAnalysis={videoAnalysis} />
       )}
