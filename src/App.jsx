@@ -6,6 +6,7 @@ import { useAuth } from "./contexts/AuthContext.jsx";
 import LoginPage from "./components/Auth/LoginPage.jsx";
 import SignupPage from "./components/Auth/SignupPage.jsx";
 import PrivacyPolicy from "./components/Public/PrivacyPolicy.jsx";
+import TermsOfService from "./components/Public/TermsOfService.jsx";
 
 // Services
 import { youtubeAPI } from "./services/youtubeAPI.js";
@@ -57,7 +58,7 @@ export default function App() {
   const [sidebar, setSidebar] = useState(false);
   const [tab, setTab] = useState(() => {
     // Check path-based public routes first (e.g. /privacy)
-    const PUBLIC_ROUTES = { '/privacy': 'privacy' };
+    const PUBLIC_ROUTES = { '/privacy': 'privacy', '/terms': 'terms' };
     const pathRoute = PUBLIC_ROUTES[window.location.pathname];
     if (pathRoute) return pathRoute;
 
@@ -976,6 +977,7 @@ export default function App() {
   // Public routes — accessible without authentication (supports both /privacy and ?tab=privacy)
   const pathname = window.location.pathname;
   if (tab === "privacy" || pathname === "/privacy") return <PrivacyPolicy />;
+  if (tab === "terms" || pathname === "/terms") return <TermsOfService />;
 
   // Show loading state while checking auth
   if (authLoading) {
