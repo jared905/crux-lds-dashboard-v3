@@ -29,10 +29,41 @@ const LoginPage = ({ onSwitchToSignup }) => {
       minHeight: '100vh',
       background: '#181817',
       display: 'flex',
+      flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '20px'
     }}>
+      {/* App Description — visible to Google crawlers */}
+      <div style={{
+        width: '100%',
+        maxWidth: '400px',
+        textAlign: 'center',
+        marginBottom: '24px',
+      }}>
+        <img
+          src="/Full_View_Logo.png"
+          alt="Full View Studio"
+          style={{ height: '80px', objectFit: 'contain', marginBottom: '16px' }}
+        />
+        <h1 style={{
+          color: '#E0E0E0',
+          fontSize: '28px',
+          fontWeight: '700',
+          marginBottom: '8px',
+        }}>
+          Full View Studio
+        </h1>
+        <p style={{
+          color: '#9E9E9E',
+          fontSize: '14px',
+          lineHeight: '1.6',
+          marginBottom: '0',
+        }}>
+          YouTube analytics, competitive benchmarking, and AI-powered content strategy — built for creators and agencies by Crux Media.
+        </p>
+      </div>
+
       <div style={{
         width: '100%',
         maxWidth: '400px',
@@ -41,39 +72,23 @@ const LoginPage = ({ onSwitchToSignup }) => {
         padding: '40px',
         boxShadow: '0 4px 24px rgba(0, 0, 0, 0.4)'
       }}>
-        {/* Logo */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          marginBottom: '32px'
-        }}>
-          <img
-            src="/Full_View_Logo.png"
-            alt="Full View Analytics"
-            style={{
-              height: '80px',
-              objectFit: 'contain'
-            }}
-          />
-        </div>
-
         {/* Title */}
-        <h1 style={{
+        <h2 style={{
           color: '#E0E0E0',
-          fontSize: '28px',
+          fontSize: '20px',
           fontWeight: '700',
           textAlign: 'center',
           marginBottom: '8px'
         }}>
-          Welcome Back
-        </h1>
+          Sign In
+        </h2>
         <p style={{
           color: '#9E9E9E',
           fontSize: '14px',
           textAlign: 'center',
           marginBottom: '32px'
         }}>
-          Sign in to access your dashboard
+          Access your dashboard
         </p>
 
         {/* Error Message */}
@@ -264,6 +279,29 @@ const LoginPage = ({ onSwitchToSignup }) => {
             style={{ height: '12px', objectFit: 'contain', opacity: 0.6 }}
           />
         </div>
+      </div>
+
+      {/* Legal links */}
+      <div style={{
+        marginTop: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '16px',
+        fontSize: '12px',
+      }}>
+        <a href="/privacy" style={{ color: '#9E9E9E', textDecoration: 'none' }}
+          onMouseEnter={(e) => e.target.style.color = '#60a5fa'}
+          onMouseLeave={(e) => e.target.style.color = '#9E9E9E'}
+        >
+          Privacy Policy
+        </a>
+        <span style={{ color: '#444' }}>|</span>
+        <a href="/terms" style={{ color: '#9E9E9E', textDecoration: 'none' }}
+          onMouseEnter={(e) => e.target.style.color = '#60a5fa'}
+          onMouseLeave={(e) => e.target.style.color = '#9E9E9E'}
+        >
+          Terms of Service
+        </a>
       </div>
     </div>
   );
