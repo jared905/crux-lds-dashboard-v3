@@ -13,6 +13,7 @@ build/
 # Editor directories and files
 .vscode/
 .idea/
+.claude/
 *.suo
 *.ntvs*
 *.njsproj
