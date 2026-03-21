@@ -5,6 +5,7 @@ import { Menu, ChevronDown } from "lucide-react";
 import { useAuth } from "./contexts/AuthContext.jsx";
 import LoginPage from "./components/Auth/LoginPage.jsx";
 import SignupPage from "./components/Auth/SignupPage.jsx";
+import PrivacyPolicy from "./components/Public/PrivacyPolicy.jsx";
 
 // Services
 import { youtubeAPI } from "./services/youtubeAPI.js";
@@ -966,6 +967,10 @@ export default function App() {
     if (isAdmin) return clients;
     return clients.filter(c => canAccessClient(c.id));
   }, [clients, isAdmin, canAccessClient]);
+
+  // Public routes — accessible without authentication (supports both /privacy and ?tab=privacy)
+  const pathname = window.location.pathname;
+  if (tab === "privacy" || pathname === "/privacy") return <PrivacyPolicy />;
 
   // Show loading state while checking auth
   if (authLoading) {
