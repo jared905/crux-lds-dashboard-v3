@@ -56,6 +56,11 @@ export default function App() {
   const { isMobile } = useMediaQuery();
   const [sidebar, setSidebar] = useState(false);
   const [tab, setTab] = useState(() => {
+    // Check path-based public routes first (e.g. /privacy)
+    const PUBLIC_ROUTES = { '/privacy': 'privacy' };
+    const pathRoute = PUBLIC_ROUTES[window.location.pathname];
+    if (pathRoute) return pathRoute;
+
     // Check URL params for tab (used by OAuth callback redirect)
     const params = new URLSearchParams(window.location.search);
     const urlTab = params.get('tab');
