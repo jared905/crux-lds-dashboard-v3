@@ -141,6 +141,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
   const [expandedCategories, setExpandedCategories] = useState({});
   const [refreshingId, setRefreshingId] = useState(null);
+  const [syncAllState, setSyncAllState] = useState(null); // { total, completed, errors }
   const [refreshError, setRefreshError] = useState({});
   const [newCompetitor, setNewCompetitor] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1561,18 +1562,56 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             {/* Sync All */}
             {activeCompetitors.length > 0 && (
               <button
-                onClick={() => {
-                  activeCompetitors.forEach(c => refreshCompetitor(c.id));
+                onClick={async () => {
+                  if (syncAllState) return; // already running
+                  const total = activeCompetitors.length;
+                  setSyncAllState({ total, completed: 0, errors: 0 });
+                  let completed = 0;
+                  let errors = 0;
+                  // Process in batches of 3 to avoid hammering the API
+                  for (let i = 0; i < activeCompetitors.length; i += 3) {
+                    const batch = activeCompetitors.slice(i, i + 3);
+                    const results = await Promise.allSettled(
+                      batch.map(c => refreshCompetitor(c.id))
+                    );
+                    results.forEach(r => {
+                      if (r.status === 'rejected') errors++;
+                      completed++;
+                    });
+                    setSyncAllState({ total, completed, errors });
+                  }
+                  // Show complete state briefly then clear
+                  setTimeout(() => setSyncAllState(null), 3000);
                 }}
+                disabled={!!syncAllState}
                 style={{
-                  background: "transparent", border: "1px solid #555",
+                  background: syncAllState ? "rgba(59,130,246,0.15)" : "transparent",
+                  border: `1px solid ${syncAllState ? '#3b82f6' : '#555'}`,
                   borderRadius: "6px", padding: "6px 12px",
-                  color: "#aaa", fontSize: "12px", fontWeight: "600",
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: "4px",
+                  color: syncAllState ? "#60a5fa" : "#aaa",
+                  fontSize: "12px", fontWeight: "600",
+                  cursor: syncAllState ? "default" : "pointer",
+                  display: "flex", alignItems: "center", gap: "6px",
+                  minWidth: syncAllState ? "140px" : undefined,
                 }}
               >
-                <RefreshCw size={14} />
-                Sync All
+                {syncAllState ? (
+                  <>
+                    <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />
+                    {syncAllState.completed === syncAllState.total ? (
+                      <span style={{ color: syncAllState.errors > 0 ? "#f59e0b" : "#10b981" }}>
+                        Done{syncAllState.errors > 0 ? ` (${syncAllState.errors} failed)` : ''}
+                      </span>
+                    ) : (
+                      <span>{syncAllState.completed}/{syncAllState.total}</span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={14} />
+                    Sync All
+                  </>
+                )}
               </button>
             )}
 
