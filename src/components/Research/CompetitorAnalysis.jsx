@@ -7,6 +7,64 @@ import CategoryBrowser from './CategoryBrowser';
 import { ChannelClientAssignment } from './ChannelClientAssignment';
 import AnimatedSection from '../Shared/AnimatedSection';
 
+// ─── Quota Usage Indicator ─────────────────────────────────────────────
+function QuotaIndicator() {
+  const [quota, setQuota] = useState(null);
+
+  useEffect(() => {
+    let interval;
+    const load = async () => {
+      try {
+        const { youtubeAPI } = await import('../../services/youtubeAPI');
+        setQuota(youtubeAPI.getQuotaUsage());
+      } catch { /* no-op */ }
+    };
+    load();
+    // Refresh every 30s to stay current during syncs
+    interval = setInterval(load, 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!quota) return null;
+
+  const pct = Math.min((quota.units / quota.limit) * 100, 100);
+  const color = pct > 90 ? '#ef4444' : pct > 70 ? '#f59e0b' : '#10b981';
+  const label = pct > 90 ? 'Critical' : pct > 70 ? 'High' : '';
+
+  return (
+    <div
+      title={`YouTube API: ${quota.units.toLocaleString()} / ${quota.limit.toLocaleString()} units used today (${quota.calls} calls)`}
+      style={{
+        display: 'flex', alignItems: 'center', gap: '6px',
+        padding: '4px 10px',
+        background: '#1a1a1a',
+        border: `1px solid ${pct > 70 ? color + '66' : '#333'}`,
+        borderRadius: '6px',
+        cursor: 'default',
+      }}
+    >
+      <div style={{
+        width: '60px', height: '6px', background: '#252525',
+        borderRadius: '3px', overflow: 'hidden',
+      }}>
+        <div style={{
+          width: `${Math.max(pct, 1)}%`, height: '100%',
+          background: color, borderRadius: '3px',
+          transition: 'width 0.3s',
+        }} />
+      </div>
+      <span style={{ fontSize: '10px', color: '#888', whiteSpace: 'nowrap' }}>
+        {quota.units.toLocaleString()}<span style={{ color: '#555' }}>/10K</span>
+      </span>
+      {label && (
+        <span style={{ fontSize: '9px', fontWeight: '700', color, whiteSpace: 'nowrap' }}>
+          {label}
+        </span>
+      )}
+    </div>
+  );
+}
+
 const CompetitorTrends = lazy(() => import('./CompetitorTrends'));
 const CompetitorLeaderboard = lazy(() => import('./CompetitorLeaderboard'));
 const CompetitorPulse = lazy(() => import('./CompetitorPulse'));
@@ -1515,6 +1573,9 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                 Sync All
               </button>
             )}
+
+            {/* API Quota Usage */}
+            <QuotaIndicator />
 
             {/* Settings overflow menu */}
             <div style={{ position: "relative" }}>
