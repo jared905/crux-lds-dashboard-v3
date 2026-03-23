@@ -56,10 +56,17 @@ function buildParentLanes(groups, categoryConfig) {
     }
   });
 
+  // Collect all parent slugs that have children (even if parent group doesn't exist in input)
+  const parentSlugsWithChildren = new Set(Object.keys(childGroupsByParent));
+
   // Build parent lanes — merge children into parent
+  // First, process groups that are present in the input
+  const processedParents = new Set();
+
   groups.forEach(g => {
     if (isChildSlug.has(g.key)) return; // skip children, they're bundled
 
+    processedParents.add(g.key);
     const children = childGroupsByParent[g.key] || [];
     const allChannels = [...g.channels];
     children.forEach(child => allChannels.push(...child.channels));
@@ -85,9 +92,56 @@ function buildParentLanes(groups, categoryConfig) {
       }
     });
 
+    if (allChannels.length > 0) {
+      parentGroups.push({
+        key: g.key,
+        config: g.config,
+        channels: allChannels,
+        subcategories,
+        channelCount: allChannels.length,
+        totalSubs: allChannels.reduce((s, c) => s + (c.subscriberCount || 0), 0),
+        totalViews: allChannels.reduce((s, c) => s + (c.viewCount || 0), 0),
+        avgViews: allChannels.length > 0
+          ? allChannels.reduce((s, c) => s + (c.avgViewsPerVideo || 0), 0) / allChannels.length
+          : 0,
+        totalUploads30d: allChannels.reduce((s, c) => s + (c.uploadsLast30Days || 0), 0),
+        hasData: allChannels.some(c => (c.subscriberCount || 0) > 0 || (c.viewCount || 0) > 0),
+      });
+    }
+  });
+
+  // Second pass: create synthetic parent lanes for parents that weren't in groups
+  // (parent has no direct channels, but children do)
+  parentSlugsWithChildren.forEach(parentSlug => {
+    if (processedParents.has(parentSlug)) return; // already handled
+
+    const children = childGroupsByParent[parentSlug];
+    const allChannels = [];
+    const subcategories = [];
+
+    children.forEach(child => {
+      allChannels.push(...child.channels);
+      if (child.channels.length > 0) {
+        subcategories.push({
+          key: child.key,
+          label: categoryConfig[child.key]?.label || child.config.label,
+          color: child.config.color,
+          channels: child.channels,
+        });
+      }
+    });
+
+    if (allChannels.length === 0) return;
+
+    // Build config from categoryConfig for the parent slug
+    const parentCfg = categoryConfig[parentSlug] || {
+      label: parentSlug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      color: '#666', icon: '📁', order: 999, description: '',
+    };
+
     parentGroups.push({
-      key: g.key,
-      config: g.config,
+      key: parentSlug,
+      config: parentCfg,
       channels: allChannels,
       subcategories,
       channelCount: allChannels.length,
@@ -107,6 +161,7 @@ function buildParentLanes(groups, categoryConfig) {
 // ─── CategoryComparisonStrip ───────────────────────────────────────────
 function CategoryComparisonStrip({ lanes }) {
   const [metric, setMetric] = useState('totalSubs');
+  const [expandedKey, setExpandedKey] = useState(null);
 
   const metrics = [
     { key: 'totalSubs', label: 'Total Subscribers', format: fmt },
@@ -114,6 +169,14 @@ function CategoryComparisonStrip({ lanes }) {
     { key: 'avgViews', label: 'Avg Views/Video', format: fmt },
     { key: 'totalUploads30d', label: 'Uploads (30d)', format: (n) => String(Math.round(n || 0)) },
   ];
+
+  // Map metric keys to channel-level field names
+  const channelMetricKey = {
+    totalSubs: 'subscriberCount',
+    totalViews: 'viewCount',
+    avgViews: 'avgViewsPerVideo',
+    totalUploads30d: 'uploadsLast30Days',
+  };
 
   const activeMetric = metrics.find(m => m.key === metric);
   const maxVal = Math.max(...lanes.map(g => g[metric] || 0), 1);
@@ -141,44 +204,122 @@ function CategoryComparisonStrip({ lanes }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
         {lanes
           .filter(g => g.channelCount > 0 && g.hasData)
           .sort((a, b) => (b[metric] || 0) - (a[metric] || 0))
           .map(g => {
             const val = g[metric] || 0;
             const pct = (val / maxVal) * 100;
+            const isExpanded = expandedKey === g.key;
+            const hasSubcats = g.subcategories && g.subcategories.length > 1;
             return (
-              <div key={g.key} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{
-                  width: '130px', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                }}>
-                  <span style={{ fontSize: '14px' }}>{g.config.icon}</span>
-                  <span style={{
-                    fontSize: '11px', fontWeight: '600', color: '#ccc',
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  }}>
-                    {g.config.label.split(' ')[0]}
-                  </span>
-                  <span style={{ fontSize: '10px', color: '#666' }}>({g.channelCount})</span>
-                </div>
-                <div style={{ flex: 1, height: '22px', background: '#252525', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+              <div key={g.key}>
+                {/* Parent bar */}
+                <div
+                  onClick={() => hasSubcats && setExpandedKey(isExpanded ? null : g.key)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    cursor: hasSubcats ? 'pointer' : 'default',
+                    padding: '2px 0',
+                  }}
+                >
                   <div style={{
-                    height: '100%', width: `${Math.max(pct, 1)}%`,
-                    background: `linear-gradient(90deg, ${g.config.color}cc, ${g.config.color}88)`,
-                    borderRadius: '4px',
-                    transition: 'width 0.4s ease',
-                  }} />
-                  <span style={{
-                    position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
-                    fontSize: '11px', fontWeight: '700', color: '#fff',
-                    fontFamily: "'Barlow Condensed', sans-serif",
-                    textShadow: '0 1px 3px rgba(0,0,0,0.6)',
+                    width: '130px', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', gap: '6px',
                   }}>
-                    {activeMetric.format(val)}
-                  </span>
+                    {hasSubcats && (
+                      <ChevronRight size={10} style={{
+                        color: '#666', flexShrink: 0,
+                        transform: isExpanded ? 'rotate(90deg)' : 'none',
+                        transition: 'transform 0.15s',
+                      }} />
+                    )}
+                    {!hasSubcats && <span style={{ width: '10px' }} />}
+                    <span style={{ fontSize: '14px' }}>{g.config.icon}</span>
+                    <span style={{
+                      fontSize: '11px', fontWeight: '600', color: '#ccc',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                      {g.config.label.split(' ')[0]}
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#666' }}>({g.channelCount})</span>
+                  </div>
+                  <div style={{ flex: 1, height: '22px', background: '#252525', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+                    <div style={{
+                      height: '100%', width: `${Math.max(pct, 1)}%`,
+                      background: `linear-gradient(90deg, ${g.config.color}cc, ${g.config.color}88)`,
+                      borderRadius: '4px',
+                      transition: 'width 0.4s ease',
+                    }} />
+                    <span style={{
+                      position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
+                      fontSize: '11px', fontWeight: '700', color: '#fff',
+                      fontFamily: "'Barlow Condensed', sans-serif",
+                      textShadow: '0 1px 3px rgba(0,0,0,0.6)',
+                    }}>
+                      {activeMetric.format(val)}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Subcategory breakout bars */}
+                {isExpanded && hasSubcats && (
+                  <div style={{ paddingLeft: '20px', marginTop: '2px', marginBottom: '6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    {g.subcategories
+                      .map(sub => {
+                        const chField = channelMetricKey[metric];
+                        // For "total" metrics, sum channels. For "avg" metrics, average them.
+                        const isAvg = metric === 'avgViews';
+                        const subVal = isAvg
+                          ? (sub.channels.length > 0
+                            ? sub.channels.reduce((s, c) => s + (c[chField] || 0), 0) / sub.channels.length
+                            : 0)
+                          : sub.channels.reduce((s, c) => s + (c[chField] || 0), 0);
+                        return { ...sub, metricVal: subVal };
+                      })
+                      .sort((a, b) => b.metricVal - a.metricVal)
+                      .map(sub => {
+                        const subPct = (sub.metricVal / Math.max(val, 1)) * 100;
+                        return (
+                          <div key={sub.key} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{
+                              width: '110px', flexShrink: 0,
+                              display: 'flex', alignItems: 'center', gap: '6px',
+                            }}>
+                              <div style={{
+                                width: '6px', height: '6px', borderRadius: '50%',
+                                background: sub.color, flexShrink: 0,
+                              }} />
+                              <span style={{
+                                fontSize: '10px', color: '#999',
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                              }}>
+                                {sub.label}
+                              </span>
+                              <span style={{ fontSize: '9px', color: '#555' }}>({sub.channels.length})</span>
+                            </div>
+                            <div style={{ flex: 1, height: '14px', background: '#1e1e1e', borderRadius: '3px', overflow: 'hidden', position: 'relative' }}>
+                              <div style={{
+                                height: '100%', width: `${Math.max(subPct, 1)}%`,
+                                background: `${sub.color}99`,
+                                borderRadius: '3px',
+                                transition: 'width 0.3s ease',
+                              }} />
+                              <span style={{
+                                position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)',
+                                fontSize: '9px', fontWeight: '600', color: '#ccc',
+                                fontFamily: "'Barlow Condensed', sans-serif",
+                              }}>
+                                {activeMetric.format(sub.metricVal)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    }
+                  </div>
+                )}
               </div>
             );
           })}
