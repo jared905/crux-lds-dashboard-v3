@@ -80,6 +80,15 @@ const fmtDuration = (seconds) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
+// Cycling colors for categories without a color set
+const FALLBACK_COLORS = [
+  '#6366f1', '#0ea5e9', '#14b8a6', '#84cc16', '#a855f7',
+  '#f43f5e', '#f97316', '#06b6d4', '#8b5cf6', '#10b981',
+  '#ec4899', '#f59e0b', '#3b82f6', '#22d3ee', '#ef4444',
+];
+let _fallbackColorIdx = 0;
+const getNextFallbackColor = () => FALLBACK_COLORS[_fallbackColorIdx++ % FALLBACK_COLORS.length];
+
 // Map Lucide icon names to emoji equivalents
 const ICON_NAME_TO_EMOJI = {
   'building': '🏛️',
@@ -271,7 +280,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           config[node.slug] = {
             id: node.id,
             label: node.name,
-            color: node.color || '#666',
+            color: node.color || getNextFallbackColor(),
             icon: emoji,
             order: node.sort_order || 0,
             description: node.description || '',
@@ -1287,7 +1296,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         // Dynamically create group for categories not in config
         groups[cat] = {
           key: cat,
-          config: { label: cat.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), color: '#666', icon: '📁', order: 999, description: '' },
+          config: { label: cat.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), color: getNextFallbackColor(), icon: '📁', order: 999, description: '' },
           channels: [],
           channelCount: 0,
           totalSubs: 0,

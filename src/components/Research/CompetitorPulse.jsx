@@ -137,7 +137,7 @@ function buildParentLanes(groups, categoryConfig) {
     // Build config from categoryConfig for the parent slug
     const parentCfg = categoryConfig[parentSlug] || {
       label: parentSlug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      color: '#666', icon: '📁', order: 999, description: '',
+      color: '#6366f1', icon: '📁', order: 999, description: '',
     };
 
     parentGroups.push({
