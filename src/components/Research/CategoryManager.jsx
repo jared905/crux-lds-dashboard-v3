@@ -1,505 +1,122 @@
 /**
- * CategoryManager - Admin UI for managing category hierarchy
- * Full View Analytics - Crux Media
+ * CategoryManager — Modal for creating, renaming, reordering, and nesting categories
+ *
+ * Accessible from the competitor page settings menu.
+ * Supports: rename, change color/icon, create new, reparent (move subcategories),
+ * delete, and reorder.
  */
-
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  FolderTree,
-  Plus,
-  Edit2,
-  Trash2,
-  ChevronRight,
-  ChevronDown,
-  GripVertical,
-  Check,
-  X,
-  Loader2,
-  AlertCircle,
-  Palette,
-  Save,
-  FolderPlus
+  X, Plus, Trash2, ChevronRight, ChevronDown,
+  Loader, Check, Edit3, ArrowRight,
 } from 'lucide-react';
-import {
-  getCategoryTree,
-  createCategory,
-  updateCategory,
-  deleteCategory,
-} from '../../services/categoryService';
-import { supabase } from '../../services/supabaseClient';
 
-// Predefined colors for categories
 const COLORS = [
-  '#2962FF', '#3B82F6', '#6366F1', '#8B5CF6', '#A855F7',
-  '#EC4899', '#EF4444', '#F97316', '#F59E0B', '#EAB308',
-  '#84CC16', '#22C55E', '#10B981', '#14B8A6', '#06B6D4',
-  '#9CA3AF',
+  '#3b82f6', '#10b981', '#ef4444', '#f97316', '#8b5cf6',
+  '#ec4899', '#06b6d4', '#f59e0b', '#6366f1', '#14b8a6',
+  '#84cc16', '#a855f7', '#0ea5e9', '#f43f5e', '#22d3ee',
 ];
 
-// Common icons
 const ICONS = [
-  'folder', 'church', 'heart', 'star', 'users', 'book-open',
-  'dollar-sign', 'trending-up', 'home', 'film', 'gamepad-2',
-  'graduation-cap', 'lightbulb', 'globe', 'activity', 'map-pin',
+  { name: 'building', emoji: '🏛️' },
+  { name: 'heart', emoji: '🙏' },
+  { name: 'log-out', emoji: '🚪' },
+  { name: 'alert-circle', emoji: '⛪' },
+  { name: 'mic', emoji: '🎤' },
+  { name: 'unlock', emoji: '🔓' },
+  { name: 'folder', emoji: '📁' },
+  { name: 'shopping-bag', emoji: '🛍️' },
+  { name: 'headphones', emoji: '🎧' },
+  { name: 'music', emoji: '🎵' },
+  { name: 'dollar-sign', emoji: '💵' },
+  { name: 'zap', emoji: '⚡' },
+  { name: 'flame', emoji: '🔥' },
+  { name: 'activity', emoji: '🛹' },
+  { name: 'gamepad-2', emoji: '🎮' },
+  { name: 'cpu', emoji: '💻' },
+  { name: 'tv', emoji: '📺' },
+  { name: 'box', emoji: '📦' },
 ];
 
-const s = {
-  container: {
-    backgroundColor: '#1E1E1E',
-    border: '1px solid #333',
-    borderRadius: '8px',
-    padding: '24px',
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '20px',
-  },
-  title: {
-    fontSize: '18px',
-    fontWeight: '600',
-    color: '#E0E0E0',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-  },
-  button: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '8px 14px',
-    backgroundColor: '#2962FF',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '6px',
-    fontSize: '13px',
-    fontWeight: '500',
-    cursor: 'pointer',
-  },
-  buttonSecondary: {
-    backgroundColor: 'transparent',
-    border: '1px solid #444',
-    color: '#9E9E9E',
-  },
-  buttonSmall: {
-    padding: '4px 8px',
-    fontSize: '12px',
-  },
-  buttonDanger: {
-    backgroundColor: 'transparent',
-    border: '1px solid #CF6679',
-    color: '#CF6679',
-  },
-  tree: {
-    marginTop: '16px',
-  },
-  categoryItem: {
-    marginBottom: '2px',
-  },
-  categoryRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '10px 12px',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    transition: 'background 0.15s',
-  },
-  categoryRowHover: {
-    backgroundColor: '#252525',
-  },
-  categoryRowSelected: {
-    backgroundColor: 'rgba(41, 98, 255, 0.15)',
-  },
-  expandIcon: {
-    width: '20px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#666',
-  },
-  colorDot: {
-    width: '12px',
-    height: '12px',
-    borderRadius: '50%',
-    flexShrink: 0,
-  },
-  categoryName: {
-    flex: 1,
-    fontSize: '14px',
-    color: '#E0E0E0',
-    fontWeight: '500',
-  },
-  channelCount: {
-    fontSize: '12px',
-    color: '#666',
-    backgroundColor: '#252525',
-    padding: '2px 8px',
-    borderRadius: '10px',
-  },
-  actions: {
-    display: 'flex',
-    gap: '4px',
-    opacity: 0,
-    transition: 'opacity 0.15s',
-  },
-  actionsVisible: {
-    opacity: 1,
-  },
-  actionButton: {
-    padding: '4px',
-    backgroundColor: 'transparent',
-    border: 'none',
-    borderRadius: '4px',
-    color: '#666',
-    cursor: 'pointer',
-  },
-  children: {
-    marginLeft: '28px',
-    borderLeft: '1px solid #333',
-    paddingLeft: '12px',
-  },
-  form: {
-    backgroundColor: '#252525',
-    borderRadius: '8px',
-    padding: '16px',
-    marginTop: '16px',
-  },
-  formTitle: {
-    fontSize: '14px',
-    fontWeight: '600',
-    color: '#E0E0E0',
-    marginBottom: '16px',
-  },
-  formRow: {
-    marginBottom: '12px',
-  },
-  label: {
-    display: 'block',
-    fontSize: '11px',
-    fontWeight: '600',
-    color: '#9E9E9E',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    marginBottom: '6px',
-  },
-  input: {
-    width: '100%',
-    padding: '10px 12px',
-    backgroundColor: '#1E1E1E',
-    border: '1px solid #444',
-    borderRadius: '6px',
-    color: '#E0E0E0',
-    fontSize: '14px',
-    outline: 'none',
-    boxSizing: 'border-box',
-  },
-  select: {
-    width: '100%',
-    padding: '10px 12px',
-    backgroundColor: '#1E1E1E',
-    border: '1px solid #444',
-    borderRadius: '6px',
-    color: '#E0E0E0',
-    fontSize: '14px',
-    outline: 'none',
-    boxSizing: 'border-box',
-    cursor: 'pointer',
-  },
-  colorPicker: {
-    display: 'flex',
-    gap: '6px',
-    flexWrap: 'wrap',
-  },
-  colorOption: {
-    width: '28px',
-    height: '28px',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    border: '2px solid transparent',
-    transition: 'border-color 0.15s',
-  },
-  colorOptionSelected: {
-    border: '2px solid #fff',
-  },
-  formActions: {
-    display: 'flex',
-    gap: '8px',
-    marginTop: '16px',
-  },
-  error: {
-    backgroundColor: 'rgba(207, 102, 121, 0.15)',
-    border: '1px solid #CF6679',
-    borderRadius: '8px',
-    padding: '12px',
-    marginBottom: '16px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    fontSize: '13px',
-    color: '#CF6679',
-  },
-  emptyState: {
-    textAlign: 'center',
-    padding: '40px',
-    color: '#666',
-  },
-  spinner: {
-    animation: 'spin 1s linear infinite',
-  },
-};
-
-const spinKeyframes = `
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-`;
-
-// Category tree item component
-function CategoryItem({
-  category,
-  depth = 0,
-  expanded,
-  onToggle,
-  onSelect,
-  isSelected,
-  onEdit,
-  onDelete,
-  onAddChild,
-}) {
-  const [hovered, setHovered] = useState(false);
-  const hasChildren = category.children && category.children.length > 0;
-  const isExpanded = expanded[category.id];
-
-  return (
-    <div style={s.categoryItem}>
-      <div
-        style={{
-          ...s.categoryRow,
-          ...(hovered ? s.categoryRowHover : {}),
-          ...(isSelected ? s.categoryRowSelected : {}),
-          paddingLeft: `${12 + depth * 8}px`,
-        }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onClick={() => onSelect(category)}
-      >
-        <div
-          style={s.expandIcon}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (hasChildren) onToggle(category.id);
-          }}
-        >
-          {hasChildren ? (
-            isExpanded ? (
-              <ChevronDown size={16} />
-            ) : (
-              <ChevronRight size={16} />
-            )
-          ) : null}
-        </div>
-
-        <div style={{ ...s.colorDot, backgroundColor: category.color }} />
-
-        <span style={s.categoryName}>{category.name}</span>
-
-        {category.channel_count > 0 && (
-          <span style={s.channelCount}>{category.channel_count}</span>
-        )}
-
-        <div style={{ ...s.actions, ...(hovered ? s.actionsVisible : {}) }}>
-          <button
-            style={s.actionButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddChild(category);
-            }}
-            title="Add subcategory"
-          >
-            <FolderPlus size={14} />
-          </button>
-          <button
-            style={s.actionButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(category);
-            }}
-            title="Edit"
-          >
-            <Edit2 size={14} />
-          </button>
-          <button
-            style={{ ...s.actionButton, color: '#CF6679' }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(category);
-            }}
-            title="Delete"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
-      </div>
-
-      {hasChildren && isExpanded && (
-        <div style={s.children}>
-          {category.children.map((child) => (
-            <CategoryItem
-              key={child.id}
-              category={child}
-              depth={depth + 1}
-              expanded={expanded}
-              onToggle={onToggle}
-              onSelect={onSelect}
-              isSelected={isSelected?.id === child.id}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onAddChild={onAddChild}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function CategoryManager() {
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [expanded, setExpanded] = useState({});
-  const [selected, setSelected] = useState(null);
-
-  // Form state
-  const [showForm, setShowForm] = useState(false);
-  const [formMode, setFormMode] = useState('create'); // 'create' | 'edit'
-  const [formData, setFormData] = useState({
-    name: '',
-    parentId: null,
-    color: '#2962FF',
-    description: '',
-  });
+export default function CategoryManager({ isOpen, onClose, onCategoriesChanged }) {
+  const [tree, setTree] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Load categories on mount
-  useEffect(() => {
-    loadCategories();
-  }, []);
+  // Edit state
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editColor, setEditColor] = useState('#3b82f6');
+  const [editIcon, setEditIcon] = useState('folder');
 
-  const loadCategories = async () => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
+  // Create state
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newParentId, setNewParentId] = useState(null);
+  const [newColor, setNewColor] = useState('#3b82f6');
+  const [newIcon, setNewIcon] = useState('folder');
 
-    try {
-      setLoading(true);
-      const tree = await getCategoryTree();
-      setCategories(tree);
+  // Move state
+  const [movingId, setMovingId] = useState(null);
 
-      // Auto-expand root categories
-      const expandedState = {};
-      tree.forEach((cat) => {
-        expandedState[cat.id] = true;
+  // Expanded categories
+  const [expanded, setExpanded] = useState(new Set());
+
+  // Flat list for parent selectors
+  const flatCategories = useMemo(() => {
+    const result = [];
+    const flatten = (nodes, depth = 0) => {
+      nodes.forEach(n => {
+        result.push({ ...n, depth });
+        if (n.children) flatten(n.children, depth + 1);
       });
-      setExpanded(expandedState);
+    };
+    flatten(tree);
+    return result;
+  }, [tree]);
+
+  // Load categories
+  const loadTree = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { getCategoryTree } = await import('../../services/categoryService');
+      const data = await getCategoryTree();
+      setTree(data || []);
+      // Auto-expand all
+      const allIds = new Set();
+      const collectIds = (nodes) => nodes.forEach(n => { allIds.add(n.id); if (n.children) collectIds(n.children); });
+      collectIds(data || []);
+      setExpanded(allIds);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleToggle = (id) => {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
+  useEffect(() => {
+    if (isOpen) loadTree();
+  }, [isOpen, loadTree]);
 
-  const handleSelect = (category) => {
-    setSelected(category);
-  };
-
-  const handleAddRoot = () => {
-    setFormMode('create');
-    setFormData({
-      name: '',
-      parentId: null,
-      color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      description: '',
-    });
-    setShowForm(true);
-  };
-
-  const handleAddChild = (parent) => {
-    setFormMode('create');
-    setFormData({
-      name: '',
-      parentId: parent.id,
-      color: parent.color,
-      description: '',
-    });
-    setShowForm(true);
-  };
-
-  const handleEdit = (category) => {
-    setFormMode('edit');
-    setFormData({
-      id: category.id,
-      name: category.name,
-      parentId: category.parent_id,
-      color: category.color,
-      description: category.description || '',
-    });
-    setShowForm(true);
-  };
-
-  const handleDelete = async (category) => {
-    const hasChildren = category.children && category.children.length > 0;
-    const message = hasChildren
-      ? `Delete "${category.name}" and all its subcategories?`
-      : `Delete "${category.name}"?`;
-
-    if (!confirm(message)) return;
-
-    try {
-      await deleteCategory(category.id);
-      await loadCategories();
-      if (selected?.id === category.id) {
-        setSelected(null);
-      }
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.name.trim()) return;
-
+  // Create category
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
     setSaving(true);
-    setError(null);
-
     try {
-      if (formMode === 'create') {
-        await createCategory({
-          name: formData.name,
-          parentId: formData.parentId,
-          color: formData.color,
-          description: formData.description,
-        });
-      } else {
-        await updateCategory(formData.id, {
-          name: formData.name,
-          color: formData.color,
-          description: formData.description,
-        });
-      }
-
-      await loadCategories();
-      setShowForm(false);
-      setFormData({ name: '', parentId: null, color: '#2962FF', description: '' });
+      const { createCategory } = await import('../../services/categoryService');
+      await createCategory({
+        name: newName.trim(),
+        parentId: newParentId,
+        color: newColor,
+        icon: newIcon,
+      });
+      setNewName('');
+      setNewParentId(null);
+      setShowCreate(false);
+      await loadTree();
+      onCategoriesChanged?.();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -507,164 +124,514 @@ export default function CategoryManager() {
     }
   };
 
-  const handleCancel = () => {
-    setShowForm(false);
-    setFormData({ name: '', parentId: null, color: '#2962FF', description: '' });
-    setError(null);
+  // Rename / update category
+  const handleSaveEdit = async (id) => {
+    if (!editName.trim()) return;
+    setSaving(true);
+    try {
+      const { updateCategory } = await import('../../services/categoryService');
+      await updateCategory(id, { name: editName.trim(), color: editColor, icon: editIcon });
+      setEditingId(null);
+      await loadTree();
+      onCategoriesChanged?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Not configured state
-  if (!supabase) {
-    return (
-      <div style={s.container}>
-        <div style={s.emptyState}>
-          <FolderTree size={48} color="#444" />
-          <p style={{ marginTop: '12px' }}>Database not connected</p>
-        </div>
-      </div>
-    );
-  }
+  // Move category (change parent)
+  const handleMove = async (categoryId, newParentIdVal) => {
+    setSaving(true);
+    try {
+      const { updateCategory } = await import('../../services/categoryService');
+      await updateCategory(categoryId, { parentId: newParentIdVal });
+      setMovingId(null);
+      await loadTree();
+      onCategoriesChanged?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete category
+  const handleDelete = async (id, name) => {
+    if (!window.confirm(`Delete "${name}"? This will remove the category and unlink any channels from it.`)) return;
+    setSaving(true);
+    try {
+      const { deleteCategory } = await import('../../services/categoryService');
+      await deleteCategory(id);
+      await loadTree();
+      onCategoriesChanged?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startEdit = (cat) => {
+    setEditingId(cat.id);
+    setEditName(cat.name);
+    setEditColor(cat.color || '#3b82f6');
+    setEditIcon(cat.icon || 'folder');
+  };
+
+  const toggleExpand = (id) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const getEmoji = (iconName) => {
+    return ICONS.find(i => i.name === iconName)?.emoji || '📁';
+  };
+
+  if (!isOpen) return null;
 
   return (
-    <div style={s.container}>
-      <style>{spinKeyframes}</style>
-
-      <div style={s.header}>
-        <div style={s.title}>
-          <FolderTree size={20} />
-          Category Manager
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.7)', zIndex: 2000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div style={{
+        background: '#1E1E1E', border: '1px solid #333', borderRadius: '10px',
+        width: '640px', maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '16px 20px', borderBottom: '1px solid #333',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <div>
+            <div style={{ fontSize: '16px', fontWeight: '700', color: '#fff' }}>Category Manager</div>
+            <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
+              Create, rename, and organize categories and subcategories
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setShowCreate(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '4px',
+                padding: '6px 12px', background: 'rgba(59,130,246,0.15)',
+                border: '1px solid #3b82f6', borderRadius: '6px',
+                color: '#60a5fa', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+              }}
+            >
+              <Plus size={14} /> New Category
+            </button>
+            <button
+              onClick={onClose}
+              style={{
+                background: 'transparent', border: '1px solid #444',
+                borderRadius: '6px', padding: '6px 8px', color: '#888', cursor: 'pointer',
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
-        <button style={s.button} onClick={handleAddRoot}>
-          <Plus size={16} />
-          Add Category
-        </button>
+
+        {/* Error */}
+        {error && (
+          <div style={{ padding: '8px 20px', background: '#2d1b1b', color: '#fca5a5', fontSize: '12px' }}>
+            {error}
+            <button onClick={() => setError(null)} style={{ float: 'right', background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer' }}>
+              <X size={12} />
+            </button>
+          </div>
+        )}
+
+        {/* Create form */}
+        {showCreate && (
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #333', background: '#1a1a1a' }}>
+            <div style={{ fontSize: '12px', fontWeight: '600', color: '#60a5fa', marginBottom: '10px' }}>
+              New Category
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+              <input
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                placeholder="Category name"
+                autoFocus
+                style={{
+                  flex: 1, padding: '8px 10px', background: '#252525',
+                  border: '1px solid #444', borderRadius: '6px',
+                  color: '#fff', fontSize: '13px', outline: 'none',
+                }}
+                onKeyDown={e => e.key === 'Enter' && handleCreate()}
+              />
+              <select
+                value={newParentId || ''}
+                onChange={e => setNewParentId(e.target.value || null)}
+                style={{
+                  width: '180px', padding: '8px', background: '#252525',
+                  border: '1px solid #444', borderRadius: '6px',
+                  color: '#fff', fontSize: '12px',
+                }}
+              >
+                <option value="">Top level</option>
+                {flatCategories.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {'  '.repeat(c.depth)}{c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Color + Icon picker */}
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '10px' }}>
+              <div>
+                <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px' }}>Color</div>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', maxWidth: '200px' }}>
+                  {COLORS.map(c => (
+                    <div
+                      key={c}
+                      onClick={() => setNewColor(c)}
+                      style={{
+                        width: 22, height: 22, borderRadius: '4px', background: c,
+                        cursor: 'pointer',
+                        border: newColor === c ? '2px solid #fff' : '2px solid transparent',
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '10px', color: '#888', marginBottom: '4px' }}>Icon</div>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', maxWidth: '240px' }}>
+                  {ICONS.map(ic => (
+                    <div
+                      key={ic.name}
+                      onClick={() => setNewIcon(ic.name)}
+                      style={{
+                        width: 28, height: 28, borderRadius: '4px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '16px', cursor: 'pointer',
+                        background: newIcon === ic.name ? '#333' : 'transparent',
+                        border: newIcon === ic.name ? '1px solid #60a5fa' : '1px solid transparent',
+                      }}
+                    >
+                      {ic.emoji}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setShowCreate(false); setNewName(''); }}
+                style={{
+                  padding: '6px 14px', background: 'transparent', border: '1px solid #444',
+                  borderRadius: '6px', color: '#888', fontSize: '12px', cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={!newName.trim() || saving}
+                style={{
+                  padding: '6px 14px', background: '#3b82f6', border: 'none',
+                  borderRadius: '6px', color: '#fff', fontSize: '12px', fontWeight: '600',
+                  cursor: newName.trim() && !saving ? 'pointer' : 'not-allowed',
+                  opacity: newName.trim() && !saving ? 1 : 0.5,
+                }}
+              >
+                {saving ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Category tree */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+          {loading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#888' }}>
+              <Loader size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
+              <div style={{ fontSize: '13px' }}>Loading categories...</div>
+            </div>
+          ) : tree.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#666', fontSize: '13px' }}>
+              No categories yet. Create one to get started.
+            </div>
+          ) : (
+            tree.map(cat => (
+              <CategoryRow
+                key={cat.id}
+                category={cat}
+                depth={0}
+                expanded={expanded}
+                onToggleExpand={toggleExpand}
+                editingId={editingId}
+                editName={editName}
+                editColor={editColor}
+                editIcon={editIcon}
+                onEditNameChange={setEditName}
+                onEditColorChange={setEditColor}
+                onEditIconChange={setEditIcon}
+                onStartEdit={startEdit}
+                onSaveEdit={handleSaveEdit}
+                onCancelEdit={() => setEditingId(null)}
+                movingId={movingId}
+                onStartMove={setMovingId}
+                onDelete={handleDelete}
+                saving={saving}
+                getEmoji={getEmoji}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Move target picker */}
+        {movingId && (
+          <div style={{
+            padding: '12px 20px', borderTop: '1px solid #333',
+            background: '#1a1a1a',
+          }}>
+            <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '600', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <ArrowRight size={12} />
+              Move to:
+            </div>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => handleMove(movingId, null)}
+                style={{
+                  padding: '4px 10px', background: '#252525', border: '1px solid #444',
+                  borderRadius: '6px', color: '#ccc', fontSize: '11px', cursor: 'pointer',
+                }}
+              >
+                Top level (root)
+              </button>
+              {flatCategories
+                .filter(c => c.id !== movingId)
+                .map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => handleMove(movingId, c.id)}
+                    style={{
+                      padding: '4px 10px', background: '#252525', border: '1px solid #444',
+                      borderRadius: '6px', color: '#ccc', fontSize: '11px', cursor: 'pointer',
+                    }}
+                  >
+                    {'  '.repeat(c.depth)}{getEmoji(c.icon)} {c.name}
+                  </button>
+                ))
+              }
+            </div>
+            <button
+              onClick={() => setMovingId(null)}
+              style={{
+                marginTop: '8px', padding: '4px 10px', background: 'transparent',
+                border: '1px solid #444', borderRadius: '6px',
+                color: '#888', fontSize: '11px', cursor: 'pointer',
+              }}
+            >
+              Cancel move
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── CategoryRow ───────────────────────────────────────────────────────
+function CategoryRow({
+  category, depth, expanded, onToggleExpand,
+  editingId, editName, editColor, editIcon,
+  onEditNameChange, onEditColorChange, onEditIconChange,
+  onStartEdit, onSaveEdit, onCancelEdit,
+  movingId, onStartMove, onDelete,
+  saving, getEmoji,
+}) {
+  const isExpanded = expanded.has(category.id);
+  const hasChildren = category.children && category.children.length > 0;
+  const isEditing = editingId === category.id;
+  const isMoving = movingId === category.id;
+
+  return (
+    <div>
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', gap: '6px',
+          padding: '8px 16px', paddingLeft: `${16 + depth * 24}px`,
+          background: isEditing ? '#252525' : isMoving ? 'rgba(245,158,11,0.08)' : 'transparent',
+          borderLeft: isMoving ? '3px solid #f59e0b' : '3px solid transparent',
+          transition: 'background 0.1s',
+        }}
+        onMouseOver={e => { if (!isEditing) e.currentTarget.style.background = '#222'; }}
+        onMouseOut={e => { if (!isEditing) e.currentTarget.style.background = isMoving ? 'rgba(245,158,11,0.08)' : 'transparent'; }}
+      >
+        {/* Expand toggle */}
+        <div
+          onClick={() => hasChildren && onToggleExpand(category.id)}
+          style={{ width: '16px', cursor: hasChildren ? 'pointer' : 'default', flexShrink: 0 }}
+        >
+          {hasChildren && (
+            isExpanded ? <ChevronDown size={12} style={{ color: '#888' }} /> : <ChevronRight size={12} style={{ color: '#888' }} />
+          )}
+        </div>
+
+        {/* Color dot */}
+        <div style={{
+          width: 10, height: 10, borderRadius: '50%',
+          background: category.color || '#666', flexShrink: 0,
+        }} />
+
+        {/* Icon */}
+        <span style={{ fontSize: '14px', flexShrink: 0 }}>{getEmoji(category.icon)}</span>
+
+        {isEditing ? (
+          /* Edit mode */
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input
+                value={editName}
+                onChange={e => onEditNameChange(e.target.value)}
+                autoFocus
+                style={{
+                  flex: 1, padding: '5px 8px', background: '#1a1a1a',
+                  border: '1px solid #555', borderRadius: '4px',
+                  color: '#fff', fontSize: '12px', outline: 'none',
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') onSaveEdit(category.id);
+                  if (e.key === 'Escape') onCancelEdit();
+                }}
+              />
+              <button
+                onClick={() => onSaveEdit(category.id)}
+                disabled={saving}
+                style={{
+                  padding: '4px 8px', background: '#10b981', border: 'none',
+                  borderRadius: '4px', color: '#fff', cursor: 'pointer',
+                }}
+              >
+                <Check size={12} />
+              </button>
+              <button
+                onClick={onCancelEdit}
+                style={{
+                  padding: '4px 8px', background: 'transparent', border: '1px solid #444',
+                  borderRadius: '4px', color: '#888', cursor: 'pointer',
+                }}
+              >
+                <X size={12} />
+              </button>
+            </div>
+            {/* Color + icon pickers inline */}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '3px' }}>
+                {COLORS.map(c => (
+                  <div
+                    key={c}
+                    onClick={() => onEditColorChange(c)}
+                    style={{
+                      width: 16, height: 16, borderRadius: '3px', background: c,
+                      cursor: 'pointer',
+                      border: editColor === c ? '2px solid #fff' : '1px solid transparent',
+                    }}
+                  />
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '2px' }}>
+                {ICONS.slice(0, 10).map(ic => (
+                  <div
+                    key={ic.name}
+                    onClick={() => onEditIconChange(ic.name)}
+                    style={{
+                      width: 20, height: 20, borderRadius: '3px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '12px', cursor: 'pointer',
+                      background: editIcon === ic.name ? '#333' : 'transparent',
+                    }}
+                  >
+                    {ic.emoji}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Display mode */
+          <>
+            <span style={{ flex: 1, fontSize: '13px', color: '#e0e0e0', fontWeight: depth === 0 ? '600' : '400' }}>
+              {category.name}
+            </span>
+            {category.slug && (
+              <span style={{ fontSize: '9px', color: '#555', fontFamily: 'monospace' }}>
+                {category.slug}
+              </span>
+            )}
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: '2px', opacity: 0.6 }}
+              onMouseOver={e => e.currentTarget.style.opacity = '1'}
+              onMouseOut={e => e.currentTarget.style.opacity = '0.6'}
+            >
+              <button
+                onClick={() => onStartEdit(category)}
+                title="Rename"
+                style={{ padding: '3px', background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', borderRadius: '3px' }}
+              >
+                <Edit3 size={12} />
+              </button>
+              <button
+                onClick={() => onStartMove(category.id)}
+                title="Move to another category"
+                style={{ padding: '3px', background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', borderRadius: '3px' }}
+              >
+                <ArrowRight size={12} />
+              </button>
+              <button
+                onClick={() => onDelete(category.id, category.name)}
+                title="Delete"
+                style={{ padding: '3px', background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', borderRadius: '3px' }}
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
-      {error && (
-        <div style={s.error}>
-          <AlertCircle size={16} />
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '40px' }}>
-          <Loader2 size={24} color="#2962FF" style={s.spinner} />
-        </div>
-      ) : categories.length === 0 ? (
-        <div style={s.emptyState}>
-          <FolderTree size={48} color="#444" />
-          <p style={{ marginTop: '12px' }}>No categories yet</p>
-          <button
-            style={{ ...s.button, marginTop: '16px' }}
-            onClick={handleAddRoot}
-          >
-            <Plus size={16} />
-            Create your first category
-          </button>
-        </div>
-      ) : (
-        <div style={s.tree}>
-          {categories.map((category) => (
-            <CategoryItem
-              key={category.id}
-              category={category}
+      {/* Children */}
+      {hasChildren && isExpanded && (
+        <div>
+          {category.children.map(child => (
+            <CategoryRow
+              key={child.id}
+              category={child}
+              depth={depth + 1}
               expanded={expanded}
-              onToggle={handleToggle}
-              onSelect={handleSelect}
-              isSelected={selected?.id === category.id}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onAddChild={handleAddChild}
+              onToggleExpand={onToggleExpand}
+              editingId={editingId}
+              editName={editName}
+              editColor={editColor}
+              editIcon={editIcon}
+              onEditNameChange={onEditNameChange}
+              onEditColorChange={onEditColorChange}
+              onEditIconChange={onEditIconChange}
+              onStartEdit={onStartEdit}
+              onSaveEdit={onSaveEdit}
+              onCancelEdit={onCancelEdit}
+              movingId={movingId}
+              onStartMove={onStartMove}
+              onDelete={onDelete}
+              saving={saving}
+              getEmoji={getEmoji}
             />
           ))}
         </div>
-      )}
-
-      {/* Create/Edit Form */}
-      {showForm && (
-        <form style={s.form} onSubmit={handleSubmit}>
-          <div style={s.formTitle}>
-            {formMode === 'create'
-              ? formData.parentId
-                ? 'Add Subcategory'
-                : 'Add Category'
-              : 'Edit Category'}
-          </div>
-
-          <div style={s.formRow}>
-            <label style={s.label}>Name</label>
-            <input
-              type="text"
-              style={s.input}
-              value={formData.name}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, name: e.target.value }))
-              }
-              placeholder="Category name"
-              autoFocus
-            />
-          </div>
-
-          <div style={s.formRow}>
-            <label style={s.label}>Color</label>
-            <div style={s.colorPicker}>
-              {COLORS.map((color) => (
-                <div
-                  key={color}
-                  style={{
-                    ...s.colorOption,
-                    backgroundColor: color,
-                    ...(formData.color === color ? s.colorOptionSelected : {}),
-                  }}
-                  onClick={() =>
-                    setFormData((prev) => ({ ...prev, color }))
-                  }
-                />
-              ))}
-            </div>
-          </div>
-
-          <div style={s.formRow}>
-            <label style={s.label}>Description (optional)</label>
-            <input
-              type="text"
-              style={s.input}
-              value={formData.description}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, description: e.target.value }))
-              }
-              placeholder="Brief description"
-            />
-          </div>
-
-          <div style={s.formActions}>
-            <button
-              type="submit"
-              style={s.button}
-              disabled={saving || !formData.name.trim()}
-            >
-              {saving ? (
-                <>
-                  <Loader2 size={14} style={s.spinner} />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save size={14} />
-                  {formMode === 'create' ? 'Create' : 'Save'}
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              style={{ ...s.button, ...s.buttonSecondary }}
-              onClick={handleCancel}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
       )}
     </div>
   );

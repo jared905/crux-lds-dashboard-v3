@@ -69,6 +69,7 @@ const CompetitorTrends = lazy(() => import('./CompetitorTrends'));
 const CompetitorLeaderboard = lazy(() => import('./CompetitorLeaderboard'));
 const CompetitorPulse = lazy(() => import('./CompetitorPulse'));
 const CommandCenter = lazy(() => import('./CommandCenter'));
+const CategoryManager = lazy(() => import('./CategoryManager'));
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -208,6 +209,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
   // CSV import state
   const [showCSVImport, setShowCSVImport] = useState(false);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [csvText, setCSVText] = useState('');
 
   // Restructured UI state
@@ -1626,6 +1628,20 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                       Import CSV
                     </button>
                   )}
+                  <button
+                    onClick={() => { setShowCategoryManager(true); setShowSettingsMenu(false); }}
+                    style={{
+                      width: "100%", background: "transparent", border: "none",
+                      padding: "8px 12px", color: "#aaa", fontSize: "12px",
+                      cursor: "pointer", textAlign: "left", borderRadius: "4px",
+                      display: "flex", alignItems: "center", gap: "8px",
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = "#333"}
+                    onMouseOut={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    <Layers size={14} />
+                    Manage Categories
+                  </button>
                   <div style={{ padding: "4px 12px" }}>
                     <div style={{ fontSize: "10px", color: "#666", marginBottom: "4px" }}>Timezone</div>
                     <select
@@ -2202,6 +2218,15 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
           ) : null}
         </div>
       )}
+
+      {/* Category Manager Modal */}
+      <Suspense fallback={null}>
+        <CategoryManager
+          isOpen={showCategoryManager}
+          onClose={() => setShowCategoryManager(false)}
+          onCategoriesChanged={loadCategories}
+        />
+      </Suspense>
 
       {/* CSV Import Modal */}
       {showCSVImport && (
