@@ -160,9 +160,10 @@ function buildParentLanes(groups, categoryConfig) {
 }
 
 // ─── CategoryComparisonStrip ───────────────────────────────────────────
-function CategoryComparisonStrip({ lanes }) {
+function CategoryComparisonStrip({ lanes, onChannelClick }) {
   const [metric, setMetric] = useState('totalSubs');
   const [expandedKey, setExpandedKey] = useState(null);
+  const [selectedSubKey, setSelectedSubKey] = useState(null);
 
   const metrics = [
     { key: 'totalSubs', label: 'Total Subscribers', format: fmt },
@@ -284,39 +285,106 @@ function CategoryComparisonStrip({ lanes }) {
                       .sort((a, b) => b.metricVal - a.metricVal)
                       .map(sub => {
                         const subPct = (sub.metricVal / Math.max(val, 1)) * 100;
+                        const isSubSelected = selectedSubKey === sub.key;
                         return (
-                          <div key={sub.key} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{
-                              width: '110px', flexShrink: 0,
-                              display: 'flex', alignItems: 'center', gap: '6px',
-                            }}>
+                          <div key={sub.key}>
+                            <div
+                              onClick={(e) => { e.stopPropagation(); setSelectedSubKey(isSubSelected ? null : sub.key); }}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: '10px',
+                                cursor: 'pointer', padding: '2px 4px', borderRadius: '4px',
+                                background: isSubSelected ? `${sub.color}15` : 'transparent',
+                                transition: 'background 0.1s',
+                              }}
+                              onMouseOver={e => { if (!isSubSelected) e.currentTarget.style.background = '#222'; }}
+                              onMouseOut={e => { if (!isSubSelected) e.currentTarget.style.background = 'transparent'; }}
+                            >
                               <div style={{
-                                width: '6px', height: '6px', borderRadius: '50%',
-                                background: sub.color, flexShrink: 0,
-                              }} />
-                              <span style={{
-                                fontSize: '10px', color: '#999',
-                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                width: '110px', flexShrink: 0,
+                                display: 'flex', alignItems: 'center', gap: '6px',
                               }}>
-                                {sub.label}
-                              </span>
-                              <span style={{ fontSize: '9px', color: '#555' }}>({sub.channels.length})</span>
+                                <ChevronRight size={8} style={{
+                                  color: isSubSelected ? sub.color : '#555', flexShrink: 0,
+                                  transform: isSubSelected ? 'rotate(90deg)' : 'none',
+                                  transition: 'transform 0.15s',
+                                }} />
+                                <div style={{
+                                  width: '6px', height: '6px', borderRadius: '50%',
+                                  background: sub.color, flexShrink: 0,
+                                }} />
+                                <span style={{
+                                  fontSize: '10px', color: isSubSelected ? '#fff' : '#999',
+                                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                  fontWeight: isSubSelected ? '600' : '400',
+                                }}>
+                                  {sub.label}
+                                </span>
+                                <span style={{ fontSize: '9px', color: '#555' }}>({sub.channels.length})</span>
+                              </div>
+                              <div style={{ flex: 1, height: '14px', background: '#1e1e1e', borderRadius: '3px', overflow: 'hidden', position: 'relative' }}>
+                                <div style={{
+                                  height: '100%', width: `${Math.max(subPct, 1)}%`,
+                                  background: `${sub.color}99`,
+                                  borderRadius: '3px',
+                                  transition: 'width 0.3s ease',
+                                }} />
+                                <span style={{
+                                  position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)',
+                                  fontSize: '9px', fontWeight: '600', color: '#ccc',
+                                  fontFamily: "'Barlow Condensed', sans-serif",
+                                }}>
+                                  {activeMetric.format(sub.metricVal)}
+                                </span>
+                              </div>
                             </div>
-                            <div style={{ flex: 1, height: '14px', background: '#1e1e1e', borderRadius: '3px', overflow: 'hidden', position: 'relative' }}>
+
+                            {/* Channel list for selected subcategory */}
+                            {isSubSelected && (
                               <div style={{
-                                height: '100%', width: `${Math.max(subPct, 1)}%`,
-                                background: `${sub.color}99`,
-                                borderRadius: '3px',
-                                transition: 'width 0.3s ease',
-                              }} />
-                              <span style={{
-                                position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)',
-                                fontSize: '9px', fontWeight: '600', color: '#ccc',
-                                fontFamily: "'Barlow Condensed', sans-serif",
+                                marginLeft: '18px', marginTop: '4px', marginBottom: '8px',
+                                background: '#1a1a1a', borderRadius: '6px',
+                                border: `1px solid ${sub.color}33`,
+                                overflow: 'hidden',
                               }}>
-                                {activeMetric.format(sub.metricVal)}
-                              </span>
-                            </div>
+                                {[...sub.channels]
+                                  .sort((a, b) => (b.subscriberCount || 0) - (a.subscriberCount || 0))
+                                  .map(ch => (
+                                    <div
+                                      key={ch.id}
+                                      onClick={(e) => { e.stopPropagation(); onChannelClick(ch.id); }}
+                                      style={{
+                                        display: 'flex', alignItems: 'center', gap: '8px',
+                                        padding: '6px 10px',
+                                        cursor: 'pointer',
+                                        borderBottom: '1px solid #252525',
+                                        transition: 'background 0.1s',
+                                      }}
+                                      onMouseOver={e => e.currentTarget.style.background = '#222'}
+                                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                      <img
+                                        src={ch.thumbnail}
+                                        alt=""
+                                        style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                                      />
+                                      <span style={{
+                                        fontSize: '11px', color: '#e0e0e0', fontWeight: '500',
+                                        flex: 1, minWidth: 0,
+                                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                      }}>
+                                        {ch.name}
+                                      </span>
+                                      <span style={{ fontSize: '10px', color: '#888', flexShrink: 0 }}>
+                                        {fmt(ch.subscriberCount)} subs
+                                      </span>
+                                      <span style={{ fontSize: '10px', color: '#666', flexShrink: 0 }}>
+                                        {fmt(ch.avgViewsPerVideo)} avg
+                                      </span>
+                                    </div>
+                                  ))
+                                }
+                              </div>
+                            )}
                           </div>
                         );
                       })
@@ -711,7 +779,7 @@ export default function CompetitorPulse({
 
   return (
     <>
-      <CategoryComparisonStrip lanes={parentLanes} />
+      <CategoryComparisonStrip lanes={parentLanes} onChannelClick={onChannelClick} />
       <CategoryLanes
         lanes={parentLanes}
         onChannelClick={onChannelClick}
