@@ -48,11 +48,12 @@ function buildParentLanes(groups, categoryConfig) {
     const cfg = categoryConfig[g.key];
     if (cfg?.parentId) {
       const parentSlug = idToSlug[cfg.parentId];
-      if (parentSlug) {
+      if (parentSlug && parentSlug !== g.key) {
         if (!childGroupsByParent[parentSlug]) childGroupsByParent[parentSlug] = [];
         childGroupsByParent[parentSlug].push(g);
         isChildSlug.add(g.key);
       }
+      // If parentSlug not found, treat as standalone (don't mark as child)
     }
   });
 
@@ -206,42 +207,44 @@ function CategoryComparisonStrip({ lanes }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
         {lanes
-          .filter(g => g.channelCount > 0 && g.hasData)
+          .filter(g => g.channelCount > 0)
           .sort((a, b) => (b[metric] || 0) - (a[metric] || 0))
           .map(g => {
             const val = g[metric] || 0;
-            const pct = (val / maxVal) * 100;
+            const pct = maxVal > 0 ? (val / maxVal) * 100 : 0;
             const isExpanded = expandedKey === g.key;
             const hasSubcats = g.subcategories && g.subcategories.length > 1;
             return (
               <div key={g.key}>
-                {/* Parent bar */}
+                {/* Parent bar — entire row is clickable */}
                 <div
-                  onClick={() => hasSubcats && setExpandedKey(isExpanded ? null : g.key)}
+                  onClick={() => setExpandedKey(isExpanded ? null : g.key)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '10px',
-                    cursor: hasSubcats ? 'pointer' : 'default',
-                    padding: '2px 0',
+                    cursor: 'pointer',
+                    padding: '3px 4px',
+                    borderRadius: '4px',
+                    transition: 'background 0.1s',
                   }}
+                  onMouseOver={e => e.currentTarget.style.background = '#252525'}
+                  onMouseOut={e => e.currentTarget.style.background = 'transparent'}
                 >
                   <div style={{
-                    width: '130px', flexShrink: 0,
+                    width: '140px', flexShrink: 0,
                     display: 'flex', alignItems: 'center', gap: '6px',
                   }}>
-                    {hasSubcats && (
-                      <ChevronRight size={10} style={{
-                        color: '#666', flexShrink: 0,
-                        transform: isExpanded ? 'rotate(90deg)' : 'none',
-                        transition: 'transform 0.15s',
-                      }} />
-                    )}
-                    {!hasSubcats && <span style={{ width: '10px' }} />}
+                    <ChevronRight size={10} style={{
+                      color: isExpanded ? '#60a5fa' : '#666', flexShrink: 0,
+                      transform: isExpanded ? 'rotate(90deg)' : 'none',
+                      transition: 'transform 0.15s',
+                    }} />
                     <span style={{ fontSize: '14px' }}>{g.config.icon}</span>
                     <span style={{
-                      fontSize: '11px', fontWeight: '600', color: '#ccc',
+                      fontSize: '11px', fontWeight: '600',
+                      color: isExpanded ? '#fff' : '#ccc',
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     }}>
-                      {g.config.label.split(' ')[0]}
+                      {g.config.label}
                     </span>
                     <span style={{ fontSize: '10px', color: '#666' }}>({g.channelCount})</span>
                   </div>
@@ -264,7 +267,7 @@ function CategoryComparisonStrip({ lanes }) {
                 </div>
 
                 {/* Subcategory breakout bars */}
-                {isExpanded && hasSubcats && (
+                {isExpanded && g.subcategories && g.subcategories.length > 0 && (
                   <div style={{ paddingLeft: '20px', marginTop: '2px', marginBottom: '6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                     {g.subcategories
                       .map(sub => {
@@ -332,7 +335,7 @@ function CategoryComparisonStrip({ lanes }) {
 function CategoryLanes({ lanes, onChannelClick, expandedCategory, onExpandCategory }) {
   const visibleLanes = expandedCategory
     ? lanes.filter(g => g.key === expandedCategory)
-    : lanes.filter(g => g.channelCount > 0 && g.hasData);
+    : lanes.filter(g => g.channelCount > 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
