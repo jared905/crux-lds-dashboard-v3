@@ -3,11 +3,12 @@
  *
  * Replaces the old CategoryHubCards + HubDrilldown with:
  * 1. CategoryComparisonStrip — side-by-side bar charts comparing categories
- * 2. CategoryLanes — Netflix-style horizontal rows showing channels per category
+ * 2. CategoryLanes — Netflix-style horizontal rows showing channels per parent category
+ *    with subcategory grouping when expanded
  * 3. ActivityFeed — recent uploads with thumbnails across all competitors
  */
 import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Eye, Video, TrendingUp, Play, Clock, ChevronRight, ExternalLink, Loader } from 'lucide-react';
+import { Users, Eye, Video, Play, Clock, ChevronRight, ChevronDown, Loader } from 'lucide-react';
 
 const fmt = (n) => {
   if (!n || isNaN(n)) return '0';
@@ -15,8 +16,6 @@ const fmt = (n) => {
   if (n >= 1_000) return (n / 1_000).toFixed(n >= 10_000 ? 0 : 1).replace(/\.0$/, '') + 'K';
   return Math.round(n).toLocaleString();
 };
-
-const fmtPct = (n) => (!n || isNaN(n)) ? '0%' : `${(n * 100).toFixed(1)}%`;
 
 const timeAgo = (dateStr) => {
   if (!dateStr) return '';
@@ -30,19 +29,94 @@ const timeAgo = (dateStr) => {
   return `${Math.floor(days / 30)}mo ago`;
 };
 
+// ─── Build parent-level lanes from flat groups ─────────────────────────
+// Groups subcategory groups under their parent using categoryConfig.parentId
+function buildParentLanes(groups, categoryConfig) {
+  // Build a lookup: slug -> parentId (from categoryConfig which has parentId from DB)
+  // Also build id -> slug lookup
+  const idToSlug = {};
+  Object.entries(categoryConfig).forEach(([slug, cfg]) => {
+    if (cfg.id) idToSlug[cfg.id] = slug;
+  });
+
+  // Determine which groups are children and which are parents/standalone
+  const childGroupsByParent = {}; // parentSlug -> [childGroups]
+  const parentGroups = [];        // groups that are top-level
+  const isChildSlug = new Set();
+
+  groups.forEach(g => {
+    const cfg = categoryConfig[g.key];
+    if (cfg?.parentId) {
+      const parentSlug = idToSlug[cfg.parentId];
+      if (parentSlug) {
+        if (!childGroupsByParent[parentSlug]) childGroupsByParent[parentSlug] = [];
+        childGroupsByParent[parentSlug].push(g);
+        isChildSlug.add(g.key);
+      }
+    }
+  });
+
+  // Build parent lanes — merge children into parent
+  groups.forEach(g => {
+    if (isChildSlug.has(g.key)) return; // skip children, they're bundled
+
+    const children = childGroupsByParent[g.key] || [];
+    const allChannels = [...g.channels];
+    children.forEach(child => allChannels.push(...child.channels));
+
+    // Build subcategory breakdown
+    const subcategories = [];
+    if (g.channels.length > 0) {
+      subcategories.push({
+        key: g.key,
+        label: categoryConfig[g.key]?.label || g.config.label,
+        color: g.config.color,
+        channels: g.channels,
+      });
+    }
+    children.forEach(child => {
+      if (child.channels.length > 0) {
+        subcategories.push({
+          key: child.key,
+          label: categoryConfig[child.key]?.label || child.config.label,
+          color: child.config.color,
+          channels: child.channels,
+        });
+      }
+    });
+
+    parentGroups.push({
+      key: g.key,
+      config: g.config,
+      channels: allChannels,
+      subcategories,
+      channelCount: allChannels.length,
+      totalSubs: allChannels.reduce((s, c) => s + (c.subscriberCount || 0), 0),
+      totalViews: allChannels.reduce((s, c) => s + (c.viewCount || 0), 0),
+      avgViews: allChannels.length > 0
+        ? allChannels.reduce((s, c) => s + (c.avgViewsPerVideo || 0), 0) / allChannels.length
+        : 0,
+      totalUploads30d: allChannels.reduce((s, c) => s + (c.uploadsLast30Days || 0), 0),
+      hasData: allChannels.some(c => (c.subscriberCount || 0) > 0 || (c.viewCount || 0) > 0),
+    });
+  });
+
+  return parentGroups.sort((a, b) => (a.config.order || 0) - (b.config.order || 0));
+}
+
 // ─── CategoryComparisonStrip ───────────────────────────────────────────
-function CategoryComparisonStrip({ groups }) {
+function CategoryComparisonStrip({ lanes }) {
   const [metric, setMetric] = useState('totalSubs');
 
   const metrics = [
-    { key: 'totalSubs', label: 'Total Subscribers', icon: Users, format: fmt },
-    { key: 'totalViews', label: 'Total Views', icon: Eye, format: fmt },
-    { key: 'avgViews', label: 'Avg Views/Video', icon: Play, format: fmt },
-    { key: 'totalUploads30d', label: 'Uploads (30d)', icon: Video, format: (n) => String(Math.round(n || 0)) },
+    { key: 'totalSubs', label: 'Total Subscribers', format: fmt },
+    { key: 'totalViews', label: 'Total Views', format: fmt },
+    { key: 'avgViews', label: 'Avg Views/Video', format: fmt },
+    { key: 'totalUploads30d', label: 'Uploads (30d)', format: (n) => String(Math.round(n || 0)) },
   ];
 
   const activeMetric = metrics.find(m => m.key === metric);
-  const maxVal = Math.max(...groups.map(g => g[metric] || 0), 1);
+  const maxVal = Math.max(...lanes.map(g => g[metric] || 0), 1);
 
   return (
     <div className="page-section" style={{ padding: '16px 20px', marginBottom: '16px' }}>
@@ -68,7 +142,7 @@ function CategoryComparisonStrip({ groups }) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {groups
+        {lanes
           .filter(g => g.channelCount > 0 && g.hasData)
           .sort((a, b) => (b[metric] || 0) - (a[metric] || 0))
           .map(g => {
@@ -114,33 +188,34 @@ function CategoryComparisonStrip({ groups }) {
 }
 
 // ─── CategoryLanes ─────────────────────────────────────────────────────
-function CategoryLanes({ groups, onChannelClick, expandedCategory, onExpandCategory }) {
-  const visibleGroups = expandedCategory
-    ? groups.filter(g => g.key === expandedCategory)
-    : groups.filter(g => g.channelCount > 0 && g.hasData);
+function CategoryLanes({ lanes, onChannelClick, expandedCategory, onExpandCategory }) {
+  const visibleLanes = expandedCategory
+    ? lanes.filter(g => g.key === expandedCategory)
+    : lanes.filter(g => g.channelCount > 0 && g.hasData);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
-      {visibleGroups.map(group => (
+      {visibleLanes.map(lane => (
         <CategoryLane
-          key={group.key}
-          group={group}
-          isExpanded={expandedCategory === group.key}
+          key={lane.key}
+          lane={lane}
+          isExpanded={expandedCategory === lane.key}
           onChannelClick={onChannelClick}
-          onExpand={() => onExpandCategory(expandedCategory === group.key ? null : group.key)}
+          onExpand={() => onExpandCategory(expandedCategory === lane.key ? null : lane.key)}
         />
       ))}
     </div>
   );
 }
 
-function CategoryLane({ group, isExpanded, onChannelClick, onExpand }) {
-  const { config } = group;
+function CategoryLane({ lane, isExpanded, onChannelClick, onExpand }) {
+  const { config, subcategories } = lane;
+  const hasSubcategories = subcategories.length > 1;
 
-  // Sort channels by subscriber count descending
+  // Sort all channels by subscriber count for collapsed view
   const sortedChannels = useMemo(() =>
-    [...group.channels].sort((a, b) => (b.subscriberCount || 0) - (a.subscriberCount || 0)),
-    [group.channels]
+    [...lane.channels].sort((a, b) => (b.subscriberCount || 0) - (a.subscriberCount || 0)),
+    [lane.channels]
   );
 
   const displayChannels = isExpanded ? sortedChannels : sortedChannels.slice(0, 12);
@@ -158,51 +233,131 @@ function CategoryLane({ group, isExpanded, onChannelClick, onExpand }) {
         }}
       >
         <span style={{ fontSize: '16px' }}>{config.icon}</span>
-        <span style={{ fontSize: '13px', fontWeight: '700', color: '#fff', flex: 1 }}>
+        <span style={{ fontSize: '13px', fontWeight: '700', color: '#fff' }}>
           {config.label}
         </span>
+        {/* Subcategory count badge */}
+        {hasSubcategories && (
+          <span style={{
+            fontSize: '9px', color: '#888', background: '#2a2a2a',
+            padding: '2px 6px', borderRadius: '4px',
+          }}>
+            {subcategories.length} groups
+          </span>
+        )}
+        <span style={{ flex: 1 }} />
         <span style={{ fontSize: '11px', color: '#666' }}>
-          {group.channelCount} channels
+          {lane.channelCount} channels
         </span>
         <span style={{ fontSize: '10px', color: '#888', marginLeft: '4px' }}>
-          {fmt(group.totalSubs)} total subs
+          {fmt(lane.totalSubs)} total subs
         </span>
-        <ChevronRight
-          size={14}
-          style={{
-            color: '#666',
-            transform: isExpanded ? 'rotate(90deg)' : 'none',
-            transition: 'transform 0.2s',
-          }}
-        />
-      </div>
-
-      {/* Channel cards — horizontal scroll or grid when expanded */}
-      <div style={{
-        display: isExpanded ? 'grid' : 'flex',
-        gridTemplateColumns: isExpanded ? 'repeat(auto-fill, minmax(180px, 1fr))' : undefined,
-        gap: '2px',
-        padding: '8px',
-        overflowX: isExpanded ? 'visible' : 'auto',
-        scrollbarWidth: 'thin',
-      }}>
-        {displayChannels.map(ch => (
-          <ChannelCard key={ch.id} channel={ch} categoryColor={config.color} onClick={() => onChannelClick(ch.id)} />
-        ))}
-        {!isExpanded && sortedChannels.length > 12 && (
-          <div
-            onClick={onExpand}
-            style={{
-              minWidth: '80px', display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              padding: '12px', cursor: 'pointer', color: '#888', fontSize: '11px',
-              background: '#1a1a1a', borderRadius: '8px',
-            }}
-          >
-            +{sortedChannels.length - 12} more
-          </div>
+        {isExpanded ? (
+          <ChevronDown size={14} style={{ color: '#666' }} />
+        ) : (
+          <ChevronRight size={14} style={{ color: '#666' }} />
         )}
       </div>
+
+      {/* Collapsed: horizontal scroll of all channels mixed */}
+      {!isExpanded && (
+        <div style={{
+          display: 'flex', gap: '2px', padding: '8px',
+          overflowX: 'auto', scrollbarWidth: 'thin',
+        }}>
+          {displayChannels.map(ch => (
+            <ChannelCard
+              key={ch.id}
+              channel={ch}
+              categoryColor={config.color}
+              subcategoryLabel={hasSubcategories ? ch.category : null}
+              categoryConfig={null}
+              onClick={() => onChannelClick(ch.id)}
+            />
+          ))}
+          {sortedChannels.length > 12 && (
+            <div
+              onClick={onExpand}
+              style={{
+                minWidth: '80px', display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                padding: '12px', cursor: 'pointer', color: '#888', fontSize: '11px',
+                background: '#1a1a1a', borderRadius: '8px',
+              }}
+            >
+              +{sortedChannels.length - 12} more
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Expanded: grouped by subcategory */}
+      {isExpanded && hasSubcategories && (
+        <div style={{ padding: '8px' }}>
+          {subcategories
+            .sort((a, b) => b.channels.length - a.channels.length)
+            .map(sub => (
+              <div key={sub.key} style={{ marginBottom: '12px' }}>
+                {/* Subcategory header */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '6px 8px', marginBottom: '6px',
+                }}>
+                  <div style={{
+                    width: '8px', height: '8px', borderRadius: '50%',
+                    background: sub.color, flexShrink: 0,
+                  }} />
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: '#ccc' }}>
+                    {sub.label}
+                  </span>
+                  <span style={{ fontSize: '10px', color: '#666' }}>
+                    {sub.channels.length} channels
+                  </span>
+                  <span style={{ fontSize: '10px', color: '#555', marginLeft: 'auto' }}>
+                    {fmt(sub.channels.reduce((s, c) => s + (c.subscriberCount || 0), 0))} subs
+                  </span>
+                </div>
+                {/* Subcategory channels grid */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                  gap: '4px', paddingLeft: '16px',
+                }}>
+                  {[...sub.channels]
+                    .sort((a, b) => (b.subscriberCount || 0) - (a.subscriberCount || 0))
+                    .map(ch => (
+                      <ChannelCard
+                        key={ch.id}
+                        channel={ch}
+                        categoryColor={sub.color}
+                        onClick={() => onChannelClick(ch.id)}
+                      />
+                    ))
+                  }
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      )}
+
+      {/* Expanded with no subcategories: just grid all channels */}
+      {isExpanded && !hasSubcategories && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+          gap: '4px', padding: '8px',
+        }}>
+          {sortedChannels.map(ch => (
+            <ChannelCard
+              key={ch.id}
+              channel={ch}
+              categoryColor={config.color}
+              onClick={() => onChannelClick(ch.id)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -404,11 +559,17 @@ export default function CompetitorPulse({
   onExpandCategory,
   onChannelClick,
 }) {
+  // Bundle subcategory groups under their parent category
+  const parentLanes = useMemo(
+    () => buildParentLanes(groupedCompetitors, categoryConfig),
+    [groupedCompetitors, categoryConfig]
+  );
+
   return (
     <>
-      <CategoryComparisonStrip groups={groupedCompetitors} />
+      <CategoryComparisonStrip lanes={parentLanes} />
       <CategoryLanes
-        groups={groupedCompetitors}
+        lanes={parentLanes}
         onChannelClick={onChannelClick}
         expandedCategory={expandedHubCategory}
         onExpandCategory={onExpandCategory}
