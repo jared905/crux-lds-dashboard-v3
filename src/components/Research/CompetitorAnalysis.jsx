@@ -8,6 +8,7 @@ import { ChannelClientAssignment } from './ChannelClientAssignment';
 import AnimatedSection from '../Shared/AnimatedSection';
 
 const CompetitorTrends = lazy(() => import('./CompetitorTrends'));
+const CompetitorLeaderboard = lazy(() => import('./CompetitorLeaderboard'));
 const CommandCenter = lazy(() => import('./CommandCenter'));
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
@@ -1959,6 +1960,16 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               title="Category Hubs"
             ><Layers size={14} /></button>
             <button
+              onClick={() => setViewMode('leaderboard')}
+              style={{
+                padding: "6px 8px", borderRadius: "0",
+                background: viewMode === 'leaderboard' ? '#333' : 'transparent',
+                border: "1px solid #444", borderLeft: "none",
+                color: viewMode === 'leaderboard' ? '#fff' : '#666', cursor: "pointer",
+              }}
+              title="Leaderboard"
+            ><BarChart3 size={14} /></button>
+            <button
               onClick={() => setViewMode('trends')}
               style={{
                 padding: "6px 8px", borderRadius: "0 6px 6px 0",
@@ -2017,7 +2028,25 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         </div>
       )}
 
-      {/* 3C: Trends View */}
+      {/* 3C: Leaderboard View */}
+      {activeCompetitors.length > 0 && viewMode === 'leaderboard' && (
+        <Suspense fallback={
+          <div className="page-section" style={{ padding: "64px 24px", textAlign: "center", marginBottom: "16px" }}>
+            <Loader size={32} style={{ color: "#555", margin: "0 auto 12px", animation: "spin 1s linear infinite" }} />
+            <div style={{ fontSize: "14px", color: "#888" }}>Loading leaderboard...</div>
+            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+          </div>
+        }>
+          <CompetitorLeaderboard
+            activeCompetitors={activeCompetitors}
+            yourChannelId={activeClient?.youtube_channel_id || null}
+            yourStats={yourStats}
+            CATEGORY_CONFIG={categoryConfig}
+          />
+        </Suspense>
+      )}
+
+      {/* 3D: Trends View */}
       {activeCompetitors.length > 0 && viewMode === 'trends' && (
         <Suspense fallback={
           <div className="page-section" style={{ padding: "64px 24px", textAlign: "center", marginBottom: "16px" }}>

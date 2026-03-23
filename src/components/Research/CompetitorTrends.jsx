@@ -5,11 +5,6 @@ import {
   Line,
   BarChart,
   Bar,
-  RadarChart,
-  Radar,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -17,7 +12,7 @@ import {
   Legend,
   ReferenceArea,
 } from "recharts";
-import { TrendingUp, ArrowUp, ArrowDown, ChevronDown, Check, Loader } from "lucide-react";
+import { TrendingUp, ChevronDown, Check, Loader } from "lucide-react";
 
 // ─── Aggregate snapshots by category (pure transform, no DB) ─────────────────
 
@@ -424,10 +419,7 @@ export default function CompetitorTrends({
         </div>
       </div>
 
-      {/* ─── ROW 1: KPI Sparkline Cards ─────────────────────────────────────── */}
-      <KPISparklineStrip kpiData={kpiData} hasData={hasData} trendPercent={trendPercent} />
-
-      {/* ─── ROW 2: Subscriber Growth Chart ─────────────────────────────────── */}
+      {/* ─── ROW 1: Subscriber Growth Chart ─────────────────────────────────── */}
       <ChartCard title="Subscriber Growth" hasData={hasData}>
         <ResponsiveContainer width="100%" height={400}>
           <LineChart data={subscriberChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -482,87 +474,75 @@ export default function CompetitorTrends({
         </ResponsiveContainer>
       </ChartCard>
 
-      {/* ─── ROW 3: Content Volume + Engagement Trend ───────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-        {/* Content Volume */}
-        <ChartCard title="Content Volume" hasData={contentVolumeData.length > 0}>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={contentVolumeData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CT.grid} />
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 9, fill: CT.axis }}
-                axisLine={false}
-                tickLine={false}
-                angle={-45}
-                textAnchor="end"
-                height={60}
+      {/* ─── ROW 2: Engagement Trend (Top 5 + Your Channel) ─────────────────── */}
+      <ChartCard title="Engagement Trend" subtitle="Top 5 by engagement + your channel" hasData={hasData}>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={engagementChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CT.grid} />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 11, fill: CT.axis }}
+              axisLine={false}
+              tickLine={false}
+              tickFormatter={formatDateAxis}
+            />
+            <YAxis
+              tickFormatter={(v) => `${(v * 100).toFixed(1)}%`}
+              tick={{ fontSize: 11, fill: CT.axis }}
+              axisLine={false}
+              tickLine={false}
+              width={50}
+            />
+            {engagementBand.p25 !== engagementBand.p75 && (
+              <ReferenceArea
+                y1={engagementBand.p25}
+                y2={engagementBand.p75}
+                fill="#10b981"
+                fillOpacity={0.08}
+                label={{ value: "Healthy range", fill: "#10b981", fontSize: 10, position: "insideTopRight" }}
               />
-              <YAxis tick={{ fontSize: 11, fill: CT.axis }} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                formatter={(value, name) => [fmtInt(value), name]}
-                labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
-              />
-              <Legend wrapperStyle={{ fontSize: "11px" }} />
-              <Bar dataKey="shorts" stackId="a" fill="#818cf8" name="Shorts" />
-              <Bar dataKey="longs" stackId="a" fill="#4f46e5" name="Long-form" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        {/* Engagement Trend */}
-        <ChartCard title="Engagement Trend" hasData={hasData}>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={engagementChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CT.grid} />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 11, fill: CT.axis }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={formatDateAxis}
-              />
-              <YAxis
-                tickFormatter={(v) => `${(v * 100).toFixed(1)}%`}
-                tick={{ fontSize: 11, fill: CT.axis }}
-                axisLine={false}
-                tickLine={false}
-                width={50}
-              />
-              {engagementBand.p25 !== engagementBand.p75 && (
-                <ReferenceArea
-                  y1={engagementBand.p25}
-                  y2={engagementBand.p75}
-                  fill="#10b981"
-                  fillOpacity={0.08}
-                  label={{ value: "Healthy range", fill: "#10b981", fontSize: 10, position: "insideTopRight" }}
-                />
-              )}
-              <Tooltip
-                contentStyle={tooltipStyle}
-                formatter={(value, name) => [`${(value * 100).toFixed(2)}%`, nameMap[name] || name]}
-                labelFormatter={formatTooltipDate}
-              />
-              {filteredCompetitors
+            )}
+            <Tooltip
+              contentStyle={tooltipStyle}
+              formatter={(value, name) => [`${(value * 100).toFixed(2)}%`, nameMap[name] || name]}
+              labelFormatter={formatTooltipDate}
+            />
+            <Legend
+              wrapperStyle={{ fontSize: "11px" }}
+              formatter={(value) => nameMap[value] || value}
+            />
+            {(() => {
+              // Show only top 5 by avg engagement + your channel
+              const withEngagement = filteredCompetitors
+                .filter((c) => c.supabaseId && c.engagementRate > 0)
+                .sort((a, b) => (b.engagementRate || 0) - (a.engagementRate || 0));
+              const yours = filteredCompetitors.find((c) => c.id === yourChannelId);
+              const top5 = withEngagement.slice(0, 5);
+              // Ensure your channel is included even if not in top 5
+              const toShow = yours && !top5.find((c) => c.id === yours.id)
+                ? [...top5, yours]
+                : top5;
+              return toShow
                 .filter((c) => c.supabaseId)
                 .map((comp) => {
                   const catCfg = CATEGORY_CONFIG[comp.category] || {};
+                  const isYours = comp.id === yourChannelId;
                   return (
                     <Line
                       key={comp.supabaseId}
                       dataKey={comp.supabaseId}
-                      stroke={catCfg.color || "#666"}
-                      strokeWidth={1.5}
+                      name={comp.supabaseId}
+                      stroke={isYours ? CT.yourColor : catCfg.color || "#666"}
+                      strokeWidth={isYours ? CT.yourWidth : CT.compWidth}
                       dot={false}
                       connectNulls
                     />
                   );
-                })}
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
+                });
+            })()}
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartCard>
 
       {/* ─── ROW 4: Head-to-Head Comparison ─────────────────────────────────── */}
       <ChartCard title="Head-to-Head Comparison" hasData={true} noPad>
@@ -637,6 +617,7 @@ export default function CompetitorTrends({
                 { key: "subscribers", label: "Subscribers" },
                 { key: "views", label: "Total Views" },
                 { key: "videos", label: "Video Count" },
+                { key: "contentMix", label: "Content Mix" },
               ].map((tab) => (
                 <button
                   key={tab.key}
@@ -653,120 +634,87 @@ export default function CompetitorTrends({
               ))}
             </div>
 
-            {/* Overlaid line chart */}
-            <div style={{ padding: "16px 20px" }}>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={h2hChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CT.grid} />
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: CT.axis }} axisLine={false} tickLine={false} tickFormatter={formatDateAxis} />
-                  <YAxis tickFormatter={fmtCompact} tick={{ fontSize: 11, fill: CT.axis }} axisLine={false} tickLine={false} width={55} />
-                  <Tooltip contentStyle={tooltipStyle} labelFormatter={formatTooltipDate}
-                    formatter={(value, name) => {
-                      const id = name.replace(/_subs$|_views$|_vids$/, "");
-                      return [fmtCompact(value), nameMap[id] || name];
-                    }}
-                  />
-                  <Legend formatter={(value) => {
-                    const id = value.replace(/_subs$|_views$|_vids$/, "");
-                    return nameMap[id] || value;
-                  }} />
-                  {headToHeadSelection.map((supabaseId) => {
-                    const comp = compBySupabaseId[supabaseId];
-                    const catCfg = comp ? CATEGORY_CONFIG[comp.category] || {} : {};
-                    const suffix = activeChartTab === "subscribers" ? "_subs" : activeChartTab === "views" ? "_views" : "_vids";
-                    return (
-                      <Line
-                        key={supabaseId}
-                        dataKey={supabaseId + suffix}
-                        name={supabaseId + suffix}
-                        stroke={catCfg.color || "#666"}
-                        strokeWidth={2}
-                        dot={false}
-                        connectNulls
-                      />
-                    );
-                  })}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Radar chart */}
-            {radarData.length > 0 && (
-              <div style={{ padding: "0 20px 20px" }}>
-                <div style={{ fontSize: "12px", fontWeight: "600", color: "#999", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Relative Strengths
-                </div>
-                <ResponsiveContainer width="100%" height={350}>
-                  <RadarChart data={radarData}>
-                    <PolarGrid stroke="#333" />
-                    <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: CT.axis }} />
-                    <PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
-                    {headToHeadSelection.map((supabaseId) => {
-                      const comp = compBySupabaseId[supabaseId];
-                      const catCfg = comp ? CATEGORY_CONFIG[comp.category] || {} : {};
-                      return (
-                        <Radar
-                          key={supabaseId}
-                          name={comp?.name || supabaseId}
-                          dataKey={supabaseId}
-                          stroke={catCfg.color || "#666"}
-                          fill={catCfg.color || "#666"}
-                          fillOpacity={0.12}
-                        />
-                      );
-                    })}
+            {/* Content Mix bar chart */}
+            {activeChartTab === "contentMix" && (
+              <div style={{ padding: "16px 20px" }}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={(() => {
+                      const selected = headToHeadSelection
+                        .map((id) => activeCompetitors.find((c) => c.supabaseId === id))
+                        .filter(Boolean);
+                      return selected.map((comp) => {
+                        const snaps = snapshotData[comp.supabaseId] || [];
+                        const latest = snaps[snaps.length - 1];
+                        return {
+                          name: comp.name?.length > 15 ? comp.name.slice(0, 15) + "…" : comp.name,
+                          fullName: comp.name,
+                          shorts: latest?.shorts_count || 0,
+                          longs: latest?.longs_count || 0,
+                        };
+                      });
+                    })()}
+                    margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CT.grid} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: CT.axis }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: CT.axis }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      formatter={(value, name) => [fmtInt(value), name]}
+                      labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
+                    />
                     <Legend wrapperStyle={{ fontSize: "11px" }} />
-                    <Tooltip contentStyle={tooltipStyle} />
-                  </RadarChart>
+                    <Bar dataKey="shorts" stackId="a" fill="#818cf8" name="Shorts" />
+                    <Bar dataKey="longs" stackId="a" fill="#4f46e5" name="Long-form" radius={[4, 4, 0, 0]} />
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             )}
+
+            {/* Overlaid line chart (for subscribers, views, videos tabs) */}
+            {activeChartTab !== "contentMix" && (
+              <div style={{ padding: "16px 20px" }}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={h2hChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CT.grid} />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: CT.axis }} axisLine={false} tickLine={false} tickFormatter={formatDateAxis} />
+                    <YAxis tickFormatter={fmtCompact} tick={{ fontSize: 11, fill: CT.axis }} axisLine={false} tickLine={false} width={55} />
+                    <Tooltip contentStyle={tooltipStyle} labelFormatter={formatTooltipDate}
+                      formatter={(value, name) => {
+                        const id = name.replace(/_subs$|_views$|_vids$/, "");
+                        return [fmtCompact(value), nameMap[id] || name];
+                      }}
+                    />
+                    <Legend formatter={(value) => {
+                      const id = value.replace(/_subs$|_views$|_vids$/, "");
+                      return nameMap[id] || value;
+                    }} />
+                    {headToHeadSelection.map((supabaseId) => {
+                      const comp = compBySupabaseId[supabaseId];
+                      const catCfg = comp ? CATEGORY_CONFIG[comp.category] || {} : {};
+                      const suffix = activeChartTab === "subscribers" ? "_subs" : activeChartTab === "views" ? "_views" : "_vids";
+                      return (
+                        <Line
+                          key={supabaseId}
+                          dataKey={supabaseId + suffix}
+                          name={supabaseId + suffix}
+                          stroke={catCfg.color || "#666"}
+                          strokeWidth={2}
+                          dot={false}
+                          connectNulls
+                        />
+                      );
+                    })}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
           </div>
         )}
       </ChartCard>
 
-      {/* ─── ROW 5: Category Trends ─────────────────────────────────────────── */}
-      <ChartCard title="Category Trends" subtitle="Aggregated subscriber totals by category" hasData={categoryTrendData.length >= 2}>
-        <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={categoryTrendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CT.grid} />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 11, fill: CT.axis }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={formatDateAxis}
-            />
-            <YAxis
-              tickFormatter={fmtCompact}
-              tick={{ fontSize: 11, fill: CT.axis }}
-              axisLine={false}
-              tickLine={false}
-              width={55}
-            />
-            <Tooltip
-              contentStyle={tooltipStyle}
-              formatter={(value, name) => [fmtCompact(value), CATEGORY_CONFIG[name]?.label || name]}
-              labelFormatter={formatTooltipDate}
-            />
-            <Legend
-              formatter={(value) => CATEGORY_CONFIG[value]?.label || value}
-              wrapperStyle={{ fontSize: "11px" }}
-            />
-            {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
-              <Line
-                key={key}
-                dataKey={key}
-                name={key}
-                stroke={cfg.color}
-                strokeWidth={2}
-                dot={false}
-                connectNulls
-              />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
-      </ChartCard>
     </div>
   );
 }
@@ -809,63 +757,3 @@ function ChartCard({ title, subtitle, hasData, noPad, children }) {
   );
 }
 
-function KPISparklineStrip({ kpiData, hasData, trendPercent }) {
-  const cards = [
-    { label: "Total Subscribers", data: kpiData.subs, color: "#3b82f6", fmt: fmtCompact },
-    { label: "Total Views", data: kpiData.views, color: "#f59e0b", fmt: fmtCompact },
-    { label: "Avg Engagement", data: kpiData.engagement, color: "#10b981", fmt: (v) => `${(v * 100).toFixed(2)}%` },
-    { label: "Total Videos", data: kpiData.volume, color: "#8b5cf6", fmt: fmtCompact },
-  ];
-
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
-      {cards.map((card) => {
-        const latest = card.data?.[card.data.length - 1]?.value;
-        const pct = trendPercent(card.data);
-
-        return (
-          <div
-            key={card.label}
-            style={{
-              background: "#1E1E1E",
-              border: "1px solid #333",
-              borderRadius: "10px",
-              padding: "16px",
-              borderTop: `3px solid ${card.color}`,
-            }}
-          >
-            <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600", marginBottom: "8px" }}>
-              {card.label}
-            </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
-              <div style={{ fontSize: "24px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
-                {latest != null ? card.fmt(latest) : "--"}
-              </div>
-              {pct != null && (
-                <span style={{ display: "flex", alignItems: "center", gap: "2px", fontSize: "12px", fontWeight: "600", color: pct >= 0 ? "#10b981" : "#ef4444" }}>
-                  {pct >= 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-                  {Math.abs(pct).toFixed(1)}%
-                </span>
-              )}
-            </div>
-            {hasData && card.data?.length >= 2 && (
-              <div style={{ height: 32, marginTop: 8 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={card.data}>
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke={card.color}
-                      strokeWidth={1.5}
-                      dot={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
