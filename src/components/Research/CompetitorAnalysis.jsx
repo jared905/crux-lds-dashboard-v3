@@ -9,6 +9,7 @@ import AnimatedSection from '../Shared/AnimatedSection';
 
 const CompetitorTrends = lazy(() => import('./CompetitorTrends'));
 const CompetitorLeaderboard = lazy(() => import('./CompetitorLeaderboard'));
+const CompetitorPulse = lazy(() => import('./CompetitorPulse'));
 const CommandCenter = lazy(() => import('./CommandCenter'));
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
@@ -1857,20 +1858,6 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         </AnimatedSection>
       )}
 
-      {/* ── CATEGORY BROWSER (Master View) or COMPETITIVE INTELLIGENCE (Client View) ── */}
-      {activeCompetitors.length > 0 && masterView && (
-        <div style={{ marginBottom: "16px" }}>
-          <CategoryBrowser
-            categoryTree={categoryTree}
-            selectedCategoryIds={selectedCategoryIds}
-            onCategorySelect={setSelectedCategoryIds}
-            channels={activeCompetitors}
-            loading={categoryLoading}
-            onCategoryChange={loadCategories}
-          />
-        </div>
-      )}
-
       {/* ── COMMAND CENTER (Client View Only) ── */}
       {activeCompetitors.length > 0 && !masterView && (
         <Suspense fallback={null}>
@@ -1983,49 +1970,23 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         </div>
       )}
 
-      {/* 3B: Category Hubs View */}
+      {/* 3B: Pulse View (Category Lanes + Activity Feed) */}
       {activeCompetitors.length > 0 && viewMode === 'hubs' && (
-        <div style={{ marginBottom: "16px" }}>
-          {expandedHubCategory && (
-            <button
-              onClick={() => setExpandedHubCategory(null)}
-              style={{
-                display: "flex", alignItems: "center", gap: "6px",
-                background: "transparent", border: "1px solid #444",
-                borderRadius: "6px", padding: "6px 12px", marginBottom: "12px",
-                color: "#aaa", fontSize: "12px", fontWeight: "600", cursor: "pointer",
-              }}
-            >
-              <ArrowUp size={12} style={{ transform: "rotate(-90deg)" }} /> All Categories
-            </button>
-          )}
-
-          {!expandedHubCategory ? (
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
-              gap: "16px",
-            }}>
-              {groupedCompetitors.map(group => (
-                <CategoryHubCard
-                  key={group.key}
-                  group={group}
-                  onClick={() => setExpandedHubCategory(group.key)}
-                />
-              ))}
-            </div>
-          ) : (
-            <HubDrilldown
-              group={groupedCompetitors.find(g => g.key === expandedHubCategory)}
-              onChannelClick={(id) => { setSelectedChannelId(id); setDrawerTab('overview'); }}
-              selectedChannelId={selectedChannelId}
-              sortCol={sortCol}
-              sortDir={sortDir}
-              onSort={handleSort}
-              onUnlinkCategory={!masterView ? unlinkCategoryFromCurrentClient : null}
-            />
-          )}
-        </div>
+        <Suspense fallback={
+          <div className="page-section" style={{ padding: "64px 24px", textAlign: "center", marginBottom: "16px" }}>
+            <Loader size={32} style={{ color: "#555", margin: "0 auto 12px", animation: "spin 1s linear infinite" }} />
+            <div style={{ fontSize: "14px", color: "#888" }}>Loading...</div>
+          </div>
+        }>
+          <CompetitorPulse
+            activeCompetitors={activeCompetitors}
+            groupedCompetitors={groupedCompetitors}
+            categoryConfig={categoryConfig}
+            expandedHubCategory={expandedHubCategory}
+            onExpandCategory={setExpandedHubCategory}
+            onChannelClick={(id) => { setSelectedChannelId(id); setDrawerTab('overview'); }}
+          />
+        </Suspense>
       )}
 
       {/* 3C: Leaderboard View */}
