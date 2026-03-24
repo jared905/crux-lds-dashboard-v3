@@ -109,6 +109,7 @@ export default function CompetitorLeaderboard({
       ...(yourEntry ? [yourEntry] : []),
       ...filteredCompetitors.map((c) => ({
         name: c.name,
+        channelId: c.id,
         isYours: c.id === yourChannelId,
         subscriberCount: c.subscriberCount || 0,
         viewCount: c.viewCount || 0,
@@ -336,7 +337,11 @@ export default function CompetitorLeaderboard({
                         ) + 1;
                       const isYours = entry?.isYours;
                       return (
-                        <g transform={`translate(${x},${y})`}>
+                        <g
+                          transform={`translate(${x},${y})`}
+                          style={{ cursor: entry?.channelId ? 'pointer' : 'default' }}
+                          onClick={() => { if (entry?.channelId && onChannelClick) onChannelClick(entry.channelId); }}
+                        >
                           <text
                             x={-8}
                             y={0}
@@ -373,7 +378,15 @@ export default function CompetitorLeaderboard({
                     labelFormatter={(label) => label}
                     cursor={{ fill: "rgba(255,255,255,0.03)" }}
                   />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={28}>
+                  <Bar
+                    dataKey="value"
+                    radius={[0, 4, 4, 0]}
+                    maxBarSize={28}
+                    onClick={(data) => {
+                      if (data?.channelId && onChannelClick) onChannelClick(data.channelId);
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
                     {visibleData.map((entry, i) => {
                       const catCfg = CATEGORY_CONFIG[entry.category] || {};
                       return (

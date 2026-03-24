@@ -316,6 +316,20 @@ export default function CompetitorTrends({
     setHiddenLines(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
+  // Open channel drawer when clicking a legend item (channel-level only)
+  const handleLegendClick = useCallback((e) => {
+    const key = e.dataKey;
+    if (zoomLevel === 'channels' && onChannelClick) {
+      // key is supabaseId — find the channel's youtube_channel_id
+      const comp = compBySupabaseId[key];
+      if (comp) {
+        onChannelClick(comp.id);
+        return; // don't toggle line
+      }
+    }
+    toggleLine(key);
+  }, [zoomLevel, onChannelClick, compBySupabaseId, toggleLine]);
+
   const toggleH2hSelection = useCallback((supabaseId) => {
     setHeadToHeadSelection(prev => {
       if (prev.includes(supabaseId)) return prev.filter(id => id !== supabaseId);
@@ -404,7 +418,7 @@ export default function CompetitorTrends({
               labelFormatter={formatTooltipDate}
             />
             <Legend
-              onClick={(e) => toggleLine(e.dataKey)}
+              onClick={handleLegendClick}
               wrapperStyle={{ cursor: "pointer", fontSize: "11px", paddingTop: "8px" }}
               formatter={(value, entry) => (
                 <span style={{
