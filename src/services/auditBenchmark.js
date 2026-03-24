@@ -143,12 +143,15 @@ export async function computeBenchmarks(peerChannelIds, days = 90) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
 
-  const { data: peerVideos, error } = await supabase
+  const { data: peerVideosRaw, error } = await supabase
     .from('videos')
-    .select('channel_id, view_count, like_count, comment_count, duration_seconds, video_type, published_at')
+    .select('channel_id, view_count, like_count, comment_count, duration_seconds, video_type, published_at, is_paid')
     .in('channel_id', peerChannelIds)
     .gte('published_at', cutoff.toISOString())
     .order('published_at', { ascending: false });
+
+  // Filter out paid content — baselines must be organic-only
+  const peerVideos = (peerVideosRaw || []).filter(v => !v.is_paid);
 
   if (error || !peerVideos || peerVideos.length === 0) {
     return null;
@@ -374,13 +377,14 @@ export async function runBenchmarking(auditId, channel, sizeTier, { clientId, ca
     const cutoff90 = new Date();
     cutoff90.setDate(cutoff90.getDate() - 90);
 
-    const { data: channelVideos } = await supabase
+    const { data: channelVideosRaw } = await supabase
       .from('videos')
-      .select('view_count, like_count, comment_count, published_at')
+      .select('view_count, like_count, comment_count, published_at, is_paid')
       .eq('channel_id', channel.id)
       .gte('published_at', cutoff90.toISOString());
 
-    const recentVideos = channelVideos || [];
+    // Organic-only for baseline calculations
+    const recentVideos = (channelVideosRaw || []).filter(v => !v.is_paid);
     const avgViews = recentVideos.length > 0
       ? recentVideos.reduce((s, v) => s + (v.view_count || 0), 0) / recentVideos.length
       : 0;

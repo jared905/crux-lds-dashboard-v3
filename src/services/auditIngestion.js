@@ -146,8 +146,43 @@ export async function ingestChannelData(auditId, channelInput, opts = {}) {
       channel.size_tier = sizeTier;
     }
 
-    // 4. Build channel snapshot for audit
-    const recentVideos = videos.filter(v => {
+    // 4. Classify paid vs organic content
+    let paidContentSummary = { total: 0, paid: 0, organic: 0, signals_configured: false };
+    try {
+      const { loadClientSignals, classifyVideos, persistClassifications, splitByPaidStatus } = await import('./paidContentClassifier');
+      const signals = await loadClientSignals(channel.id);
+
+      if (signals.keywords.length > 0 || signals.overrideIds.length > 0) {
+        paidContentSummary.signals_configured = true;
+        const classifiedVideos = classifyVideos(videos, signals);
+
+        // Persist classifications to DB
+        await persistClassifications(classifiedVideos);
+
+        // Update local video objects with classification
+        videos = classifiedVideos;
+
+        const { organic, paid } = splitByPaidStatus(classifiedVideos);
+        paidContentSummary.total = classifiedVideos.length;
+        paidContentSummary.paid = paid.length;
+        paidContentSummary.organic = organic.length;
+        paidContentSummary.paid_videos = paid.map(v => ({
+          title: v.title,
+          youtube_video_id: v.youtube_video_id || v.id,
+          view_count: v.view_count,
+          matched_signal: v.matched_signal,
+          classification_source: v.paid_classification_source,
+        }));
+      }
+    } catch (err) {
+      console.warn('[Ingestion] Paid content classification failed (non-fatal):', err.message);
+    }
+
+    // 5. Build channel snapshot for audit
+    // Filter to organic content only for baseline calculations
+    const organicVideos = videos.filter(v => !v.is_paid);
+
+    const recentVideos = organicVideos.filter(v => {
       if (!v.published_at) return false;
       const cutoff = new Date();
       cutoff.setMonth(cutoff.getMonth() - 3);
@@ -165,6 +200,7 @@ export async function ingestChannelData(auditId, channelInput, opts = {}) {
       size_tier: sizeTier,
       snapshot_date: new Date().toISOString().split('T')[0],
       total_videos_analyzed: videos.length,
+      organic_videos_analyzed: organicVideos.length,
       recent_videos_90d: recentVideos.length,
       avg_views_recent: recentVideos.length > 0
         ? Math.round(recentVideos.reduce((s, v) => s + (v.view_count || 0), 0) / recentVideos.length)
@@ -176,6 +212,7 @@ export async function ingestChannelData(auditId, channelInput, opts = {}) {
           }, 0) / recentVideos.length
         : 0,
       fetched_from_youtube: fetchedFromYouTube,
+      paid_content: paidContentSummary,
     };
 
     // Track costs
