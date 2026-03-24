@@ -71,6 +71,11 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
   const [brandIntentTimeline, setBrandIntentTimeline] = useState("");
   const [paidContentSignals, setPaidContentSignals] = useState("");
   const [paidContentOverride, setPaidContentOverride] = useState("");
+  const [paidDurationRules, setPaidDurationRules] = useState([
+    { min: 14, max: 16, scope: 'non_short', label: '~15 seconds' },
+    { min: 29, max: 31, scope: 'non_short', label: '~30 seconds' },
+  ]);
+  const [enableDurationRules, setEnableDurationRules] = useState(false);
 
   // Competitors (step 4)
   const [competitorUrl, setCompetitorUrl] = useState("");
@@ -278,6 +283,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
           paidContentOverride: paidContentOverride.trim()
             ? paidContentOverride.split(',').map(s => s.trim()).filter(Boolean)
             : null,
+          paidDurationRules: enableDurationRules ? paidDurationRules : null,
           competitorChannelIds: resolvedCompetitors.length > 0
             ? resolvedCompetitors.map(c => c.youtube_channel_id)
             : null,
@@ -863,6 +869,62 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                 <div style={{ fontSize: "10px", color: "#666", marginTop: "4px" }}>
                   Specific YouTube video IDs to always flag as paid, regardless of keyword match.
                 </div>
+              </div>
+
+              {/* Duration rules */}
+              <div style={{ marginTop: "4px" }}>
+                <label style={{
+                  display: "flex", alignItems: "center", gap: "8px",
+                  cursor: "pointer", fontSize: "12px", color: "#E0E0E0",
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={enableDurationRules}
+                    onChange={e => setEnableDurationRules(e.target.checked)}
+                    style={{ accentColor: "#ef4444" }}
+                  />
+                  Flag non-Short videos by duration (common ad lengths)
+                </label>
+                {enableDurationRules && (
+                  <div style={{ marginTop: "8px", paddingLeft: "24px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {paidDurationRules.map((rule, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <input
+                          type="checkbox"
+                          checked={true}
+                          onChange={() => {
+                            setPaidDurationRules(prev => prev.filter((_, idx) => idx !== i));
+                          }}
+                          style={{ accentColor: "#ef4444" }}
+                        />
+                        <span style={{ fontSize: "11px", color: "#ccc" }}>{rule.label}</span>
+                        <span style={{ fontSize: "10px", color: "#666" }}>({rule.min}-{rule.max}s, non-Shorts only)</span>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => {
+                        const minStr = prompt("Min duration (seconds):");
+                        const maxStr = prompt("Max duration (seconds):");
+                        if (minStr && maxStr) {
+                          setPaidDurationRules(prev => [...prev, {
+                            min: parseInt(minStr), max: parseInt(maxStr),
+                            scope: 'non_short', label: `${minStr}-${maxStr} seconds`,
+                          }]);
+                        }
+                      }}
+                      style={{
+                        fontSize: "11px", color: "#888", background: "transparent",
+                        border: "1px dashed #444", borderRadius: "4px",
+                        padding: "4px 10px", cursor: "pointer", alignSelf: "flex-start",
+                      }}
+                    >
+                      + Add custom duration range
+                    </button>
+                    <div style={{ fontSize: "10px", color: "#666" }}>
+                      Non-Short videos matching these durations will be flagged as paid (e.g. pre-roll ads uploaded as standalone videos).
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -117,6 +117,7 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
           if (config.brandIntentTimeline) updates.brand_intent_timeline = config.brandIntentTimeline;
           if (config.paidContentSignals) updates.paid_content_signals = config.paidContentSignals;
           if (config.paidContentOverride) updates.paid_content_override = config.paidContentOverride;
+          if (config.paidDurationRules) updates.paid_duration_rules = config.paidDurationRules;
 
           if (existing) {
             await supabase.from('brand_context').update(updates).eq('id', existing.id);
@@ -134,6 +135,7 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
               const signals = {
                 keywords: config.paidContentSignals || [],
                 overrideIds: config.paidContentOverride || [],
+                durationRules: config.paidDurationRules || [],
               };
               const classified = classifyVideos(videos, signals);
               await persistClassifications(classified);

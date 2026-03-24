@@ -38,6 +38,7 @@ export async function loadClientSignals(channelId) {
     return {
       keywords: Array.isArray(data?.paid_content_signals) ? data.paid_content_signals : [],
       overrideIds: Array.isArray(data?.paid_content_override) ? data.paid_content_override : [],
+      durationRules: Array.isArray(data?.paid_duration_rules) ? data.paid_duration_rules : [],
     };
   } catch {
     return { keywords: [], overrideIds: [] };
@@ -51,10 +52,10 @@ export async function loadClientSignals(channelId) {
  * @returns {{ is_paid: boolean, paid_classification_source: string, matched_signal: string|null }}
  */
 export function classifyVideo(video, signals) {
-  const { keywords, overrideIds } = signals;
+  const { keywords, overrideIds, durationRules = [] } = signals;
 
   // No signals configured — everything is unclassified (treated as organic)
-  if (keywords.length === 0 && overrideIds.length === 0) {
+  if (keywords.length === 0 && overrideIds.length === 0 && durationRules.length === 0) {
     return { is_paid: false, paid_classification_source: 'unclassified', matched_signal: null };
   }
 
@@ -62,6 +63,23 @@ export function classifyVideo(video, signals) {
   const videoId = video.youtube_video_id || video.id;
   if (overrideIds.includes(videoId)) {
     return { is_paid: true, paid_classification_source: 'manual_override', matched_signal: videoId };
+  }
+
+  // Check duration rules (e.g. non-Short videos that are exactly 15s or 30s are likely ads)
+  const duration = video.duration_seconds || video.duration || 0;
+  const isShort = video.video_type === 'short' || video.is_short;
+  if (duration > 0 && durationRules.length > 0) {
+    for (const rule of durationRules) {
+      const matches = duration >= (rule.min || 0) && duration <= (rule.max || Infinity);
+      // Only apply if the rule's scope matches (non-shorts, all, etc.)
+      const scopeOk = rule.scope === 'all'
+        || (rule.scope === 'non_short' && !isShort)
+        || (rule.scope === 'long_form' && !isShort)
+        || (!rule.scope && !isShort); // default: non-short
+      if (matches && scopeOk) {
+        return { is_paid: true, paid_classification_source: 'duration_rule', matched_signal: `${duration}s (rule: ${rule.min || 0}-${rule.max || '∞'}s)` };
+      }
+    }
   }
 
   // Check keyword patterns against title and description
