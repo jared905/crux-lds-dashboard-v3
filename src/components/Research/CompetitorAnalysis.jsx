@@ -138,7 +138,9 @@ const INDUSTRY_FILTERS = [
 ];
 
 export default function CompetitorAnalysis({ rows, activeClient }) {
-  const [apiKey, setApiKey] = useState(localStorage.getItem('yt_api_key') || "");
+  const [apiKey, setApiKey] = useState(
+    localStorage.getItem('youtube_api_key') || localStorage.getItem('yt_api_key') || ""
+  );
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
   // localStorage competitors kept for migration/fallback only
@@ -508,7 +510,8 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
   // Save API key
   const saveApiKey = () => {
-    localStorage.setItem('yt_api_key', apiKey);
+    localStorage.setItem('youtube_api_key', apiKey);
+    localStorage.setItem('yt_api_key', apiKey); // backwards compat
     setShowApiKeyInput(false);
     setError("");
   };
@@ -1549,28 +1552,32 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               <button
                 onClick={async () => {
                   if (syncAllState) return;
-                  if (!apiKey) {
-                    setError("Please add your YouTube Data API key first (Settings > API Key)");
-                    setShowApiKeyInput(true);
-                    return;
-                  }
-                  const total = activeCompetitors.length;
-                  setSyncAllState({ total, completed: 0, errors: 0 });
-                  let completed = 0;
-                  let errors = 0;
-                  // Process in batches of 3
-                  for (let i = 0; i < activeCompetitors.length; i += 3) {
-                    const batch = activeCompetitors.slice(i, i + 3);
-                    const results = await Promise.allSettled(
-                      batch.map(c => refreshCompetitor(c.id))
-                    );
-                    results.forEach(r => {
-                      completed++;
-                      if (r.status === 'rejected') errors++;
+                  try {
+                    const { syncAllChannels } = await import('../../services/competitorSync');
+                    const total = activeCompetitors.length;
+                    setSyncAllState({ total, completed: 0, errors: 0 });
+
+                    const results = await syncAllChannels({
+                      clientId: masterView ? undefined : activeClient?.id,
+                      batchSize: 3,
+                      onProgress: ({ current, total: t }) => {
+                        setSyncAllState(prev => ({ ...prev, completed: current, total: t }));
+                      },
                     });
-                    setSyncAllState({ total, completed, errors });
+
+                    setSyncAllState({
+                      total: results.channels_synced + results.errors.length,
+                      completed: results.channels_synced + results.errors.length,
+                      errors: results.errors.length,
+                    });
+
+                    await reloadSupabaseCompetitors();
+                    setTimeout(() => setSyncAllState(null), 3000);
+                  } catch (err) {
+                    console.error('[Sync All] Failed:', err);
+                    setError(`Sync failed: ${err.message}`);
+                    setSyncAllState(null);
                   }
-                  setTimeout(() => setSyncAllState(null), 3000);
                 }}
                 disabled={!!syncAllState}
                 style={{
