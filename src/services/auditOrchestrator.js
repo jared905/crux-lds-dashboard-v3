@@ -120,10 +120,40 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
 
     // ── Steps 3-4: Competitor Matching + Benchmarking ──
     // If manual competitors are specified, fetch their data and use them for benchmarking.
+    // If no manual competitors but categories are selected, pull channels from those categories.
     let competitorData = null;
-    if (config.competitorChannelIds?.length > 0) {
-      notify({ step: 'competitor_matching', pct: 31, message: `Fetching data for ${config.competitorChannelIds.length} competitors...` });
-      competitorData = await fetchAuditCompetitors(config.competitorChannelIds);
+    let competitorChannelIds = config.competitorChannelIds || [];
+
+    if (competitorChannelIds.length === 0 && config.categoryIds?.length > 0) {
+      // Auto-populate competitors from selected categories
+      notify({ step: 'competitor_matching', pct: 31, message: 'Loading competitors from selected categories...' });
+      try {
+        const { getChannelsInCategory } = await import('./categoryService');
+        const categoryChannels = [];
+        for (const catId of config.categoryIds) {
+          const channels = await getChannelsInCategory(catId, { includeSubcategories: true });
+          categoryChannels.push(...channels);
+        }
+        // Deduplicate and exclude the audited channel
+        const seen = new Set();
+        const auditedYtId = channel.youtube_channel_id;
+        competitorChannelIds = categoryChannels
+          .filter(c => {
+            if (!c.youtube_channel_id || c.youtube_channel_id === auditedYtId) return false;
+            if (seen.has(c.youtube_channel_id)) return false;
+            seen.add(c.youtube_channel_id);
+            return true;
+          })
+          .map(c => c.youtube_channel_id)
+          .slice(0, 10); // Cap at 10 to keep audit manageable
+      } catch (err) {
+        console.warn('[Audit] Failed to load category competitors:', err.message);
+      }
+    }
+
+    if (competitorChannelIds.length > 0) {
+      notify({ step: 'competitor_matching', pct: 31, message: `Fetching data for ${competitorChannelIds.length} competitors...` });
+      competitorData = await fetchAuditCompetitors(competitorChannelIds);
       await updateAudit(auditId, { competitor_data: competitorData });
     }
 
