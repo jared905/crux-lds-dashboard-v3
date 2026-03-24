@@ -2540,6 +2540,58 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
   const scheduleAnalysis = useMemo(() => drawerTab === 'schedule' ? analyzeUploadSchedule(channel.videos, userTimezone) : null, [channel.videos, userTimezone, drawerTab]);
   const formatAnalysis = useMemo(() => drawerTab === 'content' ? categorizeContentFormats(channel.videos) : null, [channel.videos, drawerTab]);
 
+  // Fetch recent uploads + top video from Supabase
+  const [dbVideos, setDbVideos] = useState({ recent: [], top: null, subDelta: null, snapshots: [] });
+  useEffect(() => {
+    if (!channel.supabaseId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { supabase } = await import('../../services/supabaseClient');
+        if (!supabase) return;
+
+        // Recent 5 uploads
+        const { data: recent } = await supabase
+          .from('videos')
+          .select('youtube_video_id, title, thumbnail_url, view_count, like_count, comment_count, published_at, video_type')
+          .eq('channel_id', channel.supabaseId)
+          .order('published_at', { ascending: false })
+          .limit(5);
+
+        // Top performing video (by views, all time)
+        const { data: topArr } = await supabase
+          .from('videos')
+          .select('youtube_video_id, title, thumbnail_url, view_count, like_count, comment_count, published_at, video_type')
+          .eq('channel_id', channel.supabaseId)
+          .order('view_count', { ascending: false })
+          .limit(1);
+
+        // Subscriber delta from snapshots
+        const { data: snaps } = await supabase
+          .from('channel_snapshots')
+          .select('subscriber_count, total_view_count, snapshot_date')
+          .eq('channel_id', channel.supabaseId)
+          .order('snapshot_date', { ascending: false })
+          .limit(14);
+
+        if (!cancelled) {
+          const delta = snaps && snaps.length >= 2
+            ? (snaps[0].subscriber_count || 0) - (snaps[1].subscriber_count || 0)
+            : null;
+          setDbVideos({
+            recent: recent || [],
+            top: topArr?.[0] || null,
+            subDelta: delta,
+            snapshots: (snaps || []).reverse(),
+          });
+        }
+      } catch (err) {
+        console.warn('[Drawer] Failed to load videos:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [channel.supabaseId]);
+
   const catCfg = categoryConfig[channel.category] || categoryConfig['lds-faithful'];
 
   const growth = useMemo(() => {
@@ -2675,6 +2727,89 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
         {/* Overview tab */}
         {drawerTab === 'overview' && (
           <>
+            {/* Subscriber Delta Badge */}
+            {dbVideos.subDelta !== null && (
+              <div style={{ marginBottom: "16px", padding: "10px 14px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "8px", display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ fontSize: "11px", color: "#888" }}>Since last sync:</div>
+                <div style={{ fontSize: "14px", fontWeight: "700", color: dbVideos.subDelta > 0 ? "#10b981" : dbVideos.subDelta < 0 ? "#ef4444" : "#888" }}>
+                  {dbVideos.subDelta > 0 ? "+" : ""}{fmtInt(dbVideos.subDelta)} subs
+                </div>
+                {dbVideos.snapshots.length >= 5 && (
+                  <div style={{ flex: 1, height: "24px", display: "flex", alignItems: "end", gap: "1px" }}>
+                    {dbVideos.snapshots.map((snap, i) => {
+                      const vals = dbVideos.snapshots.map(s => s.subscriber_count);
+                      const min = Math.min(...vals);
+                      const max = Math.max(...vals);
+                      const range = max - min || 1;
+                      const pct = ((snap.subscriber_count - min) / range) * 100;
+                      const isLast = i === dbVideos.snapshots.length - 1;
+                      return (
+                        <div key={i} style={{
+                          flex: 1, minWidth: "3px",
+                          height: `${Math.max(pct, 8)}%`,
+                          background: isLast ? '#3b82f6' : dbVideos.subDelta >= 0 ? '#10b98155' : '#ef444455',
+                          borderRadius: "2px 2px 0 0",
+                        }} />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Recent Uploads */}
+            {dbVideos.recent.length > 0 && (
+              <div style={{ marginBottom: "20px" }}>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <PlaySquare size={14} /> Recent Uploads
+                </div>
+                {dbVideos.recent.map((video) => (
+                  <a key={video.youtube_video_id} href={`https://www.youtube.com/watch?v=${video.youtube_video_id}`} target="_blank" rel="noopener noreferrer"
+                    style={{ display: "flex", gap: "10px", padding: "8px", marginBottom: "4px", background: "var(--input-bg)", borderRadius: "6px", textDecoration: "none", alignItems: "center" }}>
+                    {video.thumbnail_url ? (
+                      <img src={video.thumbnail_url} alt="" style={{ width: "80px", height: "45px", borderRadius: "4px", objectFit: "cover", flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: "80px", height: "45px", borderRadius: "4px", background: "#333", flexShrink: 0 }} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: "11px", fontWeight: "600", color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{video.title}</div>
+                      <div style={{ fontSize: "10px", color: "#888", marginTop: "2px" }}>
+                        {fmtInt(video.view_count)} views · {fmtInt(video.like_count)} likes
+                        {video.video_type === 'short' && <span style={{ color: "#f97316", marginLeft: "4px" }}>Short</span>}
+                      </div>
+                      <div style={{ fontSize: "9px", color: "#666", marginTop: "1px" }}>
+                        {video.published_at ? new Date(video.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+
+            {/* Top Performing Video (All Time) */}
+            {dbVideos.top && (
+              <div style={{ marginBottom: "20px" }}>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <Crown size={14} style={{ color: "#f59e0b" }} /> Top Performing Video
+                </div>
+                <a href={`https://www.youtube.com/watch?v=${dbVideos.top.youtube_video_id}`} target="_blank" rel="noopener noreferrer"
+                  style={{ display: "flex", gap: "10px", padding: "10px", background: "var(--input-bg)", border: "1px solid #f59e0b33", borderRadius: "8px", textDecoration: "none", alignItems: "center" }}>
+                  {dbVideos.top.thumbnail_url ? (
+                    <img src={dbVideos.top.thumbnail_url} alt="" style={{ width: "100px", height: "56px", borderRadius: "4px", objectFit: "cover", flexShrink: 0 }} />
+                  ) : (
+                    <div style={{ width: "100px", height: "56px", borderRadius: "4px", background: "#333", flexShrink: 0 }} />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff", marginBottom: "4px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{dbVideos.top.title}</div>
+                    <div style={{ fontSize: "11px", color: "#f59e0b", fontWeight: "600" }}>{fmtInt(dbVideos.top.view_count)} views</div>
+                    <div style={{ fontSize: "10px", color: "#888", marginTop: "2px" }}>
+                      {fmtInt(dbVideos.top.like_count)} likes · {fmtInt(dbVideos.top.comment_count)} comments
+                    </div>
+                  </div>
+                </a>
+              </div>
+            )}
+
             {/* Upload Breakdown */}
             <div style={{ marginBottom: "20px" }}>
               <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px" }}>Upload Breakdown (30d)</div>
