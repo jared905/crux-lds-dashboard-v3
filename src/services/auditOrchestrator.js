@@ -191,12 +191,44 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
       // Auto-populate competitors from selected categories
       notify({ step: 'competitor_matching', pct: 31, message: 'Loading competitors from selected categories...' });
       try {
-        const { getChannelsInCategory } = await import('./categoryService');
-        const categoryChannels = [];
+        const { getChannelsInCategory, getCategoryBySlug, getAllCategories } = await import('./categoryService');
+        const { supabase: sb } = await import('./supabaseClient');
+        let categoryChannels = [];
+
+        // Try junction table first
         for (const catId of config.categoryIds) {
           const channels = await getChannelsInCategory(catId, { includeSubcategories: true });
           categoryChannels.push(...channels);
         }
+
+        // If junction table returned nothing, fall back to channels.category slug matching
+        if (categoryChannels.length === 0 && sb) {
+          // Get category slugs for the selected IDs
+          const allCats = await getAllCategories();
+          const selectedSlugs = new Set();
+          const addSlugsRecursive = (catId) => {
+            const cat = allCats.find(c => c.id === catId);
+            if (cat) {
+              selectedSlugs.add(cat.slug);
+              // Add children
+              allCats.filter(c => c.parent_id === catId).forEach(child => {
+                selectedSlugs.add(child.slug);
+                addSlugsRecursive(child.id);
+              });
+            }
+          };
+          config.categoryIds.forEach(addSlugsRecursive);
+
+          if (selectedSlugs.size > 0) {
+            const { data: fallbackChannels } = await sb
+              .from('channels')
+              .select('*')
+              .in('category', [...selectedSlugs])
+              .eq('is_competitor', true);
+            categoryChannels = fallbackChannels || [];
+          }
+        }
+
         // Deduplicate and exclude the audited channel
         const seen = new Set();
         const auditedYtId = channel.youtube_channel_id;
@@ -208,7 +240,7 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
             return true;
           })
           .map(c => c.youtube_channel_id)
-          .slice(0, 10); // Cap at 10 to keep audit manageable
+          .slice(0, 10);
       } catch (err) {
         console.warn('[Audit] Failed to load category competitors:', err.message);
       }

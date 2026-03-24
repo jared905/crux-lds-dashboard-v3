@@ -122,13 +122,39 @@ export async function fetchAuditCompetitors(competitorChannelIds) {
       }
 
       // Fetch recent videos from DB
-      const { data: dbVideos } = await supabase
+      let { data: dbVideos } = await supabase
         .from('videos')
         .select('title, view_count, like_count, comment_count, duration_seconds, video_type, published_at')
         .eq('channel_id', channel.id)
         .gte('published_at', cutoff90d.toISOString())
         .order('published_at', { ascending: false })
         .limit(50);
+
+      // If no videos in DB, try fetching from YouTube
+      if ((!dbVideos || dbVideos.length === 0) && channel.youtube_channel_id) {
+        try {
+          const details = await youtubeAPI.fetchChannelDetails(channel.youtube_channel_id);
+          if (details?.uploads_playlist_id) {
+            const ytVideos = await youtubeAPI.fetchChannelVideos(details.uploads_playlist_id, 50);
+            if (ytVideos?.length > 0) {
+              // Upsert to DB for future use
+              const { upsertVideos } = await import('./competitorDatabase');
+              await upsertVideos(ytVideos, channel.id);
+              // Re-fetch from DB to get consistent format
+              const { data: freshVideos } = await supabase
+                .from('videos')
+                .select('title, view_count, like_count, comment_count, duration_seconds, video_type, published_at')
+                .eq('channel_id', channel.id)
+                .gte('published_at', cutoff90d.toISOString())
+                .order('published_at', { ascending: false })
+                .limit(50);
+              dbVideos = freshVideos;
+            }
+          }
+        } catch (fetchErr) {
+          console.warn(`[auditCompetitorFetch] YouTube fetch failed for ${channel.name}:`, fetchErr.message);
+        }
+      }
 
       const videos = dbVideos || [];
 
