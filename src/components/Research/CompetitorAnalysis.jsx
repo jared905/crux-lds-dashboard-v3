@@ -2009,57 +2009,12 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       {/* ── COMPETITOR ROSTER ── */}
       <AnimatedSection delay={0.1}>
 
-      {/* 3A: Category Filter Bar + View Toggle */}
+      {/* 3A: View Toggle */}
       {activeCompetitors.length > 0 && (
         <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
+          display: "flex", alignItems: "center", justifyContent: "flex-end",
           marginBottom: "12px", gap: "12px",
         }}>
-          <div style={{
-            display: "flex", gap: "6px", overflowX: "auto", flex: 1,
-            paddingBottom: "4px",
-          }}>
-            <button
-              onClick={() => { if (viewMode === 'hubs') { setExpandedHubCategory(null); } else { setSelectedCategory(null); } }}
-              style={{
-                padding: "5px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: "600",
-                border: `1px solid ${(viewMode === 'hubs' ? !expandedHubCategory : !selectedCategory) ? '#3b82f6' : '#444'}`,
-                background: (viewMode === 'hubs' ? !expandedHubCategory : !selectedCategory) ? 'rgba(59,130,246,0.15)' : 'transparent',
-                color: (viewMode === 'hubs' ? !expandedHubCategory : !selectedCategory) ? '#3b82f6' : '#888',
-                cursor: "pointer", whiteSpace: "nowrap",
-              }}
-            >
-              All ({activeCompetitors.length})
-            </button>
-            {Object.entries(categoryConfig).map(([key, cfg]) => {
-              const count = activeCompetitors.filter(c => c.category === key).length;
-              if (count === 0) return null;
-              const isActive = viewMode === 'hubs' ? expandedHubCategory === key : selectedCategory === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => {
-                    if (viewMode === 'hubs') {
-                      setExpandedHubCategory(expandedHubCategory === key ? null : key);
-                    } else {
-                      setSelectedCategory(selectedCategory === key ? null : key);
-                    }
-                  }}
-                  style={{
-                    padding: "5px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: "600",
-                    border: `1px solid ${isActive ? cfg.color : '#444'}`,
-                    background: isActive ? `${cfg.color}20` : 'transparent',
-                    color: isActive ? cfg.color : '#888',
-                    cursor: "pointer", whiteSpace: "nowrap",
-                    display: "flex", alignItems: "center", gap: "4px",
-                  }}
-                >
-                  <span style={{ fontSize: "13px" }}>{cfg.icon}</span>
-                  {cfg.label.split(' ')[0]} ({count})
-                </button>
-              );
-            })}
-          </div>
           <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
             <button
               onClick={() => { setViewMode('hubs'); setExpandedHubCategory(null); }}
