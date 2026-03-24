@@ -85,6 +85,11 @@ export async function syncChannel(channelId) {
 
   if (error || !channelRecord) throw new Error('Channel not found');
 
+  // Skip channels with unresolved handle_ IDs
+  if (channelRecord.youtube_channel_id?.startsWith('handle_')) {
+    throw new Error(`Unresolved handle: ${channelRecord.youtube_channel_id} — needs manual resolution`);
+  }
+
   // Fetch fresh data from YouTube
   const channelDetails = await youtubeAPI.fetchChannelDetails(channelRecord.youtube_channel_id);
 

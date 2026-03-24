@@ -30,9 +30,11 @@ class YouTubeAPIService {
 
   loadAPIKey() {
     // Check both key names for backwards compatibility
-    return localStorage.getItem('youtube_api_key')
+    const key = localStorage.getItem('youtube_api_key')
       || localStorage.getItem('yt_api_key')
       || '';
+    if (key) this.apiKey = key; // Keep instance in sync
+    return key;
   }
 
   saveAPIKey(key) {
