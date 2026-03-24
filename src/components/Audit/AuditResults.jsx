@@ -46,6 +46,7 @@ import {
   Legend,
 } from "recharts";
 import AuditPDFExport from "./AuditPDFExport";
+import AuditReportBuilder from "./AuditReportBuilder";
 import OutreachBuilder from "./OutreachBuilder";
 import AuditCompetitiveBenchmark from "./AuditCompetitiveBenchmark";
 import AuditLandscapeAnalysis from "./AuditLandscapeAnalysis";
@@ -83,6 +84,7 @@ const COLORS = {
 export default function AuditResults({ audit, onBack }) {
   const [activeTab, setActiveTab] = useState("summary");
   const [formatFilter, setFormatFilter] = useState("all"); // 'all' | 'long_form' | 'short_form'
+  const [showReportBuilder, setShowReportBuilder] = useState(false);
 
   const snapshot = audit.channel_snapshot || {};
   const series = audit.series_summary || {};
@@ -196,8 +198,33 @@ export default function AuditResults({ audit, onBack }) {
             </div>
           </div>
         </div>
-        <AuditPDFExport audit={audit} videoAnalysis={videoAnalysis} />
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {audit.audit_type === 'prospect' && (
+            <button
+              onClick={() => setShowReportBuilder(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '8px 14px', background: 'rgba(59,130,246,0.15)',
+                border: '1px solid #3b82f6', borderRadius: '8px',
+                color: '#60a5fa', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+              }}
+            >
+              <FileText size={14} /> Edit Report
+            </button>
+          )}
+          <AuditPDFExport audit={audit} videoAnalysis={videoAnalysis} />
+        </div>
       </div>
+
+      {/* Report Builder (prospect audits only) */}
+      {audit.audit_type === 'prospect' && (
+        <AuditReportBuilder
+          audit={audit}
+          isOpen={showReportBuilder}
+          onClose={() => setShowReportBuilder(false)}
+          onSaved={() => {}}
+        />
+      )}
 
       {/* Tab bar */}
       <div style={{
