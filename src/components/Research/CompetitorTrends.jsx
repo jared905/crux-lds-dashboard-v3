@@ -13,6 +13,7 @@ import {
   ReferenceArea,
 } from "recharts";
 import { TrendingUp, ChevronDown, Check, Loader } from "lucide-react";
+import CategoryComparisonSelector, { buildCategoryHierarchy, buildParentLanes } from './CategoryComparisonSelector';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -65,57 +66,23 @@ const CHART_COLORS = [
   '#84cc16', '#a855f7', '#0ea5e9', '#f43f5e', '#22d3ee',
 ];
 
-// ─── Build parent category hierarchy ────────────────────────────────────────
-
-function buildCategoryHierarchy(categoryConfig) {
-  const idToSlug = {};
-  Object.entries(categoryConfig).forEach(([slug, cfg]) => {
-    if (cfg.id) idToSlug[cfg.id] = slug;
-  });
-
-  const parentSlugs = new Set();
-  const childToParent = {};
-
-  Object.entries(categoryConfig).forEach(([slug, cfg]) => {
-    if (cfg.parentId) {
-      const parentSlug = idToSlug[cfg.parentId];
-      if (parentSlug && parentSlug !== slug) {
-        childToParent[slug] = parentSlug;
-        parentSlugs.add(parentSlug);
-      }
-    }
-  });
-
-  // Parent categories = slugs that have children OR slugs with no parentId and no parent
-  const parents = [];
-  const childrenByParent = {};
-
-  Object.entries(categoryConfig).forEach(([slug, cfg]) => {
-    if (childToParent[slug]) {
-      const ps = childToParent[slug];
-      if (!childrenByParent[ps]) childrenByParent[ps] = [];
-      childrenByParent[ps].push(slug);
-    } else {
-      parents.push(slug);
-    }
-  });
-
-  return { parents, childrenByParent, childToParent };
-}
+// buildCategoryHierarchy imported from CategoryComparisonSelector
 
 // ─── Main component ─────────────────────────────────────────────────────────
 
 export default function CompetitorTrends({
   activeCompetitors,
-  selectedCategory: _externalCategory, // kept for compat, we manage our own
+  groupedCompetitors,
+  selectedCategory: _externalCategory,
   categoryConfig,
   timeRange,
   onTimeRangeChange,
   snapshotData,
   snapshotLoading,
   yourChannelId,
+  onChannelClick,
 }) {
-  // Category zoom state
+  // Category zoom state — driven by shared selector
   const [selectedParent, setSelectedParent] = useState(null);
   const [selectedSub, setSelectedSub] = useState(null);
 
@@ -125,58 +92,56 @@ export default function CompetitorTrends({
   const [activeChartTab, setActiveChartTab] = useState("subscribers");
   const [h2hDropdownOpen, setH2hDropdownOpen] = useState(false);
 
-  // Build hierarchy
+  // Build hierarchy and lanes for the shared selector
   const hierarchy = useMemo(() => buildCategoryHierarchy(categoryConfig), [categoryConfig]);
 
-  // Parent categories with channel counts
+  const parentLanes = useMemo(
+    () => groupedCompetitors ? buildParentLanes(groupedCompetitors, categoryConfig) : [],
+    [groupedCompetitors, categoryConfig]
+  );
+
   const parentCategories = useMemo(() => {
     const counts = {};
     activeCompetitors.forEach(c => {
-      const cat = c.category;
-      const parent = hierarchy.childToParent[cat] || cat;
+      const parent = hierarchy.childToParent[c.category] || c.category;
       counts[parent] = (counts[parent] || 0) + 1;
     });
     return hierarchy.parents
       .filter(slug => (counts[slug] || 0) > 0)
-      .sort((a, b) => {
-        const oa = categoryConfig[a]?.order ?? 999;
-        const ob = categoryConfig[b]?.order ?? 999;
-        return oa - ob;
-      });
+      .sort((a, b) => (categoryConfig[a]?.order ?? 999) - (categoryConfig[b]?.order ?? 999));
   }, [activeCompetitors, hierarchy, categoryConfig]);
 
-  // Subcategories for selected parent
   const subcategories = useMemo(() => {
     if (!selectedParent) return [];
     const children = hierarchy.childrenByParent[selectedParent] || [];
-    // Include parent itself if channels are directly assigned to it
     const slugs = [selectedParent, ...children];
     const counts = {};
     activeCompetitors.forEach(c => {
-      if (slugs.includes(c.category)) {
-        counts[c.category] = (counts[c.category] || 0) + 1;
-      }
+      if (slugs.includes(c.category)) counts[c.category] = (counts[c.category] || 0) + 1;
     });
     return slugs.filter(s => (counts[s] || 0) > 0);
   }, [selectedParent, hierarchy, activeCompetitors]);
 
-  // Determine zoom level and filtered competitors
+  // Handle filter changes from the comparison selector
+  const handleFilterChange = useCallback(({ parentSlug, subSlug }) => {
+    setSelectedParent(parentSlug);
+    setSelectedSub(subSlug);
+    setHiddenLines({});
+  }, []);
+
   const { zoomLevel, filteredCompetitors, chartLabel } = useMemo(() => {
     if (selectedSub) {
-      // Level 3: individual channels in a subcategory
       const filtered = activeCompetitors.filter(c => c.category === selectedSub);
       const cfg = categoryConfig[selectedSub];
       return { zoomLevel: 'channels', filteredCompetitors: filtered, chartLabel: cfg?.label || selectedSub };
     }
     if (selectedParent) {
-      // Level 2: subcategories within a parent
       const children = hierarchy.childrenByParent[selectedParent] || [];
       const slugs = new Set([selectedParent, ...children]);
       const filtered = activeCompetitors.filter(c => slugs.has(c.category));
       const cfg = categoryConfig[selectedParent];
       return { zoomLevel: 'subcategories', filteredCompetitors: filtered, chartLabel: cfg?.label || selectedParent };
     }
-    // Level 1: all channels, aggregated by parent category
     return { zoomLevel: 'categories', filteredCompetitors: activeCompetitors, chartLabel: 'All Categories' };
   }, [selectedParent, selectedSub, activeCompetitors, categoryConfig, hierarchy]);
 
@@ -359,25 +324,6 @@ export default function CompetitorTrends({
     });
   }, []);
 
-  const handleParentSelect = (slug) => {
-    if (selectedParent === slug) {
-      setSelectedParent(null);
-      setSelectedSub(null);
-    } else {
-      setSelectedParent(slug);
-      setSelectedSub(null);
-    }
-    setHiddenLines({});
-  };
-
-  const handleSubSelect = (slug) => {
-    if (selectedSub === slug) {
-      setSelectedSub(null);
-    } else {
-      setSelectedSub(slug);
-    }
-    setHiddenLines({});
-  };
 
   // ─── Loading ──────────────────────────────────────────────────────────────
 
@@ -432,88 +378,14 @@ export default function CompetitorTrends({
         </div>
       </div>
 
-      {/* ─── Category Zoom Selector ──────────────────────────────────────────── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-        {/* Parent category pills */}
-        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-          <button
-            onClick={() => { setSelectedParent(null); setSelectedSub(null); setHiddenLines({}); }}
-            style={{
-              padding: "5px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: "600",
-              border: `1px solid ${!selectedParent ? '#3b82f6' : '#444'}`,
-              background: !selectedParent ? 'rgba(59,130,246,0.15)' : 'transparent',
-              color: !selectedParent ? '#3b82f6' : '#888',
-              cursor: "pointer",
-            }}
-          >
-            All ({activeCompetitors.length})
-          </button>
-          {parentCategories.map(slug => {
-            const cfg = categoryConfig[slug] || {};
-            const children = hierarchy.childrenByParent[slug] || [];
-            const slugs = new Set([slug, ...children]);
-            const count = activeCompetitors.filter(c => slugs.has(c.category)).length;
-            const isActive = selectedParent === slug;
-            return (
-              <button
-                key={slug}
-                onClick={() => handleParentSelect(slug)}
-                style={{
-                  padding: "5px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: "600",
-                  border: `1px solid ${isActive ? cfg.color || '#3b82f6' : '#444'}`,
-                  background: isActive ? `${cfg.color || '#3b82f6'}20` : 'transparent',
-                  color: isActive ? cfg.color || '#3b82f6' : '#888',
-                  cursor: "pointer", whiteSpace: "nowrap",
-                  display: "flex", alignItems: "center", gap: "4px",
-                }}
-              >
-                {cfg.icon && <span style={{ fontSize: "12px" }}>{cfg.icon}</span>}
-                {cfg.label || slug} ({count})
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Subcategory pills (when parent is selected) */}
-        {selectedParent && subcategories.length > 1 && (
-          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", paddingLeft: "8px" }}>
-            <button
-              onClick={() => { setSelectedSub(null); setHiddenLines({}); }}
-              style={{
-                padding: "4px 10px", borderRadius: "6px", fontSize: "10px", fontWeight: "600",
-                border: `1px solid ${!selectedSub ? '#3b82f6' : '#444'}`,
-                background: !selectedSub ? 'rgba(59,130,246,0.15)' : 'transparent',
-                color: !selectedSub ? '#60a5fa' : '#888',
-                cursor: "pointer",
-              }}
-            >
-              All in {categoryConfig[selectedParent]?.label || selectedParent}
-            </button>
-            {subcategories.map(slug => {
-              const cfg = categoryConfig[slug] || {};
-              const count = activeCompetitors.filter(c => c.category === slug).length;
-              const isActive = selectedSub === slug;
-              return (
-                <button
-                  key={slug}
-                  onClick={() => handleSubSelect(slug)}
-                  style={{
-                    padding: "4px 10px", borderRadius: "6px", fontSize: "10px", fontWeight: "600",
-                    border: `1px solid ${isActive ? cfg.color || '#3b82f6' : '#444'}`,
-                    background: isActive ? `${cfg.color || '#3b82f6'}20` : 'transparent',
-                    color: isActive ? cfg.color || '#3b82f6' : '#888',
-                    cursor: "pointer", whiteSpace: "nowrap",
-                    display: "flex", alignItems: "center", gap: "4px",
-                  }}
-                >
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.color || '#666' }} />
-                  {cfg.label || slug} ({count})
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {/* ─── Category Comparison Selector ────────────────────────────────────── */}
+      {parentLanes.length > 0 && (
+        <CategoryComparisonSelector
+          lanes={parentLanes}
+          onFilterChange={handleFilterChange}
+          onChannelClick={onChannelClick}
+        />
+      )}
 
       {/* ─── Subscriber Growth Chart ─────────────────────────────────────────── */}
       <ChartCard title="Subscriber Growth" subtitle={

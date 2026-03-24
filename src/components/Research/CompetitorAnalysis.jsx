@@ -1619,8 +1619,8 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                 <div style={{
                   position: "absolute", top: "100%", right: 0, marginTop: "4px",
                   background: "#252525", border: "1px solid #444", borderRadius: "8px",
-                  padding: "4px", minWidth: "200px", zIndex: 100,
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                  padding: "4px", minWidth: "200px", zIndex: 1000,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
                 }}>
                   <button
                     onClick={() => { setShowApiKeyInput(!showApiKeyInput); setShowSettingsMenu(false); }}
@@ -2071,9 +2071,11 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         }>
           <CompetitorLeaderboard
             activeCompetitors={activeCompetitors}
+            groupedCompetitors={groupedCompetitors}
             yourChannelId={activeClient?.youtube_channel_id || null}
             yourStats={yourStats}
             CATEGORY_CONFIG={categoryConfig}
+            onChannelClick={(id) => { setSelectedChannelId(id); setDrawerTab('overview'); }}
           />
         </Suspense>
       )}
@@ -2089,6 +2091,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         }>
           <CompetitorTrends
             activeCompetitors={activeCompetitors}
+            groupedCompetitors={groupedCompetitors}
             selectedCategory={selectedCategory}
             categoryConfig={categoryConfig}
             timeRange={trendsTimeRange}
@@ -2096,6 +2099,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             snapshotData={snapshotData}
             snapshotLoading={snapshotLoading}
             yourChannelId={activeClient?.youtube_channel_id || null}
+            onChannelClick={(id) => { setSelectedChannelId(id); setDrawerTab('overview'); }}
           />
         </Suspense>
       )}
