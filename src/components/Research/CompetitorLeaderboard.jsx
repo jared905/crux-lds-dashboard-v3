@@ -53,6 +53,34 @@ const fmtPct = (n) => {
 
 // ─── Main Component ─────────────────────────────────────────────────────────────
 
+// ─── Category hierarchy builder (shared with Trends/Pulse) ──────────────────
+
+function buildCategoryHierarchy(categoryConfig) {
+  const idToSlug = {};
+  Object.entries(categoryConfig).forEach(([slug, cfg]) => {
+    if (cfg.id) idToSlug[cfg.id] = slug;
+  });
+  const childToParent = {};
+  Object.entries(categoryConfig).forEach(([slug, cfg]) => {
+    if (cfg.parentId) {
+      const parentSlug = idToSlug[cfg.parentId];
+      if (parentSlug && parentSlug !== slug) childToParent[slug] = parentSlug;
+    }
+  });
+  const parents = [];
+  const childrenByParent = {};
+  Object.entries(categoryConfig).forEach(([slug]) => {
+    if (childToParent[slug]) {
+      const ps = childToParent[slug];
+      if (!childrenByParent[ps]) childrenByParent[ps] = [];
+      childrenByParent[ps].push(slug);
+    } else {
+      parents.push(slug);
+    }
+  });
+  return { parents, childrenByParent, childToParent };
+}
+
 export default function CompetitorLeaderboard({
   activeCompetitors,
   yourChannelId,
@@ -60,7 +88,54 @@ export default function CompetitorLeaderboard({
   CATEGORY_CONFIG,
 }) {
   const [showAll, setShowAll] = useState({});
+  const [selectedParent, setSelectedParent] = useState(null);
+  const [selectedSub, setSelectedSub] = useState(null);
   const MAX_VISIBLE = 15;
+
+  // Category hierarchy
+  const hierarchy = useMemo(() => buildCategoryHierarchy(CATEGORY_CONFIG), [CATEGORY_CONFIG]);
+
+  const parentCategories = useMemo(() => {
+    const counts = {};
+    activeCompetitors.forEach(c => {
+      const parent = hierarchy.childToParent[c.category] || c.category;
+      counts[parent] = (counts[parent] || 0) + 1;
+    });
+    return hierarchy.parents
+      .filter(slug => (counts[slug] || 0) > 0)
+      .sort((a, b) => (CATEGORY_CONFIG[a]?.order ?? 999) - (CATEGORY_CONFIG[b]?.order ?? 999));
+  }, [activeCompetitors, hierarchy, CATEGORY_CONFIG]);
+
+  const subcategories = useMemo(() => {
+    if (!selectedParent) return [];
+    const children = hierarchy.childrenByParent[selectedParent] || [];
+    const slugs = [selectedParent, ...children];
+    const counts = {};
+    activeCompetitors.forEach(c => {
+      if (slugs.includes(c.category)) counts[c.category] = (counts[c.category] || 0) + 1;
+    });
+    return slugs.filter(s => (counts[s] || 0) > 0);
+  }, [selectedParent, hierarchy, activeCompetitors]);
+
+  // Filter competitors by category selection
+  const filteredCompetitors = useMemo(() => {
+    if (selectedSub) return activeCompetitors.filter(c => c.category === selectedSub);
+    if (selectedParent) {
+      const children = hierarchy.childrenByParent[selectedParent] || [];
+      const slugs = new Set([selectedParent, ...children]);
+      return activeCompetitors.filter(c => slugs.has(c.category));
+    }
+    return activeCompetitors;
+  }, [activeCompetitors, selectedParent, selectedSub, hierarchy]);
+
+  const handleParentSelect = (slug) => {
+    setSelectedParent(selectedParent === slug ? null : slug);
+    setSelectedSub(null);
+  };
+
+  const handleSubSelect = (slug) => {
+    setSelectedSub(selectedSub === slug ? null : slug);
+  };
 
   // ─── Build leaderboard datasets ─────────────────────────────────────────────
 
@@ -72,7 +147,7 @@ export default function CompetitorLeaderboard({
           subscriberCount: yourStats.totalSubscribers || 0,
           viewCount: yourStats.totalViews || 0,
           avgViewsPerVideo: yourStats.avgViewsPerVideo || 0,
-          engagementRate: yourStats.avgCTR || 0, // best proxy available
+          engagementRate: yourStats.avgCTR || 0,
           videosLast30Days: yourStats.videosLast30Days || 0,
           category: null,
         }
@@ -80,7 +155,7 @@ export default function CompetitorLeaderboard({
 
     const allChannels = [
       ...(yourEntry ? [yourEntry] : []),
-      ...activeCompetitors.map((c) => ({
+      ...filteredCompetitors.map((c) => ({
         name: c.name,
         isYours: c.id === yourChannelId,
         subscriberCount: c.subscriberCount || 0,
@@ -152,7 +227,7 @@ export default function CompetitorLeaderboard({
     ];
 
     return boards;
-  }, [activeCompetitors, yourChannelId, yourStats]);
+  }, [filteredCompetitors, yourChannelId, yourStats]);
 
   // ─── Executive Summary ──────────────────────────────────────────────────────
 
@@ -179,6 +254,86 @@ export default function CompetitorLeaderboard({
         marginBottom: "16px",
       }}
     >
+      {/* Category Zoom Selector */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+          <button
+            onClick={() => { setSelectedParent(null); setSelectedSub(null); }}
+            style={{
+              padding: "5px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: "600",
+              border: `1px solid ${!selectedParent ? '#3b82f6' : '#444'}`,
+              background: !selectedParent ? 'rgba(59,130,246,0.15)' : 'transparent',
+              color: !selectedParent ? '#3b82f6' : '#888',
+              cursor: "pointer",
+            }}
+          >
+            All ({activeCompetitors.length})
+          </button>
+          {parentCategories.map(slug => {
+            const cfg = CATEGORY_CONFIG[slug] || {};
+            const children = hierarchy.childrenByParent[slug] || [];
+            const slugs = new Set([slug, ...children]);
+            const count = activeCompetitors.filter(c => slugs.has(c.category)).length;
+            const isActive = selectedParent === slug;
+            return (
+              <button
+                key={slug}
+                onClick={() => handleParentSelect(slug)}
+                style={{
+                  padding: "5px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: "600",
+                  border: `1px solid ${isActive ? cfg.color || '#3b82f6' : '#444'}`,
+                  background: isActive ? `${cfg.color || '#3b82f6'}20` : 'transparent',
+                  color: isActive ? cfg.color || '#3b82f6' : '#888',
+                  cursor: "pointer", whiteSpace: "nowrap",
+                  display: "flex", alignItems: "center", gap: "4px",
+                }}
+              >
+                {cfg.icon && <span style={{ fontSize: "12px" }}>{cfg.icon}</span>}
+                {cfg.label || slug} ({count})
+              </button>
+            );
+          })}
+        </div>
+        {selectedParent && subcategories.length > 1 && (
+          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", paddingLeft: "8px" }}>
+            <button
+              onClick={() => setSelectedSub(null)}
+              style={{
+                padding: "4px 10px", borderRadius: "6px", fontSize: "10px", fontWeight: "600",
+                border: `1px solid ${!selectedSub ? '#3b82f6' : '#444'}`,
+                background: !selectedSub ? 'rgba(59,130,246,0.15)' : 'transparent',
+                color: !selectedSub ? '#60a5fa' : '#888',
+                cursor: "pointer",
+              }}
+            >
+              All in {CATEGORY_CONFIG[selectedParent]?.label || selectedParent}
+            </button>
+            {subcategories.map(slug => {
+              const cfg = CATEGORY_CONFIG[slug] || {};
+              const count = activeCompetitors.filter(c => c.category === slug).length;
+              const isActive = selectedSub === slug;
+              return (
+                <button
+                  key={slug}
+                  onClick={() => handleSubSelect(slug)}
+                  style={{
+                    padding: "4px 10px", borderRadius: "6px", fontSize: "10px", fontWeight: "600",
+                    border: `1px solid ${isActive ? cfg.color || '#3b82f6' : '#444'}`,
+                    background: isActive ? `${cfg.color || '#3b82f6'}20` : 'transparent',
+                    color: isActive ? cfg.color || '#3b82f6' : '#888',
+                    cursor: "pointer", whiteSpace: "nowrap",
+                    display: "flex", alignItems: "center", gap: "4px",
+                  }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.color || '#666' }} />
+                  {cfg.label || slug} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Executive Summary Strip */}
       {executiveSummary && (
         <div

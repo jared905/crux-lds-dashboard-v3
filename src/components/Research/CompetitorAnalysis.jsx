@@ -1482,30 +1482,6 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
               {masterView ? "Master" : "Client"}
             </button>
 
-            {/* Industry Filter (only in master view) */}
-            {masterView && (
-              <div style={{ display: "flex", gap: "4px", marginLeft: "8px" }}>
-                {INDUSTRY_FILTERS.map(ind => (
-                  <button
-                    key={ind.id || 'all'}
-                    onClick={() => setIndustryFilter(ind.id)}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: "8px",
-                      fontSize: "11px",
-                      fontWeight: "500",
-                      background: industryFilter === ind.id ? ind.color + '20' : "transparent",
-                      border: `1px solid ${industryFilter === ind.id ? ind.color : '#444'}`,
-                      color: industryFilter === ind.id ? ind.color : "#888",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {ind.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
             {/* Bulk Assign Button (only in master view) */}
             {masterView && allClients.length > 0 && (
               <button
