@@ -72,6 +72,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
   const [competitorResolving, setCompetitorResolving] = useState(false);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [landscapeOptIn, setLandscapeOptIn] = useState(false);
+  const [categoryTree, setCategoryTree] = useState([]);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState(null);
 
   // Config
   const [auditType, setAuditType] = useState("prospect");
@@ -141,19 +143,26 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
 
     (async () => {
       try {
-        // Load competitors from DB (client-scoped if available, else all)
+        // Load all competitors from DB
         const { data } = await getChannels({
           isCompetitor: true,
           ...(activeClient?.id && { clientId: activeClient.id }),
         });
         if (!cancelled && data?.length > 0) {
-          // Filter out already-selected and the channel being audited
           const auditedYtId = channelPreview?.youtube_channel_id;
-          const selectedIds = new Set(resolvedCompetitors.map(c => c.youtube_channel_id));
           const filtered = data.filter(c =>
-            c.youtube_channel_id !== auditedYtId && !selectedIds.has(c.youtube_channel_id)
+            c.youtube_channel_id !== auditedYtId
           );
-          setCompetitorSuggestions(filtered.slice(0, 20));
+          setCompetitorSuggestions(filtered);
+        }
+
+        // Load category tree
+        try {
+          const { getCategoryTree } = await import('../../services/categoryService');
+          const tree = await getCategoryTree();
+          if (!cancelled) setCategoryTree(tree || []);
+        } catch (catErr) {
+          console.warn("[AuditCreateFlow] Failed to load categories:", catErr.message);
         }
       } catch (err) {
         console.warn("[AuditCreateFlow] Failed to load competitor suggestions:", err.message);
@@ -808,7 +817,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
               </div>
             )}
 
-            {/* Suggestions from database */}
+            {/* Suggestions from database — grouped by category */}
             {suggestionsLoading && (
               <div style={{ textAlign: "center", padding: "16px", color: "#9E9E9E", fontSize: "12px" }}>
                 <Loader size={14} style={{ animation: "spin 1s linear infinite", marginRight: "6px", verticalAlign: "middle" }} />
@@ -816,33 +825,114 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
               </div>
             )}
 
-            {!suggestionsLoading && competitorSuggestions.length > 0 && resolvedCompetitors.length < 5 && (
-              <div style={{ marginBottom: "16px" }}>
-                <div style={{ fontSize: "12px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  From Your Competitor Database
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {competitorSuggestions.slice(0, 10).map(c => (
+            {!suggestionsLoading && competitorSuggestions.length > 0 && resolvedCompetitors.length < 5 && (() => {
+              // Build category slugs from tree
+              const catSlugs = {};
+              const flattenTree = (nodes) => {
+                nodes.forEach(n => {
+                  catSlugs[n.slug] = { label: n.name, color: n.color || '#666', icon: n.icon };
+                  if (n.children) flattenTree(n.children);
+                });
+              };
+              flattenTree(categoryTree);
+
+              // Group available suggestions by category
+              const selectedIds = new Set(resolvedCompetitors.map(c => c.youtube_channel_id));
+              const available = competitorSuggestions.filter(c => !selectedIds.has(c.youtube_channel_id));
+              const byCategory = {};
+              available.forEach(c => {
+                const cat = c.category || 'uncategorized';
+                if (!byCategory[cat]) byCategory[cat] = [];
+                byCategory[cat].push(c);
+              });
+
+              const categoryKeys = Object.keys(byCategory).sort((a, b) => {
+                const la = catSlugs[a]?.label || a;
+                const lb = catSlugs[b]?.label || b;
+                return la.localeCompare(lb);
+              });
+
+              // Filter channels by selected category
+              const displayChannels = selectedCategoryFilter
+                ? (byCategory[selectedCategoryFilter] || [])
+                : available.slice(0, 15);
+
+              return (
+                <div style={{ marginBottom: "16px" }}>
+                  <div style={{ fontSize: "12px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    From Your Competitor Database ({available.length} channels)
+                  </div>
+
+                  {/* Category filter pills */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "10px" }}>
                     <button
-                      key={c.id}
-                      onClick={() => handleAddSuggestion(c)}
+                      onClick={() => setSelectedCategoryFilter(null)}
                       style={{
-                        display: "flex", alignItems: "center", gap: "6px",
-                        padding: "6px 10px", background: "#252525",
-                        border: "1px solid #444", borderRadius: "20px",
-                        color: "#E0E0E0", cursor: "pointer", fontSize: "12px",
+                        padding: "4px 10px", borderRadius: "6px", fontSize: "10px", fontWeight: "600",
+                        border: `1px solid ${!selectedCategoryFilter ? '#3b82f6' : '#444'}`,
+                        background: !selectedCategoryFilter ? 'rgba(59,130,246,0.15)' : 'transparent',
+                        color: !selectedCategoryFilter ? '#60a5fa' : '#888',
+                        cursor: "pointer",
                       }}
                     >
-                      {c.thumbnail_url && (
-                        <img src={c.thumbnail_url} alt="" style={{ width: "18px", height: "18px", borderRadius: "50%" }} />
-                      )}
-                      {c.name}
-                      <Plus size={12} style={{ color: "#60a5fa" }} />
+                      All
                     </button>
-                  ))}
+                    {categoryKeys.map(slug => {
+                      const cfg = catSlugs[slug] || {};
+                      const count = byCategory[slug].length;
+                      const isActive = selectedCategoryFilter === slug;
+                      return (
+                        <button
+                          key={slug}
+                          onClick={() => setSelectedCategoryFilter(isActive ? null : slug)}
+                          style={{
+                            padding: "4px 10px", borderRadius: "6px", fontSize: "10px", fontWeight: "600",
+                            border: `1px solid ${isActive ? cfg.color || '#3b82f6' : '#444'}`,
+                            background: isActive ? `${cfg.color || '#3b82f6'}20` : 'transparent',
+                            color: isActive ? cfg.color || '#3b82f6' : '#888',
+                            cursor: "pointer", whiteSpace: "nowrap",
+                          }}
+                        >
+                          {cfg.label || slug} ({count})
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Channel list */}
+                  <div style={{ maxHeight: "240px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "2px" }}>
+                    {displayChannels
+                      .sort((a, b) => (b.subscriber_count || 0) - (a.subscriber_count || 0))
+                      .map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => handleAddSuggestion(c)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: "8px",
+                            padding: "6px 10px", background: "transparent",
+                            border: "none", borderRadius: "6px",
+                            color: "#E0E0E0", cursor: "pointer", fontSize: "12px",
+                            textAlign: "left", width: "100%",
+                            transition: "background 0.1s",
+                          }}
+                          onMouseOver={e => e.currentTarget.style.background = "#252525"}
+                          onMouseOut={e => e.currentTarget.style.background = "transparent"}
+                        >
+                          {c.thumbnail_url && (
+                            <img src={c.thumbnail_url} alt="" style={{ width: "24px", height: "24px", borderRadius: "50%", flexShrink: 0 }} />
+                          )}
+                          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+                          <span style={{ fontSize: "10px", color: "#888", flexShrink: 0 }}>
+                            {(c.subscriber_count || 0).toLocaleString()} subs
+                          </span>
+                          <Plus size={12} style={{ color: "#60a5fa", flexShrink: 0 }} />
+                        </button>
+                      ))
+                    }
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Landscape opt-in */}
             {resolvedCompetitors.length > 0 && (
