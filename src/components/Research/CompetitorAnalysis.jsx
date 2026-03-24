@@ -860,13 +860,13 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     const competitor = activeCompetitors.find(c => c.id === competitorId);
     if (!competitor) {
       setRefreshError(prev => ({ ...prev, [competitorId]: "Competitor not found" }));
-      return;
+      throw new Error("Competitor not found");
     }
 
     if (!apiKey) {
       setError("Please add your YouTube Data API key first");
       setShowApiKeyInput(true);
-      return;
+      throw new Error("No API key");
     }
 
     setRefreshingId(competitorId);
@@ -1548,24 +1548,28 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             {activeCompetitors.length > 0 && (
               <button
                 onClick={async () => {
-                  if (syncAllState) return; // already running
+                  if (syncAllState) return;
+                  if (!apiKey) {
+                    setError("Please add your YouTube Data API key first (Settings > API Key)");
+                    setShowApiKeyInput(true);
+                    return;
+                  }
                   const total = activeCompetitors.length;
                   setSyncAllState({ total, completed: 0, errors: 0 });
                   let completed = 0;
                   let errors = 0;
-                  // Process in batches of 3 to avoid hammering the API
+                  // Process in batches of 3
                   for (let i = 0; i < activeCompetitors.length; i += 3) {
                     const batch = activeCompetitors.slice(i, i + 3);
                     const results = await Promise.allSettled(
                       batch.map(c => refreshCompetitor(c.id))
                     );
                     results.forEach(r => {
-                      if (r.status === 'rejected') errors++;
                       completed++;
+                      if (r.status === 'rejected') errors++;
                     });
                     setSyncAllState({ total, completed, errors });
                   }
-                  // Show complete state briefly then clear
                   setTimeout(() => setSyncAllState(null), 3000);
                 }}
                 disabled={!!syncAllState}
