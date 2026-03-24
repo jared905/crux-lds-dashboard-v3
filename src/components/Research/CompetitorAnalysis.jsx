@@ -1660,22 +1660,20 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
                     <Settings size={14} />
                     {apiKey ? "API Key Set" : "Set API Key"}
                   </button>
-                  {masterView && (
-                    <button
-                      onClick={() => { setShowCSVImport(true); setShowSettingsMenu(false); }}
-                      style={{
-                        width: "100%", background: "transparent", border: "none",
-                        padding: "8px 12px", color: "#a78bfa", fontSize: "12px",
-                        cursor: "pointer", textAlign: "left", borderRadius: "4px",
-                        display: "flex", alignItems: "center", gap: "8px",
-                      }}
-                      onMouseOver={e => e.currentTarget.style.background = "#333"}
-                      onMouseOut={e => e.currentTarget.style.background = "transparent"}
-                    >
-                      <Upload size={14} />
-                      Import CSV
-                    </button>
-                  )}
+                  <button
+                    onClick={() => { setShowCSVImport(true); setShowSettingsMenu(false); }}
+                    style={{
+                      width: "100%", background: "transparent", border: "none",
+                      padding: "8px 12px", color: "#a78bfa", fontSize: "12px",
+                      cursor: "pointer", textAlign: "left", borderRadius: "4px",
+                      display: "flex", alignItems: "center", gap: "8px",
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = "#333"}
+                    onMouseOut={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    <Upload size={14} />
+                    Import CSV
+                  </button>
                   <button
                     onClick={() => { setShowCategoryManager(true); setShowSettingsMenu(false); }}
                     style={{
@@ -1750,6 +1748,23 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             </div>
           </div>
         </div>
+
+        {/* Global error/success banner */}
+        {error && (
+          <div style={{
+            marginTop: "12px", padding: "10px 14px",
+            background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
+            borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <span style={{ fontSize: "12px", color: "#fca5a5" }}>{error}</span>
+            <button
+              onClick={() => setError("")}
+              style={{ background: "transparent", border: "none", color: "#fca5a5", cursor: "pointer", padding: "2px" }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
         {/* API Key Input (collapsible) */}
         {showApiKeyInput && (
