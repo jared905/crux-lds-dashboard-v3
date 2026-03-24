@@ -250,10 +250,12 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
       seriesSummary,
       benchmarkData,
       competitorData,
-      videos,
+      videos: organicVideos,
       longFormVideos,
       shortFormVideos,
       formatMix,
+      brandIntent: config.brandIntent || null,
+      paidContentSummary: channelSnapshot.paid_content || null,
     });
 
     await updateAudit(auditId, { opportunities });
@@ -267,10 +269,11 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
       seriesSummary,
       benchmarkData,
       opportunities,
-      videos,
+      videos: organicVideos,
       longFormVideos,
       shortFormVideos,
       formatMix,
+      brandIntent: config.brandIntent || null,
     });
 
     await updateAudit(auditId, { recommendations });

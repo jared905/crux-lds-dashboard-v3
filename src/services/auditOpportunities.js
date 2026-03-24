@@ -48,7 +48,7 @@ export async function analyzeOpportunities(auditId, context) {
   await updateAuditProgress(auditId, { step: 'opportunity_analysis', pct: 57, message: 'Analyzing opportunities...' });
 
   try {
-    const { channelId, channelSnapshot, seriesSummary, benchmarkData, competitorData, longFormVideos = [], shortFormVideos = [], formatMix = {} } = context;
+    const { channelId, channelSnapshot, seriesSummary, benchmarkData, competitorData, longFormVideos = [], shortFormVideos = [], formatMix = {}, brandIntent = null, paidContentSummary = null } = context;
 
     // Fetch brand context for prompt enrichment
     let brandContextBlock = '';
@@ -138,6 +138,15 @@ ${competitorData.competitors.map(c => {
   return `• ${c.channel.name} (${(c.channel.subscriber_count || 0).toLocaleString()} subs): avg views ${(c.metrics.avgViews || 0).toLocaleString()}, engagement ${((c.metrics.avgEngagement || 0) * 100).toFixed(2)}%, ${c.metrics.uploadFrequency}/week, top formats: ${topFormats.join(', ') || 'N/A'}`;
 }).join('\n')}
 Use these specific competitors to identify where the audited channel is losing ground and where it has competitive advantages.` : ''}
+${brandIntent ? `
+## Brand Intent (from client)
+The client has expressed this direction for their YouTube presence:
+"${brandIntent}"
+
+Compare this stated intent against what the data shows audiences actually respond to. Your analysis should surface whether the brand intent aligns with audience demand, partially overlaps, or is in tension with what performs.` : ''}
+${paidContentSummary?.paid > 0 ? `
+## Paid Content Note
+${paidContentSummary.paid} videos (${((paidContentSummary.paid / paidContentSummary.total) * 100).toFixed(1)}% of library) were identified as paid/boosted content and EXCLUDED from all metrics above. All baselines, averages, and benchmarks reflect organic performance only.` : ''}
 
 Identify opportunities in this JSON format. Tag each item with the format it applies to:
 {
@@ -147,6 +156,7 @@ Identify opportunities in this JSON format. Tag each item with the format it app
       "evidence": "Data-backed reasoning",
       "potential_impact": "high" | "medium" | "low",
       "suggested_action": "Specific action to take",
+      "snowball_logic": "Why filling this gap compounds over time — explain the flywheel effect",
       "format": "long_form" | "short_form" | "both"
     }
   ],
@@ -160,6 +170,13 @@ Identify opportunities in this JSON format. Tag each item with the format it app
       "format": "long_form" | "short_form" | "both"
     }
   ],
+  "brand_intent_alignment": {
+    "scenario": "alignment" | "partial_overlap" | "tension",
+    "brand_intent_summary": "1-2 sentence restatement of what the client wants",
+    "audience_demand_summary": "1-2 sentences on what the data shows audiences respond to",
+    "platform_logic_summary": "1-2 sentences on what YouTube will reward given the channel's current state",
+    "analysis": "2-3 sentences explaining the alignment or tension and what it means for strategy"
+  },
   "format_insights": {
     "long_form": {
       "health": "strong" | "moderate" | "weak" | "not_active",
@@ -177,7 +194,8 @@ Identify opportunities in this JSON format. Tag each item with the format it app
     "key_differentiators": ["differentiator 1", "differentiator 2"],
     "biggest_risk": "Primary risk or weakness"
   }
-}`;
+}
+${!brandIntent ? '\nNote: No brand intent was provided. Omit the brand_intent_alignment section or return it as null.' : ''}`;
 
     const result = await claudeAPI.call(
       prompt,

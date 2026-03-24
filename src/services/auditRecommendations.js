@@ -48,7 +48,7 @@ export async function generateRecommendations(auditId, context) {
   await updateAuditProgress(auditId, { step: 'recommendations', pct: 72, message: 'Generating recommendations...' });
 
   try {
-    const { channelId, channelSnapshot, seriesSummary, benchmarkData, opportunities, longFormVideos = [], shortFormVideos = [], formatMix = {} } = context;
+    const { channelId, channelSnapshot, seriesSummary, benchmarkData, opportunities, longFormVideos = [], shortFormVideos = [], formatMix = {}, brandIntent = null } = context;
 
     // Fetch brand context for prompt enrichment
     let brandContextBlock = '';
@@ -122,8 +122,16 @@ ${underperformingLong.length > 0
 ${underperformingShort.length > 0
   ? underperformingShort.map(v => `- "${v.title}" — ${(v.view_count || 0).toLocaleString()} views`).join('\n')
   : 'None identified'}
+${brandIntent ? `
+## Brand Intent
+The client has expressed this direction: "${brandIntent}"
+${opportunities?.brand_intent_alignment ? `Alignment scenario: ${opportunities.brand_intent_alignment.scenario}` : ''}
+Your Start recommendations should work WITH this intent where possible. If the intent is in tension with what the data shows, frame Start recommendations as a way to bridge the gap — not as a contradiction.` : ''}
 
-Provide recommendations in this JSON format. Tag each recommendation with the format it applies to:
+Provide recommendations in this JSON format. Tag each recommendation with the format it applies to.
+
+CRITICAL: Every "start" recommendation MUST be structured as a Named Show Concept — not a vague suggestion like "do more heritage content" but a concrete, launchable show with a name and premise. This is what makes the recommendation actionable and closeable as a retainer.
+
 {
   "stop": [
     {
@@ -136,9 +144,16 @@ Provide recommendations in this JSON format. Tag each recommendation with the fo
   ],
   "start": [
     {
-      "action": "What to start doing",
-      "rationale": "Why, with data references",
+      "show_name": "An actual show title (creative, memorable, brandable)",
+      "premise": "One line, plain language — what is this show about?",
+      "action": "Full description of the show concept and why to launch it",
+      "rationale": "Why this specific concept, with data references",
       "evidence": "Specific data point supporting this",
+      "format_length": "e.g. 8 to 12 minutes",
+      "cadence": "e.g. Weekly, published every Tuesday",
+      "shorts_atomization": "How to create 3-5 Shorts from each episode",
+      "snowball_logic": "Why this format compounds over time — gets easier and more effective",
+      "brand_fit": "One sentence connecting this show to something the brand already believes about itself",
       "impact": "high" | "medium" | "low",
       "effort": "high" | "medium" | "low",
       "format": "long_form" | "short_form" | "both"

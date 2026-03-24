@@ -949,6 +949,63 @@ export default function AuditResults({ audit, onBack }) {
       {/* ── Opportunities Tab ── */}
       {activeTab === "opportunities" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* Brand Intent Alignment */}
+          {opportunities.brand_intent_alignment && (
+            <div style={card()}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+                <div style={{
+                  width: "48px", height: "48px", borderRadius: "14px",
+                  background: opportunities.brand_intent_alignment.scenario === 'alignment' ? "linear-gradient(135deg, #10b981, #059669)"
+                    : opportunities.brand_intent_alignment.scenario === 'tension' ? "linear-gradient(135deg, #ef4444, #dc2626)"
+                    : "linear-gradient(135deg, #f59e0b, #d97706)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <Crosshair size={24} style={{ color: "#fff" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>Brand Intent Alignment</div>
+                  <span style={{
+                    fontSize: "11px", fontWeight: "700", textTransform: "uppercase",
+                    color: opportunities.brand_intent_alignment.scenario === 'alignment' ? '#10b981'
+                      : opportunities.brand_intent_alignment.scenario === 'tension' ? '#ef4444' : '#f59e0b',
+                    background: opportunities.brand_intent_alignment.scenario === 'alignment' ? 'rgba(16,185,129,0.1)'
+                      : opportunities.brand_intent_alignment.scenario === 'tension' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+                    padding: "2px 8px", borderRadius: "4px",
+                  }}>
+                    {opportunities.brand_intent_alignment.scenario === 'alignment' ? 'Aligned'
+                      : opportunities.brand_intent_alignment.scenario === 'tension' ? 'Tension'
+                      : 'Partial Overlap'}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+                <div style={{ background: "#252525", borderRadius: "8px", padding: "12px", borderTop: "3px solid #3b82f6" }}>
+                  <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", marginBottom: "6px" }}>Brand Intent</div>
+                  <div style={{ fontSize: "12px", color: "#e0e0e0", lineHeight: "1.5" }}>
+                    {opportunities.brand_intent_alignment.brand_intent_summary || '—'}
+                  </div>
+                </div>
+                <div style={{ background: "#252525", borderRadius: "8px", padding: "12px", borderTop: "3px solid #10b981" }}>
+                  <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", marginBottom: "6px" }}>Audience Demand</div>
+                  <div style={{ fontSize: "12px", color: "#e0e0e0", lineHeight: "1.5" }}>
+                    {opportunities.brand_intent_alignment.audience_demand_summary || '—'}
+                  </div>
+                </div>
+                <div style={{ background: "#252525", borderRadius: "8px", padding: "12px", borderTop: "3px solid #8b5cf6" }}>
+                  <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", marginBottom: "6px" }}>Platform Logic</div>
+                  <div style={{ fontSize: "12px", color: "#e0e0e0", lineHeight: "1.5" }}>
+                    {opportunities.brand_intent_alignment.platform_logic_summary || '—'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", fontSize: "13px", color: "#ccc", lineHeight: "1.6" }}>
+                {opportunities.brand_intent_alignment.analysis}
+              </div>
+            </div>
+          )}
+
           {/* Format Toggle + Insights */}
           {formatMix.hasBoth && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1083,14 +1140,93 @@ export default function AuditResults({ audit, onBack }) {
               description="Discontinue or phase out"
             />
 
-            {/* Start */}
-            <RecommendationColumn
-              title="Start"
-              color={COLORS.success}
-              icon="🚀"
-              items={filterByFormat(recommendations.start || [], formatFilter)}
-              description="New initiatives to begin"
-            />
+            {/* Start — Named Show Concepts */}
+            <div style={{
+              background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333", padding: "24px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                <span style={{ fontSize: "20px" }}>🚀</span>
+                <div style={{ fontSize: "18px", fontWeight: "700", color: COLORS.success }}>Start</div>
+              </div>
+              <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "16px" }}>Named show concepts to launch</div>
+              {filterByFormat(recommendations.start || [], formatFilter).length === 0 ? (
+                <div style={{ color: "#666", fontSize: "13px", textAlign: "center", padding: "20px" }}>
+                  No recommendations.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {filterByFormat(recommendations.start || [], formatFilter).map((r, i) => (
+                    <div key={i} style={{
+                      padding: "16px", background: "#252525", borderRadius: "8px",
+                      borderLeft: `3px solid ${COLORS.success}`,
+                    }}>
+                      {/* Show name */}
+                      {r.show_name && (
+                        <div style={{ fontSize: "15px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+                          {r.show_name}
+                          <FormatBadge format={r.format} />
+                        </div>
+                      )}
+                      {r.premise && (
+                        <div style={{ fontSize: "12px", color: "#60a5fa", marginBottom: "8px", fontStyle: "italic" }}>
+                          {r.premise}
+                        </div>
+                      )}
+                      <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "8px" }}>{r.action || r.rationale}</div>
+                      {r.evidence && <div style={{ fontSize: "11px", color: "#666", marginBottom: "8px" }}>{r.evidence}</div>}
+
+                      {/* Show concept details */}
+                      {(r.format_length || r.cadence || r.shorts_atomization) && (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginBottom: "8px" }}>
+                          {r.format_length && (
+                            <div style={{ fontSize: "10px", color: "#888" }}>
+                              <span style={{ color: "#666" }}>Length:</span> {r.format_length}
+                            </div>
+                          )}
+                          {r.cadence && (
+                            <div style={{ fontSize: "10px", color: "#888" }}>
+                              <span style={{ color: "#666" }}>Cadence:</span> {r.cadence}
+                            </div>
+                          )}
+                          {r.shorts_atomization && (
+                            <div style={{ fontSize: "10px", color: "#888", gridColumn: "1 / -1" }}>
+                              <span style={{ color: "#666" }}>Shorts:</span> {r.shorts_atomization}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {r.snowball_logic && (
+                        <div style={{ fontSize: "11px", color: "#10b981", background: "rgba(16,185,129,0.08)", padding: "8px 10px", borderRadius: "6px", marginBottom: "6px", lineHeight: "1.5" }}>
+                          <span style={{ fontWeight: "600" }}>Snowball:</span> {r.snowball_logic}
+                        </div>
+                      )}
+                      {r.brand_fit && (
+                        <div style={{ fontSize: "11px", color: "#f59e0b", marginTop: "4px" }}>
+                          <span style={{ fontWeight: "600" }}>Brand fit:</span> {r.brand_fit}
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
+                        {r.impact && (
+                          <span style={{
+                            fontSize: "9px", fontWeight: "600", padding: "2px 6px", borderRadius: "4px",
+                            color: r.impact === "high" ? COLORS.success : r.impact === "medium" ? COLORS.warning : COLORS.gray,
+                            background: r.impact === "high" ? `${COLORS.success}15` : r.impact === "medium" ? `${COLORS.warning}15` : `${COLORS.gray}15`,
+                            textTransform: "uppercase",
+                          }}>
+                            {r.impact} impact
+                          </span>
+                        )}
+                        {r.effort && (
+                          <span style={{ fontSize: "9px", color: "#666" }}>
+                            Effort: {r.effort}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Optimize */}
             <RecommendationColumn
