@@ -1604,7 +1604,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             <QuotaIndicator />
 
             {/* Settings overflow menu */}
-            <div style={{ position: "relative" }}>
+            <div style={{ position: "relative", zIndex: 1000 }}>
               <button
                 onClick={() => setShowSettingsMenu(!showSettingsMenu)}
                 style={{
