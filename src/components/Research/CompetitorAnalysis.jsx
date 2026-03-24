@@ -1449,7 +1449,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     <div style={{ padding: "0" }}>
       {/* ── SECTION 1: HEADER TOOLBAR ── */}
       <AnimatedSection delay={0}>
-      <div className="page-section" style={{ padding: "16px 24px", marginBottom: "16px" }}>
+      <div className="page-section" style={{ padding: "16px 24px", marginBottom: "16px", overflow: "visible" }}>
         {/* Top row */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
