@@ -98,17 +98,78 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
       }
     }
 
+    // Save brand intent + paid content signals to brand_context
+    if (config.brandIntent || config.paidContentSignals || config.paidContentOverride) {
+      try {
+        const { supabase } = await import('./supabaseClient');
+        if (supabase) {
+          // Check if brand_context exists for this channel
+          const { data: existing } = await supabase
+            .from('brand_context')
+            .select('id')
+            .eq('channel_id', channel.id)
+            .eq('is_current', true)
+            .single();
+
+          const updates = {};
+          if (config.brandIntent) updates.brand_intent = config.brandIntent;
+          if (config.brandIntentStakeholder) updates.brand_intent_stakeholder = config.brandIntentStakeholder;
+          if (config.brandIntentTimeline) updates.brand_intent_timeline = config.brandIntentTimeline;
+          if (config.paidContentSignals) updates.paid_content_signals = config.paidContentSignals;
+          if (config.paidContentOverride) updates.paid_content_override = config.paidContentOverride;
+
+          if (existing) {
+            await supabase.from('brand_context').update(updates).eq('id', existing.id);
+          } else {
+            await supabase.from('brand_context').insert({
+              channel_id: channel.id, is_current: true, ...updates,
+            });
+          }
+          console.log('[auditOrchestrator] Brand intent & paid signals saved');
+
+          // Re-classify videos with the newly saved signals
+          if (config.paidContentSignals || config.paidContentOverride) {
+            try {
+              const { classifyVideos, persistClassifications } = await import('./paidContentClassifier');
+              const signals = {
+                keywords: config.paidContentSignals || [],
+                overrideIds: config.paidContentOverride || [],
+              };
+              const classified = classifyVideos(videos, signals);
+              await persistClassifications(classified);
+              // Update local video array
+              classified.forEach((cv, i) => { videos[i].is_paid = cv.is_paid; });
+              const paidCount = classified.filter(v => v.is_paid).length;
+              console.log(`[auditOrchestrator] Re-classified: ${paidCount} paid, ${classified.length - paidCount} organic`);
+            } catch (e) {
+              console.warn('[auditOrchestrator] Re-classification failed:', e.message);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[auditOrchestrator] Failed to save brand intent/paid signals:', e.message);
+      }
+    }
+
     notify({ step: 'ingestion', pct: 15, message: 'Ingestion complete' });
 
     // ── Format split (used by all downstream stages) ──
-    const longFormVideos = videos.filter(v => v.video_type === 'long' || (!v.video_type && v.duration_seconds > 180));
-    const shortFormVideos = videos.filter(v => v.video_type === 'short' || (!v.video_type && v.duration_seconds && v.duration_seconds <= 180));
+    // Filter to organic content only for baseline calculations
+    const organicVideos = videos.filter(v => !v.is_paid);
+    // Use organic videos for all downstream analysis
+    const longFormVideos = organicVideos.filter(v => v.video_type === 'long' || (!v.video_type && v.duration_seconds > 180));
+    const shortFormVideos = organicVideos.filter(v => v.video_type === 'short' || (!v.video_type && v.duration_seconds && v.duration_seconds <= 180));
+    const paidVideos = videos.filter(v => v.is_paid);
     const formatMix = {
       longCount: longFormVideos.length,
       shortCount: shortFormVideos.length,
+      paidCount: paidVideos.length,
+      totalAnalyzed: videos.length,
+      organicAnalyzed: organicVideos.length,
       hasLongForm: longFormVideos.length > 0,
       hasShortForm: shortFormVideos.length > 0,
       hasBothFormats: longFormVideos.length > 0 && shortFormVideos.length > 0,
+      hasPaidContent: paidVideos.length > 0,
     };
 
     // ── Step 2: Series Detection ──

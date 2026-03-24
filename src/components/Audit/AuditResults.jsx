@@ -22,6 +22,7 @@ import {
   UserPlus,
   Crosshair,
   Map,
+  Tag,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -105,9 +106,13 @@ export default function AuditResults({ audit, onBack }) {
     if (landscapeData) {
       extras.push({ id: "landscape", label: "Landscape", icon: Map });
     }
+    // Add paid content tab if paid videos were detected
+    if (audit.channel_snapshot?.paid_content?.paid > 0) {
+      extras.push({ id: "paid_content", label: "Paid Content", icon: Tag });
+    }
     result.splice(insertIdx, 0, ...extras);
     return result;
-  }, [benchmark.head_to_head, competitorData, landscapeData]);
+  }, [benchmark.head_to_head, competitorData, landscapeData, audit.channel_snapshot?.paid_content]);
 
   // Format breakdown
   const formatMix = useMemo(() => {
@@ -1110,6 +1115,86 @@ export default function AuditResults({ audit, onBack }) {
       {/* ── Landscape Tab ── */}
       {activeTab === "landscape" && (
         <AuditLandscapeAnalysis audit={audit} />
+      )}
+
+      {/* ── Paid Content Tab (Isolated) ── */}
+      {activeTab === "paid_content" && audit.channel_snapshot?.paid_content && (
+        <div>
+          <div style={{ background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333", padding: "24px", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+              <Tag size={18} style={{ color: "#ef4444" }} />
+              <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>Paid Content Analysis</div>
+              <span style={{ fontSize: "10px", color: "#ef4444", background: "rgba(239,68,68,0.1)", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
+                ISOLATED FROM ORGANIC METRICS
+              </span>
+            </div>
+            <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "20px", lineHeight: "1.6" }}>
+              These videos were identified as paid/boosted content based on client-configured keyword patterns or manual overrides.
+              They are excluded from all organic performance baselines, engagement rates, and benchmark calculations.
+            </div>
+
+            {/* Summary stats */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "20px" }}>
+              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>Paid Videos</div>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: "#ef4444", fontFamily: "'Barlow Condensed', sans-serif" }}>
+                  {audit.channel_snapshot.paid_content.paid}
+                </div>
+              </div>
+              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>Organic Videos</div>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: "#10b981", fontFamily: "'Barlow Condensed', sans-serif" }}>
+                  {audit.channel_snapshot.paid_content.organic}
+                </div>
+              </div>
+              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>Paid % of Library</div>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: "#f59e0b", fontFamily: "'Barlow Condensed', sans-serif" }}>
+                  {audit.channel_snapshot.paid_content.total > 0
+                    ? `${((audit.channel_snapshot.paid_content.paid / audit.channel_snapshot.paid_content.total) * 100).toFixed(1)}%`
+                    : '0%'}
+                </div>
+              </div>
+            </div>
+
+            {/* Paid video list */}
+            {audit.channel_snapshot.paid_content.paid_videos?.length > 0 && (
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px" }}>Flagged Videos</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {audit.channel_snapshot.paid_content.paid_videos.map((v, i) => (
+                    <div key={i} style={{
+                      display: "flex", alignItems: "center", gap: "10px",
+                      padding: "8px 12px", background: "#252525", borderRadius: "6px",
+                      borderLeft: "3px solid #ef4444",
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "12px", color: "#fff", fontWeight: "500", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {v.title}
+                        </div>
+                        <div style={{ fontSize: "10px", color: "#888", marginTop: "2px" }}>
+                          {(v.view_count || 0).toLocaleString()} views
+                          <span style={{ color: "#555", margin: "0 6px" }}>·</span>
+                          Matched: <span style={{ color: "#f59e0b" }}>{v.matched_signal}</span>
+                          <span style={{ color: "#555", margin: "0 6px" }}>·</span>
+                          <span style={{ color: "#666" }}>{v.classification_source === 'manual_override' ? 'Manual override' : 'Keyword match'}</span>
+                        </div>
+                      </div>
+                      <a
+                        href={`https://www.youtube.com/watch?v=${v.youtube_video_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: "10px", color: "#60a5fa", textDecoration: "none", flexShrink: 0 }}
+                      >
+                        View →
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {activeTab === "outreach" && (

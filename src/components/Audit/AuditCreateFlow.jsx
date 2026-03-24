@@ -65,6 +65,13 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
   const [pasteContent, setPasteContent] = useState("");
   const [brandName, setBrandName] = useState("");
 
+  // Brand intent (captured in step 3)
+  const [brandIntent, setBrandIntent] = useState("");
+  const [brandIntentStakeholder, setBrandIntentStakeholder] = useState("");
+  const [brandIntentTimeline, setBrandIntentTimeline] = useState("");
+  const [paidContentSignals, setPaidContentSignals] = useState("");
+  const [paidContentOverride, setPaidContentOverride] = useState("");
+
   // Competitors (step 4)
   const [competitorUrl, setCompetitorUrl] = useState("");
   const [resolvedCompetitors, setResolvedCompetitors] = useState([]);
@@ -262,6 +269,15 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
           forceRefresh,
           categoryIds: selectedCategoryIds.length > 0 ? selectedCategoryIds : null,
           brandContext: brandContextData || null,
+          brandIntent: brandIntent.trim() || null,
+          brandIntentStakeholder: brandIntentStakeholder.trim() || null,
+          brandIntentTimeline: brandIntentTimeline.trim() || null,
+          paidContentSignals: paidContentSignals.trim()
+            ? paidContentSignals.split(',').map(s => s.trim()).filter(Boolean)
+            : null,
+          paidContentOverride: paidContentOverride.trim()
+            ? paidContentOverride.split(',').map(s => s.trim()).filter(Boolean)
+            : null,
           competitorChannelIds: resolvedCompetitors.length > 0
             ? resolvedCompetitors.map(c => c.youtube_channel_id)
             : null,
@@ -724,6 +740,131 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Brand Intent Intake */}
+          <div style={{
+            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
+            padding: "32px", marginTop: "16px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <Crosshair size={20} style={{ color: "#f59e0b" }} />
+              <div style={{ fontSize: "16px", fontWeight: "600" }}>Brand Intent</div>
+              <span style={{ fontSize: "11px", color: "#9E9E9E", background: "#333", padding: "2px 8px", borderRadius: "4px" }}>
+                Recommended
+              </span>
+            </div>
+            <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "16px" }}>
+              What does the client want YouTube to do for them? Capture their direction before the data shapes the analysis.
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div>
+                <label style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Content direction or initiative the client wants YouTube to support *
+                </label>
+                <textarea
+                  value={brandIntent}
+                  onChange={e => setBrandIntent(e.target.value)}
+                  placeholder="e.g. 'We want to use YouTube to tell our origin story and build affinity with younger audiences through behind-the-scenes content'"
+                  rows={3}
+                  style={{
+                    width: "100%", padding: "10px 12px", background: "#252525",
+                    border: "1px solid #444", borderRadius: "8px", color: "#E0E0E0",
+                    fontSize: "13px", resize: "vertical", outline: "none",
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <label style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>
+                    Who internally is driving this?
+                  </label>
+                  <input
+                    value={brandIntentStakeholder}
+                    onChange={e => setBrandIntentStakeholder(e.target.value)}
+                    placeholder="e.g. VP Marketing, CMO"
+                    style={{
+                      width: "100%", padding: "8px 10px", background: "#252525",
+                      border: "1px solid #444", borderRadius: "6px", color: "#E0E0E0",
+                      fontSize: "12px", outline: "none",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>
+                    Timeline or campaign pressure?
+                  </label>
+                  <input
+                    value={brandIntentTimeline}
+                    onChange={e => setBrandIntentTimeline(e.target.value)}
+                    placeholder="e.g. Q3 launch, ongoing"
+                    style={{
+                      width: "100%", padding: "8px 10px", background: "#252525",
+                      border: "1px solid #444", borderRadius: "6px", color: "#E0E0E0",
+                      fontSize: "12px", outline: "none",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Paid Content Classification */}
+          <div style={{
+            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
+            padding: "32px", marginTop: "16px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <Tag size={20} style={{ color: "#ef4444" }} />
+              <div style={{ fontSize: "16px", fontWeight: "600" }}>Paid Content Signals</div>
+              <span style={{ fontSize: "11px", color: "#9E9E9E", background: "#333", padding: "2px 8px", borderRadius: "4px" }}>
+                Optional
+              </span>
+            </div>
+            <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "16px" }}>
+              Keywords that identify paid/boosted content in video titles or descriptions. Paid videos will be excluded from organic performance baselines.
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div>
+                <label style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>
+                  Keyword patterns (comma-separated)
+                </label>
+                <input
+                  value={paidContentSignals}
+                  onChange={e => setPaidContentSignals(e.target.value)}
+                  placeholder='e.g. :15, :30, OLV, sponsored, paid partnership'
+                  style={{
+                    width: "100%", padding: "8px 10px", background: "#252525",
+                    border: "1px solid #444", borderRadius: "6px", color: "#E0E0E0",
+                    fontSize: "12px", outline: "none",
+                  }}
+                />
+                <div style={{ fontSize: "10px", color: "#666", marginTop: "4px" }}>
+                  Matched against video title and description. Case-insensitive.
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>
+                  Manual video ID overrides (comma-separated, optional)
+                </label>
+                <input
+                  value={paidContentOverride}
+                  onChange={e => setPaidContentOverride(e.target.value)}
+                  placeholder="e.g. dQw4w9WgXcQ, xvFZjo5PgG0"
+                  style={{
+                    width: "100%", padding: "8px 10px", background: "#252525",
+                    border: "1px solid #444", borderRadius: "6px", color: "#E0E0E0",
+                    fontSize: "12px", outline: "none",
+                  }}
+                />
+                <div style={{ fontSize: "10px", color: "#666", marginTop: "4px" }}>
+                  Specific YouTube video IDs to always flag as paid, regardless of keyword match.
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
