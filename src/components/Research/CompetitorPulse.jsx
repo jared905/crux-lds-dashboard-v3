@@ -400,7 +400,7 @@ function CategoryComparisonStrip({ lanes, onChannelClick }) {
 }
 
 // ─── CategoryLanes ─────────────────────────────────────────────────────
-function CategoryLanes({ lanes, onChannelClick, expandedCategory, onExpandCategory }) {
+function CategoryLanes({ lanes, onChannelClick, expandedCategory, onExpandCategory, latestVideos, subDeltas }) {
   const visibleLanes = expandedCategory
     ? lanes.filter(g => g.key === expandedCategory)
     : lanes.filter(g => g.channelCount > 0);
@@ -414,19 +414,23 @@ function CategoryLanes({ lanes, onChannelClick, expandedCategory, onExpandCatego
           isExpanded={expandedCategory === lane.key}
           onChannelClick={onChannelClick}
           onExpand={() => onExpandCategory(expandedCategory === lane.key ? null : lane.key)}
+          latestVideos={latestVideos}
+          subDeltas={subDeltas}
         />
       ))}
     </div>
   );
 }
 
-function CategoryLane({ lane, isExpanded, onChannelClick, onExpand }) {
+function CategoryLane({ lane, isExpanded, onChannelClick, onExpand, latestVideos, subDeltas }) {
   const { config, subcategories } = lane;
   const hasSubcategories = subcategories.length > 1;
 
-  // Sort all channels by subscriber count for collapsed view
+  // Sort all channels by subscriber count and compute ranks
   const sortedChannels = useMemo(() =>
-    [...lane.channels].sort((a, b) => (b.subscriberCount || 0) - (a.subscriberCount || 0)),
+    [...lane.channels]
+      .sort((a, b) => (b.subscriberCount || 0) - (a.subscriberCount || 0))
+      .map((ch, i) => ({ ...ch, _rank: i + 1 })),
     [lane.channels]
   );
 
@@ -482,8 +486,9 @@ function CategoryLane({ lane, isExpanded, onChannelClick, onExpand }) {
               key={ch.id}
               channel={ch}
               categoryColor={config.color}
-              subcategoryLabel={hasSubcategories ? ch.category : null}
-              categoryConfig={null}
+              rank={ch._rank}
+              latestVideo={latestVideos[ch.supabaseId] || null}
+              subDelta={subDeltas[ch.supabaseId]}
               onClick={() => onChannelClick(ch.id)}
             />
           ))}
@@ -532,16 +537,19 @@ function CategoryLane({ lane, isExpanded, onChannelClick, onExpand }) {
                 {/* Subcategory channels grid */}
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
                   gap: '4px', paddingLeft: '16px',
                 }}>
                   {[...sub.channels]
                     .sort((a, b) => (b.subscriberCount || 0) - (a.subscriberCount || 0))
-                    .map(ch => (
+                    .map((ch, i) => (
                       <ChannelCard
                         key={ch.id}
                         channel={ch}
                         categoryColor={sub.color}
+                        rank={ch._rank || (i + 1)}
+                        latestVideo={latestVideos[ch.supabaseId] || null}
+                        subDelta={subDeltas[ch.supabaseId]}
                         onClick={() => onChannelClick(ch.id)}
                       />
                     ))
@@ -557,7 +565,7 @@ function CategoryLane({ lane, isExpanded, onChannelClick, onExpand }) {
       {isExpanded && !hasSubcategories && (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
           gap: '4px', padding: '8px',
         }}>
           {sortedChannels.map(ch => (
@@ -565,6 +573,9 @@ function CategoryLane({ lane, isExpanded, onChannelClick, onExpand }) {
               key={ch.id}
               channel={ch}
               categoryColor={config.color}
+              rank={ch._rank}
+              latestVideo={latestVideos[ch.supabaseId] || null}
+              subDelta={subDeltas[ch.supabaseId]}
               onClick={() => onChannelClick(ch.id)}
             />
           ))}
@@ -574,12 +585,16 @@ function CategoryLane({ lane, isExpanded, onChannelClick, onExpand }) {
   );
 }
 
-function ChannelCard({ channel, categoryColor, onClick }) {
+function ChannelCard({ channel, categoryColor, onClick, rank, latestVideo, subDelta }) {
+  const deltaVal = subDelta || 0;
+  const deltaColor = deltaVal > 0 ? '#10b981' : deltaVal < 0 ? '#ef4444' : '#666';
+  const deltaLabel = deltaVal > 0 ? `+${fmt(deltaVal)}` : deltaVal < 0 ? fmt(deltaVal) : '—';
+
   return (
     <div
       onClick={onClick}
       style={{
-        minWidth: '160px', maxWidth: '200px',
+        minWidth: '220px', maxWidth: '280px',
         padding: '10px 12px',
         background: '#1a1a1a',
         borderRadius: '8px',
@@ -587,16 +602,27 @@ function ChannelCard({ channel, categoryColor, onClick }) {
         display: 'flex', flexDirection: 'column', gap: '6px',
         flexShrink: 0,
         transition: 'background 0.15s',
-        borderLeft: `3px solid ${categoryColor}33`,
+        borderLeft: `3px solid ${categoryColor}44`,
+        opacity: latestVideo === null ? 0.6 : 1, // dim if no recent activity data
       }}
       onMouseOver={e => e.currentTarget.style.background = '#222'}
       onMouseOut={e => e.currentTarget.style.background = '#1a1a1a'}
     >
+      {/* Row 1: Rank + Avatar + Name + Subs */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {rank && (
+          <span style={{
+            fontSize: '10px', fontWeight: '700', color: rank <= 3 ? '#f59e0b' : '#555',
+            fontFamily: "'Barlow Condensed', sans-serif",
+            minWidth: '18px',
+          }}>
+            #{rank}
+          </span>
+        )}
         <img
           src={channel.thumbnail}
           alt=""
-          style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+          style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
@@ -605,21 +631,46 @@ function ChannelCard({ channel, categoryColor, onClick }) {
           }}>
             {channel.name}
           </div>
-          {channel.subcategory && (
-            <div style={{ fontSize: '9px', color: '#666', marginTop: '1px' }}>
-              {channel.subcategory}
-            </div>
-          )}
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ fontSize: '11px', fontWeight: '600', color: '#ccc' }}>{fmt(channel.subscriberCount)}</div>
+          <div style={{ fontSize: '9px', fontWeight: '600', color: deltaColor }}>{deltaLabel}</div>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: '8px', fontSize: '10px', color: '#999' }}>
-        <span style={{ fontWeight: '600', color: '#ccc' }}>{fmt(channel.subscriberCount)}</span>
-        <span>subs</span>
-      </div>
-      <div style={{ display: 'flex', gap: '10px', fontSize: '9px', color: '#666' }}>
-        <span>{fmt(channel.avgViewsPerVideo)} avg</span>
-        <span>{channel.uploadsLast30Days || 0}/mo</span>
-      </div>
+
+      {/* Row 2: Latest video thumbnail + info */}
+      {latestVideo && (
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {latestVideo.thumbnail_url ? (
+            <img
+              src={latestVideo.thumbnail_url}
+              alt=""
+              style={{ width: 72, height: 40, borderRadius: '4px', objectFit: 'cover', background: '#252525', flexShrink: 0 }}
+            />
+          ) : (
+            <div style={{ width: 72, height: 40, borderRadius: '4px', background: '#252525', flexShrink: 0 }} />
+          )}
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <div style={{
+              fontSize: '9px', color: '#ccc', lineHeight: '1.3',
+              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+            }}>
+              {latestVideo.title}
+            </div>
+            <div style={{ display: 'flex', gap: '6px', fontSize: '9px', color: '#888', marginTop: '2px' }}>
+              <span>{fmt(latestVideo.view_count)} views</span>
+              <span>{timeAgo(latestVideo.published_at)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Row 2 fallback: no recent video */}
+      {!latestVideo && (
+        <div style={{ fontSize: '9px', color: '#555', fontStyle: 'italic', padding: '4px 0' }}>
+          No recent uploads
+        </div>
+      )}
     </div>
   );
 }
@@ -771,6 +822,59 @@ export default function CompetitorPulse({
   onExpandCategory,
   onChannelClick,
 }) {
+  // Fetch latest video per channel + subscriber deltas
+  const [latestVideos, setLatestVideos] = useState({});   // supabaseId -> video
+  const [subDeltas, setSubDeltas] = useState({});         // supabaseId -> delta number
+
+  useEffect(() => {
+    const channelIds = activeCompetitors.map(c => c.supabaseId).filter(Boolean);
+    if (channelIds.length === 0) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Fetch latest videos (look back 180 days so we can show "dormant" vs "active")
+        const { getRecentVideosByChannels } = await import('../../services/competitorDatabase');
+        const videoMap = await getRecentVideosByChannels(channelIds, { days: 180 });
+        if (!cancelled) setLatestVideos(videoMap);
+      } catch (err) {
+        console.error('[Pulse] Failed to load latest videos:', err);
+      }
+
+      try {
+        // Fetch latest 2 snapshots per channel to compute delta
+        const { supabase } = await import('../../services/supabaseClient');
+        if (supabase) {
+          const { data } = await supabase
+            .from('channel_snapshots')
+            .select('channel_id, subscriber_count, snapshot_date')
+            .in('channel_id', channelIds)
+            .order('snapshot_date', { ascending: false })
+            .limit(channelIds.length * 2);
+
+          if (!cancelled && data) {
+            const deltas = {};
+            const seen = {}; // channel_id -> [newest, prev]
+            data.forEach(snap => {
+              if (!seen[snap.channel_id]) seen[snap.channel_id] = [];
+              if (seen[snap.channel_id].length < 2) seen[snap.channel_id].push(snap);
+            });
+            Object.entries(seen).forEach(([chId, snaps]) => {
+              if (snaps.length >= 2) {
+                deltas[chId] = (snaps[0].subscriber_count || 0) - (snaps[1].subscriber_count || 0);
+              }
+            });
+            setSubDeltas(deltas);
+          }
+        }
+      } catch (err) {
+        console.error('[Pulse] Failed to load deltas:', err);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [activeCompetitors]);
+
   // Bundle subcategory groups under their parent category
   const parentLanes = useMemo(
     () => buildParentLanes(groupedCompetitors, categoryConfig),
@@ -785,6 +889,8 @@ export default function CompetitorPulse({
         onChannelClick={onChannelClick}
         expandedCategory={expandedHubCategory}
         onExpandCategory={onExpandCategory}
+        latestVideos={latestVideos}
+        subDeltas={subDeltas}
       />
       <ActivityFeed
         activeCompetitors={activeCompetitors}
