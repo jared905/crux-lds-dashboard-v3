@@ -197,6 +197,204 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
     }
   }, [report, draftId, draftName, audit, onSaved]);
 
+  // Export to PDF
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportPDF = useCallback(async () => {
+    if (!report) return;
+    setExporting(true);
+
+    try {
+      const { jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
+      const s = report.sections;
+
+      const esc = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      const buildPage = (html) => {
+        const el = document.createElement('div');
+        el.style.cssText = 'position:absolute;left:-9999px;width:1200px;background:#ffffff;padding:48px;font-family:system-ui,-apple-system,sans-serif;color:#333;';
+        el.innerHTML = html;
+        return el;
+      };
+
+      const pages = [];
+
+      // Cover
+      pages.push(buildPage(`
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:600px;text-align:center;">
+          <div style="font-size:14px;color:#666;letter-spacing:2px;text-transform:uppercase;margin-bottom:16px;">External Report</div>
+          <div style="font-size:36px;font-weight:800;color:#1a1a2e;margin-bottom:8px;">${esc(report.channel_name)}</div>
+          <div style="font-size:14px;color:#999;margin-bottom:8px;">Prepared by CRUX Media</div>
+          <div style="font-size:13px;color:#aaa;">
+            ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </div>
+          <div style="margin-top:60px;font-size:12px;color:#bbb;">Full View Analytics · Powered by CRUX</div>
+        </div>
+      `));
+
+      // 1. Brand Moment
+      if (s.brand_moment?.included && s.brand_moment.variable_narrative) {
+        pages.push(buildPage(`
+          <div style="font-size:22px;font-weight:700;color:#1a1a2e;margin-bottom:20px;">The Brand Moment</div>
+          <div style="font-size:14px;line-height:1.9;color:#333;max-width:900px;">${esc(s.brand_moment.variable_narrative)}</div>
+          ${s.brand_moment.data_point ? `<div style="margin-top:20px;padding:16px;background:#f0f4ff;border-radius:8px;font-size:13px;color:#1a1a2e;font-style:italic;">${esc(s.brand_moment.data_point)}</div>` : ''}
+        `));
+      }
+
+      // 2. Channel Reality
+      if (s.channel_reality?.included) {
+        const metricsHtml = (s.channel_reality.metrics || []).map(m => `
+          <div style="padding:16px;background:#f5f5f5;border-radius:8px;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+              <div style="font-size:12px;color:#666;">${esc(m.label)}</div>
+              ${m.benchmark_value ? `<div style="font-size:10px;color:#999;">${esc(m.benchmark_value)}</div>` : ''}
+            </div>
+            <div style="font-size:24px;font-weight:700;color:#1a1a2e;margin-bottom:4px;">${esc(m.value)}</div>
+            ${m.consequence ? `<div style="font-size:12px;color:#666;line-height:1.5;">${esc(m.consequence)}</div>` : ''}
+          </div>
+        `).join('');
+
+        pages.push(buildPage(`
+          <div style="font-size:22px;font-weight:700;color:#1a1a2e;margin-bottom:20px;">Channel Reality</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;">${metricsHtml}</div>
+          ${s.channel_reality.narrative ? `<div style="font-size:13px;line-height:1.8;color:#333;">${esc(s.channel_reality.narrative)}</div>` : ''}
+        `));
+      }
+
+      // 3. Alignment
+      if (s.alignment?.included) {
+        const includedGaps = (s.alignment.gaps || []).filter(g => g.included);
+        const gapsHtml = includedGaps.map(g => `
+          <div style="padding:16px;background:#f0fdf4;border-radius:8px;margin-bottom:10px;border-left:4px solid #16a34a;">
+            <div style="font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:6px;">${esc(g.headline)}</div>
+            <div style="font-size:12px;color:#666;line-height:1.7;margin-bottom:6px;">${esc(g.evidence)}</div>
+            ${g.snowball ? `<div style="font-size:11px;color:#16a34a;font-style:italic;">${esc(g.snowball)}</div>` : ''}
+          </div>
+        `).join('');
+
+        pages.push(buildPage(`
+          <div style="font-size:22px;font-weight:700;color:#1a1a2e;margin-bottom:8px;">What You're Building & What Your Audience Wants</div>
+          ${s.alignment.brand_intent_summary ? `
+            <div style="padding:16px;background:#f0f4ff;border-radius:8px;margin-bottom:16px;">
+              <div style="font-size:11px;color:#666;text-transform:uppercase;margin-bottom:4px;">What You're Hoping to Build</div>
+              <div style="font-size:14px;color:#1a1a2e;line-height:1.6;">${esc(s.alignment.brand_intent_summary)}</div>
+            </div>
+          ` : ''}
+          ${s.alignment.bridge_narrative ? `<div style="font-size:13px;color:#333;line-height:1.7;margin-bottom:16px;">${esc(s.alignment.bridge_narrative)}</div>` : ''}
+          ${gapsHtml}
+        `));
+      }
+
+      // 4. Competitive Window
+      if (s.competitive_window?.included) {
+        const includedBenchmarks = (s.competitive_window.benchmarks || []).filter(b => b.included);
+        const benchHtml = includedBenchmarks.map(b => {
+          const typeLabel = b.benchmark_type === 'aspirational' ? 'Aspirational Benchmark' : b.benchmark_type === 'cautionary' ? 'Cautionary Example' : 'Direct Competitor';
+          const typeColor = b.benchmark_type === 'aspirational' ? '#8b5cf6' : b.benchmark_type === 'cautionary' ? '#ef4444' : '#3b82f6';
+          return `
+            <div style="padding:16px;background:#f5f5f5;border-radius:8px;margin-bottom:10px;border-left:4px solid ${typeColor};">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <div style="font-size:15px;font-weight:700;color:#1a1a2e;">${esc(b.channel_name)}</div>
+                <div style="font-size:10px;color:${typeColor};font-weight:600;text-transform:uppercase;">${typeLabel}</div>
+              </div>
+              <div style="font-size:12px;color:#666;margin-bottom:4px;">${(b.subscriber_count || 0).toLocaleString()} subscribers${b.approach_description ? ` · ${esc(b.approach_description)}` : ''}</div>
+              ${b.strongest_format ? `<div style="font-size:12px;color:#333;margin-bottom:4px;"><strong>Strongest format:</strong> ${esc(b.strongest_format)}</div>` : ''}
+              ${b.client_connection ? `<div style="font-size:12px;color:#1a1a2e;font-style:italic;margin-top:6px;">${esc(b.client_connection)}</div>` : ''}
+            </div>
+          `;
+        }).join('');
+
+        pages.push(buildPage(`
+          <div style="font-size:22px;font-weight:700;color:#1a1a2e;margin-bottom:20px;">The Competitive Window</div>
+          ${benchHtml}
+          ${s.competitive_window.narrative ? `<div style="font-size:13px;line-height:1.8;color:#333;margin-top:16px;">${esc(s.competitive_window.narrative)}</div>` : ''}
+        `));
+      }
+
+      // 5. What We Would Build
+      if (s.what_we_build?.included) {
+        const includedShows = (s.what_we_build.show_concepts || []).filter(sc => sc.included);
+        const showsHtml = includedShows.map(sc => `
+          <div style="padding:20px;background:#fdf4ff;border-radius:8px;margin-bottom:12px;border-left:4px solid #ec4899;">
+            <div style="font-size:18px;font-weight:700;color:#1a1a2e;margin-bottom:4px;">${esc(sc.show_name)}</div>
+            ${sc.premise ? `<div style="font-size:13px;color:#8b5cf6;font-style:italic;margin-bottom:10px;">${esc(sc.premise)}</div>` : ''}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+              ${sc.format_length ? `<div style="font-size:11px;"><span style="color:#888;">Length:</span> ${esc(sc.format_length)}</div>` : ''}
+              ${sc.cadence ? `<div style="font-size:11px;"><span style="color:#888;">Cadence:</span> ${esc(sc.cadence)}</div>` : ''}
+            </div>
+            ${sc.shorts_atomization ? `<div style="font-size:11px;color:#666;margin-bottom:6px;"><span style="color:#888;">Shorts:</span> ${esc(sc.shorts_atomization)}</div>` : ''}
+            ${sc.snowball_logic ? `<div style="font-size:12px;color:#16a34a;padding:8px 12px;background:#f0fdf4;border-radius:6px;margin-bottom:6px;">${esc(sc.snowball_logic)}</div>` : ''}
+            ${sc.brand_fit ? `<div style="font-size:12px;color:#d97706;margin-top:4px;">${esc(sc.brand_fit)}</div>` : ''}
+          </div>
+        `).join('');
+
+        pages.push(buildPage(`
+          <div style="font-size:22px;font-weight:700;color:#1a1a2e;margin-bottom:20px;">What We Would Build</div>
+          ${showsHtml}
+        `));
+      }
+
+      // 6. Path Forward
+      if (s.path_forward?.included) {
+        const phasesHtml = (s.path_forward.phases || []).map(p => `
+          <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;">
+            <div style="background:#f97316;color:#fff;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;flex-shrink:0;">${esc(p.label)}</div>
+            <div style="font-size:13px;color:#333;line-height:1.6;padding-top:4px;">${esc(p.description)}</div>
+          </div>
+        `).join('');
+
+        pages.push(buildPage(`
+          <div style="font-size:22px;font-weight:700;color:#1a1a2e;margin-bottom:20px;">The Path Forward</div>
+          ${s.path_forward.conviction_statement ? `<div style="font-size:16px;font-weight:600;color:#1a1a2e;line-height:1.6;margin-bottom:24px;padding:16px;background:#f0f4ff;border-radius:8px;">${esc(s.path_forward.conviction_statement)}</div>` : ''}
+          ${phasesHtml}
+          ${s.path_forward.cta ? `
+            <div style="margin-top:24px;padding:20px;background:#1a1a2e;border-radius:8px;text-align:center;">
+              <div style="font-size:15px;font-weight:600;color:#fff;line-height:1.6;">${esc(s.path_forward.cta)}</div>
+            </div>
+          ` : ''}
+        `));
+      }
+
+      // Render pages to PDF
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = 210;
+      const pageHeight = 297;
+
+      for (let i = 0; i < pages.length; i++) {
+        const el = pages[i];
+        document.body.appendChild(el);
+        const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+        document.body.removeChild(el);
+
+        const imgData = canvas.toDataURL('image/png');
+        const imgWidth = pageWidth;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
+      }
+
+      const channelName = (report.channel_name || 'Channel').replace(/[^a-zA-Z0-9]/g, '_');
+      const dateStr = new Date().toISOString().split('T')[0];
+      pdf.save(`External_Report_${channelName}_${dateStr}.pdf`);
+
+      // Update draft status
+      if (draftId) {
+        try {
+          const { updateDraftStatus } = await import('../../services/reportDraftService');
+          await updateDraftStatus(draftId, 'exported', new Date().toISOString());
+        } catch (e) { /* non-fatal */ }
+      }
+
+    } catch (err) {
+      console.error('[ReportBuilder] PDF export failed:', err);
+      alert('Failed to export PDF: ' + err.message);
+    } finally {
+      setExporting(false);
+    }
+  }, [report, draftId]);
+
   // Update a section field
   const updateSection = useCallback((sectionKey, field, value) => {
     setReport(prev => ({
@@ -302,6 +500,20 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
           >
             {saving ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={12} />}
             {saving ? 'Saving...' : 'Save Draft'}
+          </button>
+          <button
+            onClick={handleExportPDF}
+            disabled={exporting}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '8px 14px', background: 'rgba(59,130,246,0.15)',
+              border: '1px solid #3b82f6', borderRadius: '6px',
+              color: '#60a5fa', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+              opacity: exporting ? 0.5 : 1,
+            }}
+          >
+            {exporting ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={12} />}
+            {exporting ? 'Exporting...' : 'Export PDF'}
           </button>
           <button
             onClick={onClose}
