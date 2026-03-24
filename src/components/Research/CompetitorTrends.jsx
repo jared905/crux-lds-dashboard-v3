@@ -14,27 +14,7 @@ import {
 } from "recharts";
 import { TrendingUp, ChevronDown, Check, Loader } from "lucide-react";
 
-// ─── Aggregate snapshots by category (pure transform, no DB) ─────────────────
-
-function aggregateSnapshotsByCategory(bulkSnapshots, channelCategoryMap) {
-  const byCatDate = {};
-  Object.entries(bulkSnapshots).forEach(([channelId, snapshots]) => {
-    const category = channelCategoryMap[channelId] || "unknown";
-    if (!byCatDate[category]) byCatDate[category] = {};
-    snapshots.forEach((snap) => {
-      const date = snap.snapshot_date;
-      if (!byCatDate[category][date]) {
-        byCatDate[category][date] = { totalSubs: 0, totalViews: 0, count: 0 };
-      }
-      byCatDate[category][date].totalSubs += snap.subscriber_count || 0;
-      byCatDate[category][date].totalViews += snap.total_view_count || 0;
-      byCatDate[category][date].count++;
-    });
-  });
-  return byCatDate;
-}
-
-// ─── Shared formatting helpers ───────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 const fmtCompact = (n) => {
   if (n === null || n === undefined || isNaN(n)) return "--";
@@ -55,8 +35,7 @@ const formatTooltipDate = (dateStr) => {
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 };
 
-// ─── Chart theme ─────────────────────────────────────────────────────────────
-
+// Chart theme
 const CT = {
   bg: "#1E1E1E",
   cardBorder: "1px solid #333",
@@ -66,8 +45,6 @@ const CT = {
   tooltipBg: "#1E1E1E",
   tooltipBorder: "#333",
   textPrimary: "#fff",
-  textSecondary: "#9E9E9E",
-  textMuted: "#666",
   yourColor: "#3b82f6",
   yourWidth: 3,
   compWidth: 1.5,
@@ -81,107 +58,262 @@ const tooltipStyle = {
   fontSize: "12px",
 };
 
-// ─── Main component ──────────────────────────────────────────────────────────
+// Cycling colors for categories without one set
+const CHART_COLORS = [
+  '#3b82f6', '#10b981', '#ef4444', '#f97316', '#8b5cf6',
+  '#ec4899', '#06b6d4', '#f59e0b', '#6366f1', '#14b8a6',
+  '#84cc16', '#a855f7', '#0ea5e9', '#f43f5e', '#22d3ee',
+];
+
+// ─── Build parent category hierarchy ────────────────────────────────────────
+
+function buildCategoryHierarchy(categoryConfig) {
+  const idToSlug = {};
+  Object.entries(categoryConfig).forEach(([slug, cfg]) => {
+    if (cfg.id) idToSlug[cfg.id] = slug;
+  });
+
+  const parentSlugs = new Set();
+  const childToParent = {};
+
+  Object.entries(categoryConfig).forEach(([slug, cfg]) => {
+    if (cfg.parentId) {
+      const parentSlug = idToSlug[cfg.parentId];
+      if (parentSlug && parentSlug !== slug) {
+        childToParent[slug] = parentSlug;
+        parentSlugs.add(parentSlug);
+      }
+    }
+  });
+
+  // Parent categories = slugs that have children OR slugs with no parentId and no parent
+  const parents = [];
+  const childrenByParent = {};
+
+  Object.entries(categoryConfig).forEach(([slug, cfg]) => {
+    if (childToParent[slug]) {
+      const ps = childToParent[slug];
+      if (!childrenByParent[ps]) childrenByParent[ps] = [];
+      childrenByParent[ps].push(slug);
+    } else {
+      parents.push(slug);
+    }
+  });
+
+  return { parents, childrenByParent, childToParent };
+}
+
+// ─── Main component ─────────────────────────────────────────────────────────
 
 export default function CompetitorTrends({
   activeCompetitors,
-  selectedCategory,
-  CATEGORY_CONFIG,
+  selectedCategory: _externalCategory, // kept for compat, we manage our own
+  categoryConfig,
   timeRange,
   onTimeRangeChange,
   snapshotData,
   snapshotLoading,
   yourChannelId,
 }) {
+  // Category zoom state
+  const [selectedParent, setSelectedParent] = useState(null);
+  const [selectedSub, setSelectedSub] = useState(null);
+
+  // Chart state
   const [hiddenLines, setHiddenLines] = useState({});
   const [headToHeadSelection, setHeadToHeadSelection] = useState([]);
   const [activeChartTab, setActiveChartTab] = useState("subscribers");
   const [h2hDropdownOpen, setH2hDropdownOpen] = useState(false);
 
-  // ─── Derived data ──────────────────────────────────────────────────────────
+  // Build hierarchy
+  const hierarchy = useMemo(() => buildCategoryHierarchy(categoryConfig), [categoryConfig]);
 
-  const filteredCompetitors = useMemo(() => {
-    if (!selectedCategory) return activeCompetitors;
-    return activeCompetitors.filter((c) => c.category === selectedCategory);
-  }, [activeCompetitors, selectedCategory]);
+  // Parent categories with channel counts
+  const parentCategories = useMemo(() => {
+    const counts = {};
+    activeCompetitors.forEach(c => {
+      const cat = c.category;
+      const parent = hierarchy.childToParent[cat] || cat;
+      counts[parent] = (counts[parent] || 0) + 1;
+    });
+    return hierarchy.parents
+      .filter(slug => (counts[slug] || 0) > 0)
+      .sort((a, b) => {
+        const oa = categoryConfig[a]?.order ?? 999;
+        const ob = categoryConfig[b]?.order ?? 999;
+        return oa - ob;
+      });
+  }, [activeCompetitors, hierarchy, categoryConfig]);
 
-  // Map supabaseId → competitor for lookup
+  // Subcategories for selected parent
+  const subcategories = useMemo(() => {
+    if (!selectedParent) return [];
+    const children = hierarchy.childrenByParent[selectedParent] || [];
+    // Include parent itself if channels are directly assigned to it
+    const slugs = [selectedParent, ...children];
+    const counts = {};
+    activeCompetitors.forEach(c => {
+      if (slugs.includes(c.category)) {
+        counts[c.category] = (counts[c.category] || 0) + 1;
+      }
+    });
+    return slugs.filter(s => (counts[s] || 0) > 0);
+  }, [selectedParent, hierarchy, activeCompetitors]);
+
+  // Determine zoom level and filtered competitors
+  const { zoomLevel, filteredCompetitors, chartLabel } = useMemo(() => {
+    if (selectedSub) {
+      // Level 3: individual channels in a subcategory
+      const filtered = activeCompetitors.filter(c => c.category === selectedSub);
+      const cfg = categoryConfig[selectedSub];
+      return { zoomLevel: 'channels', filteredCompetitors: filtered, chartLabel: cfg?.label || selectedSub };
+    }
+    if (selectedParent) {
+      // Level 2: subcategories within a parent
+      const children = hierarchy.childrenByParent[selectedParent] || [];
+      const slugs = new Set([selectedParent, ...children]);
+      const filtered = activeCompetitors.filter(c => slugs.has(c.category));
+      const cfg = categoryConfig[selectedParent];
+      return { zoomLevel: 'subcategories', filteredCompetitors: filtered, chartLabel: cfg?.label || selectedParent };
+    }
+    // Level 1: all channels, aggregated by parent category
+    return { zoomLevel: 'categories', filteredCompetitors: activeCompetitors, chartLabel: 'All Categories' };
+  }, [selectedParent, selectedSub, activeCompetitors, categoryConfig, hierarchy]);
+
+  // Map supabaseId → competitor
   const compBySupabaseId = useMemo(() => {
     const map = {};
-    activeCompetitors.forEach((c) => {
-      if (c.supabaseId) map[c.supabaseId] = c;
-    });
+    activeCompetitors.forEach(c => { if (c.supabaseId) map[c.supabaseId] = c; });
     return map;
   }, [activeCompetitors]);
 
-  // Name map for tooltips
+  // Name map
   const nameMap = useMemo(() => {
     const map = {};
-    activeCompetitors.forEach((c) => {
+    activeCompetitors.forEach(c => {
       map[c.supabaseId] = c.name;
       map[c.id] = c.name;
     });
-    return map;
-  }, [activeCompetitors]);
-
-  // Channel category map for aggregation
-  const channelCategoryMap = useMemo(() => {
-    const map = {};
-    activeCompetitors.forEach((c) => {
-      if (c.supabaseId) map[c.supabaseId] = c.category;
+    // Add category names for aggregated mode
+    Object.entries(categoryConfig).forEach(([slug, cfg]) => {
+      map[slug] = cfg.label || slug;
     });
     return map;
-  }, [activeCompetitors]);
+  }, [activeCompetitors, categoryConfig]);
 
-  // ─── Chart data transforms ─────────────────────────────────────────────────
-
-  // All unique sorted dates across all snapshots
+  // All dates
   const allDates = useMemo(() => {
     const dates = new Set();
-    Object.values(snapshotData).forEach((snaps) =>
-      snaps.forEach((s) => dates.add(s.snapshot_date))
-    );
+    Object.values(snapshotData).forEach(snaps => snaps.forEach(s => dates.add(s.snapshot_date)));
     return [...dates].sort();
   }, [snapshotData]);
 
-  // Subscriber growth chart data
-  const subscriberChartData = useMemo(() => {
-    const filtered = filteredCompetitors.filter((c) => c.supabaseId && snapshotData[c.supabaseId]);
-    if (filtered.length === 0 || allDates.length === 0) return [];
+  // ─── Chart data by zoom level ─────────────────────────────────────────────
 
-    return allDates.map((date) => {
+  const subscriberChartData = useMemo(() => {
+    if (allDates.length === 0) return [];
+
+    if (zoomLevel === 'categories') {
+      // Aggregate by parent category
+      return allDates.map(date => {
+        const point = { date };
+        parentCategories.forEach(parentSlug => {
+          const children = hierarchy.childrenByParent[parentSlug] || [];
+          const slugs = new Set([parentSlug, ...children]);
+          let total = 0;
+          activeCompetitors.forEach(c => {
+            if (slugs.has(c.category) && c.supabaseId && snapshotData[c.supabaseId]) {
+              const snap = snapshotData[c.supabaseId].find(s => s.snapshot_date === date);
+              if (snap) total += snap.subscriber_count || 0;
+            }
+          });
+          if (total > 0) point[parentSlug] = total;
+        });
+        return point;
+      });
+    }
+
+    if (zoomLevel === 'subcategories') {
+      // Aggregate by subcategory
+      return allDates.map(date => {
+        const point = { date };
+        subcategories.forEach(subSlug => {
+          let total = 0;
+          activeCompetitors.forEach(c => {
+            if (c.category === subSlug && c.supabaseId && snapshotData[c.supabaseId]) {
+              const snap = snapshotData[c.supabaseId].find(s => s.snapshot_date === date);
+              if (snap) total += snap.subscriber_count || 0;
+            }
+          });
+          if (total > 0) point[subSlug] = total;
+        });
+        return point;
+      });
+    }
+
+    // Channel level
+    return allDates.map(date => {
       const point = { date };
-      filtered.forEach((comp) => {
+      filteredCompetitors.forEach(comp => {
         const snaps = snapshotData[comp.supabaseId] || [];
-        const snap = snaps.find((s) => s.snapshot_date === date);
+        const snap = snaps.find(s => s.snapshot_date === date);
         if (snap) point[comp.supabaseId] = snap.subscriber_count;
       });
       return point;
     });
-  }, [snapshotData, filteredCompetitors, allDates]);
+  }, [zoomLevel, allDates, snapshotData, parentCategories, subcategories, filteredCompetitors, activeCompetitors, hierarchy]);
 
-  // Engagement trend chart data
+  // Lines to render
+  const chartLines = useMemo(() => {
+    if (zoomLevel === 'categories') {
+      return parentCategories.map((slug, i) => ({
+        key: slug,
+        color: categoryConfig[slug]?.color || CHART_COLORS[i % CHART_COLORS.length],
+        width: 2,
+        isYours: false,
+      }));
+    }
+    if (zoomLevel === 'subcategories') {
+      return subcategories.map((slug, i) => ({
+        key: slug,
+        color: categoryConfig[slug]?.color || CHART_COLORS[i % CHART_COLORS.length],
+        width: 2,
+        isYours: false,
+      }));
+    }
+    // Channel level
+    return filteredCompetitors
+      .filter(c => c.supabaseId)
+      .map(comp => {
+        const isYours = comp.id === yourChannelId;
+        const catCfg = categoryConfig[comp.category] || {};
+        return {
+          key: comp.supabaseId,
+          color: isYours ? CT.yourColor : catCfg.color || '#666',
+          width: isYours ? CT.yourWidth : CT.compWidth,
+          isYours,
+        };
+      });
+  }, [zoomLevel, parentCategories, subcategories, filteredCompetitors, categoryConfig, yourChannelId]);
+
+  // Engagement data (channel level only, or aggregated)
   const engagementChartData = useMemo(() => {
-    const filtered = filteredCompetitors.filter((c) => c.supabaseId && snapshotData[c.supabaseId]);
-    if (filtered.length === 0 || allDates.length === 0) return [];
-
-    return allDates.map((date) => {
+    if (allDates.length === 0) return [];
+    const comps = filteredCompetitors.filter(c => c.supabaseId && snapshotData[c.supabaseId]);
+    return allDates.map(date => {
       const point = { date };
-      filtered.forEach((comp) => {
+      comps.forEach(comp => {
         const snaps = snapshotData[comp.supabaseId] || [];
-        const snap = snaps.find((s) => s.snapshot_date === date);
-        if (snap && snap.avg_engagement_rate != null) {
-          point[comp.supabaseId] = snap.avg_engagement_rate;
-        }
+        const snap = snaps.find(s => s.snapshot_date === date);
+        if (snap?.avg_engagement_rate != null) point[comp.supabaseId] = snap.avg_engagement_rate;
       });
       return point;
     });
   }, [snapshotData, filteredCompetitors, allDates]);
 
-  // Engagement percentile band
   const engagementBand = useMemo(() => {
     const allRates = [];
-    engagementChartData.forEach((point) => {
+    engagementChartData.forEach(point => {
       Object.entries(point).forEach(([key, val]) => {
         if (key !== "date" && val != null) allRates.push(val);
       });
@@ -194,92 +326,15 @@ export default function CompetitorTrends({
     };
   }, [engagementChartData]);
 
-  // Content volume data (latest snapshot per competitor)
-  const contentVolumeData = useMemo(() => {
-    return filteredCompetitors
-      .filter((c) => c.supabaseId && snapshotData[c.supabaseId])
-      .map((comp) => {
-        const snaps = snapshotData[comp.supabaseId] || [];
-        const latest = snaps[snaps.length - 1];
-        return {
-          name: comp.name?.length > 15 ? comp.name.slice(0, 15) + "…" : comp.name,
-          fullName: comp.name,
-          shorts: latest?.shorts_count || 0,
-          longs: latest?.longs_count || 0,
-          total: (latest?.shorts_count || 0) + (latest?.longs_count || 0),
-          category: comp.category,
-        };
-      })
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 20);
-  }, [filteredCompetitors, snapshotData]);
-
-  // KPI sparkline data
-  const kpiData = useMemo(() => {
-    // Aggregate across all filtered competitors
-    if (allDates.length === 0) return { subs: [], views: [], engagement: [], volume: [] };
-
-    const subs = [];
-    const views = [];
-    const engagement = [];
-    const volume = [];
-
-    allDates.forEach((date) => {
-      let totalSubs = 0, totalViews = 0, engSum = 0, engCount = 0, totalVids = 0;
-      filteredCompetitors.forEach((comp) => {
-        const snaps = snapshotData[comp.supabaseId] || [];
-        const snap = snaps.find((s) => s.snapshot_date === date);
-        if (snap) {
-          totalSubs += snap.subscriber_count || 0;
-          totalViews += snap.total_view_count || 0;
-          totalVids += snap.video_count || 0;
-          if (snap.avg_engagement_rate != null) {
-            engSum += snap.avg_engagement_rate;
-            engCount++;
-          }
-        }
-      });
-      subs.push({ date, value: totalSubs });
-      views.push({ date, value: totalViews });
-      engagement.push({ date, value: engCount > 0 ? engSum / engCount : 0 });
-      volume.push({ date, value: totalVids });
-    });
-
-    return { subs, views, engagement, volume };
-  }, [filteredCompetitors, snapshotData, allDates]);
-
-  // Category trends data
-  const categoryTrendData = useMemo(() => {
-    if (Object.keys(snapshotData).length === 0) return [];
-    const aggregated = aggregateSnapshotsByCategory(snapshotData, channelCategoryMap);
-
-    const catDates = new Set();
-    Object.values(aggregated).forEach((catData) => {
-      Object.keys(catData).forEach((d) => catDates.add(d));
-    });
-    const sortedDates = [...catDates].sort();
-
-    return sortedDates.map((date) => {
-      const point = { date };
-      Object.entries(aggregated).forEach(([cat, catData]) => {
-        if (catData[date]) point[cat] = catData[date].totalSubs;
-      });
-      return point;
-    });
-  }, [snapshotData, channelCategoryMap]);
-
-  // Head-to-head data
+  // H2H data
   const h2hChartData = useMemo(() => {
     if (headToHeadSelection.length < 2 || allDates.length === 0) return [];
-    const selected = headToHeadSelection
-      .map((id) => activeCompetitors.find((c) => c.supabaseId === id))
-      .filter(Boolean);
-
-    return allDates.map((date) => {
+    const selected = headToHeadSelection.map(id => activeCompetitors.find(c => c.supabaseId === id)).filter(Boolean);
+    return allDates.map(date => {
       const point = { date };
-      selected.forEach((comp) => {
+      selected.forEach(comp => {
         const snaps = snapshotData[comp.supabaseId] || [];
-        const snap = snaps.find((s) => s.snapshot_date === date);
+        const snap = snaps.find(s => s.snapshot_date === date);
         if (snap) {
           point[comp.supabaseId + "_subs"] = snap.subscriber_count;
           point[comp.supabaseId + "_views"] = snap.total_view_count;
@@ -290,80 +345,41 @@ export default function CompetitorTrends({
     });
   }, [headToHeadSelection, snapshotData, activeCompetitors, allDates]);
 
-  // Radar chart data (normalized 0-100)
-  const radarData = useMemo(() => {
-    if (headToHeadSelection.length < 2) return [];
-    const selected = headToHeadSelection
-      .map((id) => activeCompetitors.find((c) => c.supabaseId === id))
-      .filter(Boolean);
-
-    // Get latest snapshot for each
-    const latestSnaps = {};
-    selected.forEach((comp) => {
-      const snaps = snapshotData[comp.supabaseId] || [];
-      if (snaps.length > 0) latestSnaps[comp.supabaseId] = snaps[snaps.length - 1];
-    });
-
-    // Calculate growth rate from first to last snapshot
-    const growthRates = {};
-    selected.forEach((comp) => {
-      const snaps = snapshotData[comp.supabaseId] || [];
-      if (snaps.length >= 2) {
-        const first = snaps[0].subscriber_count || 1;
-        const last = snaps[snaps.length - 1].subscriber_count || 0;
-        growthRates[comp.supabaseId] = ((last - first) / first) * 100;
-      } else {
-        growthRates[comp.supabaseId] = 0;
-      }
-    });
-
-    const metrics = [
-      { key: "Subscribers", getter: (s) => s?.subscriber_count || 0 },
-      { key: "Engagement", getter: (s) => (s?.avg_engagement_rate || 0) * 100 },
-      { key: "Frequency", getter: (s) => s?.video_count || 0 },
-      { key: "Content Mix", getter: (s) => {
-        const total = (s?.shorts_count || 0) + (s?.longs_count || 0);
-        return total > 0 ? ((s?.shorts_count || 0) / total) * 100 : 50;
-      }},
-      { key: "Growth", getter: (_, id) => growthRates[id] || 0 },
-    ];
-
-    return metrics.map((m) => {
-      const row = { metric: m.key };
-      const values = selected.map((c) => m.getter(latestSnaps[c.supabaseId], c.supabaseId));
-      const maxVal = Math.max(...values, 1);
-      selected.forEach((comp, i) => {
-        row[comp.supabaseId] = Math.round((values[i] / maxVal) * 100);
-      });
-      return row;
-    });
-  }, [headToHeadSelection, snapshotData, activeCompetitors]);
-
-  // ─── Handlers ──────────────────────────────────────────────────────────────
+  // ─── Handlers ─────────────────────────────────────────────────────────────
 
   const toggleLine = useCallback((key) => {
-    setHiddenLines((prev) => ({ ...prev, [key]: !prev[key] }));
+    setHiddenLines(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
   const toggleH2hSelection = useCallback((supabaseId) => {
-    setHeadToHeadSelection((prev) => {
-      if (prev.includes(supabaseId)) return prev.filter((id) => id !== supabaseId);
+    setHeadToHeadSelection(prev => {
+      if (prev.includes(supabaseId)) return prev.filter(id => id !== supabaseId);
       if (prev.length >= 4) return prev;
       return [...prev, supabaseId];
     });
   }, []);
 
-  // ─── Helper: trend percent ─────────────────────────────────────────────────
-
-  const trendPercent = (arr) => {
-    if (!arr || arr.length < 2) return null;
-    const first = arr[0]?.value;
-    const last = arr[arr.length - 1]?.value;
-    if (!first || first === 0) return null;
-    return ((last - first) / first) * 100;
+  const handleParentSelect = (slug) => {
+    if (selectedParent === slug) {
+      setSelectedParent(null);
+      setSelectedSub(null);
+    } else {
+      setSelectedParent(slug);
+      setSelectedSub(null);
+    }
+    setHiddenLines({});
   };
 
-  // ─── Loading state ─────────────────────────────────────────────────────────
+  const handleSubSelect = (slug) => {
+    if (selectedSub === slug) {
+      setSelectedSub(null);
+    } else {
+      setSelectedSub(slug);
+    }
+    setHiddenLines({});
+  };
+
+  // ─── Loading ──────────────────────────────────────────────────────────────
 
   if (snapshotLoading) {
     return (
@@ -377,17 +393,17 @@ export default function CompetitorTrends({
 
   const hasData = allDates.length >= 2;
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "16px" }}>
 
-      {/* Time Range Selector */}
+      {/* Header with time range */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>
           Competitor Trends
           <span style={{ fontSize: "12px", fontWeight: "400", color: "#888", marginLeft: "8px" }}>
-            {filteredCompetitors.length} channels
+            {filteredCompetitors.length} channels · {chartLabel}
           </span>
         </div>
         <div style={{ display: "flex", gap: "2px" }}>
@@ -401,13 +417,10 @@ export default function CompetitorTrends({
               key={opt.value}
               onClick={() => onTimeRangeChange(opt.value)}
               style={{
-                padding: "5px 12px",
-                fontSize: "11px",
-                fontWeight: "600",
+                padding: "5px 12px", fontSize: "11px", fontWeight: "600",
                 border: `1px solid ${timeRange === opt.value ? "#3b82f6" : "#444"}`,
                 borderLeft: i > 0 ? "none" : undefined,
-                borderRadius:
-                  i === 0 ? "6px 0 0 6px" : i === arr.length - 1 ? "0 6px 6px 0" : "0",
+                borderRadius: i === 0 ? "6px 0 0 6px" : i === arr.length - 1 ? "0 6px 6px 0" : "0",
                 background: timeRange === opt.value ? "rgba(59,130,246,0.15)" : "transparent",
                 color: timeRange === opt.value ? "#3b82f6" : "#888",
                 cursor: "pointer",
@@ -419,25 +432,100 @@ export default function CompetitorTrends({
         </div>
       </div>
 
-      {/* ─── ROW 1: Subscriber Growth Chart ─────────────────────────────────── */}
-      <ChartCard title="Subscriber Growth" hasData={hasData}>
+      {/* ─── Category Zoom Selector ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        {/* Parent category pills */}
+        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+          <button
+            onClick={() => { setSelectedParent(null); setSelectedSub(null); setHiddenLines({}); }}
+            style={{
+              padding: "5px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: "600",
+              border: `1px solid ${!selectedParent ? '#3b82f6' : '#444'}`,
+              background: !selectedParent ? 'rgba(59,130,246,0.15)' : 'transparent',
+              color: !selectedParent ? '#3b82f6' : '#888',
+              cursor: "pointer",
+            }}
+          >
+            All ({activeCompetitors.length})
+          </button>
+          {parentCategories.map(slug => {
+            const cfg = categoryConfig[slug] || {};
+            const children = hierarchy.childrenByParent[slug] || [];
+            const slugs = new Set([slug, ...children]);
+            const count = activeCompetitors.filter(c => slugs.has(c.category)).length;
+            const isActive = selectedParent === slug;
+            return (
+              <button
+                key={slug}
+                onClick={() => handleParentSelect(slug)}
+                style={{
+                  padding: "5px 12px", borderRadius: "8px", fontSize: "11px", fontWeight: "600",
+                  border: `1px solid ${isActive ? cfg.color || '#3b82f6' : '#444'}`,
+                  background: isActive ? `${cfg.color || '#3b82f6'}20` : 'transparent',
+                  color: isActive ? cfg.color || '#3b82f6' : '#888',
+                  cursor: "pointer", whiteSpace: "nowrap",
+                  display: "flex", alignItems: "center", gap: "4px",
+                }}
+              >
+                {cfg.icon && <span style={{ fontSize: "12px" }}>{cfg.icon}</span>}
+                {cfg.label || slug} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Subcategory pills (when parent is selected) */}
+        {selectedParent && subcategories.length > 1 && (
+          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", paddingLeft: "8px" }}>
+            <button
+              onClick={() => { setSelectedSub(null); setHiddenLines({}); }}
+              style={{
+                padding: "4px 10px", borderRadius: "6px", fontSize: "10px", fontWeight: "600",
+                border: `1px solid ${!selectedSub ? '#3b82f6' : '#444'}`,
+                background: !selectedSub ? 'rgba(59,130,246,0.15)' : 'transparent',
+                color: !selectedSub ? '#60a5fa' : '#888',
+                cursor: "pointer",
+              }}
+            >
+              All in {categoryConfig[selectedParent]?.label || selectedParent}
+            </button>
+            {subcategories.map(slug => {
+              const cfg = categoryConfig[slug] || {};
+              const count = activeCompetitors.filter(c => c.category === slug).length;
+              const isActive = selectedSub === slug;
+              return (
+                <button
+                  key={slug}
+                  onClick={() => handleSubSelect(slug)}
+                  style={{
+                    padding: "4px 10px", borderRadius: "6px", fontSize: "10px", fontWeight: "600",
+                    border: `1px solid ${isActive ? cfg.color || '#3b82f6' : '#444'}`,
+                    background: isActive ? `${cfg.color || '#3b82f6'}20` : 'transparent',
+                    color: isActive ? cfg.color || '#3b82f6' : '#888',
+                    cursor: "pointer", whiteSpace: "nowrap",
+                    display: "flex", alignItems: "center", gap: "4px",
+                  }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.color || '#666' }} />
+                  {cfg.label || slug} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ─── Subscriber Growth Chart ─────────────────────────────────────────── */}
+      <ChartCard title="Subscriber Growth" subtitle={
+        zoomLevel === 'categories' ? 'Aggregated by parent category' :
+        zoomLevel === 'subcategories' ? 'Aggregated by subcategory' :
+        'Individual channels'
+      } hasData={hasData}>
         <ResponsiveContainer width="100%" height={400}>
           <LineChart data={subscriberChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CT.grid} />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 11, fill: CT.axis }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={formatDateAxis}
-            />
-            <YAxis
-              tickFormatter={fmtCompact}
-              tick={{ fontSize: 11, fill: CT.axis }}
-              axisLine={false}
-              tickLine={false}
-              width={55}
-            />
+            <XAxis dataKey="date" tick={{ fontSize: 11, fill: CT.axis }} axisLine={false} tickLine={false} tickFormatter={formatDateAxis} />
+            <YAxis tickFormatter={fmtCompact} tick={{ fontSize: 11, fill: CT.axis }} axisLine={false} tickLine={false} width={55} />
             <Tooltip
               contentStyle={tooltipStyle}
               formatter={(value, name) => [fmtCompact(value), nameMap[name] || name]}
@@ -447,107 +535,74 @@ export default function CompetitorTrends({
               onClick={(e) => toggleLine(e.dataKey)}
               wrapperStyle={{ cursor: "pointer", fontSize: "11px", paddingTop: "8px" }}
               formatter={(value, entry) => (
-                <span style={{ color: hiddenLines[entry.dataKey] ? "#555" : entry.color, textDecoration: hiddenLines[entry.dataKey] ? "line-through" : "none" }}>
+                <span style={{
+                  color: hiddenLines[entry.dataKey] ? "#555" : entry.color,
+                  textDecoration: hiddenLines[entry.dataKey] ? "line-through" : "none",
+                }}>
                   {nameMap[entry.dataKey] || value}
                 </span>
               )}
             />
-            {filteredCompetitors
-              .filter((c) => c.supabaseId)
-              .map((comp) => {
-                const catCfg = CATEGORY_CONFIG[comp.category] || {};
-                const isYours = comp.id === yourChannelId;
-                return (
-                  <Line
-                    key={comp.supabaseId}
-                    dataKey={comp.supabaseId}
-                    name={comp.supabaseId}
-                    stroke={isYours ? CT.yourColor : catCfg.color || "#666"}
-                    strokeWidth={isYours ? CT.yourWidth : CT.compWidth}
-                    dot={false}
-                    connectNulls
-                    hide={hiddenLines[comp.supabaseId]}
-                  />
-                );
-              })}
+            {chartLines.map(line => (
+              <Line
+                key={line.key}
+                dataKey={line.key}
+                name={line.key}
+                stroke={line.color}
+                strokeWidth={line.width}
+                dot={false}
+                connectNulls
+                hide={hiddenLines[line.key]}
+              />
+            ))}
           </LineChart>
         </ResponsiveContainer>
       </ChartCard>
 
-      {/* ─── ROW 2: Engagement Trend (Top 5 + Your Channel) ─────────────────── */}
-      <ChartCard title="Engagement Trend" subtitle="Top 5 by engagement + your channel" hasData={hasData}>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={engagementChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CT.grid} />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 11, fill: CT.axis }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={formatDateAxis}
-            />
-            <YAxis
-              tickFormatter={(v) => `${(v * 100).toFixed(1)}%`}
-              tick={{ fontSize: 11, fill: CT.axis }}
-              axisLine={false}
-              tickLine={false}
-              width={50}
-            />
-            {engagementBand.p25 !== engagementBand.p75 && (
-              <ReferenceArea
-                y1={engagementBand.p25}
-                y2={engagementBand.p75}
-                fill="#10b981"
-                fillOpacity={0.08}
-                label={{ value: "Healthy range", fill: "#10b981", fontSize: 10, position: "insideTopRight" }}
+      {/* ─── Engagement Trend (channel level only) ───────────────────────────── */}
+      {zoomLevel === 'channels' && (
+        <ChartCard title="Engagement Trend" subtitle="Top 5 by engagement" hasData={hasData}>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={engagementChartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CT.grid} />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: CT.axis }} axisLine={false} tickLine={false} tickFormatter={formatDateAxis} />
+              <YAxis tickFormatter={(v) => `${(v * 100).toFixed(1)}%`} tick={{ fontSize: 11, fill: CT.axis }} axisLine={false} tickLine={false} width={50} />
+              {engagementBand.p25 !== engagementBand.p75 && (
+                <ReferenceArea y1={engagementBand.p25} y2={engagementBand.p75} fill="#10b981" fillOpacity={0.08}
+                  label={{ value: "Healthy range", fill: "#10b981", fontSize: 10, position: "insideTopRight" }}
+                />
+              )}
+              <Tooltip contentStyle={tooltipStyle}
+                formatter={(value, name) => [`${(value * 100).toFixed(2)}%`, nameMap[name] || name]}
+                labelFormatter={formatTooltipDate}
               />
-            )}
-            <Tooltip
-              contentStyle={tooltipStyle}
-              formatter={(value, name) => [`${(value * 100).toFixed(2)}%`, nameMap[name] || name]}
-              labelFormatter={formatTooltipDate}
-            />
-            <Legend
-              wrapperStyle={{ fontSize: "11px" }}
-              formatter={(value) => nameMap[value] || value}
-            />
-            {(() => {
-              // Show only top 5 by avg engagement + your channel
-              const withEngagement = filteredCompetitors
-                .filter((c) => c.supabaseId && c.engagementRate > 0)
-                .sort((a, b) => (b.engagementRate || 0) - (a.engagementRate || 0));
-              const yours = filteredCompetitors.find((c) => c.id === yourChannelId);
-              const top5 = withEngagement.slice(0, 5);
-              // Ensure your channel is included even if not in top 5
-              const toShow = yours && !top5.find((c) => c.id === yours.id)
-                ? [...top5, yours]
-                : top5;
-              return toShow
-                .filter((c) => c.supabaseId)
-                .map((comp) => {
-                  const catCfg = CATEGORY_CONFIG[comp.category] || {};
+              <Legend wrapperStyle={{ fontSize: "11px" }} formatter={(value) => nameMap[value] || value} />
+              {(() => {
+                const withEng = filteredCompetitors.filter(c => c.supabaseId && c.engagementRate > 0)
+                  .sort((a, b) => (b.engagementRate || 0) - (a.engagementRate || 0));
+                const yours = filteredCompetitors.find(c => c.id === yourChannelId);
+                const top5 = withEng.slice(0, 5);
+                const toShow = yours && !top5.find(c => c.id === yours.id) ? [...top5, yours] : top5;
+                return toShow.filter(c => c.supabaseId).map(comp => {
                   const isYours = comp.id === yourChannelId;
+                  const catCfg = categoryConfig[comp.category] || {};
                   return (
-                    <Line
-                      key={comp.supabaseId}
-                      dataKey={comp.supabaseId}
-                      name={comp.supabaseId}
+                    <Line key={comp.supabaseId} dataKey={comp.supabaseId} name={comp.supabaseId}
                       stroke={isYours ? CT.yourColor : catCfg.color || "#666"}
                       strokeWidth={isYours ? CT.yourWidth : CT.compWidth}
-                      dot={false}
-                      connectNulls
+                      dot={false} connectNulls
                     />
                   );
                 });
-            })()}
-          </LineChart>
-        </ResponsiveContainer>
-      </ChartCard>
+              })()}
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      )}
 
-      {/* ─── ROW 4: Head-to-Head Comparison ─────────────────────────────────── */}
+      {/* ─── Head-to-Head Comparison ─────────────────────────────────────────── */}
       <ChartCard title="Head-to-Head Comparison" hasData={true} noPad>
         <div style={{ padding: "16px 20px 0" }}>
-          {/* Multi-select dropdown */}
           <div style={{ position: "relative", marginBottom: "16px" }}>
             <button
               onClick={() => setH2hDropdownOpen(!h2hDropdownOpen)}
@@ -558,9 +613,7 @@ export default function CompetitorTrends({
                 minWidth: "220px",
               }}
             >
-              {headToHeadSelection.length === 0
-                ? "Select 2-4 competitors..."
-                : `${headToHeadSelection.length} selected`}
+              {headToHeadSelection.length === 0 ? "Select 2-4 competitors..." : `${headToHeadSelection.length} selected`}
               <ChevronDown size={12} style={{ marginLeft: "auto" }} />
             </button>
             {h2hDropdownOpen && (
@@ -570,20 +623,19 @@ export default function CompetitorTrends({
                 marginTop: "4px", maxHeight: "240px", overflowY: "auto", minWidth: "280px",
                 boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
               }}>
-                {filteredCompetitors.filter(c => c.supabaseId).map((comp) => {
+                {filteredCompetitors.filter(c => c.supabaseId).map(comp => {
                   const selected = headToHeadSelection.includes(comp.supabaseId);
-                  const catCfg = CATEGORY_CONFIG[comp.category] || {};
+                  const catCfg = categoryConfig[comp.category] || {};
                   return (
-                    <div
-                      key={comp.supabaseId}
+                    <div key={comp.supabaseId}
                       onClick={() => toggleH2hSelection(comp.supabaseId)}
                       style={{
                         display: "flex", alignItems: "center", gap: "8px",
                         padding: "8px 12px", cursor: "pointer",
                         background: selected ? "rgba(59,130,246,0.1)" : "transparent",
                       }}
-                      onMouseOver={(e) => (e.currentTarget.style.background = selected ? "rgba(59,130,246,0.15)" : "#2a2a2a")}
-                      onMouseOut={(e) => (e.currentTarget.style.background = selected ? "rgba(59,130,246,0.1)" : "transparent")}
+                      onMouseOver={e => e.currentTarget.style.background = selected ? "rgba(59,130,246,0.15)" : "#2a2a2a"}
+                      onMouseOut={e => e.currentTarget.style.background = selected ? "rgba(59,130,246,0.1)" : "transparent"}
                     >
                       <div style={{
                         width: "16px", height: "16px", borderRadius: "4px",
@@ -601,7 +653,6 @@ export default function CompetitorTrends({
               </div>
             )}
           </div>
-
           {headToHeadSelection.length < 2 && (
             <div style={{ textAlign: "center", padding: "32px 0", color: "#666", fontSize: "13px" }}>
               Select at least 2 competitors to compare
@@ -611,16 +662,14 @@ export default function CompetitorTrends({
 
         {headToHeadSelection.length >= 2 && (
           <div>
-            {/* Metric tabs */}
             <div style={{ display: "flex", borderBottom: "1px solid #333", padding: "0 20px" }}>
               {[
                 { key: "subscribers", label: "Subscribers" },
                 { key: "views", label: "Total Views" },
                 { key: "videos", label: "Video Count" },
                 { key: "contentMix", label: "Content Mix" },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
+              ].map(tab => (
+                <button key={tab.key}
                   onClick={() => setActiveChartTab(tab.key)}
                   style={{
                     padding: "10px 16px", background: "transparent", border: "none",
@@ -634,34 +683,26 @@ export default function CompetitorTrends({
               ))}
             </div>
 
-            {/* Content Mix bar chart */}
             {activeChartTab === "contentMix" && (
               <div style={{ padding: "16px 20px" }}>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart
-                    data={(() => {
-                      const selected = headToHeadSelection
-                        .map((id) => activeCompetitors.find((c) => c.supabaseId === id))
-                        .filter(Boolean);
-                      return selected.map((comp) => {
-                        const snaps = snapshotData[comp.supabaseId] || [];
-                        const latest = snaps[snaps.length - 1];
-                        return {
-                          name: comp.name?.length > 15 ? comp.name.slice(0, 15) + "…" : comp.name,
-                          fullName: comp.name,
-                          shorts: latest?.shorts_count || 0,
-                          longs: latest?.longs_count || 0,
-                        };
-                      });
-                    })()}
+                    data={headToHeadSelection.map(id => activeCompetitors.find(c => c.supabaseId === id)).filter(Boolean).map(comp => {
+                      const snaps = snapshotData[comp.supabaseId] || [];
+                      const latest = snaps[snaps.length - 1];
+                      return {
+                        name: comp.name?.length > 15 ? comp.name.slice(0, 15) + "…" : comp.name,
+                        fullName: comp.name,
+                        shorts: latest?.shorts_count || 0,
+                        longs: latest?.longs_count || 0,
+                      };
+                    })}
                     margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CT.grid} />
                     <XAxis dataKey="name" tick={{ fontSize: 10, fill: CT.axis }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: CT.axis }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={tooltipStyle}
-                      formatter={(value, name) => [fmtInt(value), name]}
+                    <Tooltip contentStyle={tooltipStyle} formatter={(value, name) => [fmtInt(value), name]}
                       labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
                     />
                     <Legend wrapperStyle={{ fontSize: "11px" }} />
@@ -672,7 +713,6 @@ export default function CompetitorTrends({
               </div>
             )}
 
-            {/* Overlaid line chart (for subscribers, views, videos tabs) */}
             {activeChartTab !== "contentMix" && (
               <div style={{ padding: "16px 20px" }}>
                 <ResponsiveContainer width="100%" height={300}>
@@ -690,19 +730,13 @@ export default function CompetitorTrends({
                       const id = value.replace(/_subs$|_views$|_vids$/, "");
                       return nameMap[id] || value;
                     }} />
-                    {headToHeadSelection.map((supabaseId) => {
+                    {headToHeadSelection.map(supabaseId => {
                       const comp = compBySupabaseId[supabaseId];
-                      const catCfg = comp ? CATEGORY_CONFIG[comp.category] || {} : {};
+                      const catCfg = comp ? categoryConfig[comp.category] || {} : {};
                       const suffix = activeChartTab === "subscribers" ? "_subs" : activeChartTab === "views" ? "_views" : "_vids";
                       return (
-                        <Line
-                          key={supabaseId}
-                          dataKey={supabaseId + suffix}
-                          name={supabaseId + suffix}
-                          stroke={catCfg.color || "#666"}
-                          strokeWidth={2}
-                          dot={false}
-                          connectNulls
+                        <Line key={supabaseId} dataKey={supabaseId + suffix} name={supabaseId + suffix}
+                          stroke={catCfg.color || "#666"} strokeWidth={2} dot={false} connectNulls
                         />
                       );
                     })}
@@ -710,24 +744,19 @@ export default function CompetitorTrends({
                 </ResponsiveContainer>
               </div>
             )}
-
           </div>
         )}
       </ChartCard>
-
     </div>
   );
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+// ─── Sub-components ─────────────────────────────────────────────────────────
 
 function ChartCard({ title, subtitle, hasData, noPad, children }) {
   if (!hasData) {
     return (
-      <div style={{
-        background: CT.bg, border: CT.cardBorder, borderRadius: CT.cardRadius,
-        padding: "48px 24px", textAlign: "center",
-      }}>
+      <div style={{ background: CT.bg, border: CT.cardBorder, borderRadius: CT.cardRadius, padding: "48px 24px", textAlign: "center" }}>
         <TrendingUp size={32} style={{ color: "#333", margin: "0 auto 12px" }} />
         <div style={{ fontSize: "14px", color: "#888", marginBottom: "6px" }}>{title}</div>
         <div style={{ fontSize: "12px", color: "#666" }}>
@@ -738,10 +767,7 @@ function ChartCard({ title, subtitle, hasData, noPad, children }) {
   }
 
   return (
-    <div style={{
-      background: CT.bg, border: CT.cardBorder, borderRadius: CT.cardRadius,
-      overflow: "hidden",
-    }}>
+    <div style={{ background: CT.bg, border: CT.cardBorder, borderRadius: CT.cardRadius, overflow: "hidden" }}>
       <div style={{ padding: noPad ? "16px 20px 0" : "16px 20px" }}>
         <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: subtitle ? "2px" : "12px" }}>
           {title}
@@ -756,4 +782,3 @@ function ChartCard({ title, subtitle, hasData, noPad, children }) {
     </div>
   );
 }
-
