@@ -74,15 +74,18 @@ import ClientPositionCard from './ClientPositionCard';
 
 // Simple error boundary to prevent section crashes from taking down the whole page
 class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
-  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  constructor(props) { super(props); this.state = { hasError: false, errorMsg: '' }; }
+  static getDerivedStateFromError(error) {
+    const msg = typeof error === 'string' ? error : (error?.message || String(error));
+    return { hasError: true, errorMsg: msg };
+  }
   componentDidCatch(error, info) { console.error('[ErrorBoundary]', error, info); }
   render() {
     if (this.state.hasError) {
       return (
         <div style={{ padding: '16px', background: '#2d1b1b', border: '1px solid #7f1d1d', borderRadius: '8px', marginBottom: '16px' }}>
           <div style={{ fontSize: '12px', color: '#fca5a5' }}>Something went wrong loading this section.</div>
-          <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>{this.state.error?.message}</div>
+          <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>{String(this.state.errorMsg)}</div>
         </div>
       );
     }
@@ -1770,7 +1773,7 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
             background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
             borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between",
           }}>
-            <span style={{ fontSize: "12px", color: "#fca5a5" }}>{error}</span>
+            <span style={{ fontSize: "12px", color: "#fca5a5" }}>{typeof error === 'string' ? error : String(error)}</span>
             <button
               onClick={() => setError("")}
               style={{ background: "transparent", border: "none", color: "#fca5a5", cursor: "pointer", padding: "2px" }}
@@ -1911,7 +1914,7 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
 
             {error && (
               <div className="alert error" style={{ marginTop: "6px", padding: "6px 10px", fontSize: "11px", marginBottom: 0 }}>
-                {error}
+                {typeof error === 'string' ? error : String(error)}
               </div>
             )}
           </div>
