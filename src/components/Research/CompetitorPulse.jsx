@@ -423,25 +423,17 @@ export default function CompetitorPulse({
     }
   }, [groupedCompetitors, categoryConfig]);
 
+  // Render lanes as plain text to find which one crashes
   return (
-    <>
-      <div style={{ padding: '20px', color: '#888', fontSize: '12px' }}>
-        Competitor Pulse: {activeCompetitors.length} competitors, {parentLanes.length} lanes, {Object.keys(latestVideos).length} videos loaded
+    <div>
+      <div style={{ padding: '12px 20px', color: '#888', fontSize: '12px', background: '#1E1E1E', borderRadius: '8px', marginBottom: '12px' }}>
+        Debug: {String(activeCompetitors.length)} competitors, {String(parentLanes.length)} lanes
       </div>
-      <CategoryComparisonSelector
-        lanes={parentLanes}
-        onChannelClick={onChannelClick}
-        onFilterChange={() => {}}
-      />
-      <CategoryLanes
-        lanes={parentLanes}
-        onChannelClick={onChannelClick}
-        expandedCategory={expandedHubCategory}
-        onExpandCategory={onExpandCategory}
-        latestVideos={latestVideos}
-        subDeltas={subDeltas}
-      />
-      <ActivityFeed activeCompetitors={activeCompetitors} categoryConfig={categoryConfig} />
-    </>
+      {parentLanes.map((lane, i) => (
+        <div key={String(lane.key || i)} style={{ padding: '8px 20px', color: '#ccc', fontSize: '11px', borderBottom: '1px solid #333' }}>
+          Lane {String(i)}: key={String(lane.key)} label={String(lane.config?.label)} icon={String(lane.config?.icon)} channels={String(lane.channelCount)} subs={String(lane.subcategories?.length)}
+        </div>
+      ))}
+    </div>
   );
 }
