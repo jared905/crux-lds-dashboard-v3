@@ -193,34 +193,110 @@ export async function deleteChannel(channelId) {
 }
 
 /**
- * Unlink a channel from a specific client (sets client_id to null).
- * The channel and its videos remain in the database for other clients or master view.
+ * Unlink a channel from a specific client.
+ * Removes from client_channels junction table. Channel stays in master.
  */
-export async function unlinkChannelFromClient(channelId) {
+export async function unlinkChannelFromClient(channelId, clientId) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  // Remove from junction table
+  const { error } = await supabase
+    .from('client_channels')
+    .delete()
+    .eq('channel_id', channelId)
+    .eq('client_id', clientId);
+
+  if (error) {
+    // Fallback: clear legacy client_id
+    await supabase.from('channels').update({ client_id: null }).eq('id', channelId);
+  }
+}
+
+/**
+ * Unlink all channels matching a category from a client.
+ */
+export async function unlinkCategoryFromClient(categorySlug, clientId) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  // Get channel IDs in this category
+  const { data: channels } = await supabase
+    .from('channels')
+    .select('id')
+    .eq('category', categorySlug)
+    .eq('is_competitor', true);
+
+  if (channels?.length > 0) {
+    const channelIds = channels.map(c => c.id);
+    await supabase
+      .from('client_channels')
+      .delete()
+      .in('channel_id', channelIds)
+      .eq('client_id', clientId);
+  }
+}
+
+/**
+ * Assign a channel to a client (adds to junction table).
+ * Does not remove from any other client.
+ */
+export async function assignChannelToClient(channelId, clientId) {
   if (!supabase) throw new Error('Supabase not configured');
 
   const { error } = await supabase
-    .from('channels')
-    .update({ client_id: null })
-    .eq('id', channelId);
+    .from('client_channels')
+    .upsert({ channel_id: channelId, client_id: clientId }, { onConflict: 'client_id,channel_id' });
 
   if (error) throw error;
 }
 
 /**
- * Unlink all channels matching a category + client_id from that client.
+ * Bulk assign channels to a client.
  */
-export async function unlinkCategoryFromClient(categorySlug, clientId) {
+export async function bulkAssignChannelsToClient(channelIds, clientId) {
   if (!supabase) throw new Error('Supabase not configured');
+  if (!channelIds.length) return;
 
+  const rows = channelIds.map(channelId => ({ channel_id: channelId, client_id: clientId }));
   const { error } = await supabase
-    .from('channels')
-    .update({ client_id: null })
-    .eq('category', categorySlug)
-    .eq('client_id', clientId)
-    .eq('is_competitor', true);
+    .from('client_channels')
+    .upsert(rows, { onConflict: 'client_id,channel_id' });
 
   if (error) throw error;
+}
+
+/**
+ * Get channels assigned to a specific client (via junction table).
+ * Falls back to legacy client_id query if junction table is empty.
+ */
+export async function getClientChannels(clientId, { isCompetitor = true } = {}) {
+  if (!supabase) throw new Error('Supabase not configured');
+
+  // Try junction table first
+  const { data: junctionData, error: jError } = await supabase
+    .from('client_channels')
+    .select('channel_id, channels(*)')
+    .eq('client_id', clientId);
+
+  if (!jError && junctionData?.length > 0) {
+    let channels = junctionData.map(j => j.channels).filter(Boolean);
+    if (typeof isCompetitor === 'boolean') {
+      channels = channels.filter(c => c.is_competitor === isCompetitor);
+    }
+    return channels;
+  }
+
+  // Fallback: legacy client_id column
+  let query = supabase
+    .from('channels')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('name');
+
+  if (typeof isCompetitor === 'boolean') query = query.eq('is_competitor', isCompetitor);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
 }
 
 // ============================================
@@ -955,6 +1031,9 @@ export default {
   deleteChannel,
   unlinkChannelFromClient,
   unlinkCategoryFromClient,
+  assignChannelToClient,
+  bulkAssignChannelsToClient,
+  getClientChannels,
 
   // Videos
   getVideos,

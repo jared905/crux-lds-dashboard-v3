@@ -318,12 +318,17 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     const loadFromSupabase = async () => {
       setSupabaseLoading(true);
       try {
-        const { getChannels } = await import('../../services/competitorDatabase');
-        const channels = await getChannels({
-          clientId: masterView ? undefined : activeClient?.id,
-          isCompetitor: true
-        });
-        setSupabaseCompetitors(channels || []);
+        if (masterView) {
+          // Master: all competitor channels
+          const { getChannels } = await import('../../services/competitorDatabase');
+          const channels = await getChannels({ isCompetitor: true });
+          setSupabaseCompetitors(channels || []);
+        } else {
+          // Client: only channels assigned via junction table
+          const { getClientChannels } = await import('../../services/competitorDatabase');
+          const channels = await getClientChannels(activeClient.id, { isCompetitor: true });
+          setSupabaseCompetitors(channels || []);
+        }
       } catch (err) {
         console.error('[Competitors] Failed to load from Supabase:', err);
       } finally {
@@ -354,12 +359,15 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   // Helper to reload Supabase competitors after mutations
   const reloadSupabaseCompetitors = useCallback(async () => {
     try {
-      const { getChannels } = await import('../../services/competitorDatabase');
-      const channels = await getChannels({
-        clientId: masterView ? undefined : activeClient?.id,
-        isCompetitor: true
-      });
-      setSupabaseCompetitors(channels || []);
+      if (masterView) {
+        const { getChannels } = await import('../../services/competitorDatabase');
+        const channels = await getChannels({ isCompetitor: true });
+        setSupabaseCompetitors(channels || []);
+      } else {
+        const { getClientChannels } = await import('../../services/competitorDatabase');
+        const channels = await getClientChannels(activeClient?.id, { isCompetitor: true });
+        setSupabaseCompetitors(channels || []);
+      }
     } catch (err) {
       console.error('[Competitors] Failed to reload from Supabase:', err);
     }
@@ -815,13 +823,13 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     }
   };
 
-  // Unlink a single channel from the current client (keeps channel in DB)
+  // Unlink a single channel from the current client (keeps channel in master)
   const unlinkCompetitorFromClient = async (id) => {
     try {
       const comp = activeCompetitors.find(c => c.id === id);
-      if (!comp?.supabaseId) return;
+      if (!comp?.supabaseId || !activeClient?.id) return;
       const { unlinkChannelFromClient } = await import('../../services/competitorDatabase');
-      await unlinkChannelFromClient(comp.supabaseId);
+      await unlinkChannelFromClient(comp.supabaseId, activeClient.id);
       if (selectedChannelId === id) setSelectedChannelId(null);
       await reloadSupabaseCompetitors();
     } catch (err) {
@@ -1203,7 +1211,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
 
     setBulkAssignLoading(true);
     try {
-      const { supabase } = await import('../../services/supabaseClient');
+      const { bulkAssignChannelsToClient } = await import('../../services/competitorDatabase');
 
       // Find all competitors matching the selected categories
       const competitorsToUpdate = activeCompetitors.filter(c =>
@@ -1214,7 +1222,6 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         return { success: 0, failed: 0 };
       }
 
-      // Get Supabase IDs
       const supabaseIds = competitorsToUpdate
         .map(c => c.supabaseId)
         .filter(Boolean);
@@ -1223,14 +1230,8 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
         return { success: 0, failed: 0 };
       }
 
-      // Update all matching channels
-      const { error } = await supabase
-        .from('channels')
-        .update({ client_id: targetClientId })
-        .in('id', supabaseIds);
-
-      if (error) throw error;
-
+      // Assign via junction table (doesn't remove from other clients)
+      await bulkAssignChannelsToClient(supabaseIds, targetClientId);
       await reloadSupabaseCompetitors();
 
       return { success: supabaseIds.length, failed: 0 };
