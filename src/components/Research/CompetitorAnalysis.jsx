@@ -70,6 +70,7 @@ const CompetitorLeaderboard = lazy(() => import('./CompetitorLeaderboard'));
 const CompetitorPulse = lazy(() => import('./CompetitorPulse'));
 const CommandCenter = lazy(() => import('./CommandCenter'));
 const CategoryManager = lazy(() => import('./CategoryManager'));
+import ClientPositionCard from './ClientPositionCard';
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -1892,120 +1893,17 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       </div>
       </AnimatedSection>
 
-      {/* ── SECTION 2: KPI STRIP ── */}
-      {activeCompetitors.length > 0 && yourStats && (
+      {/* ── SECTION 2: CLIENT POSITION (Client View) or nothing (Master View) ── */}
+      {activeCompetitors.length > 0 && !masterView && yourStats && (
         <AnimatedSection delay={0.05}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "16px" }}>
-          {/* Rank */}
-          <div className="page-section section-card" style={{ padding: "16px", borderTop: "3px solid #3b82f6", borderRadius: "10px", marginBottom: 0 }}>
-            <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600", marginBottom: "8px" }}>
-              Rank
-            </div>
-            <div style={{ fontSize: "28px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
-              #{(() => {
-                const allChannels = [
-                  { subs: yourStats.totalSubscribers, isYou: true },
-                  ...activeCompetitors.map(c => ({ subs: c.subscriberCount, isYou: false }))
-                ].sort((a, b) => b.subs - a.subs);
-                return allChannels.findIndex(c => c.isYou) + 1;
-              })()}
-            </div>
-            <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
-              of {activeCompetitors.length + 1} channels
-            </div>
-          </div>
-
-          {/* Gap to Leader */}
-          <div className="page-section section-card" style={{ padding: "16px", borderTop: "3px solid #f59e0b", borderRadius: "10px", marginBottom: 0 }}>
-            <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600", marginBottom: "8px" }}>
-              Gap to #1
-            </div>
-            {(() => {
-              const leaderSubs = Math.max(...activeCompetitors.map(c => c.subscriberCount));
-              const gap = yourStats.totalSubscribers - leaderSubs;
-              const isLeader = gap >= 0;
-              return (
-                <>
-                  <div style={{ fontSize: "28px", fontWeight: "700", color: isLeader ? "#10b981" : "#f59e0b", fontFamily: "'Barlow Condensed', sans-serif" }}>
-                    {isLeader ? "Leader" : fmtInt(gap)}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
-                    {isLeader ? "You're #1 by subs" : "subscribers behind"}
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-
-          {/* Momentum */}
-          <div className="page-section section-card" style={{ padding: "16px", borderTop: "3px solid #8b5cf6", borderRadius: "10px", marginBottom: 0 }}>
-            <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600", marginBottom: "8px" }}>
-              Momentum
-            </div>
-            {(() => {
-              const yourUploadFreq = yourStats.videosLast30Days;
-              const avgCompetitorFreq = activeCompetitors.reduce((sum, c) => sum + (c.uploadsLast30Days || 0), 0) / activeCompetitors.length;
-              const isAhead = yourUploadFreq > avgCompetitorFreq;
-              return (
-                <>
-                  <div style={{ fontSize: "28px", fontWeight: "700", color: isAhead ? "#10b981" : "#f59e0b", fontFamily: "'Barlow Condensed', sans-serif" }}>
-                    {yourUploadFreq}/mo
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
-                    {isAhead ? "Above" : "Below"} avg ({avgCompetitorFreq.toFixed(1)}/mo)
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-
-          {/* Views Performance */}
-          <div className="page-section section-card" style={{ padding: "16px", borderTop: "3px solid #10b981", borderRadius: "10px", marginBottom: 0 }}>
-            <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600", marginBottom: "8px" }}>
-              Views vs Avg
-            </div>
-            {(() => {
-              const yourAvgViews = yourStats.avgViewsPerVideo;
-              const avgCompetitorViews = activeCompetitors.reduce((sum, c) => sum + (c.avgViewsPerVideo || 0), 0) / activeCompetitors.length;
-              const isAhead = yourAvgViews > avgCompetitorViews;
-              const diff = avgCompetitorViews > 0 ? ((yourAvgViews / avgCompetitorViews - 1) * 100).toFixed(0) : 0;
-              return (
-                <>
-                  <div style={{ fontSize: "28px", fontWeight: "700", color: isAhead ? "#10b981" : "#f59e0b", fontFamily: "'Barlow Condensed', sans-serif" }}>
-                    {isAhead ? "+" : ""}{diff}%
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
-                    vs competitor avg
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        </div>
-        </AnimatedSection>
-      )}
-
-      {/* ── COMMAND CENTER (Client View Only) ── */}
-      {activeCompetitors.length > 0 && !masterView && (
-        <Suspense fallback={null}>
-          <CommandCenter
+          <ClientPositionCard
             activeCompetitors={activeCompetitors}
-            rows={rows}
-            activeClient={activeClient}
             yourStats={yourStats}
-            benchmarks={benchmarks}
             categoryConfig={categoryConfig}
-            outliers={outliers}
-            outliersLoading={outliersLoading}
-            outlierDays={outlierDays}
-            setOutlierDays={setOutlierDays}
-            outlierMinMultiplier={outlierMinMultiplier}
-            setOutlierMinMultiplier={setOutlierMinMultiplier}
-            fetchOutliers={fetchOutliers}
-            handleViewInsight={handleViewInsight}
-            onSelectChannel={(id) => setSelectedChannelId(id)}
+            onChannelClick={(id) => { setSelectedChannelId(id); setDrawerTab('overview'); }}
+            onViewChange={(view) => setViewMode(view)}
           />
-        </Suspense>
+        </AnimatedSection>
       )}
 
       {/* ── COMPETITOR ROSTER ── */}
