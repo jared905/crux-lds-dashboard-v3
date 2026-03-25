@@ -229,7 +229,7 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
           <div style="font-size:13px;color:#aaa;">
             ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
           </div>
-          <div style="margin-top:60px;font-size:12px;color:#bbb;">Full View Analytics · Powered by CRUX</div>
+          <div style="margin-top:60px;font-size:12px;color:#bbb;">Full View Analytics · A Product of Crux Media</div>
         </div>
       `));
 
