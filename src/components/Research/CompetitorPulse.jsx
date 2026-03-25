@@ -396,10 +396,32 @@ export default function CompetitorPulse({
     return () => { cancelled = true; };
   }, [activeCompetitors]);
 
-  const parentLanes = useMemo(
-    () => buildParentLanes(groupedCompetitors, categoryConfig),
-    [groupedCompetitors, categoryConfig]
-  );
+  const parentLanes = useMemo(() => {
+    try {
+      const lanes = buildParentLanes(groupedCompetitors, categoryConfig);
+      // Verify all lanes have string labels and icons
+      lanes.forEach(lane => {
+        if (lane.config && typeof lane.config.label !== 'string') {
+          console.error('[Pulse] NON-STRING lane label:', lane.key, lane.config.label, typeof lane.config.label);
+          lane.config.label = String(lane.config.label || lane.key || 'Unknown');
+        }
+        if (lane.config && typeof lane.config.icon !== 'string') {
+          console.error('[Pulse] NON-STRING lane icon:', lane.key, lane.config.icon, typeof lane.config.icon);
+          lane.config.icon = '📁';
+        }
+        (lane.subcategories || []).forEach(sub => {
+          if (typeof sub.label !== 'string') {
+            console.error('[Pulse] NON-STRING sub label:', sub.key, sub.label, typeof sub.label);
+            sub.label = String(sub.label || sub.key || 'Unknown');
+          }
+        });
+      });
+      return lanes;
+    } catch (e) {
+      console.error('[Pulse] buildParentLanes crashed:', e);
+      return [];
+    }
+  }, [groupedCompetitors, categoryConfig]);
 
   return (
     <>
