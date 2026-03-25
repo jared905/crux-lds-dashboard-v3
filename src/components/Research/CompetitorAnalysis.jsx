@@ -1990,23 +1990,13 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
         </div>
       )}
 
-      {/* 3B: Pulse View (Category Lanes + Activity Feed) */}
+      {/* 3B: Pulse View — DISABLED FOR DEBUGGING */}
       {activeCompetitors.length > 0 && viewMode === 'hubs' && (
-        <Suspense fallback={
-          <div className="page-section" style={{ padding: "64px 24px", textAlign: "center", marginBottom: "16px" }}>
-            <Loader size={32} style={{ color: "#555", margin: "0 auto 12px", animation: "spin 1s linear infinite" }} />
-            <div style={{ fontSize: "14px", color: "#888" }}>Loading...</div>
+        <div className="page-section" style={{ padding: "24px", marginBottom: "16px" }}>
+          <div style={{ color: "#888", fontSize: "13px" }}>
+            Pulse view disabled for debugging. {activeCompetitors.length} competitors loaded. Switch to Leaderboard or Trends.
           </div>
-        }>
-          <CompetitorPulse
-            activeCompetitors={activeCompetitors}
-            groupedCompetitors={groupedCompetitors}
-            categoryConfig={categoryConfig}
-            expandedHubCategory={expandedHubCategory}
-            onExpandCategory={setExpandedHubCategory}
-            onChannelClick={(id) => { setSelectedChannelId(id); setDrawerTab('overview'); }}
-          />
-        </Suspense>
+        </div>
       )}
 
       {/* 3C: Leaderboard View */}
