@@ -53,10 +53,10 @@ const FEATURES = [
 ];
 
 const STATS = [
-  { value: '3B+', label: 'Views Managed' },
-  { value: '15+', label: 'Years Experience' },
-  { value: '239+', label: 'Channels Tracked' },
-  { value: '24/7', label: 'Automated Sync' },
+  { value: 'Daily Sync', label: 'Automated Tracking' },
+  { value: '239+', label: 'Channels Monitored' },
+  { value: 'AI Audits', label: 'Content Gap Analysis' },
+  { value: '1-Click', label: 'Client-Ready Reports' },
 ];
 
 export default function HomePage({ onSignIn }) {
