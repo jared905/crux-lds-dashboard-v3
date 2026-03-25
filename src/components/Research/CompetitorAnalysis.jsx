@@ -72,22 +72,16 @@ const CommandCenter = lazy(() => import('./CommandCenter'));
 const CategoryManager = lazy(() => import('./CategoryManager'));
 import ClientPositionCard from './ClientPositionCard';
 
-// Simple error boundary to prevent section crashes from taking down the whole page
+// Simple error boundary
 class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { hasError: false, errorMsg: '' }; }
-  static getDerivedStateFromError(error) {
-    const msg = typeof error === 'string' ? error : (error?.message || String(error));
-    return { hasError: true, errorMsg: msg };
-  }
-  componentDidCatch(error, info) { console.error('[ErrorBoundary]', error, info); }
+  constructor(props) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error, info) { console.error('[ErrorBoundary] Caught:', error, info); }
   render() {
     if (this.state.hasError) {
-      return (
-        <div style={{ padding: '16px', background: '#2d1b1b', border: '1px solid #7f1d1d', borderRadius: '8px', marginBottom: '16px' }}>
-          <div style={{ fontSize: '12px', color: '#fca5a5' }}>Something went wrong loading this section.</div>
-          <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>{String(this.state.errorMsg)}</div>
-        </div>
-      );
+      return React.createElement('div', {
+        style: { padding: '16px', background: '#2d1b1b', border: '1px solid #7f1d1d', borderRadius: '8px', marginBottom: '16px', fontSize: '12px', color: '#fca5a5' }
+      }, 'Something went wrong loading this section. Check browser console for details.');
     }
     return this.props.children;
   }
