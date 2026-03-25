@@ -156,7 +156,7 @@ const INDUSTRY_FILTERS = [
   { id: 'tech', label: 'Tech', color: '#10b981' },
 ];
 
-export default function CompetitorAnalysis({ rows, activeClient }) {
+function CompetitorAnalysisInner({ rows, activeClient }) {
   const [apiKey, setApiKey] = useState(
     localStorage.getItem('youtube_api_key') || localStorage.getItem('yt_api_key') || ""
   );
@@ -2223,6 +2223,15 @@ Direct_Lifestyle_Audio,Beats by Dre,https://www.youtube.com/@beatsbydre,Brand_Ae
   );
 }
 
+
+// Wrapper with error boundary to catch crashes and show the error
+export default function CompetitorAnalysis(props) {
+  return (
+    <ErrorBoundary>
+      <CompetitorAnalysisInner {...props} />
+    </ErrorBoundary>
+  );
+}
 
 /* ═══════════════════════════════════════════════════
     EXTRACTED INLINE COMPONENTS
