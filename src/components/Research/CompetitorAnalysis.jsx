@@ -336,26 +336,12 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
     const loadFromSupabase = async () => {
       setSupabaseLoading(true);
       try {
-        if (masterView) {
-          const { getChannels } = await import('../../services/competitorDatabase');
-          const channels = await getChannels({ isCompetitor: true });
-          console.log('[Competitors] Master loaded:', channels?.length, 'channels');
-          setSupabaseCompetitors(channels || []);
-        } else {
-          // Client: try junction table, fall back to legacy
-          try {
-            const { getClientChannels } = await import('../../services/competitorDatabase');
-            const channels = await getClientChannels(activeClient.id, { isCompetitor: true });
-            console.log('[Competitors] Client loaded:', channels?.length, 'channels');
-            setSupabaseCompetitors(channels || []);
-          } catch (clientErr) {
-            console.error('[Competitors] Client load failed, trying legacy:', clientErr);
-            // Ultimate fallback: legacy client_id query
-            const { getChannels } = await import('../../services/competitorDatabase');
-            const channels = await getChannels({ clientId: activeClient.id, isCompetitor: true });
-            setSupabaseCompetitors(channels || []);
-          }
-        }
+        const { getChannels } = await import('../../services/competitorDatabase');
+        const channels = await getChannels({
+          clientId: masterView ? undefined : activeClient?.id,
+          isCompetitor: true
+        });
+        setSupabaseCompetitors(channels || []);
       } catch (err) {
         console.error('[Competitors] Failed to load from Supabase:', err);
       } finally {
@@ -386,22 +372,12 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
   // Helper to reload Supabase competitors after mutations
   const reloadSupabaseCompetitors = useCallback(async () => {
     try {
-      if (masterView) {
-        const { getChannels } = await import('../../services/competitorDatabase');
-        const channels = await getChannels({ isCompetitor: true });
-        setSupabaseCompetitors(channels || []);
-      } else {
-        try {
-          const { getClientChannels } = await import('../../services/competitorDatabase');
-          const channels = await getClientChannels(activeClient?.id, { isCompetitor: true });
-          setSupabaseCompetitors(channels || []);
-        } catch (clientErr) {
-          console.error('[Competitors] Client reload failed, trying legacy:', clientErr);
-          const { getChannels } = await import('../../services/competitorDatabase');
-          const channels = await getChannels({ clientId: activeClient?.id, isCompetitor: true });
-          setSupabaseCompetitors(channels || []);
-        }
-      }
+      const { getChannels } = await import('../../services/competitorDatabase');
+      const channels = await getChannels({
+        clientId: masterView ? undefined : activeClient?.id,
+        isCompetitor: true
+      });
+      setSupabaseCompetitors(channels || []);
     } catch (err) {
       console.error('[Competitors] Failed to reload from Supabase:', err);
     }
@@ -2002,7 +1978,6 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             expandedHubCategory={expandedHubCategory}
             onExpandCategory={setExpandedHubCategory}
             onChannelClick={(id) => { setSelectedChannelId(id); setDrawerTab('overview'); }}
-            yourStats={yourStats}
           />
         </Suspense>
       )}
