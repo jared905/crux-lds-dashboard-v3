@@ -72,6 +72,24 @@ const CommandCenter = lazy(() => import('./CommandCenter'));
 const CategoryManager = lazy(() => import('./CategoryManager'));
 import ClientPositionCard from './ClientPositionCard';
 
+// Simple error boundary to prevent section crashes from taking down the whole page
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, info) { console.error('[ErrorBoundary]', error, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '16px', background: '#2d1b1b', border: '1px solid #7f1d1d', borderRadius: '8px', marginBottom: '16px' }}>
+          <div style={{ fontSize: '12px', color: '#fca5a5' }}>Something went wrong loading this section.</div>
+          <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>{this.state.error?.message}</div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
 const fmtDuration = (seconds) => {
@@ -1897,13 +1915,15 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       {/* ── SECTION 2: CLIENT POSITION (Client View) or nothing (Master View) ── */}
       {activeCompetitors.length > 0 && !masterView && yourStats && (
         <AnimatedSection delay={0.05}>
-          <ClientPositionCard
-            activeCompetitors={activeCompetitors}
-            yourStats={yourStats}
-            categoryConfig={categoryConfig}
-            onChannelClick={(id) => { setSelectedChannelId(id); setDrawerTab('overview'); }}
-            onViewChange={(view) => setViewMode(view)}
-          />
+          <ErrorBoundary>
+            <ClientPositionCard
+              activeCompetitors={activeCompetitors}
+              yourStats={yourStats}
+              categoryConfig={categoryConfig}
+              onChannelClick={(id) => { setSelectedChannelId(id); setDrawerTab('overview'); }}
+              onViewChange={(view) => setViewMode(view)}
+            />
+          </ErrorBoundary>
         </AnimatedSection>
       )}
 

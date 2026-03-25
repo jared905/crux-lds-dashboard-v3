@@ -272,17 +272,22 @@ export async function getClientChannels(clientId, { isCompetitor = true } = {}) 
   if (!supabase) throw new Error('Supabase not configured');
 
   // Try junction table first
-  const { data: junctionData, error: jError } = await supabase
-    .from('client_channels')
-    .select('channel_id, channels(*)')
-    .eq('client_id', clientId);
+  try {
+    const { data: junctionData, error: jError } = await supabase
+      .from('client_channels')
+      .select('channel_id, channels(*)')
+      .eq('client_id', clientId);
 
-  if (!jError && junctionData?.length > 0) {
-    let channels = junctionData.map(j => j.channels).filter(Boolean);
-    if (typeof isCompetitor === 'boolean') {
-      channels = channels.filter(c => c.is_competitor === isCompetitor);
+    if (!jError && junctionData?.length > 0) {
+      let channels = junctionData.map(j => j.channels).filter(Boolean);
+      if (typeof isCompetitor === 'boolean') {
+        channels = channels.filter(c => c.is_competitor === isCompetitor);
+      }
+      return channels;
     }
-    return channels;
+  } catch (e) {
+    // Junction table may not exist yet — fall through to legacy
+    console.warn('[getClientChannels] Junction table query failed, using fallback:', e.message);
   }
 
   // Fallback: legacy client_id column
