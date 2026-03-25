@@ -1457,6 +1457,21 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
     }
   }, [sortCol]);
 
+  // DEBUG: catch render-time errors
+  try {
+    // Test that all rendered values are primitives
+    const debugCheck = {
+      error: typeof error,
+      activeCompetitorsLength: activeCompetitors.length,
+      masterView,
+      hasYourStats: !!yourStats,
+      viewMode,
+    };
+    console.log('[CompetitorAnalysis] Render check:', debugCheck);
+  } catch (e) {
+    console.error('[CompetitorAnalysis] Pre-render error:', e);
+  }
+
   return (
     <div style={{ padding: "0" }}>
       {/* ── SECTION 1: HEADER TOOLBAR ── */}
