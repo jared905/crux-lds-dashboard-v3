@@ -5,6 +5,7 @@ import { Menu, ChevronDown } from "lucide-react";
 import { useAuth } from "./contexts/AuthContext.jsx";
 import LoginPage from "./components/Auth/LoginPage.jsx";
 import SignupPage from "./components/Auth/SignupPage.jsx";
+import HomePage from "./components/Public/HomePage.jsx";
 import PrivacyPolicy from "./components/Public/PrivacyPolicy.jsx";
 import TermsOfService from "./components/Public/TermsOfService.jsx";
 
@@ -49,7 +50,7 @@ const BrandContext = lazy(() => import("./components/Onboarding/BrandContext.jsx
 export default function App() {
   // Auth state
   const { user, loading: authLoading, isAdmin, signOut, canAccessTab, canAccessClient } = useAuth();
-  const [authView, setAuthView] = useState("login"); // "login" or "signup"
+  const [authView, setAuthView] = useState("home"); // "home", "login", or "signup"
 
   // Debug auth state
   console.log('[Auth] State:', { user: user?.email || null, authLoading, isAdmin });
@@ -991,12 +992,16 @@ export default function App() {
     );
   }
 
-  // Show login/signup if not authenticated
+  // Show public pages if not authenticated
   if (!user) {
+    if (authView === "login") {
+      return <LoginPage onSwitchToSignup={() => setAuthView("signup")} />;
+    }
     if (authView === "signup") {
       return <SignupPage onSwitchToLogin={() => setAuthView("login")} />;
     }
-    return <LoginPage onSwitchToSignup={() => setAuthView("signup")} />;
+    // Default: public homepage (not behind login)
+    return <HomePage onSignIn={() => setAuthView("login")} />;
   }
 
   return (
