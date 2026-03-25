@@ -1454,19 +1454,34 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
     }
   }, [sortCol]);
 
-  // DEBUG: catch render-time errors
+  // DEBUG: find crash source
+  console.log('[CA] render start', { activeCompetitors: activeCompetitors.length, masterView, viewMode, error: typeof error });
+
+  // Check every value that gets rendered as text
+  const safeValues = {};
   try {
-    // Test that all rendered values are primitives
-    const debugCheck = {
-      error: typeof error,
-      activeCompetitorsLength: activeCompetitors.length,
-      masterView,
-      hasYourStats: !!yourStats,
-      viewMode,
-    };
-    console.log('[CompetitorAnalysis] Render check:', debugCheck);
+    safeValues.channelCount = activeCompetitors.length;
+    safeValues.categoryCount = groupedCompetitors.length;
+    safeValues.masterViewLabel = masterView ? " (all clients)" : "";
+    safeValues.errorType = typeof error;
+    safeValues.errorValue = error;
+
+    // Check categoryConfig for object values being rendered
+    Object.entries(categoryConfig).forEach(([key, cfg]) => {
+      if (typeof cfg.label !== 'string') console.error('[CA] NON-STRING LABEL:', key, cfg.label, typeof cfg.label);
+      if (typeof cfg.icon !== 'string') console.error('[CA] NON-STRING ICON:', key, cfg.icon, typeof cfg.icon);
+      if (cfg.color && typeof cfg.color !== 'string') console.error('[CA] NON-STRING COLOR:', key, cfg.color, typeof cfg.color);
+    });
+
+    // Check activeCompetitors for object values
+    activeCompetitors.forEach((c, i) => {
+      if (typeof c.name !== 'string' && c.name !== undefined && c.name !== null) console.error('[CA] NON-STRING NAME:', i, c.name, typeof c.name);
+      if (c.category && typeof c.category !== 'string') console.error('[CA] NON-STRING CATEGORY:', i, c.category, typeof c.category);
+    });
+
+    console.log('[CA] all checks passed');
   } catch (e) {
-    console.error('[CompetitorAnalysis] Pre-render error:', e);
+    console.error('[CA] Check failed:', e);
   }
 
   return (
