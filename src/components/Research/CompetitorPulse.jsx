@@ -213,6 +213,7 @@ function ActivityFeed({ activeCompetitors, categoryConfig }) {
   const [recentVideos, setRecentVideos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     const channelIds = activeCompetitors.map(c => c.supabaseId).filter(Boolean);
@@ -256,15 +257,46 @@ function ActivityFeed({ activeCompetitors, categoryConfig }) {
 
   if (recentVideos.length === 0) return null;
 
+  // Filter to signal-only: videos performing >2x their channel's average
+  const signalVideos = useMemo(() => {
+    const chLookup = {};
+    activeCompetitors.forEach(c => { if (c.supabaseId) chLookup[c.supabaseId] = c; });
+    return recentVideos.filter(v => {
+      const ch = v.channel || chLookup[v.channel_id];
+      if (!ch) return true; // keep if we can't check
+      const avg = ch.avgViewsPerVideo || 0;
+      return avg === 0 || (v.view_count || 0) >= avg * 2;
+    });
+  }, [recentVideos, activeCompetitors]);
+
+  const displayVideos = showAll ? recentVideos : (signalVideos.length > 0 ? signalVideos : recentVideos.slice(0, 6));
+
   return (
     <div className="page-section" style={{ padding: '16px 20px', marginBottom: '16px' }}>
-      <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
         <Clock size={14} style={{ color: '#3b82f6' }} />
-        Recent Uploads (14 days)
-        <span style={{ fontSize: '10px', color: '#666', fontWeight: '400' }}>{recentVideos.length} videos</span>
+        <span style={{ fontSize: '13px', fontWeight: '700', color: '#fff' }}>
+          {showAll ? 'All Recent Uploads' : 'Notable Uploads'} (14 days)
+        </span>
+        <span style={{ fontSize: '10px', color: '#666', fontWeight: '400' }}>
+          {displayVideos.length}{!showAll && signalVideos.length > 0 ? ` signal / ${recentVideos.length} total` : ' videos'}
+        </span>
+        <button
+          onClick={() => setShowAll(!showAll)}
+          style={{
+            marginLeft: 'auto', fontSize: '10px', color: '#888',
+            background: 'transparent', border: '1px solid #333',
+            borderRadius: '4px', padding: '3px 8px', cursor: 'pointer',
+            transition: 'all 0.15s',
+          }}
+          onMouseOver={e => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.color = '#60a5fa'; }}
+          onMouseOut={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#888'; }}
+        >
+          {showAll ? 'Signal Only' : 'View All'}
+        </button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' }}>
-        {recentVideos.map((video, idx) => {
+        {displayVideos.map((video, idx) => {
           const ch = video.channel;
           const catCfg = ch ? categoryConfig[ch.category] : null;
           return (
@@ -312,6 +344,7 @@ export default function CompetitorPulse({
   expandedHubCategory,
   onExpandCategory,
   onChannelClick,
+  yourStats = null,
 }) {
   const [latestVideos, setLatestVideos] = useState({});
   const [subDeltas, setSubDeltas] = useState({});
@@ -373,7 +406,8 @@ export default function CompetitorPulse({
       <CategoryComparisonSelector
         lanes={parentLanes}
         onChannelClick={onChannelClick}
-        onFilterChange={() => {}} // Pulse uses lanes below, not filtering
+        onFilterChange={() => {}}
+        yourStats={yourStats}
       />
       <CategoryLanes
         lanes={parentLanes}

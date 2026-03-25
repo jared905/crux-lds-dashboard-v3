@@ -81,6 +81,7 @@ export default function CompetitorTrends({
   snapshotLoading,
   yourChannelId,
   onChannelClick,
+  yourStats = null,
 }) {
   // Category zoom state — driven by shared selector
   const [selectedParent, setSelectedParent] = useState(null);
@@ -398,6 +399,7 @@ export default function CompetitorTrends({
           lanes={parentLanes}
           onFilterChange={handleFilterChange}
           onChannelClick={onChannelClick}
+          yourStats={yourStats}
         />
       )}
 

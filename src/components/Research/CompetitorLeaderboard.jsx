@@ -213,6 +213,7 @@ export default function CompetitorLeaderboard({
           lanes={parentLanes}
           onFilterChange={handleFilterChange}
           onChannelClick={onChannelClick}
+          yourStats={yourStats}
         />
       )}
 

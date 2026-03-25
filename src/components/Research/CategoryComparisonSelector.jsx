@@ -156,6 +156,7 @@ export default function CategoryComparisonSelector({
   onFilterChange,
   onChannelClick,
   defaultMetric = 'totalSubs',
+  yourStats = null,
 }) {
   const [metric, setMetric] = useState(defaultMetric);
   const [expandedKey, setExpandedKey] = useState(null);
@@ -177,6 +178,15 @@ export default function CategoryComparisonSelector({
 
   const activeMetric = metrics.find(m => m.key === metric);
   const maxVal = Math.max(...lanes.map(g => g[metric] || 0), 1);
+
+  // Your channel's value for the current metric (for position marker)
+  const yourMetricValue = yourStats ? {
+    totalSubs: yourStats.totalSubscribers || 0,
+    totalViews: yourStats.totalViews || 0,
+    avgViews: yourStats.avgViewsPerVideo || 0,
+    totalUploads30d: yourStats.videosLast30Days || 0,
+  }[metric] || 0 : 0;
+  const yourPct = maxVal > 0 ? (yourMetricValue / maxVal) * 100 : 0;
 
   const handleCategoryClick = (gKey) => {
     const isExpanding = expandedKey !== gKey;
@@ -273,12 +283,28 @@ export default function CategoryComparisonSelector({
                     </span>
                     <span style={{ fontSize: '10px', color: '#666' }}>({g.channelCount})</span>
                   </div>
-                  <div style={{ flex: 1, height: '22px', background: '#252525', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+                  <div style={{ flex: 1, height: '22px', background: '#252525', borderRadius: '4px', overflow: 'visible', position: 'relative' }}>
                     <div style={{
                       height: '100%', width: `${Math.max(pct, 1)}%`,
                       background: `linear-gradient(90deg, ${g.config.color}cc, ${g.config.color}88)`,
                       borderRadius: '4px', transition: 'width 0.4s ease',
                     }} />
+                    {/* Your position marker */}
+                    {yourStats && yourPct > 0 && (
+                      <div
+                        title={`Your channel: ${activeMetric.format(yourMetricValue)}`}
+                        style={{
+                          position: 'absolute',
+                          left: `${Math.min(Math.max(yourPct, 1), 99)}%`,
+                          top: '-3px', bottom: '-3px',
+                          width: '3px', background: '#3b82f6',
+                          borderRadius: '2px',
+                          boxShadow: '0 0 6px rgba(59,130,246,0.6)',
+                          zIndex: 2,
+                          transition: 'left 0.4s ease',
+                        }}
+                      />
+                    )}
                     <span style={{
                       position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
                       fontSize: '11px', fontWeight: '700', color: '#fff',

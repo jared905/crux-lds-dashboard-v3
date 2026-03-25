@@ -1965,6 +1965,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             expandedHubCategory={expandedHubCategory}
             onExpandCategory={setExpandedHubCategory}
             onChannelClick={(id) => { setSelectedChannelId(id); setDrawerTab('overview'); }}
+            yourStats={yourStats}
           />
         </Suspense>
       )}
@@ -2009,6 +2010,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             snapshotLoading={snapshotLoading}
             yourChannelId={activeClient?.youtube_channel_id || null}
             onChannelClick={(id) => { setSelectedChannelId(id); setDrawerTab('overview'); }}
+            yourStats={yourStats}
           />
         </Suspense>
       )}
