@@ -403,11 +403,13 @@ export default function CompetitorPulse({
 
   return (
     <>
+      <div style={{ padding: '20px', color: '#888', fontSize: '12px' }}>
+        Competitor Pulse: {activeCompetitors.length} competitors, {parentLanes.length} lanes, {Object.keys(latestVideos).length} videos loaded
+      </div>
       <CategoryComparisonSelector
         lanes={parentLanes}
         onChannelClick={onChannelClick}
         onFilterChange={() => {}}
-        yourStats={yourStats}
       />
       <CategoryLanes
         lanes={parentLanes}
