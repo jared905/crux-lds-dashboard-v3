@@ -1928,8 +1928,8 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
       </div>
       </AnimatedSection>
 
-      {/* ── SECTION 2: CLIENT POSITION (Client View) or nothing (Master View) ── */}
-      {activeCompetitors.length > 0 && !masterView && yourStats && (
+      {/* ── SECTION 2: CLIENT POSITION (Client View) — temporarily disabled for debugging ── */}
+      {/* {activeCompetitors.length > 0 && !masterView && yourStats && (
         <AnimatedSection delay={0.05}>
           <ErrorBoundary>
             <ClientPositionCard
@@ -1941,7 +1941,7 @@ export default function CompetitorAnalysis({ rows, activeClient }) {
             />
           </ErrorBoundary>
         </AnimatedSection>
-      )}
+      )} */}
 
       {/* ── COMPETITOR ROSTER ── */}
       <AnimatedSection delay={0.1}>
