@@ -208,7 +208,7 @@ export default function HomePage({ onSignIn }) {
             Get Started <ArrowRight size={18} />
           </button>
           <button
-            onClick={onSignIn}
+            onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
             className="cta-btn"
             style={{
               padding: '16px 36px',
@@ -314,7 +314,7 @@ export default function HomePage({ onSignIn }) {
       </div>
 
       {/* How it works */}
-      <div style={{
+      <div id="how-it-works" style={{
         background: 'linear-gradient(180deg, transparent, rgba(41,98,255,0.03), transparent)',
         padding: '80px 0',
       }}>
