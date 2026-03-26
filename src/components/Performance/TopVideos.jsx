@@ -53,10 +53,17 @@ const getDurationString = (video) => {
 export default function TopVideos({ rows, n = 10 }) {
   const { isMobile } = useMediaQuery();
   const [expanded, setExpanded] = useState(false);
+  const [sortMode, setSortMode] = useState('top'); // 'top' or 'recent'
   const safeRows = rows || [];
   const displayCount = expanded ? n * 2 : n;
 
-  const sorted = [...safeRows].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, displayCount);
+  const sorted = sortMode === 'top'
+    ? [...safeRows].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, displayCount)
+    : [...safeRows].sort((a, b) => {
+        const dateA = a.publishDate ? new Date(a.publishDate).getTime() : 0;
+        const dateB = b.publishDate ? new Date(b.publishDate).getTime() : 0;
+        return dateB - dateA;
+      }).slice(0, displayCount);
   const maxViews = sorted[0]?.views || 1;
   const canExpand = safeRows.length > n;
 
@@ -272,9 +279,37 @@ export default function TopVideos({ rows, n = 10 }) {
               <rect x="36.5" y="29.5" width="3" height="2.5" rx="0.8" fill="white" opacity="0.5" />
             </svg>
           </div>
-          <h2 style={s.title}>Top Videos</h2>
+          <h2 style={s.title}>{sortMode === 'top' ? 'Top Videos' : 'Recent Uploads'}</h2>
         </div>
-        <span style={s.countBadge}>Top {sorted.length} of {safeRows.length}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '2px', background: '#252525', borderRadius: '6px', padding: '2px' }}>
+            <button
+              onClick={() => { setSortMode('top'); setExpanded(false); }}
+              style={{
+                padding: '4px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: '600',
+                border: 'none', cursor: 'pointer',
+                background: sortMode === 'top' ? '#3b82f6' : 'transparent',
+                color: sortMode === 'top' ? '#fff' : '#888',
+                transition: 'all 0.15s',
+              }}
+            >
+              Top
+            </button>
+            <button
+              onClick={() => { setSortMode('recent'); setExpanded(false); }}
+              style={{
+                padding: '4px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: '600',
+                border: 'none', cursor: 'pointer',
+                background: sortMode === 'recent' ? '#3b82f6' : 'transparent',
+                color: sortMode === 'recent' ? '#fff' : '#888',
+                transition: 'all 0.15s',
+              }}
+            >
+              Recent
+            </button>
+          </div>
+          <span style={s.countBadge}>{sortMode === 'top' ? 'Top' : 'Latest'} {sorted.length} of {safeRows.length}</span>
+        </div>
       </div>
 
       <div style={s.listContainer}>
