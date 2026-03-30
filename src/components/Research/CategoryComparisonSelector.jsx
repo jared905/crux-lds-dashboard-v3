@@ -377,40 +377,66 @@ export default function CategoryComparisonSelector({
                             </div>
 
                             {/* Channel list */}
-                            {isSubSelected && onChannelClick && (
-                              <div style={{
-                                marginLeft: '18px', marginTop: '4px', marginBottom: '8px',
-                                background: '#1a1a1a', borderRadius: '6px',
-                                border: `1px solid ${sub.color}33`, overflow: 'hidden',
-                              }}>
-                                {[...sub.channels]
-                                  .sort((a, b) => (b.subscriberCount || 0) - (a.subscriberCount || 0))
-                                  .map(ch => (
-                                    <div
-                                      key={ch.id}
-                                      onClick={(e) => { e.stopPropagation(); onChannelClick(ch.id); }}
-                                      style={{
-                                        display: 'flex', alignItems: 'center', gap: '8px',
-                                        padding: '6px 10px', cursor: 'pointer',
-                                        borderBottom: '1px solid #252525', transition: 'background 0.1s',
-                                      }}
-                                      onMouseOver={e => e.currentTarget.style.background = '#222'}
-                                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-                                    >
-                                      <img src={ch.thumbnail} alt="" style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                                      <span style={{
-                                        fontSize: '11px', color: '#e0e0e0', fontWeight: '500',
-                                        flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                                      }}>
-                                        {ch.name}
-                                      </span>
-                                      <span style={{ fontSize: '10px', color: '#888', flexShrink: 0 }}>{fmt(ch.subscriberCount)} subs</span>
-                                      <span style={{ fontSize: '10px', color: '#666', flexShrink: 0 }}>{fmt(ch.avgViewsPerVideo)} avg</span>
-                                    </div>
-                                  ))
-                                }
-                              </div>
-                            )}
+                            {isSubSelected && onChannelClick && (() => {
+                              const sortedChs = [...sub.channels].sort((a, b) => (b.subscriberCount || 0) - (a.subscriberCount || 0));
+                              const maxSubs = sortedChs[0]?.subscriberCount || 1;
+                              return (
+                                <div style={{
+                                  marginLeft: '18px', marginTop: '4px', marginBottom: '8px',
+                                  background: '#1a1a1a', borderRadius: '6px',
+                                  border: `1px solid ${sub.color}33`, overflow: 'hidden',
+                                }}>
+                                  {sortedChs.map((ch, idx) => {
+                                    const barPct = maxSubs > 0 ? ((ch.subscriberCount || 0) / maxSubs) * 100 : 0;
+                                    return (
+                                      <div
+                                        key={ch.id}
+                                        onClick={(e) => { e.stopPropagation(); onChannelClick(ch.id); }}
+                                        style={{
+                                          display: 'flex', alignItems: 'center', gap: '8px',
+                                          padding: '8px 10px', cursor: 'pointer',
+                                          borderBottom: '1px solid #252525', transition: 'background 0.1s',
+                                          borderLeft: `3px solid ${sub.color}${idx < 3 ? 'cc' : '44'}`,
+                                          position: 'relative',
+                                        }}
+                                        onMouseOver={e => e.currentTarget.style.background = '#222'}
+                                        onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                                      >
+                                        {/* Background bar */}
+                                        <div style={{
+                                          position: 'absolute', left: 0, top: 0, bottom: 0,
+                                          width: `${Math.max(barPct, 2)}%`,
+                                          background: `${sub.color}08`,
+                                          transition: 'width 0.3s ease',
+                                        }} />
+                                        <span style={{
+                                          fontSize: '10px', fontWeight: '700', minWidth: '18px',
+                                          color: idx < 3 ? '#f59e0b' : '#555',
+                                          fontFamily: "'Barlow Condensed', sans-serif",
+                                          position: 'relative',
+                                        }}>
+                                          #{idx + 1}
+                                        </span>
+                                        <img src={ch.thumbnail} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, position: 'relative' }} />
+                                        <span style={{
+                                          fontSize: '11px', color: '#e0e0e0', fontWeight: '500',
+                                          flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                          position: 'relative',
+                                        }}>
+                                          {ch.name}
+                                        </span>
+                                        <span style={{ fontSize: '10px', color: sub.color, fontWeight: '600', flexShrink: 0, position: 'relative' }}>
+                                          {fmt(ch.subscriberCount)}
+                                        </span>
+                                        <span style={{ fontSize: '9px', color: '#666', flexShrink: 0, position: 'relative' }}>
+                                          {fmt(ch.avgViewsPerVideo)} avg
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
                           </div>
                         );
                       })
