@@ -171,6 +171,7 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
   const [syncAllState, setSyncAllState] = useState(null); // { total, completed, errors }
   const [refreshError, setRefreshError] = useState({});
   const [newCompetitor, setNewCompetitor] = useState("");
+  const [addCategory, setAddCategory] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [userTimezone, setUserTimezone] = useState(() => {
@@ -719,6 +720,7 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
       }
 
       setNewCompetitor("");
+      setAddCategory("");
       setError("");
 
       // Save to Supabase with client_id (primary storage)
@@ -734,6 +736,7 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
           video_count: competitorData.videoCount,
           is_competitor: true,
           client_id: activeClient?.id || null,
+          category: addCategory || null,
         });
 
         if (competitorData.videos?.length && dbChannel?.id) {
@@ -1816,6 +1819,24 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
           <div style={{ marginTop: "12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px", position: "relative" }}>
             <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>
               Search YouTube or paste a channel URL
+            </div>
+            <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+              <select
+                value={addCategory}
+                onChange={(e) => setAddCategory(e.target.value)}
+                style={{
+                  flex: 1, padding: "8px 10px", background: "var(--card)",
+                  border: "1px solid var(--border)", borderRadius: "6px",
+                  color: "#fff", fontSize: "12px",
+                }}
+              >
+                <option value="">Select category (optional)</option>
+                {Object.entries(categoryConfig).map(([key, cfg]) => (
+                  <option key={key} value={key}>
+                    {cfg.icon} {cfg.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
               <input
