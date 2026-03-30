@@ -2629,17 +2629,17 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
 
       {/* KPI row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", padding: "16px 20px" }}>
-        <div style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "10px" }}>
+        <div style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "10px", borderTop: "3px solid #3b82f6" }}>
           <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Subscribers</div>
-          <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginTop: "2px" }}>{fmtInt(channel.subscriberCount)}</div>
+          <div style={{ fontSize: "18px", fontWeight: "700", color: "#3b82f6", marginTop: "2px", fontFamily: "'Barlow Condensed', sans-serif" }}>{fmtInt(channel.subscriberCount)}</div>
         </div>
-        <div style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "10px" }}>
+        <div style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "10px", borderTop: "3px solid #10b981" }}>
           <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>Avg Views</div>
-          <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginTop: "2px" }}>{fmtInt(channel.avgViewsPerVideo)}</div>
+          <div style={{ fontSize: "18px", fontWeight: "700", color: "#10b981", marginTop: "2px", fontFamily: "'Barlow Condensed', sans-serif" }}>{fmtInt(channel.avgViewsPerVideo)}</div>
         </div>
-        <div style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "10px" }}>
+        <div style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "10px", borderTop: "3px solid #8b5cf6" }}>
           <div style={{ fontSize: "9px", color: "#888", textTransform: "uppercase" }}>30d Uploads</div>
-          <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginTop: "2px" }}>{channel.uploadsLast30Days}</div>
+          <div style={{ fontSize: "18px", fontWeight: "700", color: "#8b5cf6", marginTop: "2px", fontFamily: "'Barlow Condensed', sans-serif" }}>{channel.uploadsLast30Days}</div>
         </div>
       </div>
 
@@ -2695,7 +2695,8 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
                         <div key={i} style={{
                           flex: 1, minWidth: "3px",
                           height: `${Math.max(pct, 8)}%`,
-                          background: isLast ? '#3b82f6' : dbVideos.subDelta >= 0 ? '#10b98155' : '#ef444455',
+                          background: isLast ? '#3b82f6' : dbVideos.subDelta >= 0 ? '#10b981' : '#ef4444',
+                          opacity: isLast ? 1 : 0.6,
                           borderRadius: "2px 2px 0 0",
                         }} />
                       );
@@ -2761,20 +2762,37 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
             {/* Upload Breakdown */}
             <div style={{ marginBottom: "20px" }}>
               <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px" }}>Upload Breakdown (30d)</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
-                <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "6px", padding: "10px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px", marginBottom: "10px" }}>
+                <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "6px", padding: "10px", borderTop: "3px solid #fff" }}>
                   <div style={{ fontSize: "9px", color: "#888" }}>TOTAL</div>
                   <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>{channel.uploadsLast30Days}</div>
                 </div>
-                <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "6px", padding: "10px" }}>
+                <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "6px", padding: "10px", borderTop: "3px solid #f97316" }}>
                   <div style={{ fontSize: "9px", color: "#888" }}>SHORTS</div>
-                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#ec4899", fontFamily: "'Barlow Condensed', sans-serif" }}>{channel.shorts30d}</div>
+                  <div style={{ fontSize: "20px", fontWeight: "700", color: "#f97316", fontFamily: "'Barlow Condensed', sans-serif" }}>{channel.shorts30d}</div>
                 </div>
-                <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "6px", padding: "10px" }}>
+                <div style={{ background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "6px", padding: "10px", borderTop: "3px solid #3b82f6" }}>
                   <div style={{ fontSize: "9px", color: "#888" }}>LONG-FORM</div>
                   <div style={{ fontSize: "20px", fontWeight: "700", color: "#3b82f6", fontFamily: "'Barlow Condensed', sans-serif" }}>{channel.longs30d}</div>
                 </div>
               </div>
+              {/* Visual mix bar */}
+              {(channel.shorts30d > 0 || channel.longs30d > 0) && (
+                <div>
+                  <div style={{ display: "flex", height: "8px", borderRadius: "4px", overflow: "hidden", background: "#252525" }}>
+                    {channel.shorts30d > 0 && (
+                      <div style={{ width: `${(channel.shorts30d / (channel.shorts30d + channel.longs30d)) * 100}%`, background: "#f97316" }} />
+                    )}
+                    {channel.longs30d > 0 && (
+                      <div style={{ flex: 1, background: "#3b82f6" }} />
+                    )}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "#666", marginTop: "4px" }}>
+                    <span style={{ color: "#f97316" }}>{channel.shorts30d > 0 ? `${Math.round((channel.shorts30d / (channel.shorts30d + channel.longs30d)) * 100)}% Shorts` : ''}</span>
+                    <span style={{ color: "#3b82f6" }}>{channel.longs30d > 0 ? `${Math.round((channel.longs30d / (channel.shorts30d + channel.longs30d)) * 100)}% Long-form` : ''}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Content Series */}
