@@ -313,9 +313,9 @@ export default function ChannelProfileView({
                   onMouseOut={e => e.currentTarget.style.background = 'transparent'}
                 >
                   {v.thumbnail_url ? (
-                    <img src={v.thumbnail_url} alt="" style={{ width: 80, height: 45, borderRadius: '4px', objectFit: 'cover', flexShrink: 0, background: '#252525' }} />
+                    <img src={v.thumbnail_url} alt="" style={{ width: 140, height: 79, borderRadius: '6px', objectFit: 'cover', flexShrink: 0, background: '#252525' }} />
                   ) : (
-                    <div style={{ width: 80, height: 45, borderRadius: '4px', background: '#252525', flexShrink: 0 }} />
+                    <div style={{ width: 140, height: 79, borderRadius: '6px', background: '#252525', flexShrink: 0 }} />
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '11px', fontWeight: '600', color: '#e0e0e0', lineHeight: '1.3', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
@@ -370,7 +370,7 @@ export default function ChannelProfileView({
                     borderBottom: '1px solid #252525', textDecoration: 'none', alignItems: 'center',
                   }}>
                   <span style={{ fontSize: '10px', fontWeight: '700', color: i === 0 ? '#e5e7eb' : '#555', minWidth: '16px' }}>#{i + 2}</span>
-                  {v.thumbnail_url && <img src={v.thumbnail_url} alt="" style={{ width: 48, height: 27, borderRadius: '3px', objectFit: 'cover', flexShrink: 0 }} />}
+                  {v.thumbnail_url && <img src={v.thumbnail_url} alt="" style={{ width: 80, height: 45, borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '10px', color: '#ccc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.title}</div>
                     <div style={{ fontSize: '9px', color: '#888' }}>{fmt(v.view_count)} views · {v.published_at ? new Date(v.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</div>
