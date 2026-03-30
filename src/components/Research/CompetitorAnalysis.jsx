@@ -71,6 +71,7 @@ const CompetitorPulse = lazy(() => import('./CompetitorPulse'));
 const CommandCenter = lazy(() => import('./CommandCenter'));
 const CategoryManager = lazy(() => import('./CategoryManager'));
 import ClientPositionCard from './ClientPositionCard';
+import ChannelProfileView from './ChannelProfileView';
 
 // Simple error boundary
 class ErrorBoundary extends React.Component {
@@ -2087,25 +2088,28 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
       )}
       </AnimatedSection>
 
-      {/* ── SECTION 4: CHANNEL DETAIL DRAWER ── */}
+      {/* ── SECTION 4: CHANNEL PROFILE VIEW (replaces drawer) ── */}
       {selectedChannel && (
-        <ChannelDetailDrawer
-          channel={selectedChannel}
-          drawerTab={drawerTab}
-          setDrawerTab={setDrawerTab}
-          onClose={() => setSelectedChannelId(null)}
-          onRefresh={refreshCompetitor}
-          onRemove={(id) => { removeCompetitor(id); setSelectedChannelId(null); }}
-          onUnlinkFromClient={!masterView ? unlinkCompetitorFromClient : null}
-          onCategoryChange={updateChannelCategory}
-          isRefreshing={refreshingId === selectedChannel.id}
-          refreshError={refreshError[selectedChannel.id] || null}
-          userTimezone={userTimezone}
-          clients={allClients}
-          masterView={masterView}
-          onClientAssignmentUpdate={handleClientAssignmentUpdate}
-          categoryConfig={categoryConfig}
-        />
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)', zIndex: 1000,
+          overflowY: 'auto', padding: '20px',
+        }}>
+          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <ChannelProfileView
+              channel={selectedChannel}
+              onBack={() => setSelectedChannelId(null)}
+              onRefresh={refreshCompetitor}
+              onRemove={(id) => { removeCompetitor(id); setSelectedChannelId(null); }}
+              onUnlinkFromClient={!masterView ? unlinkCompetitorFromClient : null}
+              onCategoryChange={updateChannelCategory}
+              isRefreshing={refreshingId === selectedChannel.id}
+              categoryConfig={categoryConfig}
+              masterView={masterView}
+              userTimezone={userTimezone}
+            />
+          </div>
+        </div>
       )}
 
       {/* Outlier Insights Slide-out Panel */}
