@@ -1574,7 +1574,7 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
             )}
 
             {/* + Add button */}
-            {!masterView && (
+            {(
               <button
                 onClick={() => setShowAddPopover(!showAddPopover)}
                 style={{
@@ -1815,7 +1815,7 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
         )}
 
         {/* Add Competitor Popover (collapsible) - supports URL paste or keyword search */}
-        {showAddPopover && !masterView && (
+        {showAddPopover && (
           <div style={{ marginTop: "12px", background: "var(--input-bg)", border: "1px solid var(--border)", borderRadius: "8px", padding: "12px", position: "relative" }}>
             <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>
               Search YouTube or paste a channel URL
