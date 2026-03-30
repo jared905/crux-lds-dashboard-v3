@@ -2846,6 +2846,11 @@ function ChannelDetailDrawer({ channel, drawerTab, setDrawerTab, onClose, onRefr
                       <div style={{ fontSize: "10px", color: "#888", marginTop: "2px" }}>
                         {fmtInt(video.views)} views &middot; {fmtInt(video.likes)} likes &middot; {video.type === 'short' ? 'Short' : 'Long-form'}
                       </div>
+                      {video.publishedAt && (
+                        <div style={{ fontSize: "9px", color: "#666", marginTop: "2px" }}>
+                          {new Date(video.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                      )}
                     </div>
                     <div style={{ fontSize: "14px", fontWeight: "700", color: idx === 0 ? "#fcd34d" : idx === 1 ? "#e5e7eb" : "#666", flexShrink: 0 }}>#{idx + 1}</div>
                   </a>
