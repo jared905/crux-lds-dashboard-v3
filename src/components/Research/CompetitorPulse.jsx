@@ -9,6 +9,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Play, Clock, ChevronRight, ChevronDown, Loader } from 'lucide-react';
 import CategoryComparisonSelector, { buildParentLanes } from './CategoryComparisonSelector';
+import CategoryFocusView from './CategoryFocusView';
 
 const fmt = (n) => {
   if (!n || isNaN(n)) return '0';
@@ -348,6 +349,7 @@ export default function CompetitorPulse({
 }) {
   const [latestVideos, setLatestVideos] = useState({});
   const [subDeltas, setSubDeltas] = useState({});
+  const [focusedCategory, setFocusedCategory] = useState(null);
 
   useEffect(() => {
     const channelIds = activeCompetitors.map(c => c.supabaseId).filter(Boolean);
@@ -423,12 +425,29 @@ export default function CompetitorPulse({
     }
   }, [groupedCompetitors, categoryConfig]);
 
+  // Find the focused lane
+  const focusedLane = focusedCategory ? parentLanes.find(l => l.key === focusedCategory) : null;
+
+  // If in focus mode, show the full category workspace
+  if (focusedLane) {
+    return (
+      <CategoryFocusView
+        lane={focusedLane}
+        onBack={() => setFocusedCategory(null)}
+        onChannelClick={onChannelClick}
+        categoryConfig={categoryConfig}
+      />
+    );
+  }
+
   return (
     <>
       <CategoryComparisonSelector
         lanes={parentLanes}
         onChannelClick={onChannelClick}
-        onFilterChange={() => {}}
+        onFilterChange={({ parentSlug }) => {
+          if (parentSlug) setFocusedCategory(parentSlug);
+        }}
       />
     </>
   );
