@@ -406,7 +406,7 @@ export default function CategoryComparisonSelector({
                                         <div style={{
                                           position: 'absolute', left: 0, top: 0, bottom: 0,
                                           width: `${Math.max(barPct, 2)}%`,
-                                          background: `${sub.color}08`,
+                                          background: `linear-gradient(90deg, ${sub.color}40, ${sub.color}15)`,
                                           transition: 'width 0.3s ease',
                                         }} />
                                         <span style={{
