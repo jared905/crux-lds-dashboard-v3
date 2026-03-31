@@ -114,10 +114,12 @@ export default function ChannelProfileView({
   const scheduleAnalysis = useMemo(() => channel.videos?.length > 0 ? analyzeUploadSchedule(channel.videos, userTimezone) : null, [channel.videos, userTimezone]);
   const formatAnalysis = useMemo(() => channel.videos?.length > 0 ? categorizeContentFormats(channel.videos) : null, [channel.videos]);
 
-  // Content mix from DB data
+  // Content mix from DB data — fall back to duration_seconds if video_type not set
   const contentMix = useMemo(() => {
-    const shorts = dbData.allVideos.filter(v => v.video_type === 'short').length;
-    const longs = dbData.allVideos.filter(v => v.video_type === 'long').length;
+    const isShort = (v) => v.video_type === 'short' || (!v.video_type && v.duration_seconds && v.duration_seconds <= 60);
+    const isLong = (v) => v.video_type === 'long' || (!v.video_type && (!v.duration_seconds || v.duration_seconds > 60));
+    const shorts = dbData.allVideos.filter(isShort).length;
+    const longs = dbData.allVideos.filter(isLong).length;
     const total = shorts + longs;
     return { shorts, longs, total, shortsRatio: total > 0 ? (shorts / total) * 100 : 0 };
   }, [dbData.allVideos]);
