@@ -181,6 +181,25 @@ function computeDeltas(current, previous) {
 }
 
 /**
+ * Get all channel IDs for a client (including network members)
+ */
+async function getAllChannelIds(channelId) {
+  if (!supabase) return [channelId];
+
+  // Check if this channel has network members
+  const { data: members } = await supabase
+    .from('channels')
+    .select('id')
+    .eq('network_id', channelId);
+
+  const ids = [channelId];
+  if (members?.length > 0) {
+    ids.push(...members.map(m => m.id));
+  }
+  return ids;
+}
+
+/**
  * Generate full quarterly report data
  */
 export async function generateQuarterlyReport(channelId, year, quarter) {
@@ -188,12 +207,15 @@ export async function generateQuarterlyReport(channelId, year, quarter) {
   const prev = getPreviousQuarter(year, quarter);
   const previous = getQuarterDates(prev.year, prev.quarter);
 
-  // Fetch data for both quarters
+  // Get all channel IDs (parent + network members for multi-channel clients)
+  const allChannelIds = await getAllChannelIds(channelId);
+
+  // Fetch data for both quarters across ALL channels
   const [currentVideos, previousVideos, currentSnapshots, previousSnapshots] = await Promise.all([
-    fetchVideoDataForPeriod(channelId, current.start, current.end),
-    fetchVideoDataForPeriod(channelId, previous.start, previous.end),
-    fetchSnapshotsForPeriod(channelId, current.start, current.end),
-    fetchSnapshotsForPeriod(channelId, previous.start, previous.end),
+    Promise.all(allChannelIds.map(id => fetchVideoDataForPeriod(id, current.start, current.end))).then(a => a.flat()),
+    Promise.all(allChannelIds.map(id => fetchVideoDataForPeriod(id, previous.start, previous.end))).then(a => a.flat()),
+    Promise.all(allChannelIds.map(id => fetchSnapshotsForPeriod(id, current.start, current.end))).then(a => a.flat()),
+    Promise.all(allChannelIds.map(id => fetchSnapshotsForPeriod(id, previous.start, previous.end))).then(a => a.flat()),
   ]);
 
   const currentMetrics = computeQuarterMetrics(currentVideos, currentSnapshots);
@@ -209,6 +231,7 @@ export async function generateQuarterlyReport(channelId, year, quarter) {
 
   return {
     channel: channelData,
+    channelCount: allChannelIds.length,
     currentQuarter: { ...current, metrics: currentMetrics },
     previousQuarter: { ...previous, metrics: previousMetrics },
     deltas,
