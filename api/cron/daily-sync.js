@@ -480,12 +480,15 @@ async function syncConnection(connection) {
       results.errors.push(`Video discovery: ${e.message}`);
     }
 
-    // Fetch analytics (yesterday's data, as today's isn't complete)
+    // Fetch analytics for the last 7 days (not just yesterday)
+    // YouTube finalizes retention/subscriber data 2-3 days after upload,
+    // so fetching a wider window ensures we catch updates for recent videos
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     let analyticsData = {};
 
     try {
-      const analytics = await fetchAnalytics(accessToken, channelId, yesterday, yesterday);
+      const analytics = await fetchAnalytics(accessToken, channelId, weekAgo, yesterday);
       if (analytics.rows) {
         for (const row of analytics.rows) {
           analyticsData[row[0]] = {
