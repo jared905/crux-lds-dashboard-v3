@@ -759,13 +759,17 @@ async function handleBackfill(req, res) {
       const videoMap = {};
       for (const v of videos) { videoMap[v.youtube_video_id] = v; }
 
-      // Fetch analytics for each day individually (Analytics API supports video dimension per day)
+      // Fetch analytics in weekly chunks (fast + accurate)
       let batch = [];
       const batchSize = 50;
+      const chunkSize = 7; // days per API call
 
-      for (const date of dates) {
+      for (let i = 0; i < dates.length; i += chunkSize) {
+        const chunkStart = dates[i];
+        const chunkEnd = dates[Math.min(i + chunkSize - 1, dates.length - 1)];
+
         try {
-          const analytics = await fetchAnalytics(accessToken, channelId, date, date);
+          const analytics = await fetchAnalytics(accessToken, channelId, chunkStart, chunkEnd);
 
           if (analytics.rows) {
             for (const row of analytics.rows) {
@@ -782,12 +786,11 @@ async function handleBackfill(req, res) {
 
               batch.push({
                 video_id: dbVideo.id,
-                snapshot_date: date,
+                snapshot_date: chunkEnd, // Use end of chunk as snapshot date
                 view_count: views || null,
                 watch_hours: watchHours || null,
                 avg_view_percentage: avgViewPct || null,
                 subscribers_gained: subsGained || null,
-                // Cumulative counts from Data API (current values)
                 total_view_count: dbVideo.view_count || null,
                 total_like_count: dbVideo.like_count || null,
                 total_comment_count: dbVideo.comment_count || null,
@@ -804,11 +807,11 @@ async function handleBackfill(req, res) {
             }
           }
         } catch (e) {
-          connResult.errors.push(`${date}: ${e.message}`);
+          connResult.errors.push(`${chunkStart}-${chunkEnd}: ${e.message}`);
         }
 
-        // Rate limit: 100ms between daily requests
-        await new Promise(r => setTimeout(r, 100));
+        // Rate limit between API calls
+        await new Promise(r => setTimeout(r, 200));
       }
 
       // Flush remaining
