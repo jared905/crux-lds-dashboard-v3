@@ -42,6 +42,7 @@ import UserManagement from "./components/Admin/UserManagement.jsx";
 import APISettings from "./components/Settings/APISettings.jsx";
 import SecurityDocs from "./components/Settings/SecurityDocs.jsx";
 import SavedReports from "./components/Reports/SavedReports.jsx";
+import QuarterlyReport from "./components/Reports/QuarterlyReport.jsx";
 
 // Lazy-loaded features
 const AuditPage = lazy(() => import("./components/Audit/AuditPage.jsx"));
@@ -1301,6 +1302,13 @@ export default function App() {
                 activeClient={activeClient}
                 setPendingDraftToLoad={setPendingDraftToLoad}
                 setTab={setTab}
+              />
+            )}
+
+            {tab === "quarterly-report" && (
+              <QuarterlyReport
+                activeClient={activeClient}
+                channelId={activeClient?.channelId || activeClient?.channel_id || null}
               />
             )}
 

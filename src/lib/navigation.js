@@ -26,6 +26,7 @@ export const MAIN_SECTIONS = [
       { id: "series-analysis", label: "Series Analysis", icon: Layers },
       { id: "channel-summary", label: "Channel Summary", icon: Sparkles },
       { id: "saved-reports", label: "Reports", icon: FileText },
+      { id: "quarterly-report", label: "Quarterly", icon: Activity },
     ],
   },
   {
