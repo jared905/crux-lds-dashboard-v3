@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, lazy, Suspense } from "react";
-import { Menu, ChevronDown } from "lucide-react";
+import { Menu, ChevronDown, Youtube } from "lucide-react";
 
 // Auth
 import { useAuth } from "./contexts/AuthContext.jsx";
@@ -1138,7 +1138,7 @@ export default function App() {
             />
           </>
         )}
-        {!activeClient && (
+        {!activeClient && isAdmin && (
           <ClientManager
             clients={clients}
             activeClient={activeClient}
@@ -1180,30 +1180,68 @@ export default function App() {
             margin: "80px auto",
             padding: "80px 40px"
           }}>
-            <img 
-              src="/FullView_Logo.png" 
-              alt="Full View Analytics" 
-              style={{ 
-                width: "400px", 
-                height: "auto", 
+            <img
+              src="/FullView_Logo.png"
+              alt="Full View Analytics"
+              style={{
+                width: "400px",
+                height: "auto",
                 marginBottom: "48px",
                 filter: "drop-shadow(0 8px 24px var(--accent-glow))"
-              }} 
+              }}
             />
-            <div style={{ fontSize: "32px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>
-              Welcome to Full View Analytics
-            </div>
-            <div style={{ fontSize: "18px", color: "#9E9E9E", marginBottom: "48px", lineHeight: "1.6", maxWidth: "500px", margin: "0 auto 48px" }}>
-              Get started by adding your first client. Upload a CSV export from YouTube Studio to begin analyzing performance.
-            </div>
-            <div style={{ display: "flex", justifyContent: "center" }}>
-              <ClientManager 
-                clients={clients}
-                activeClient={activeClient}
-                onClientChange={handleClientChange}
-                onClientsUpdate={handleClientsUpdate}
-              />
-            </div>
+            {isAdmin ? (
+              <>
+                <div style={{ fontSize: "32px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>
+                  Welcome to Full View Analytics
+                </div>
+                <div style={{ fontSize: "18px", color: "#9E9E9E", marginBottom: "48px", lineHeight: "1.6", maxWidth: "500px", margin: "0 auto 48px" }}>
+                  Get started by adding your first client. Upload a CSV export from YouTube Studio to begin analyzing performance.
+                </div>
+                <div style={{ display: "flex", justifyContent: "center" }}>
+                  <ClientManager
+                    clients={clients}
+                    activeClient={activeClient}
+                    onClientChange={handleClientChange}
+                    onClientsUpdate={handleClientsUpdate}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: "32px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>
+                  Welcome to Full View Studio
+                </div>
+                <div style={{ fontSize: "16px", color: "#9E9E9E", marginBottom: "40px", lineHeight: "1.7", maxWidth: "460px", margin: "0 auto 40px" }}>
+                  Connect your YouTube channel to get started with analytics, content strategy, and performance insights.
+                </div>
+                <button
+                  onClick={() => setTab("api-keys")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    padding: "14px 32px",
+                    background: "#2962FF",
+                    border: "none",
+                    borderRadius: "10px",
+                    color: "#fff",
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "background 0.2s",
+                  }}
+                  onMouseEnter={(e) => e.target.style.background = "#1a4bb8"}
+                  onMouseLeave={(e) => e.target.style.background = "#2962FF"}
+                >
+                  <Youtube size={20} />
+                  Connect YouTube Channel
+                </button>
+                <div style={{ fontSize: "13px", color: "#666", marginTop: "20px" }}>
+                  Your data stays private. We only request read-only access.
+                </div>
+              </>
+            )}
           </div>
         )}
 
