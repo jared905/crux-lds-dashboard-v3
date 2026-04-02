@@ -108,7 +108,7 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
     }
   }, [reportData]);
 
-  // PDF Export
+  // PDF Export — light-themed, matching main PDF report style
   const handleExport = useCallback(async () => {
     if (!reportData) return;
     setExporting(true);
@@ -116,25 +116,240 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
       const { jsPDF } = await import('jspdf');
       const html2canvas = (await import('html2canvas')).default;
 
-      const el = document.getElementById('quarterly-report-content');
-      if (!el) return;
+      const { currentQuarter: cqd, previousQuarter: pqd, deltas: d, channel: ch } = reportData;
+      const m = cqd.metrics;
+      const pm = pqd.metrics;
+      const clientName = activeClient?.name || ch?.name || 'Channel';
+      const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      const f = (n) => { if (!n || isNaN(n)) return '0'; if (n >= 1e6) return (n/1e6).toFixed(1)+'M'; if (n >= 1e3) return (n/1e3).toFixed(n >= 1e4 ? 0 : 1)+'K'; return Math.round(n).toLocaleString(); };
+      const dp = (delta) => {
+        if (!delta || delta.pct === null) return '';
+        const color = delta.pct >= 0 ? '#16a34a' : '#dc2626';
+        const arrow = delta.pct >= 0 ? '↑' : '↓';
+        return `<span style="font-size: 12px; color: ${color}; font-weight: 600;">${arrow} ${Math.abs(delta.pct).toFixed(1)}%</span>`;
+      };
+      const metricBox = (label, value, delta, color, prev) =>
+        `<div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid ${color};">
+          <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">${label}</div>
+          <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1.25;">${value}</div>
+          <div style="margin-top: 8px;">${dp(delta)}</div>
+          ${prev ? `<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">prev: ${prev}</div>` : ''}
+        </div>`;
 
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#1a1a1a' });
+      // Build top videos HTML
+      const topVideosHtml = m.topByViews.slice(0, 10).map((v, i) =>
+        `<tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 10px 14px; font-size: 13px; color: #1e293b; font-weight: ${i < 3 ? '600' : '400'}; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">#${i+1} ${esc(v.title)}</td>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${f(v.view_count)}</td>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${f(v.like_count)}</td>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${v.published_at ? new Date(v.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
+        </tr>`
+      ).join('');
+
+      // Build narrative HTML if available
+      const narrativeHtml = narrative ? `
+        <div data-pdf-section style="margin-top: 32px;">
+          <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; letter-spacing: 1px;">AI ANALYSIS</h2>
+          ${narrative.executive_summary ? `<div style="background: #f8fafc; padding: 20px; border-radius: 12px; border-left: 5px solid #8b5cf6; margin-bottom: 20px; font-size: 15px; color: #334155; line-height: 1.7;">${esc(narrative.executive_summary)}</div>` : ''}
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            ${narrative.wins?.length > 0 ? `<div>
+              <div style="font-size: 14px; font-weight: 700; color: #16a34a; margin-bottom: 12px;">WINS</div>
+              ${narrative.wins.map(w => `<div style="padding: 10px 14px; background: #f0fdf4; border-radius: 8px; border-left: 3px solid #16a34a; margin-bottom: 8px; font-size: 13px; color: #334155; line-height: 1.6;">${esc(w)}</div>`).join('')}
+            </div>` : ''}
+            ${narrative.challenges?.length > 0 ? `<div>
+              <div style="font-size: 14px; font-weight: 700; color: #d97706; margin-bottom: 12px;">AREAS TO WATCH</div>
+              ${narrative.challenges.map(c => `<div style="padding: 10px 14px; background: #fffbeb; border-radius: 8px; border-left: 3px solid #d97706; margin-bottom: 8px; font-size: 13px; color: #334155; line-height: 1.6;">${esc(c)}</div>`).join('')}
+            </div>` : ''}
+          </div>
+          ${narrative.q2_recommendations?.length > 0 ? `
+            <div style="font-size: 14px; font-weight: 700; color: #2563eb; margin-bottom: 12px;">NEXT QUARTER RECOMMENDATIONS</div>
+            ${narrative.q2_recommendations.map(r => `<div style="padding: 10px 14px; background: #eff6ff; border-radius: 8px; border-left: 3px solid #2563eb; margin-bottom: 8px; font-size: 13px; color: #334155; line-height: 1.6;">${esc(r)}</div>`).join('')}
+          ` : ''}
+        </div>
+      ` : '';
+
+      // Build the full PDF HTML
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.width = '1200px';
+      container.style.backgroundColor = '#ffffff';
+      container.style.padding = '50px 35px 35px 35px';
+      container.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+      document.body.appendChild(container);
+
+      container.innerHTML = `
+        <div style="max-width: 1080px; margin: 0 auto;">
+          <!-- Header -->
+          <div data-pdf-section style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #2563eb;">
+            <div style="display: flex; align-items: center; gap: 22px;">
+              <div style="background: #1a1a1a; padding: 14px 18px; border-radius: 10px;">
+                <img src="/Full_View_Logo.png" alt="Full View Analytics" style="height: 72px; object-fit: contain; display: block;" crossorigin="anonymous" />
+              </div>
+              <div style="border-left: 2px solid #cbd5e1; padding-left: 22px;">
+                <div style="font-size: 20px; font-weight: 700; color: #2563eb; margin-bottom: 6px;">${esc(clientName)}</div>
+                <h1 style="margin: 0; font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1.3;">Quarterly Performance Report</h1>
+                <p style="margin: 10px 0 0 0; font-size: 16px; color: #64748b; font-weight: 500;">${cqd.label} vs ${pqd.label} • ${dateStr}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Summary Bar -->
+          <div data-pdf-section style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 24px 28px; border-radius: 12px; margin-bottom: 28px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; text-align: center;">
+              <div>
+                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">VIDEOS</div>
+                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${m.totalVideos}</div>
+              </div>
+              <div>
+                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">TOTAL VIEWS</div>
+                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${f(m.totalViews)}</div>
+              </div>
+              <div>
+                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">WATCH HOURS</div>
+                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${f(m.totalWatchHours)}</div>
+              </div>
+              <div>
+                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">SUBS GAINED</div>
+                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${f(m.totalSubsGained)}</div>
+              </div>
+              <div>
+                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">UPLOAD FREQ</div>
+                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${m.uploadFrequency.toFixed(1)}/wk</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- KPI Grid -->
+          <div data-pdf-section style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px;">
+            ${metricBox('AVG VIEWS / VIDEO', f(m.avgViews), d.avgViews, '#f59e0b', pm.avgViews > 0 ? f(pm.avgViews) : null)}
+            ${metricBox('ENGAGEMENT RATE', (m.engagementRate * 100).toFixed(2) + '%', d.engagementRate, '#06b6d4', pm.engagementRate > 0 ? (pm.engagementRate * 100).toFixed(2) + '%' : null)}
+            ${metricBox('AVG RETENTION', m.avgRetention > 0 ? (m.avgRetention * 100).toFixed(1) + '%' : '—', d.avgRetention, '#14b8a6', pm.avgRetention > 0 ? (pm.avgRetention * 100).toFixed(1) + '%' : null)}
+            ${metricBox('AVG CTR', m.avgCTR > 0 ? (m.avgCTR * 100).toFixed(1) + '%' : '—', d.avgCTR, '#f97316', pm.avgCTR > 0 ? (pm.avgCTR * 100).toFixed(1) + '%' : null)}
+          </div>
+
+          <!-- Format Performance -->
+          <div data-pdf-section style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;">
+            <div style="background: #fff7ed; padding: 22px; border-radius: 12px; border: 3px solid #f97316;">
+              <div style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">Shorts Performance</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div>
+                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Videos</div>
+                  <div style="font-size: 28px; font-weight: 700; color: #f97316;">${m.shortsCount}</div>
+                </div>
+                <div>
+                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Avg Views</div>
+                  <div style="font-size: 28px; font-weight: 700; color: #f97316;">${f(m.shortsAvgViews)}</div>
+                  ${dp(d.shortsAvgViews)}
+                </div>
+                <div>
+                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Avg Retention</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.shortsAvgRetention > 0 ? (m.shortsAvgRetention * 100).toFixed(1) + '%' : '—'}</div>
+                </div>
+                <div>
+                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Sub Conversion</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.subConversionRate > 0 ? (m.subConversionRate * 100).toFixed(2) + '%' : '—'}</div>
+                </div>
+              </div>
+            </div>
+            <div style="background: #eff6ff; padding: 22px; border-radius: 12px; border: 3px solid #0ea5e9;">
+              <div style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">Long-form Performance</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div>
+                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Videos</div>
+                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9;">${m.longsCount}</div>
+                </div>
+                <div>
+                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Avg Views</div>
+                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9;">${f(m.longsAvgViews)}</div>
+                  ${dp(d.longsAvgViews)}
+                </div>
+                <div>
+                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Avg Retention</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.longsAvgRetention > 0 ? (m.longsAvgRetention * 100).toFixed(1) + '%' : '—'}</div>
+                </div>
+                <div>
+                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Upload Cadence</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.uploadFrequency.toFixed(1)}/wk</div>
+                  ${reportData.channelCount > 1 ? `<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">${m.uploadsPerChannel.toFixed(1)}/wk per channel</div>` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Top Videos -->
+          <div data-pdf-section style="margin-bottom: 32px;">
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; letter-spacing: 1px;">TOP PERFORMING VIDEOS</h2>
+            <div style="background: #f8fafc; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                  <tr style="background: #e2e8f0;">
+                    <th style="text-align: left; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TITLE</th>
+                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600;">VIEWS</th>
+                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600;">LIKES</th>
+                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600;">DATE</th>
+                  </tr>
+                </thead>
+                <tbody>${topVideosHtml}</tbody>
+              </table>
+            </div>
+          </div>
+
+          ${narrativeHtml}
+
+          <!-- Footer -->
+          <div data-pdf-footer style="padding-top: 18px; border-top: 1px solid #e2e8f0; text-align: center; margin-top: 40px;">
+            <div style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 10px;">
+              <span style="color: #64748b; font-size: 14px; font-weight: 500;">Generated by Full View Analytics</span>
+              <span style="color: #cbd5e1; font-size: 14px;">•</span>
+              <span style="color: #94a3b8; font-size: 14px; font-weight: 500;">Powered by</span>
+              <img src="/crux-logo.png" alt="CRUX" style="height: 32px; object-fit: contain; vertical-align: middle;" crossorigin="anonymous" />
+            </div>
+            <div style="color: #cbd5e1; font-size: 13px;">${dateStr} • This report contains confidential information</div>
+          </div>
+        </div>
+      `;
+
+      // Render to canvas
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        useCORS: true,
+      });
+
+      document.body.removeChild(container);
+
+      // Multi-page PDF
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = 210;
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const imgData = canvas.toDataURL('image/png');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, Math.min(imgHeight, 297));
+      let heightLeft = imgHeight;
+      let position = 0;
 
-      const clientName = (activeClient?.name || reportData.channel?.name || 'Channel').replace(/[^a-zA-Z0-9]/g, '_');
-      pdf.save(`Quarterly_Report_${clientName}_Q${selectedQuarter}_${selectedYear}.pdf`);
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+
+      const safeName = clientName.replace(/[^a-zA-Z0-9]/g, '_');
+      pdf.save(`Quarterly_Report_${safeName}_Q${selectedQuarter}_${selectedYear}.pdf`);
     } catch (err) {
       console.error('[QuarterlyReport] Export failed:', err);
     } finally {
       setExporting(false);
     }
-  }, [reportData, selectedYear, selectedQuarter, activeClient?.name]);
+  }, [reportData, narrative, selectedYear, selectedQuarter, activeClient]);
 
   if (loading) {
     return (
