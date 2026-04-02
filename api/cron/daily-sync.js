@@ -864,11 +864,13 @@ async function handleBackfill(req, res) {
       const videoMap = {};
       for (const v of videos) { videoMap[v.youtube_video_id] = v; }
 
-      // Find the next month that needs backfilling for this channel
-      // by checking which months already have per-day analytics snapshots
+      // Find the next month that needs backfilling for this channel.
+      // A month is "done" if ANY snapshot exists for the first day of the month
+      // for this channel's videos (either real data or a skip-marker with view_count=0).
       const monthStart = new Date(rangeStart + 'T00:00:00Z');
       const rangeEndDate = new Date(rangeEnd + 'T00:00:00Z');
       let targetMonth = null;
+      const videoIds = videos.map(v => v.id);
 
       while (monthStart < rangeEndDate) {
         const mStart = monthStart.toISOString().split('T')[0];
@@ -876,22 +878,14 @@ async function handleBackfill(req, res) {
         if (mEndDate > rangeEndDate) mEndDate.setTime(rangeEndDate.getTime());
         const mEnd = mEndDate.toISOString().split('T')[0];
 
-        // Count existing snapshots with view_count for this channel+month
-        const videoIds = videos.map(v => v.id);
-        // Check a sample — if we have per-day data, there should be many snapshot rows
+        // Check if we already processed this month (any snapshot on the 1st)
         const { count } = await supabase
           .from('video_snapshots')
           .select('id', { count: 'exact', head: true })
           .in('video_id', videoIds.slice(0, 50))
-          .gte('snapshot_date', mStart)
-          .lte('snapshot_date', mEnd)
-          .not('view_count', 'is', null);
+          .eq('snapshot_date', mStart);
 
-        // Expect roughly (days × videos) snapshots. If we have less than half, backfill this month.
-        const daysInMonth = Math.round((mEndDate - monthStart) / 86400000) + 1;
-        const expectedMin = Math.min(videoIds.length, 50) * daysInMonth * 0.3;
-
-        if ((count || 0) < expectedMin) {
+        if ((count || 0) === 0) {
           targetMonth = { start: mStart, end: mEnd };
           break;
         }
@@ -990,7 +984,7 @@ async function handleBackfill(req, res) {
       }
 
       // Mark this month as processed so we don't retry it forever.
-      // Insert a placeholder snapshot for the first day so the coverage check moves on.
+      // Insert a placeholder snapshot on the 1st so the coverage check advances.
       if (monthSkipped || result.snapshotsCreated === 0) {
         const firstVideoId = videos[0]?.id;
         if (firstVideoId) {
@@ -999,6 +993,7 @@ async function handleBackfill(req, res) {
             .upsert({
               video_id: firstVideoId,
               snapshot_date: targetMonth.start,
+              view_count: 0,
               total_view_count: videos[0].view_count || 0,
             }, { onConflict: 'video_id,snapshot_date' });
         }
