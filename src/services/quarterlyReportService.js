@@ -146,14 +146,14 @@ function computeQuarterMetrics(videos, snapshots, channelCount = 1) {
   const subConversionRate = totalViews > 0 ? totalSubsGained / totalViews : 0;
 
   // Top videos
-  const topByViews = [...videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0)).slice(0, 5);
+  const topByViews = [...videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0)).slice(0, 10);
   const topByEngagement = [...videos]
     .map(v => ({
       ...v,
       engRate: v.view_count > 0 ? ((v.like_count || 0) + (v.comment_count || 0)) / v.view_count : 0,
     }))
     .sort((a, b) => b.engRate - a.engRate)
-    .slice(0, 5);
+    .slice(0, 10);
 
   return {
     totalVideos,

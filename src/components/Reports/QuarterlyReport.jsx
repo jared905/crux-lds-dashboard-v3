@@ -9,7 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   TrendingUp, TrendingDown, Minus, ArrowRight, Loader, Sparkles,
   Download, BarChart3, Eye, Users, Clock, Video, Play, Target,
-  CheckCircle, AlertTriangle, MousePointerClick, UserPlus,
+  CheckCircle, AlertTriangle, MousePointerClick, UserPlus, ChevronDown, ChevronUp,
 } from 'lucide-react';
 
 const fmt = (n) => {
@@ -37,7 +37,7 @@ function DeltaBadge({ delta }) {
   );
 }
 
-function MetricCard({ label, value, delta, color, icon: Icon }) {
+function MetricCard({ label, value, prevValue, delta, color, icon: Icon }) {
   return (
     <div style={{ background: '#1E1E1E', borderRadius: '10px', border: '1px solid #333', padding: '18px 20px', borderTop: `3px solid ${color}` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
@@ -48,6 +48,9 @@ function MetricCard({ label, value, delta, color, icon: Icon }) {
         {value}
       </div>
       <DeltaBadge delta={delta} />
+      {prevValue !== undefined && prevValue !== null && (
+        <div style={{ fontSize: '11px', color: '#555', marginTop: '4px' }}>prev: {prevValue}</div>
+      )}
     </div>
   );
 }
@@ -60,15 +63,16 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedQuarter, setSelectedQuarter] = useState(Math.floor(new Date().getMonth() / 3) + 1);
   const [exporting, setExporting] = useState(false);
+  const [showAllVideos, setShowAllVideos] = useState(false);
 
   // Load report data — use all network member IDs for multi-channel clients
   const loadReport = useCallback(async () => {
     if (!activeClient?.id) return;
     setLoading(true);
     setNarrative(null);
+    setShowAllVideos(false);
     try {
       const { generateQuarterlyReport } = await import('../../services/quarterlyReportService');
-      // Determine channel IDs based on selected channel filter
       let allChannelIds;
       if (selectedChannel && selectedChannel !== "all" && activeClient.networkMembers) {
         const match = activeClient.networkMembers.find(m => m.name === selectedChannel);
@@ -159,6 +163,11 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
       ? `${activeClient?.name || channel?.name || ''} · ${reportData.channelCount} channels`
       : activeClient?.name || channel?.name || 'Channel';
 
+  const visibleVideos = showAllVideos ? cq.metrics.topByViews.slice(0, 10) : cq.metrics.topByViews.slice(0, 5);
+  const hasMoreVideos = cq.metrics.topByViews.length > 5;
+  const subCount = activeClient?.subscriberCount || channel?.subscriber_count || 0;
+  const viewsPerSub = subCount > 0 ? cq.metrics.totalViews / subCount : 0;
+
   return (
     <div>
       {/* Header */}
@@ -242,20 +251,19 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
 
         {/* KPI Grid - Row 1 */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '12px' }}>
-          <MetricCard label="Videos Published" value={String(cq.metrics.totalVideos)} delta={deltas.totalVideos} color="#3b82f6" icon={Video} />
-          <MetricCard label="Total Views" value={fmt(cq.metrics.totalViews)} delta={deltas.totalViews} color="#10b981" icon={Eye} />
-          <MetricCard label="Avg Views/Video" value={fmt(cq.metrics.avgViews)} delta={deltas.avgViews} color="#f59e0b" icon={Play} />
-          <MetricCard label="Watch Hours" value={fmt(cq.metrics.totalWatchHours)} delta={deltas.totalWatchHours} color="#8b5cf6" icon={Clock} />
-          <MetricCard label="Subs Gained" value={fmt(cq.metrics.totalSubsGained)} delta={deltas.totalSubsGained} color="#ec4899" icon={Users} />
+          <MetricCard label="Videos Published" value={String(cq.metrics.totalVideos)} prevValue={pq.metrics.totalVideos > 0 ? String(pq.metrics.totalVideos) : null} delta={deltas.totalVideos} color="#3b82f6" icon={Video} />
+          <MetricCard label="Total Views" value={fmt(cq.metrics.totalViews)} prevValue={pq.metrics.totalViews > 0 ? fmt(pq.metrics.totalViews) : null} delta={deltas.totalViews} color="#10b981" icon={Eye} />
+          <MetricCard label="Avg Views/Video" value={fmt(cq.metrics.avgViews)} prevValue={pq.metrics.avgViews > 0 ? fmt(pq.metrics.avgViews) : null} delta={deltas.avgViews} color="#f59e0b" icon={Play} />
+          <MetricCard label="Watch Hours" value={fmt(cq.metrics.totalWatchHours)} prevValue={pq.metrics.totalWatchHours > 0 ? fmt(pq.metrics.totalWatchHours) : null} delta={deltas.totalWatchHours} color="#8b5cf6" icon={Clock} />
+          <MetricCard label="Subs Gained" value={fmt(cq.metrics.totalSubsGained)} prevValue={pq.metrics.totalSubsGained > 0 ? fmt(pq.metrics.totalSubsGained) : null} delta={deltas.totalSubsGained} color="#ec4899" icon={Users} />
         </div>
 
-        {/* KPI Grid - Row 2 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '20px' }}>
-          <MetricCard label="Engagement Rate" value={`${(cq.metrics.engagementRate * 100).toFixed(2)}%`} delta={deltas.engagementRate} color="#06b6d4" icon={Target} />
-          <MetricCard label="Long-form Retention" value={cq.metrics.longsAvgRetention > 0 ? `${(cq.metrics.longsAvgRetention * 100).toFixed(1)}%` : '—'} delta={deltas.longsAvgRetention} color="#14b8a6" icon={BarChart3} />
-          <MetricCard label="Shorts Retention" value={cq.metrics.shortsAvgRetention > 0 ? `${(cq.metrics.shortsAvgRetention * 100).toFixed(1)}%` : '—'} delta={deltas.shortsAvgRetention} color="#22d3ee" icon={BarChart3} />
-          <MetricCard label="Avg CTR" value={cq.metrics.avgCTR > 0 ? `${(cq.metrics.avgCTR * 100).toFixed(1)}%` : '—'} delta={deltas.avgCTR} color="#f97316" icon={MousePointerClick} />
-          <MetricCard label="Upload Freq" value={`${cq.metrics.uploadFrequency.toFixed(1)}/wk`} delta={deltas.uploadFrequency} color="#a855f7" icon={Video} />
+        {/* KPI Grid - Row 2 (4 columns — retention lives in Format Performance section) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
+          <MetricCard label="Engagement Rate" value={`${(cq.metrics.engagementRate * 100).toFixed(2)}%`} prevValue={pq.metrics.engagementRate > 0 ? `${(pq.metrics.engagementRate * 100).toFixed(2)}%` : null} delta={deltas.engagementRate} color="#06b6d4" icon={Target} />
+          <MetricCard label="Avg Retention" value={cq.metrics.avgRetention > 0 ? `${(cq.metrics.avgRetention * 100).toFixed(1)}%` : '—'} prevValue={pq.metrics.avgRetention > 0 ? `${(pq.metrics.avgRetention * 100).toFixed(1)}%` : null} delta={deltas.avgRetention} color="#14b8a6" icon={BarChart3} />
+          <MetricCard label="Avg CTR" value={cq.metrics.avgCTR > 0 ? `${(cq.metrics.avgCTR * 100).toFixed(1)}%` : '—'} prevValue={pq.metrics.avgCTR > 0 ? `${(pq.metrics.avgCTR * 100).toFixed(1)}%` : null} delta={deltas.avgCTR} color="#f97316" icon={MousePointerClick} />
+          <MetricCard label="Upload Freq" value={`${cq.metrics.uploadFrequency.toFixed(1)}/wk`} prevValue={pq.metrics.uploadFrequency > 0 ? `${pq.metrics.uploadFrequency.toFixed(1)}/wk` : null} delta={deltas.uploadFrequency} color="#a855f7" icon={Video} />
         </div>
 
         {/* Format Performance Comparison */}
@@ -264,43 +272,51 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
             <div style={{ fontSize: '15px', fontWeight: '700', color: '#fff', marginBottom: '16px' }}>Format Performance</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               {/* Long-form */}
-              <div style={{ background: '#252525', borderRadius: '10px', padding: '20px', borderTop: '3px solid #3b82f6' }}>
-                <div style={{ fontSize: '12px', color: '#888', textTransform: 'uppercase', fontWeight: '600', marginBottom: '12px' }}>Long-form</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ background: '#252525', borderRadius: '10px', padding: '22px', borderTop: '3px solid #3b82f6' }}>
+                <div style={{ fontSize: '15px', color: '#ccc', textTransform: 'uppercase', fontWeight: '700', marginBottom: '16px', letterSpacing: '0.5px' }}>Long-form</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div>
-                    <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Avg Views</div>
+                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px', fontWeight: '600' }}>Avg Views</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '22px', fontWeight: '800', color: '#3b82f6', fontFamily: "'Barlow Condensed', sans-serif" }}>{fmt(cq.metrics.longsAvgViews)}</span>
+                      <span style={{ fontSize: '24px', fontWeight: '800', color: '#3b82f6', fontFamily: "'Barlow Condensed', sans-serif" }}>{fmt(cq.metrics.longsAvgViews)}</span>
                       <DeltaBadge delta={deltas.longsAvgViews} />
                     </div>
+                    {pq.metrics.longsAvgViews > 0 && <div style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>prev: {fmt(pq.metrics.longsAvgViews)}</div>}
                   </div>
                   <div>
-                    <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Avg Retention</div>
-                    <span style={{ fontSize: '18px', fontWeight: '700', color: '#14b8a6', fontFamily: "'Barlow Condensed', sans-serif" }}>
-                      {cq.metrics.longsAvgRetention > 0 ? `${(cq.metrics.longsAvgRetention * 100).toFixed(1)}%` : '—'}
-                    </span>
+                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px', fontWeight: '600' }}>Avg Retention</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '22px', fontWeight: '700', color: '#14b8a6', fontFamily: "'Barlow Condensed', sans-serif" }}>
+                        {cq.metrics.longsAvgRetention > 0 ? `${(cq.metrics.longsAvgRetention * 100).toFixed(1)}%` : '—'}
+                      </span>
+                      <DeltaBadge delta={deltas.longsAvgRetention} />
+                    </div>
                   </div>
-                  <div style={{ fontSize: '13px', color: '#888' }}>{cq.metrics.longsCount} videos</div>
+                  <div style={{ fontSize: '14px', color: '#888', fontWeight: '600' }}>{cq.metrics.longsCount} videos</div>
                 </div>
               </div>
               {/* Shorts */}
-              <div style={{ background: '#252525', borderRadius: '10px', padding: '20px', borderTop: '3px solid #f97316' }}>
-                <div style={{ fontSize: '12px', color: '#888', textTransform: 'uppercase', fontWeight: '600', marginBottom: '12px' }}>Shorts</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ background: '#252525', borderRadius: '10px', padding: '22px', borderTop: '3px solid #f97316' }}>
+                <div style={{ fontSize: '15px', color: '#ccc', textTransform: 'uppercase', fontWeight: '700', marginBottom: '16px', letterSpacing: '0.5px' }}>Shorts</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div>
-                    <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Avg Views</div>
+                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px', fontWeight: '600' }}>Avg Views</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '22px', fontWeight: '800', color: '#f97316', fontFamily: "'Barlow Condensed', sans-serif" }}>{fmt(cq.metrics.shortsAvgViews)}</span>
+                      <span style={{ fontSize: '24px', fontWeight: '800', color: '#f97316', fontFamily: "'Barlow Condensed', sans-serif" }}>{fmt(cq.metrics.shortsAvgViews)}</span>
                       <DeltaBadge delta={deltas.shortsAvgViews} />
                     </div>
+                    {pq.metrics.shortsAvgViews > 0 && <div style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>prev: {fmt(pq.metrics.shortsAvgViews)}</div>}
                   </div>
                   <div>
-                    <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Avg Retention</div>
-                    <span style={{ fontSize: '18px', fontWeight: '700', color: '#22d3ee', fontFamily: "'Barlow Condensed', sans-serif" }}>
-                      {cq.metrics.shortsAvgRetention > 0 ? `${(cq.metrics.shortsAvgRetention * 100).toFixed(1)}%` : '—'}
-                    </span>
+                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px', fontWeight: '600' }}>Avg Retention</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '22px', fontWeight: '700', color: '#22d3ee', fontFamily: "'Barlow Condensed', sans-serif" }}>
+                        {cq.metrics.shortsAvgRetention > 0 ? `${(cq.metrics.shortsAvgRetention * 100).toFixed(1)}%` : '—'}
+                      </span>
+                      <DeltaBadge delta={deltas.shortsAvgRetention} />
+                    </div>
                   </div>
-                  <div style={{ fontSize: '13px', color: '#888' }}>{cq.metrics.shortsCount} videos</div>
+                  <div style={{ fontSize: '14px', color: '#888', fontWeight: '600' }}>{cq.metrics.shortsCount} videos</div>
                 </div>
               </div>
             </div>
@@ -323,20 +339,25 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
               </div>
             </div>
             {cq.metrics.totalVideos > 0 && (
-              <div style={{ display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', background: '#333', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', background: '#333', marginBottom: '16px' }}>
                 {cq.metrics.shortsCount > 0 && <div style={{ width: `${(cq.metrics.shortsCount / cq.metrics.totalVideos) * 100}%`, background: '#f97316' }} />}
                 {cq.metrics.longsCount > 0 && <div style={{ flex: 1, background: '#3b82f6' }} />}
               </div>
             )}
-            {/* Upload frequency */}
-            <div style={{ fontSize: '13px', color: '#ccc', marginBottom: '4px' }}>
-              {cq.metrics.uploadFrequency.toFixed(1)}/wk total
+            {/* Upload frequency — prominent display */}
+            <div style={{ background: '#252525', borderRadius: '8px', padding: '14px', marginBottom: '12px' }}>
+              <div style={{ fontSize: '10px', color: '#888', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Upload Cadence</div>
+              <div style={{ fontSize: '22px', fontWeight: '800', color: '#a855f7', fontFamily: "'Barlow Condensed', sans-serif" }}>
+                {cq.metrics.uploadFrequency.toFixed(1)}<span style={{ fontSize: '14px', color: '#888', fontWeight: '600' }}>/wk</span>
+              </div>
               {reportData.channelCount > 1 && (
-                <span style={{ color: '#888' }}> · {cq.metrics.uploadsPerChannel.toFixed(1)}/wk per channel</span>
+                <div style={{ fontSize: '13px', color: '#888', marginTop: '4px' }}>
+                  {cq.metrics.uploadsPerChannel.toFixed(1)}/wk per channel ({reportData.channelCount} channels)
+                </div>
               )}
             </div>
             {pq.metrics.totalVideos > 0 && (
-              <div style={{ marginTop: '8px', fontSize: '11px', color: '#666' }}>
+              <div style={{ fontSize: '11px', color: '#666' }}>
                 {pq.label}: {pq.metrics.shortsCount} shorts / {pq.metrics.longsCount} long-form
               </div>
             )}
@@ -348,27 +369,43 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
             {cq.metrics.topByViews.length === 0 ? (
               <div style={{ fontSize: '13px', color: '#555', fontStyle: 'italic' }}>No videos this quarter</div>
             ) : (
-              cq.metrics.topByViews.slice(0, 5).map((v, i) => (
-                <a key={v.youtube_video_id || i}
-                  href={`https://www.youtube.com/watch?v=${v.youtube_video_id}`}
-                  target="_blank" rel="noopener noreferrer"
-                  style={{
-                    display: 'flex', gap: '12px', padding: '10px', marginBottom: '6px',
-                    background: '#252525', borderRadius: '8px', textDecoration: 'none',
-                    alignItems: 'center', borderLeft: `3px solid ${i === 0 ? '#f59e0b' : i === 1 ? '#e5e7eb' : '#555'}`,
-                  }}
-                >
-                  <span style={{ fontSize: '13px', fontWeight: '700', color: i === 0 ? '#f59e0b' : i === 1 ? '#e5e7eb' : '#555', minWidth: '24px' }}>#{i + 1}</span>
-                  {v.thumbnail_url && <img src={v.thumbnail_url} alt="" style={{ width: 80, height: 45, borderRadius: '6px', objectFit: 'cover', flexShrink: 0 }} />}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#e0e0e0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.title}</div>
-                    <div style={{ fontSize: '12px', color: '#888', marginTop: '3px' }}>
-                      {fmt(v.view_count)} views · {fmt(v.like_count)} likes
-                      {v.published_at && ` · ${new Date(v.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+              <>
+                {visibleVideos.map((v, i) => (
+                  <a key={v.youtube_video_id || i}
+                    href={`https://www.youtube.com/watch?v=${v.youtube_video_id}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{
+                      display: 'flex', gap: '12px', padding: '10px', marginBottom: '6px',
+                      background: '#252525', borderRadius: '8px', textDecoration: 'none',
+                      alignItems: 'center', borderLeft: `3px solid ${i === 0 ? '#f59e0b' : i === 1 ? '#e5e7eb' : '#555'}`,
+                    }}
+                  >
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: i === 0 ? '#f59e0b' : i === 1 ? '#e5e7eb' : '#555', minWidth: '24px' }}>#{i + 1}</span>
+                    {v.thumbnail_url && <img src={v.thumbnail_url} alt="" style={{ width: 80, height: 45, borderRadius: '6px', objectFit: 'cover', flexShrink: 0 }} />}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: '600', color: '#e0e0e0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.title}</div>
+                      <div style={{ fontSize: '12px', color: '#888', marginTop: '3px' }}>
+                        {fmt(v.view_count)} views · {fmt(v.like_count)} likes
+                        {v.published_at && ` · ${new Date(v.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                      </div>
                     </div>
-                  </div>
-                </a>
-              ))
+                  </a>
+                ))}
+                {hasMoreVideos && (
+                  <button
+                    onClick={() => setShowAllVideos(!showAllVideos)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                      width: '100%', padding: '8px', marginTop: '6px',
+                      background: 'transparent', border: '1px solid #333', borderRadius: '6px',
+                      color: '#888', fontSize: '12px', cursor: 'pointer', fontWeight: '600',
+                    }}
+                  >
+                    {showAllVideos ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    {showAllVideos ? 'Show less' : `Show all ${Math.min(cq.metrics.topByViews.length, 10)}`}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -411,17 +448,18 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
               )}
             </div>
 
-            {/* Views per Sub */}
+            {/* Views per Subscriber */}
             <div style={{ background: '#252525', borderRadius: '10px', padding: '18px', borderTop: '3px solid #06b6d4' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                <Eye size={16} style={{ color: '#555' }} />
-                <span style={{ fontSize: '12px', color: '#888', textTransform: 'uppercase', fontWeight: '600' }}>Views per Video</span>
+                <Users size={16} style={{ color: '#555' }} />
+                <span style={{ fontSize: '12px', color: '#888', textTransform: 'uppercase', fontWeight: '600' }}>Views per Sub</span>
               </div>
               <div style={{ fontSize: '28px', fontWeight: '800', color: '#06b6d4', fontFamily: "'Barlow Condensed', sans-serif", marginBottom: '4px' }}>
-                {fmt(cq.metrics.avgViews)}
+                {viewsPerSub > 0 ? viewsPerSub.toFixed(1) : '—'}
               </div>
-              <div style={{ fontSize: '11px', color: '#666', marginBottom: '6px' }}>average across all formats</div>
-              <DeltaBadge delta={deltas.avgViews} />
+              <div style={{ fontSize: '11px', color: '#666', marginBottom: '6px' }}>
+                {subCount > 0 ? `${fmt(cq.metrics.totalViews)} views / ${fmt(subCount)} subs` : 'subscriber count unavailable'}
+              </div>
             </div>
           </div>
         </div>
