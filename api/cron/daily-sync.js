@@ -788,24 +788,18 @@ async function syncConnection(connection) {
   return results;
 }
 
-// Backfill mode: fetch per-day-per-video analytics and create accurate snapshots.
-// Processes ONE channel per request and one month at a time to avoid timeouts.
+// Backfill mode: download ALL available Reporting API CSV reports and write
+// per-day-per-video snapshots. Processes one channel per request.
 //
-// Usage (processes next unfinished channel+month automatically):
-//   /api/cron/daily-sync?backfill=2024-10-01,2026-04-01&manual=true
+// The YouTube Analytics API doesn't work for these channel types, but the
+// Reporting API provides per-day CSVs going back ~60-180 days.
 //
+// Usage: /api/cron/daily-sync?backfill=true&manual=true
 // Or target a specific channel:
-//   /api/cron/daily-sync?backfill=2024-10-01,2026-04-01&channel=CONNECTION_ID&manual=true
-//
-// The response includes a `next` URL to continue. Call it repeatedly until done.
+//   /api/cron/daily-sync?backfill=true&channel=CONNECTION_ID&manual=true
 async function handleBackfill(req, res) {
   const startTime = Date.now();
-  const [rangeStart, rangeEnd] = req.query.backfill.split(',');
   const targetConnectionId = req.query.channel || null;
-
-  if (!rangeStart || !rangeEnd) {
-    return res.status(400).json({ error: 'backfill requires start,end dates (YYYY-MM-DD,YYYY-MM-DD)' });
-  }
 
   // Get connections
   let connQuery = supabase
@@ -824,14 +818,15 @@ async function handleBackfill(req, res) {
     return res.status(200).json({ success: true, done: true, message: 'No active connections' });
   }
 
-  // Process one channel at a time. Pick the first one that still has months to backfill.
-  // Track progress via a simple table or query what months already have data.
+  const allResults = [];
+
   for (const connection of connections) {
     const result = {
       channel: connection.youtube_channel_title,
       connectionId: connection.id,
       snapshotsCreated: 0,
-      monthProcessed: null,
+      daysFound: 0,
+      reportsDownloaded: 0,
       errors: []
     };
 
@@ -848,6 +843,13 @@ async function handleBackfill(req, res) {
 
       if (!dbChannel) {
         result.errors.push('No matching client channel');
+        allResults.push(result);
+        continue;
+      }
+
+      if (!connection.reporting_job_id) {
+        result.errors.push('No reporting job configured — Reporting API unavailable');
+        allResults.push(result);
         continue;
       }
 
@@ -858,96 +860,78 @@ async function handleBackfill(req, res) {
 
       if (!videos?.length) {
         result.errors.push('No videos in database');
+        allResults.push(result);
         continue;
       }
 
       const videoMap = {};
       for (const v of videos) { videoMap[v.youtube_video_id] = v; }
 
-      // Find the next month that needs backfilling for this channel.
-      // A month is "done" if ANY snapshot exists for the first day of the month
-      // for this channel's videos (either real data or a skip-marker with view_count=0).
-      const monthStart = new Date(rangeStart + 'T00:00:00Z');
-      const rangeEndDate = new Date(rangeEnd + 'T00:00:00Z');
-      let targetMonth = null;
-      const videoIds = videos.map(v => v.id);
+      // Download ALL available Reporting API reports (up to 180 days)
+      console.log(`[Backfill] ${connection.youtube_channel_title}: fetching all Reporting API reports...`);
 
-      while (monthStart < rangeEndDate) {
-        const mStart = monthStart.toISOString().split('T')[0];
-        const mEndDate = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 0));
-        if (mEndDate > rangeEndDate) mEndDate.setTime(rangeEndDate.getTime());
-        const mEnd = mEndDate.toISOString().split('T')[0];
+      const reportsResponse = await fetch(
+        `https://youtubereporting.googleapis.com/v1/jobs/${connection.reporting_job_id}/reports`,
+        { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
+      );
 
-        // Check if we already processed this month (any snapshot on the 1st)
-        const { count } = await supabase
-          .from('video_snapshots')
-          .select('id', { count: 'exact', head: true })
-          .in('video_id', videoIds.slice(0, 50))
-          .eq('snapshot_date', mStart);
-
-        if ((count || 0) === 0) {
-          targetMonth = { start: mStart, end: mEnd };
-          break;
-        }
-
-        monthStart.setUTCMonth(monthStart.getUTCMonth() + 1);
-        monthStart.setUTCDate(1);
-      }
-
-      if (!targetMonth) {
-        // This channel is fully backfilled, try next connection
-        result.monthProcessed = 'complete';
-        console.log(`[Backfill] ${connection.youtube_channel_title}: fully backfilled`);
-
-        // If targeting a specific channel, we're done
-        if (targetConnectionId) {
-          return res.status(200).json({
-            success: true,
-            done: true,
-            channel: connection.youtube_channel_title,
-            message: 'All months backfilled for this channel',
-            duration: Date.now() - startTime
-          });
-        }
+      if (!reportsResponse.ok) {
+        result.errors.push('Failed to list reports');
+        allResults.push(result);
         continue;
       }
 
-      console.log(`[Backfill] ${connection.youtube_channel_title}: backfilling ${targetMonth.start} → ${targetMonth.end}`);
-      result.monthProcessed = `${targetMonth.start} → ${targetMonth.end}`;
+      const reportsData = await reportsResponse.json();
+      const reports = (reportsData.reports || [])
+        .sort((a, b) => new Date(b.createTime) - new Date(a.createTime));
 
-      // Fetch analytics one day at a time (YouTube API doesn't support day+video dimensions together)
-      // Test the first day — if the API rejects it, skip the entire month (data too old)
-      const days = getDateRange(targetMonth.start, targetMonth.end);
+      if (!reports.length) {
+        result.errors.push('No reports available from Reporting API');
+        allResults.push(result);
+        continue;
+      }
+
+      console.log(`[Backfill] Found ${reports.length} reports available`);
+
+      // Download all reports and collect per-day-per-video data
       let batch = [];
       const batchSize = 100;
-      let monthSkipped = false;
 
-      for (let di = 0; di < days.length; di++) {
-        const date = days[di];
+      for (const report of reports) {
         try {
-          const analytics = await fetchAnalytics(accessToken, channelId, date, date);
-          const ms = analytics._metricSet || {};
+          const reportResponse = await fetch(report.downloadUrl, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
 
-          if (analytics.rows) {
-            for (const row of analytics.rows) {
-              const ytVideoId = row[0];
+          if (!reportResponse.ok) continue;
+
+          const csvContent = await reportResponse.text();
+          const { byDate } = parseReportCSV(csvContent);
+          result.reportsDownloaded++;
+
+          for (const [date, dayVideos] of Object.entries(byDate)) {
+            result.daysFound++;
+
+            for (const [ytVideoId, metrics] of Object.entries(dayVideos)) {
               const dbVideo = videoMap[ytVideoId];
               if (!dbVideo) continue;
 
-              const views = row[1] ?? 0;
-              const watchHours = ((row[2] ?? 0) / 60);
-              const avgViewPct = ms.hasRetention ? (row[3] ?? 0) / 100 : null;
-              const subsGained = ms.hasSubs ? (row[ms.hasRetention ? 4 : 3] ?? 0) : null;
-
-              if (views === 0 && watchHours === 0) continue;
+              const hasData = metrics.views || metrics.impressions || metrics.watchHours || metrics.likes;
+              if (!hasData) continue;
 
               batch.push({
                 video_id: dbVideo.id,
                 snapshot_date: date,
-                view_count: views || null,
-                watch_hours: watchHours || null,
-                avg_view_percentage: avgViewPct || null,
-                subscribers_gained: subsGained || null,
+                view_count: metrics.views || null,
+                watch_hours: metrics.watchHours || null,
+                impressions: metrics.impressions || null,
+                ctr: metrics.ctr || null,
+                avg_view_percentage: metrics.avgViewPercentage || null,
+                subscribers_gained: metrics.subscribersGained || null,
+                subscribers_lost: metrics.subscribersLost || null,
+                likes: metrics.likes || null,
+                comments: metrics.comments || null,
+                shares: metrics.shares || null,
               });
 
               if (batch.length >= batchSize) {
@@ -961,20 +945,14 @@ async function handleBackfill(req, res) {
             }
           }
         } catch (e) {
-          // If the first day fails, the whole month is too old — skip it
-          if (di === 0) {
-            result.errors.push(`Month skipped (API rejected ${date}: ${e.message})`);
-            monthSkipped = true;
-            break;
-          }
-          result.errors.push(`${date}: ${e.message}`);
+          result.errors.push(`Report ${report.startTime}: ${e.message}`);
         }
 
-        // Rate limit between API calls
-        await new Promise(r => setTimeout(r, 100));
+        // Rate limit
+        await new Promise(r => setTimeout(r, 50));
       }
 
-      // Flush
+      // Flush remaining
       if (batch.length > 0) {
         const { error } = await supabase
           .from('video_snapshots')
@@ -983,58 +961,25 @@ async function handleBackfill(req, res) {
         else result.errors.push(`Upsert: ${error.message}`);
       }
 
-      // Mark this month as processed so we don't retry it forever.
-      // Insert a placeholder snapshot on the 1st so the coverage check advances.
-      if (monthSkipped || result.snapshotsCreated === 0) {
-        const firstVideoId = videos[0]?.id;
-        if (firstVideoId) {
-          await supabase
-            .from('video_snapshots')
-            .upsert({
-              video_id: firstVideoId,
-              snapshot_date: targetMonth.start,
-              view_count: 0,
-              total_view_count: videos[0].view_count || 0,
-            }, { onConflict: 'video_id,snapshot_date' });
-        }
-      }
-
-      console.log(`[Backfill] ${connection.youtube_channel_title} ${targetMonth.start}→${targetMonth.end}: ${result.snapshotsCreated} snapshots`);
-
-      const duration = Date.now() - startTime;
-
-      // Build the "next" URL for the caller to continue
-      const baseUrl = `/api/cron/daily-sync?backfill=${rangeStart},${rangeEnd}&manual=true`;
-
-      return res.status(200).json({
-        success: true,
-        done: false,
-        channel: connection.youtube_channel_title,
-        monthProcessed: result.monthProcessed,
-        snapshotsCreated: result.snapshotsCreated,
-        errors: result.errors,
-        duration,
-        next: baseUrl,
-        message: `Backfilled ${result.snapshotsCreated} snapshots. Call 'next' URL to continue.`
-      });
+      console.log(`[Backfill] ${connection.youtube_channel_title}: ${result.reportsDownloaded} reports, ${result.daysFound} days, ${result.snapshotsCreated} snapshots`);
 
     } catch (e) {
       result.errors.push(e.message);
-      return res.status(200).json({
-        success: false,
-        channel: connection.youtube_channel_title,
-        error: e.message,
-        next: `/api/cron/daily-sync?backfill=${rangeStart},${rangeEnd}&manual=true`
-      });
     }
+
+    allResults.push(result);
   }
 
-  // All channels complete
+  const totalSnapshots = allResults.reduce((s, r) => s + r.snapshotsCreated, 0);
+  const duration = Date.now() - startTime;
+
   return res.status(200).json({
     success: true,
     done: true,
-    message: 'All channels fully backfilled',
-    duration: Date.now() - startTime
+    totalSnapshots,
+    duration,
+    results: allResults,
+    message: `Backfilled ${totalSnapshots} snapshots across ${allResults.length} channels. Data covers ~60-180 days back depending on report availability.`
   });
 }
 
