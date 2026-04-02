@@ -345,6 +345,22 @@ export default async function handler(req, res) {
       .eq('is_competitor', false)
       .maybeSingle();
 
+    // Auto-grant client access for the connecting user
+    if (existingClient) {
+      try {
+        await supabase
+          .from('user_client_access')
+          .upsert({
+            user_id: stateRecord.user_id,
+            client_id: existingClient.id,
+            has_access: true,
+          }, { onConflict: 'user_id,client_id' });
+        console.log(`[OAuth] Auto-granted client access: user ${stateRecord.user_id} -> ${existingClient.name}`);
+      } catch (e) {
+        console.warn('[OAuth] Failed to auto-grant client access (non-fatal):', e.message);
+      }
+    }
+
     // Redirect to settings with success
     const successParams = new URLSearchParams({
       tab: 'api-keys',

@@ -76,8 +76,8 @@ export const AuthProvider = ({ children }) => {
     if (!user) return false;
     if (isAdmin) return true;
 
-    // If no client restrictions, allow all
-    if (clientPermissions.length === 0) return true;
+    // Viewers must have explicit client access — no permissions = no access
+    if (clientPermissions.length === 0) return false;
     return clientPermissions.includes(clientId);
   };
 

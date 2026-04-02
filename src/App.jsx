@@ -976,6 +976,14 @@ export default function App() {
     return clients.filter(c => canAccessClient(c.id));
   }, [clients, isAdmin, canAccessClient]);
 
+  // Validate activeClient against permissions — reset if not accessible
+  useEffect(() => {
+    if (isAdmin || !activeClient || accessibleClients.length === 0) return;
+    if (!canAccessClient(activeClient.id)) {
+      setActiveClient(accessibleClients[0]);
+    }
+  }, [activeClient, accessibleClients, canAccessClient, isAdmin]);
+
   // Public routes — accessible without authentication (supports both /privacy and ?tab=privacy)
   const pathname = window.location.pathname;
   if (tab === "privacy" || pathname === "/privacy") return <PrivacyPolicy />;
