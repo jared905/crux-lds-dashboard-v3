@@ -150,6 +150,7 @@ async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
     }
 
     // Non-metric error (auth, rate limit, etc.) — throw immediately
+    console.error(`[Analytics API] Error for ${channelId} ${startDate}-${endDate} metrics=${metricSet.metrics}: ${JSON.stringify(errorBody)}`);
     throw new Error(errorMsg || 'Analytics API failed');
   }
 
@@ -660,10 +661,11 @@ async function syncConnection(connection) {
           likes: reportingDay.likes || null,
           comments: reportingDay.comments || null,
           shares: reportingDay.shares || null,
-          // Cumulative Data API counts (only meaningful on most recent date)
-          total_view_count: date === yesterday ? (video.view_count || null) : null,
-          total_like_count: date === yesterday ? (video.like_count || null) : null,
-          total_comment_count: date === yesterday ? (video.comment_count || null) : null,
+          // Cumulative Data API counts — written on every day so the delta
+          // MAX(total_view_count) - MIN(total_view_count) works across any date range
+          total_view_count: video.view_count || null,
+          total_like_count: video.like_count || null,
+          total_comment_count: video.comment_count || null,
         };
 
         const hasData = snapshotData.view_count || snapshotData.impressions || snapshotData.watch_hours ||
@@ -1053,6 +1055,8 @@ async function handleBackfill(req, res) {
                 likes: metrics.likes || null,
                 comments: metrics.comments || null,
                 shares: metrics.shares || null,
+                // Include cumulative Data API count so the delta calculation works
+                total_view_count: dbVideo.view_count || null,
               };
             }
           }
