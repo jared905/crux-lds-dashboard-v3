@@ -178,7 +178,7 @@ export default function App() {
     };
 
     loadFromSupabase();
-  }, []); // Run once on mount
+  }, [isAdmin]); // Re-run when auth state settles (isAdmin changes from false to true)
 
   // Save clients to localStorage whenever they change
   useEffect(() => {
