@@ -36,9 +36,7 @@ export default function AuditPDFExport({ audit, videoAnalysis }) {
           <div style="font-size:14px;color:#999;margin-bottom:8px;">
             ${esc(audit.audit_type === "prospect" ? "Prospect Analysis" : "Client Baseline Audit")}
           </div>
-          <div style="font-size:13px;color:#aaa;">
-            Generated ${new Date(audit.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-          </div>
+          <div style="font-size:13px;color:#aaa;"></div>
           <div style="margin-top:60px;font-size:12px;color:#bbb;">
             Full View Analytics · A Product of Crux Media
           </div>

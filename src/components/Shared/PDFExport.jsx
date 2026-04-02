@@ -369,7 +369,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
               <div style="border-left: 2px solid #cbd5e1; padding-left: 22px;">
                 ${displayName ? `<div style="font-size: 20px; font-weight: 700; color: #2563eb; margin-bottom: 6px;">${displayName}</div>` : ''}
                 <h1 style="margin: 0; font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1.3; word-spacing: -1px;">Strategic YouTube Insights</h1>
-                <p style="margin: 10px 0 0 0; font-size: 16px; color: #64748b; font-weight: 500;">${dateLabel} • ${dateStr}</p>
+                <p style="margin: 10px 0 0 0; font-size: 16px; color: #64748b; font-weight: 500;">${dateLabel}</p>
               </div>
             </div>
           </div>
@@ -653,7 +653,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
               <span style="color: #94a3b8; font-size: 14px; font-weight: 500; line-height: 1.4;">Powered by</span>
               <img src="/crux-logo.png" alt="CRUX" style="height: 32px; object-fit: contain; vertical-align: middle;" />
             </div>
-            <div style="color: #cbd5e1; font-size: 13px;">${dateStr} • This report contains confidential information</div>
+            <div style="color: #cbd5e1; font-size: 13px;">This report contains confidential information</div>
           </div>
         </div>
       `;
@@ -810,7 +810,33 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
         return `"${v.title}"${isMultiChannel && v.channel ? ` [${v.channel}]` : ''} (${(v.views||0).toLocaleString()} views${d ? ` in ${d}d` : ''}, ${((v.ctr||0)*100).toFixed(1)}% CTR, ${((v.retention||0)*100).toFixed(1)}% retention, ${(v.subscribers||0)} subs gained, ${Number((v.watchHours||0).toFixed(1))} watch hrs${v.likes ? `, ${v.likes} likes` : ''}${v.comments ? `, ${v.comments} comments` : ''}${pubStr ? `, pub ${pubStr}` : ''})`;
       };
 
-      // periodPublished, shorts, longs, shortsViews, longsViews already computed above (before HTML template)
+      // Compute periodPublished, shorts, longs, shortsViews, longsViews for AI prompt
+      const allRows = rows || filtered;
+      const periodPublished = allRows.filter(r => {
+        if (r.isTotal || !r.publishDate) return false;
+        const pub = new Date(r.publishDate);
+        if (dateRange === 'all') return true;
+        if (dateRange === 'custom') {
+          if (customDateRange?.start && pub < new Date(customDateRange.start)) return false;
+          if (customDateRange?.end) {
+            const end = new Date(customDateRange.end);
+            end.setHours(23, 59, 59, 999);
+            if (pub > end) return false;
+          }
+          return true;
+        }
+        const now = new Date();
+        let start;
+        if (dateRange === '7d') start = new Date(now.getTime() - 7 * 86400000);
+        else if (dateRange === '28d') start = new Date(now.getTime() - 28 * 86400000);
+        else if (dateRange === '90d') start = new Date(now.getTime() - 90 * 86400000);
+        else if (dateRange === 'ytd') start = new Date(now.getFullYear(), 0, 1);
+        return start ? pub >= start : true;
+      });
+      const shorts = periodPublished.filter(r => r.type === 'short');
+      const longs = periodPublished.filter(r => r.type !== 'short');
+      const shortsViews = kpis.shortsMetrics?.views || shorts.reduce((s, r) => s + (r.views || 0), 0);
+      const longsViews = kpis.longsMetrics?.views || longs.reduce((s, r) => s + (r.views || 0), 0);
 
       let channelBreakdownBlock = '';
       if (isMultiChannel) {

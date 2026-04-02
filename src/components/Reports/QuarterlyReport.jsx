@@ -120,7 +120,6 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
       const m = cqd.metrics;
       const pm = pqd.metrics;
       const clientName = activeClient?.name || ch?.name || 'Channel';
-      const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
       const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
       const f = (n) => { if (!n || isNaN(n)) return '0'; if (n >= 1e6) return (n/1e6).toFixed(1)+'M'; if (n >= 1e3) return (n/1e3).toFixed(n >= 1e4 ? 0 : 1)+'K'; return Math.round(n).toLocaleString(); };
       const dp = (delta) => {
@@ -190,7 +189,7 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
               <div style="border-left: 2px solid #cbd5e1; padding-left: 22px;">
                 <div style="font-size: 20px; font-weight: 700; color: #2563eb; margin-bottom: 6px;">${esc(clientName)}</div>
                 <h1 style="margin: 0; font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1.3;">Quarterly Performance Report</h1>
-                <p style="margin: 10px 0 0 0; font-size: 16px; color: #64748b; font-weight: 500;">${cqd.label} vs ${pqd.label} • ${dateStr}</p>
+                <p style="margin: 10px 0 0 0; font-size: 16px; color: #64748b; font-weight: 500;">${cqd.label} vs ${pqd.label}</p>
               </div>
             </div>
           </div>
@@ -306,7 +305,7 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
               <span style="color: #94a3b8; font-size: 14px; font-weight: 500;">Powered by</span>
               <img src="/crux-logo.png" alt="CRUX" style="height: 32px; object-fit: contain; vertical-align: middle;" crossorigin="anonymous" />
             </div>
-            <div style="color: #cbd5e1; font-size: 13px;">${dateStr} • This report contains confidential information</div>
+            <div style="color: #cbd5e1; font-size: 13px;">This report contains confidential information</div>
           </div>
         </div>
       `;
