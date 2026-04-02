@@ -867,6 +867,67 @@ async function handleBackfill(req, res) {
       const videoMap = {};
       for (const v of videos) { videoMap[v.youtube_video_id] = v; }
 
+      // Try to auto-create a reporting job if one doesn't exist
+      if (!connection.reporting_job_id) {
+        try {
+          // List available report types
+          const rtResponse = await fetch(
+            'https://youtubereporting.googleapis.com/v1/reportTypes',
+            { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
+          );
+          if (rtResponse.ok) {
+            const rtData = await rtResponse.json();
+            const reachType = rtData.reportTypes?.find(rt =>
+              rt.id === 'channel_reach_basic_a1' || rt.id?.includes('channel_reach_')
+            );
+
+            if (reachType) {
+              // Check for existing job
+              const jobsResp = await fetch(
+                'https://youtubereporting.googleapis.com/v1/jobs',
+                { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
+              );
+              const jobsData = jobsResp.ok ? await jobsResp.json() : {};
+              const existingJob = jobsData.jobs?.find(j => j.reportTypeId?.includes('channel_reach_'));
+
+              if (existingJob) {
+                connection.reporting_job_id = existingJob.id;
+                await supabase.from('youtube_oauth_connections')
+                  .update({ reporting_job_id: existingJob.id, reporting_job_type: existingJob.reportTypeId })
+                  .eq('id', connection.id);
+                console.log(`[Backfill] Found existing reporting job for ${connection.youtube_channel_title}`);
+              } else {
+                // Create new job
+                const createResp = await fetch(
+                  'https://youtubereporting.googleapis.com/v1/jobs',
+                  {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reportTypeId: reachType.id, name: `Backfill - ${connection.youtube_channel_title}` })
+                  }
+                );
+                if (createResp.ok) {
+                  const newJob = await createResp.json();
+                  connection.reporting_job_id = newJob.id;
+                  await supabase.from('youtube_oauth_connections')
+                    .update({ reporting_job_id: newJob.id, reporting_job_type: newJob.reportTypeId })
+                    .eq('id', connection.id);
+                  result.errors.push('Reporting job created — first reports available in ~24 hours. Run backfill again tomorrow.');
+                }
+              }
+            }
+          }
+        } catch (e) {
+          result.errors.push(`Auto-create reporting job failed: ${e.message}`);
+        }
+      }
+
+      if (!connection.reporting_job_id) {
+        result.errors.push('No reporting job and could not auto-create one');
+        allResults.push(result);
+        continue;
+      }
+
       // Download ALL available Reporting API reports (up to 180 days)
       console.log(`[Backfill] ${connection.youtube_channel_title}: fetching all Reporting API reports...`);
 
@@ -886,16 +947,16 @@ async function handleBackfill(req, res) {
         .sort((a, b) => new Date(b.createTime) - new Date(a.createTime));
 
       if (!reports.length) {
-        result.errors.push('No reports available from Reporting API');
+        result.errors.push('No reports available yet from Reporting API');
         allResults.push(result);
         continue;
       }
 
       console.log(`[Backfill] Found ${reports.length} reports available`);
 
-      // Download all reports and collect per-day-per-video data
-      let batch = [];
-      const batchSize = 100;
+      // Download all reports — collect into a deduped map keyed by video_id+date
+      // Multiple CSV reports can contain the same video+date; last write wins
+      const snapshotMap = {}; // key: `${video_id}|${date}` → snapshot data
 
       for (const report of reports) {
         try {
@@ -910,8 +971,6 @@ async function handleBackfill(req, res) {
           result.reportsDownloaded++;
 
           for (const [date, dayVideos] of Object.entries(byDate)) {
-            result.daysFound++;
-
             for (const [ytVideoId, metrics] of Object.entries(dayVideos)) {
               const dbVideo = videoMap[ytVideoId];
               if (!dbVideo) continue;
@@ -919,7 +978,8 @@ async function handleBackfill(req, res) {
               const hasData = metrics.views || metrics.impressions || metrics.watchHours || metrics.likes;
               if (!hasData) continue;
 
-              batch.push({
+              const key = `${dbVideo.id}|${date}`;
+              snapshotMap[key] = {
                 video_id: dbVideo.id,
                 snapshot_date: date,
                 view_count: metrics.views || null,
@@ -932,16 +992,7 @@ async function handleBackfill(req, res) {
                 likes: metrics.likes || null,
                 comments: metrics.comments || null,
                 shares: metrics.shares || null,
-              });
-
-              if (batch.length >= batchSize) {
-                const { error } = await supabase
-                  .from('video_snapshots')
-                  .upsert(batch, { onConflict: 'video_id,snapshot_date' });
-                if (!error) result.snapshotsCreated += batch.length;
-                else result.errors.push(`Upsert: ${error.message}`);
-                batch = [];
-              }
+              };
             }
           }
         } catch (e) {
@@ -952,8 +1003,13 @@ async function handleBackfill(req, res) {
         await new Promise(r => setTimeout(r, 50));
       }
 
-      // Flush remaining
-      if (batch.length > 0) {
+      // Write deduped snapshots in batches
+      const allSnapshots = Object.values(snapshotMap);
+      result.daysFound = new Set(allSnapshots.map(s => s.snapshot_date)).size;
+      const batchSize = 100;
+
+      for (let i = 0; i < allSnapshots.length; i += batchSize) {
+        const batch = allSnapshots.slice(i, i + batchSize);
         const { error } = await supabase
           .from('video_snapshots')
           .upsert(batch, { onConflict: 'video_id,snapshot_date' });
