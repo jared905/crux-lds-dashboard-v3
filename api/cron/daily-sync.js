@@ -922,11 +922,14 @@ async function handleBackfill(req, res) {
       result.monthProcessed = `${targetMonth.start} → ${targetMonth.end}`;
 
       // Fetch analytics one day at a time (YouTube API doesn't support day+video dimensions together)
+      // Test the first day — if the API rejects it, skip the entire month (data too old)
       const days = getDateRange(targetMonth.start, targetMonth.end);
       let batch = [];
       const batchSize = 100;
+      let monthSkipped = false;
 
-      for (const date of days) {
+      for (let di = 0; di < days.length; di++) {
+        const date = days[di];
         try {
           const analytics = await fetchAnalytics(accessToken, channelId, date, date);
           const ms = analytics._metricSet || {};
@@ -964,6 +967,12 @@ async function handleBackfill(req, res) {
             }
           }
         } catch (e) {
+          // If the first day fails, the whole month is too old — skip it
+          if (di === 0) {
+            result.errors.push(`Month skipped (API rejected ${date}: ${e.message})`);
+            monthSkipped = true;
+            break;
+          }
           result.errors.push(`${date}: ${e.message}`);
         }
 
@@ -978,6 +987,21 @@ async function handleBackfill(req, res) {
           .upsert(batch, { onConflict: 'video_id,snapshot_date' });
         if (!error) result.snapshotsCreated += batch.length;
         else result.errors.push(`Upsert: ${error.message}`);
+      }
+
+      // Mark this month as processed so we don't retry it forever.
+      // Insert a placeholder snapshot for the first day so the coverage check moves on.
+      if (monthSkipped || result.snapshotsCreated === 0) {
+        const firstVideoId = videos[0]?.id;
+        if (firstVideoId) {
+          await supabase
+            .from('video_snapshots')
+            .upsert({
+              video_id: firstVideoId,
+              snapshot_date: targetMonth.start,
+              total_view_count: videos[0].view_count || 0,
+            }, { onConflict: 'video_id,snapshot_date' });
+        }
       }
 
       console.log(`[Backfill] ${connection.youtube_channel_title} ${targetMonth.start}→${targetMonth.end}: ${result.snapshotsCreated} snapshots`);
