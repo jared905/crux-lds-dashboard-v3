@@ -105,8 +105,10 @@ async function getAccessToken(connection) {
   }
 }
 
-// Fetch base analytics data from YouTube Analytics API (per-day, per-video)
-// Note: Impressions/CTR are NOT available via Analytics API with video dimension.
+// Fetch per-video analytics from YouTube Analytics API for a single date range.
+// Note: dimensions=day,video is NOT supported — to get per-day data, call this
+// once per day with startDate === endDate.
+// Impressions/CTR are NOT available via Analytics API with video dimension.
 // They come from the Reporting API (fetchReportingData) instead.
 async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
   const headers = { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' };
@@ -115,10 +117,10 @@ async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
   url.searchParams.append('ids', `channel==${channelId}`);
   url.searchParams.append('startDate', startDate);
   url.searchParams.append('endDate', endDate);
-  url.searchParams.append('dimensions', 'day,video');
+  url.searchParams.append('dimensions', 'video');
   url.searchParams.append('metrics', 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained');
-  url.searchParams.append('sort', '-day');
-  url.searchParams.append('maxResults', '2000');
+  url.searchParams.append('sort', '-views');
+  url.searchParams.append('maxResults', '500');
 
   const response = await fetch(url.toString(), { headers });
 
@@ -128,6 +130,18 @@ async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
   }
 
   return await response.json();
+}
+
+// Build list of date strings between start and end (inclusive)
+function getDateRange(startDate, endDate) {
+  const dates = [];
+  const cur = new Date(startDate + 'T00:00:00Z');
+  const end = new Date(endDate + 'T00:00:00Z');
+  while (cur <= end) {
+    dates.push(cur.toISOString().split('T')[0]);
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return dates;
 }
 
 // Parse CSV content
@@ -480,57 +494,62 @@ async function syncConnection(connection) {
       results.errors.push(`Video discovery: ${e.message}`);
     }
 
-    // Fetch per-day analytics for the last 7 days
+    // Fetch per-day analytics for the last 7 days (one API call per day)
     // YouTube finalizes retention/subscriber data 2-3 days after upload,
     // so fetching a wider window ensures we catch updates for recent videos
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const syncDates = getDateRange(weekAgo, yesterday);
     // analyticsData[videoId] = aggregated 7-day totals (used for updating videos table)
     let analyticsData = {};
     // analyticsByDay[date][videoId] = single-day metrics (used for accurate snapshots)
     let analyticsByDay = {};
 
-    try {
-      const analytics = await fetchAnalytics(accessToken, channelId, weekAgo, yesterday);
-      if (analytics.rows) {
-        for (const row of analytics.rows) {
-          // dimensions=day,video → row = [date, videoId, views, watchMinutes, avgViewPct, subsGained]
-          const date = row[0];
-          const videoId = row[1];
-          const metrics = {
-            views: row[2] ?? 0,
-            watchHours: (row[3] ?? 0) / 60,
-            avgViewPercentage: (row[4] ?? 0) / 100,
-            subscribersGained: row[5] ?? 0,
-            impressions: 0,
-            ctr: 0
-          };
+    for (const date of syncDates) {
+      try {
+        const analytics = await fetchAnalytics(accessToken, channelId, date, date);
+        if (analytics.rows) {
+          for (const row of analytics.rows) {
+            // dimensions=video → row = [videoId, views, watchMinutes, avgViewPct, subsGained]
+            const videoId = row[0];
+            const metrics = {
+              views: row[1] ?? 0,
+              watchHours: (row[2] ?? 0) / 60,
+              avgViewPercentage: (row[3] ?? 0) / 100,
+              subscribersGained: row[4] ?? 0,
+              impressions: 0,
+              ctr: 0
+            };
 
-          // Per-day storage for snapshots
-          if (!analyticsByDay[date]) analyticsByDay[date] = {};
-          analyticsByDay[date][videoId] = metrics;
+            // Per-day storage for snapshots
+            if (!analyticsByDay[date]) analyticsByDay[date] = {};
+            analyticsByDay[date][videoId] = metrics;
 
-          // Aggregate across days for the videos table update
-          if (!analyticsData[videoId]) {
-            analyticsData[videoId] = { views: 0, watchHours: 0, avgViewPercentage: 0, subscribersGained: 0, impressions: 0, ctr: 0, _dayCount: 0 };
+            // Aggregate across days for the videos table update
+            if (!analyticsData[videoId]) {
+              analyticsData[videoId] = { views: 0, watchHours: 0, avgViewPercentage: 0, subscribersGained: 0, impressions: 0, ctr: 0, _dayCount: 0 };
+            }
+            const agg = analyticsData[videoId];
+            agg.views += metrics.views;
+            agg.watchHours += metrics.watchHours;
+            agg.subscribersGained += metrics.subscribersGained;
+            agg.avgViewPercentage += metrics.avgViewPercentage;
+            agg._dayCount++;
           }
-          const agg = analyticsData[videoId];
-          agg.views += metrics.views;
-          agg.watchHours += metrics.watchHours;
-          agg.subscribersGained += metrics.subscribersGained;
-          agg.avgViewPercentage += metrics.avgViewPercentage;
-          agg._dayCount++;
         }
-        // Average the rate-based metrics
-        for (const vid of Object.values(analyticsData)) {
-          if (vid._dayCount > 0) vid.avgViewPercentage = vid.avgViewPercentage / vid._dayCount;
-          delete vid._dayCount;
-        }
-        console.log(`[Daily Sync] Analytics: ${analytics.rows.length} day×video rows, ${Object.keys(analyticsData).length} videos`);
+      } catch (e) {
+        results.errors.push(`Analytics ${date}: ${e.message}`);
       }
-    } catch (e) {
-      results.errors.push(`Analytics: ${e.message}`);
+      // Rate limit between API calls
+      await new Promise(r => setTimeout(r, 100));
     }
+    // Average the rate-based metrics
+    for (const vid of Object.values(analyticsData)) {
+      if (vid._dayCount > 0) vid.avgViewPercentage = vid.avgViewPercentage / vid._dayCount;
+      delete vid._dayCount;
+    }
+    console.log(`[Daily Sync] Analytics: ${syncDates.length} days fetched, ${Object.keys(analyticsData).length} videos`);
+
 
     // Fetch reporting data (impressions/CTR)
     let reportingData = null;
@@ -873,35 +892,26 @@ async function handleBackfill(req, res) {
       console.log(`[Backfill] ${connection.youtube_channel_title}: backfilling ${targetMonth.start} → ${targetMonth.end}`);
       result.monthProcessed = `${targetMonth.start} → ${targetMonth.end}`;
 
-      // Fetch per-day analytics in weekly chunks within this month
-      const chunkSize = 7;
+      // Fetch analytics one day at a time (YouTube API doesn't support day+video dimensions together)
+      const days = getDateRange(targetMonth.start, targetMonth.end);
       let batch = [];
       const batchSize = 100;
 
-      const startD = new Date(targetMonth.start + 'T00:00:00Z');
-      const endD = new Date(targetMonth.end + 'T00:00:00Z');
-
-      while (startD <= endD) {
-        const chunkStart = startD.toISOString().split('T')[0];
-        const chunkEndD = new Date(Math.min(startD.getTime() + (chunkSize - 1) * 86400000, endD.getTime()));
-        const chunkEnd = chunkEndD.toISOString().split('T')[0];
-
+      for (const date of days) {
         try {
-          // Uses the updated fetchAnalytics with dimensions=day,video
-          const analytics = await fetchAnalytics(accessToken, channelId, chunkStart, chunkEnd);
+          const analytics = await fetchAnalytics(accessToken, channelId, date, date);
 
           if (analytics.rows) {
             for (const row of analytics.rows) {
-              // dimensions=day,video → [date, videoId, views, watchMinutes, avgViewPct, subsGained]
-              const date = row[0];
-              const ytVideoId = row[1];
+              // dimensions=video → [videoId, views, watchMinutes, avgViewPct, subsGained]
+              const ytVideoId = row[0];
               const dbVideo = videoMap[ytVideoId];
               if (!dbVideo) continue;
 
-              const views = row[2] ?? 0;
-              const watchHours = ((row[3] ?? 0) / 60);
-              const avgViewPct = (row[4] ?? 0) / 100;
-              const subsGained = row[5] ?? 0;
+              const views = row[1] ?? 0;
+              const watchHours = ((row[2] ?? 0) / 60);
+              const avgViewPct = (row[3] ?? 0) / 100;
+              const subsGained = row[4] ?? 0;
 
               if (views === 0 && watchHours === 0) continue;
 
@@ -925,12 +935,11 @@ async function handleBackfill(req, res) {
             }
           }
         } catch (e) {
-          result.errors.push(`${chunkStart}-${chunkEnd}: ${e.message}`);
+          result.errors.push(`${date}: ${e.message}`);
         }
 
-        // Rate limit
-        await new Promise(r => setTimeout(r, 150));
-        startD.setUTCDate(startD.getUTCDate() + chunkSize);
+        // Rate limit between API calls
+        await new Promise(r => setTimeout(r, 100));
       }
 
       // Flush
