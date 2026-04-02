@@ -97,7 +97,7 @@ async function fetchSnapshotsForPeriod(channelId, startDate, endDate) {
 /**
  * Compute quarter metrics from video data
  */
-function computeQuarterMetrics(videos, snapshots) {
+function computeQuarterMetrics(videos, snapshots, channelCount = 1) {
   const totalVideos = videos.length;
   const shorts = videos.filter(v => v.video_type === 'short' || (v.duration_seconds && v.duration_seconds <= 60));
   const longs = videos.filter(v => v.video_type === 'long' || (!v.video_type && (!v.duration_seconds || v.duration_seconds > 60)));
@@ -109,14 +109,30 @@ function computeQuarterMetrics(videos, snapshots) {
   const avgViews = totalVideos > 0 ? totalViews / totalVideos : 0;
   const engagementRate = totalViews > 0 ? (totalLikes + totalComments) / totalViews : 0;
 
+  // Format-split avg views
+  const shortsViews = shorts.reduce((s, v) => s + (v.view_count || 0), 0);
+  const longsViews = longs.reduce((s, v) => s + (v.view_count || 0), 0);
+  const shortsAvgViews = shorts.length > 0 ? shortsViews / shorts.length : 0;
+  const longsAvgViews = longs.length > 0 ? longsViews / longs.length : 0;
+
   // From snapshots (daily analytics)
   const totalWatchHours = snapshots.reduce((s, snap) => s + (snap.watch_hours || 0), 0);
   const totalImpressions = snapshots.reduce((s, snap) => s + (snap.impressions || 0), 0);
   const totalSubsGained = snapshots.reduce((s, snap) => s + (snap.subscribers_gained || 0), 0);
 
-  // Average retention from snapshots
+  // Build video ID sets for format-split retention
+  const shortVideoIds = new Set(shorts.map(v => v.id));
+  const longVideoIds = new Set(longs.map(v => v.id));
+
+  // Average retention from snapshots (blended)
   const retentionVals = snapshots.filter(s => s.avg_view_percentage > 0).map(s => s.avg_view_percentage);
   const avgRetention = retentionVals.length > 0 ? retentionVals.reduce((s, v) => s + v, 0) / retentionVals.length : 0;
+
+  // Format-split retention
+  const shortsRetentionVals = snapshots.filter(s => s.avg_view_percentage > 0 && shortVideoIds.has(s.video_id)).map(s => s.avg_view_percentage);
+  const longsRetentionVals = snapshots.filter(s => s.avg_view_percentage > 0 && longVideoIds.has(s.video_id)).map(s => s.avg_view_percentage);
+  const shortsAvgRetention = shortsRetentionVals.length > 0 ? shortsRetentionVals.reduce((s, v) => s + v, 0) / shortsRetentionVals.length : 0;
+  const longsAvgRetention = longsRetentionVals.length > 0 ? longsRetentionVals.reduce((s, v) => s + v, 0) / longsRetentionVals.length : 0;
 
   // Average CTR from snapshots
   const ctrVals = snapshots.filter(s => s.ctr > 0).map(s => s.ctr);
@@ -124,6 +140,10 @@ function computeQuarterMetrics(videos, snapshots) {
 
   // Upload frequency (videos per week)
   const uploadFrequency = totalVideos / 13; // 13 weeks in a quarter
+  const uploadsPerChannel = channelCount > 0 ? totalVideos / channelCount / 13 : uploadFrequency;
+
+  // Subscriber conversion rate
+  const subConversionRate = totalViews > 0 ? totalSubsGained / totalViews : 0;
 
   // Top videos
   const topByViews = [...videos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0)).slice(0, 5);
@@ -141,6 +161,8 @@ function computeQuarterMetrics(videos, snapshots) {
     longsCount: longs.length,
     totalViews,
     avgViews,
+    shortsAvgViews,
+    longsAvgViews,
     totalLikes,
     totalComments,
     engagementRate,
@@ -148,8 +170,12 @@ function computeQuarterMetrics(videos, snapshots) {
     totalImpressions,
     totalSubsGained,
     avgRetention,
+    shortsAvgRetention,
+    longsAvgRetention,
     avgCTR,
     uploadFrequency,
+    uploadsPerChannel,
+    subConversionRate,
     topByViews,
     topByEngagement,
   };
@@ -170,13 +196,19 @@ function computeDeltas(current, previous) {
     totalVideos: delta(current.totalVideos, previous.totalVideos),
     totalViews: delta(current.totalViews, previous.totalViews),
     avgViews: delta(current.avgViews, previous.avgViews),
+    shortsAvgViews: delta(current.shortsAvgViews, previous.shortsAvgViews),
+    longsAvgViews: delta(current.longsAvgViews, previous.longsAvgViews),
     engagementRate: delta(current.engagementRate, previous.engagementRate),
     totalWatchHours: delta(current.totalWatchHours, previous.totalWatchHours),
     totalImpressions: delta(current.totalImpressions, previous.totalImpressions),
     totalSubsGained: delta(current.totalSubsGained, previous.totalSubsGained),
     avgRetention: delta(current.avgRetention, previous.avgRetention),
+    shortsAvgRetention: delta(current.shortsAvgRetention, previous.shortsAvgRetention),
+    longsAvgRetention: delta(current.longsAvgRetention, previous.longsAvgRetention),
     avgCTR: delta(current.avgCTR, previous.avgCTR),
     uploadFrequency: delta(current.uploadFrequency, previous.uploadFrequency),
+    uploadsPerChannel: delta(current.uploadsPerChannel, previous.uploadsPerChannel),
+    subConversionRate: delta(current.subConversionRate, previous.subConversionRate),
   };
 }
 
@@ -222,8 +254,8 @@ export async function generateQuarterlyReport(channelId, year, quarter, explicit
     Promise.all(allChannelIds.map(id => fetchSnapshotsForPeriod(id, previous.start, previous.end))).then(a => a.flat()),
   ]);
 
-  const currentMetrics = computeQuarterMetrics(currentVideos, currentSnapshots);
-  const previousMetrics = computeQuarterMetrics(previousVideos, previousSnapshots);
+  const currentMetrics = computeQuarterMetrics(currentVideos, currentSnapshots, allChannelIds.length);
+  const previousMetrics = computeQuarterMetrics(previousVideos, previousSnapshots, allChannelIds.length);
   const deltas = computeDeltas(currentMetrics, previousMetrics);
 
   // Get channel info
