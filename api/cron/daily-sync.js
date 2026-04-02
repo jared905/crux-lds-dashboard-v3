@@ -936,10 +936,71 @@ async function handleBackfill(req, res) {
         { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
       );
 
+      // If the stored job ID is stale, try to find or create a valid one
       if (!reportsResponse.ok) {
-        result.errors.push('Failed to list reports');
-        allResults.push(result);
-        continue;
+        console.log(`[Backfill] ${connection.youtube_channel_title}: stored job ID failed, searching for valid job...`);
+        let recovered = false;
+        try {
+          const jobsResp = await fetch(
+            'https://youtubereporting.googleapis.com/v1/jobs',
+            { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
+          );
+          if (jobsResp.ok) {
+            const jobsData = await jobsResp.json();
+            const reachJob = jobsData.jobs?.find(j => j.reportTypeId?.includes('channel_reach_'));
+            if (reachJob && reachJob.id !== connection.reporting_job_id) {
+              await supabase.from('youtube_oauth_connections')
+                .update({ reporting_job_id: reachJob.id, reporting_job_type: reachJob.reportTypeId })
+                .eq('id', connection.id);
+              console.log(`[Backfill] Recovered job for ${connection.youtube_channel_title}: ${reachJob.id}`);
+              reportsResponse = await fetch(
+                `https://youtubereporting.googleapis.com/v1/jobs/${reachJob.id}/reports`,
+                { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
+              );
+              recovered = reportsResponse.ok;
+            }
+            if (!recovered) {
+              // Create a new reporting job
+              const rtResponse = await fetch(
+                'https://youtubereporting.googleapis.com/v1/reportTypes',
+                { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
+              );
+              if (rtResponse.ok) {
+                const rtData = await rtResponse.json();
+                const reachType = rtData.reportTypes?.find(rt =>
+                  rt.id === 'channel_reach_basic_a1' || rt.id?.includes('channel_reach_')
+                );
+                if (reachType) {
+                  const createResp = await fetch(
+                    'https://youtubereporting.googleapis.com/v1/jobs',
+                    {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ reportTypeId: reachType.id, name: `Backfill - ${connection.youtube_channel_title}` })
+                    }
+                  );
+                  if (createResp.ok) {
+                    const newJob = await createResp.json();
+                    await supabase.from('youtube_oauth_connections')
+                      .update({ reporting_job_id: newJob.id, reporting_job_type: newJob.reportTypeId })
+                      .eq('id', connection.id);
+                    result.errors.push(`Created new reporting job — reports available in ~24 hours. Run backfill again tomorrow.`);
+                  } else {
+                    result.errors.push('Could not create reporting job');
+                  }
+                } else {
+                  result.errors.push('No reach report type available for this channel');
+                }
+              }
+            }
+          }
+        } catch (e) {
+          result.errors.push(`Job recovery failed: ${e.message}`);
+        }
+        if (!recovered) {
+          allResults.push(result);
+          continue;
+        }
       }
 
       const reportsData = await reportsResponse.json();
