@@ -110,26 +110,51 @@ async function getAccessToken(connection) {
 // once per day with startDate === endDate.
 // Impressions/CTR are NOT available via Analytics API with video dimension.
 // They come from the Reporting API (fetchReportingData) instead.
+//
+// Tries the full metric set first; if the API rejects it (some channels don't
+// support all metrics with dimensions=video), falls back to basic metrics.
 async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
   const headers = { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' };
 
-  const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
-  url.searchParams.append('ids', `channel==${channelId}`);
-  url.searchParams.append('startDate', startDate);
-  url.searchParams.append('endDate', endDate);
-  url.searchParams.append('dimensions', 'video');
-  url.searchParams.append('metrics', 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained');
-  url.searchParams.append('sort', '-views');
-  url.searchParams.append('maxResults', '500');
+  // Metric sets to try in order — first that succeeds wins
+  const metricSets = [
+    { metrics: 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained', hasRetention: true, hasSubs: true },
+    { metrics: 'views,estimatedMinutesWatched,averageViewPercentage', hasRetention: true, hasSubs: false },
+    { metrics: 'views,estimatedMinutesWatched', hasRetention: false, hasSubs: false },
+  ];
 
-  const response = await fetch(url.toString(), { headers });
+  for (const metricSet of metricSets) {
+    const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
+    url.searchParams.append('ids', `channel==${channelId}`);
+    url.searchParams.append('startDate', startDate);
+    url.searchParams.append('endDate', endDate);
+    url.searchParams.append('dimensions', 'video');
+    url.searchParams.append('metrics', metricSet.metrics);
+    url.searchParams.append('sort', '-views');
+    url.searchParams.append('maxResults', '500');
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || 'Analytics API failed');
+    const response = await fetch(url.toString(), { headers });
+
+    if (response.ok) {
+      const data = await response.json();
+      // Tag the result so callers know which metrics are present
+      data._metricSet = metricSet;
+      return data;
+    }
+
+    // If this metric set was rejected, try the next one
+    const errorBody = await response.json().catch(() => ({}));
+    const errorMsg = errorBody.error?.message || '';
+    if (errorMsg.includes('not supported') || errorMsg.includes('supported queries')) {
+      continue; // Try next metric set
+    }
+
+    // Non-metric error (auth, rate limit, etc.) — throw immediately
+    throw new Error(errorMsg || 'Analytics API failed');
   }
 
-  return await response.json();
+  // All metric sets failed
+  throw new Error('No supported metric combination found for this channel');
 }
 
 // Build list of date strings between start and end (inclusive)
@@ -508,15 +533,19 @@ async function syncConnection(connection) {
     for (const date of syncDates) {
       try {
         const analytics = await fetchAnalytics(accessToken, channelId, date, date);
+        const ms = analytics._metricSet || {};
         if (analytics.rows) {
           for (const row of analytics.rows) {
-            // dimensions=video → row = [videoId, views, watchMinutes, avgViewPct, subsGained]
+            // row shape depends on which metrics succeeded:
+            // Full:  [videoId, views, watchMinutes, avgViewPct, subsGained]
+            // NoSub: [videoId, views, watchMinutes, avgViewPct]
+            // Basic: [videoId, views, watchMinutes]
             const videoId = row[0];
             const metrics = {
               views: row[1] ?? 0,
               watchHours: (row[2] ?? 0) / 60,
-              avgViewPercentage: (row[3] ?? 0) / 100,
-              subscribersGained: row[4] ?? 0,
+              avgViewPercentage: ms.hasRetention ? (row[3] ?? 0) / 100 : 0,
+              subscribersGained: ms.hasSubs ? (row[ms.hasRetention ? 4 : 3] ?? 0) : 0,
               impressions: 0,
               ctr: 0
             };
@@ -900,18 +929,18 @@ async function handleBackfill(req, res) {
       for (const date of days) {
         try {
           const analytics = await fetchAnalytics(accessToken, channelId, date, date);
+          const ms = analytics._metricSet || {};
 
           if (analytics.rows) {
             for (const row of analytics.rows) {
-              // dimensions=video → [videoId, views, watchMinutes, avgViewPct, subsGained]
               const ytVideoId = row[0];
               const dbVideo = videoMap[ytVideoId];
               if (!dbVideo) continue;
 
               const views = row[1] ?? 0;
               const watchHours = ((row[2] ?? 0) / 60);
-              const avgViewPct = (row[3] ?? 0) / 100;
-              const subsGained = row[4] ?? 0;
+              const avgViewPct = ms.hasRetention ? (row[3] ?? 0) / 100 : null;
+              const subsGained = ms.hasSubs ? (row[ms.hasRetention ? 4 : 3] ?? 0) : null;
 
               if (views === 0 && watchHours === 0) continue;
 
