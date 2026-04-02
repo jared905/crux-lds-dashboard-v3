@@ -115,10 +115,16 @@ function computeQuarterMetrics(videos, snapshots, channelCount = 1) {
   const shortsAvgViews = shorts.length > 0 ? shortsViews / shorts.length : 0;
   const longsAvgViews = longs.length > 0 ? longsViews / longs.length : 0;
 
-  // From snapshots (daily analytics)
-  const totalWatchHours = snapshots.reduce((s, snap) => s + (snap.watch_hours || 0), 0);
+  // From snapshots (daily analytics), with video-table fallback if snapshots are sparse
+  const snapshotWatchHours = snapshots.reduce((s, snap) => s + (snap.watch_hours || 0), 0);
+  const videoWatchHours = videos.reduce((s, v) => s + (v.watch_hours || 0), 0);
+  const totalWatchHours = snapshotWatchHours > 0 ? snapshotWatchHours : videoWatchHours;
+
   const totalImpressions = snapshots.reduce((s, snap) => s + (snap.impressions || 0), 0);
-  const totalSubsGained = snapshots.reduce((s, snap) => s + (snap.subscribers_gained || 0), 0);
+
+  const snapshotSubsGained = snapshots.reduce((s, snap) => s + (snap.subscribers_gained || 0), 0);
+  const videoSubsGained = videos.reduce((s, v) => s + (v.subscribers_gained || 0), 0);
+  const totalSubsGained = snapshotSubsGained > 0 ? snapshotSubsGained : videoSubsGained;
 
   // Build video ID sets for format-split retention
   const shortVideoIds = new Set(shorts.map(v => v.id));

@@ -105,7 +105,7 @@ async function getAccessToken(connection) {
   }
 }
 
-// Fetch base analytics data from YouTube Analytics API
+// Fetch base analytics data from YouTube Analytics API (per-day, per-video)
 // Note: Impressions/CTR are NOT available via Analytics API with video dimension.
 // They come from the Reporting API (fetchReportingData) instead.
 async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
@@ -115,10 +115,10 @@ async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
   url.searchParams.append('ids', `channel==${channelId}`);
   url.searchParams.append('startDate', startDate);
   url.searchParams.append('endDate', endDate);
-  url.searchParams.append('dimensions', 'video');
+  url.searchParams.append('dimensions', 'day,video');
   url.searchParams.append('metrics', 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained');
-  url.searchParams.append('sort', '-views');
-  url.searchParams.append('maxResults', '200');
+  url.searchParams.append('sort', '-day');
+  url.searchParams.append('maxResults', '2000');
 
   const response = await fetch(url.toString(), { headers });
 
@@ -480,27 +480,53 @@ async function syncConnection(connection) {
       results.errors.push(`Video discovery: ${e.message}`);
     }
 
-    // Fetch analytics for the last 7 days (not just yesterday)
+    // Fetch per-day analytics for the last 7 days
     // YouTube finalizes retention/subscriber data 2-3 days after upload,
     // so fetching a wider window ensures we catch updates for recent videos
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // analyticsData[videoId] = aggregated 7-day totals (used for updating videos table)
     let analyticsData = {};
+    // analyticsByDay[date][videoId] = single-day metrics (used for accurate snapshots)
+    let analyticsByDay = {};
 
     try {
       const analytics = await fetchAnalytics(accessToken, channelId, weekAgo, yesterday);
       if (analytics.rows) {
         for (const row of analytics.rows) {
-          analyticsData[row[0]] = {
-            views: row[1] ?? 0,
-            watchHours: (row[2] ?? 0) / 60,
-            avgViewPercentage: (row[3] ?? 0) / 100,
-            subscribersGained: row[4] ?? 0,
+          // dimensions=day,video → row = [date, videoId, views, watchMinutes, avgViewPct, subsGained]
+          const date = row[0];
+          const videoId = row[1];
+          const metrics = {
+            views: row[2] ?? 0,
+            watchHours: (row[3] ?? 0) / 60,
+            avgViewPercentage: (row[4] ?? 0) / 100,
+            subscribersGained: row[5] ?? 0,
             impressions: 0,
             ctr: 0
           };
+
+          // Per-day storage for snapshots
+          if (!analyticsByDay[date]) analyticsByDay[date] = {};
+          analyticsByDay[date][videoId] = metrics;
+
+          // Aggregate across days for the videos table update
+          if (!analyticsData[videoId]) {
+            analyticsData[videoId] = { views: 0, watchHours: 0, avgViewPercentage: 0, subscribersGained: 0, impressions: 0, ctr: 0, _dayCount: 0 };
+          }
+          const agg = analyticsData[videoId];
+          agg.views += metrics.views;
+          agg.watchHours += metrics.watchHours;
+          agg.subscribersGained += metrics.subscribersGained;
+          agg.avgViewPercentage += metrics.avgViewPercentage;
+          agg._dayCount++;
         }
-        console.log(`[Daily Sync] Analytics: ${analytics.rows.length} videos`);
+        // Average the rate-based metrics
+        for (const vid of Object.values(analyticsData)) {
+          if (vid._dayCount > 0) vid.avgViewPercentage = vid.avgViewPercentage / vid._dayCount;
+          delete vid._dayCount;
+        }
+        console.log(`[Daily Sync] Analytics: ${analytics.rows.length} day×video rows, ${Object.keys(analyticsData).length} videos`);
       }
     } catch (e) {
       results.errors.push(`Analytics: ${e.message}`);
@@ -532,14 +558,18 @@ async function syncConnection(connection) {
       const analytics = analyticsData[videoId] || {};
       const reporting = reportingData?.videoData?.[videoId] || {};
 
-      // Update current video stats
+      // Update current video stats using most recent day's analytics (not 7-day sum)
+      const latestDayAnalytics = analyticsByDay[yesterday]?.[videoId] || {};
       const updateData = {
         last_synced_at: new Date().toISOString()
       };
 
-      if (analytics.avgViewPercentage != null) {
-        updateData.avg_view_percentage = analytics.avgViewPercentage;
+      // avg_view_percentage is a rate — use most recent day's value
+      if (latestDayAnalytics.avgViewPercentage != null) {
+        updateData.avg_view_percentage = latestDayAnalytics.avgViewPercentage;
       }
+      // watch_hours and subscribers_gained on the videos table are period totals —
+      // use the 7-day aggregate since this represents the full sync window
       if (analytics.watchHours != null) {
         updateData.watch_hours = analytics.watchHours;
       }
@@ -562,39 +592,63 @@ async function syncConnection(connection) {
         results.videosUpdated++;
       }
 
-      // Create daily snapshot (upsert to handle re-runs)
-      // Use per-day reporting data for yesterday (not the 30-day aggregate)
-      const reportingDay = reportingData?.byDate?.[yesterday]?.[videoId] || {};
-      const snapshotData = {
-        video_id: video.id,
-        snapshot_date: yesterday,
-        view_count: analytics.views || reportingDay.views || null,
-        impressions: reportingDay.impressions || reporting.impressions || analytics.impressions || null,
-        ctr: reportingDay.ctr || reporting.ctr || analytics.ctr || null,
-        avg_view_percentage: analytics.avgViewPercentage || null,
-        watch_hours: analytics.watchHours || reportingDay.watchHours || null,
-        subscribers_gained: analytics.subscribersGained || reportingDay.subscribersGained || null,
-        subscribers_lost: reportingDay.subscribersLost || reporting.subscribersLost || null,
-        likes: reportingDay.likes || reporting.likes || null,
-        comments: reportingDay.comments || reporting.comments || null,
-        shares: reportingDay.shares || reporting.shares || null,
-        // Cumulative Data API counts — always available from discoverVideos
-        // Period views = MAX(total_view_count) - MIN(total_view_count)
-        total_view_count: video.view_count || null,
-        total_like_count: video.like_count || null,
-        total_comment_count: video.comment_count || null,
-      };
+      // Create per-day snapshots from Analytics API data (upsert to handle re-runs)
+      // Each day in the 7-day window gets its own snapshot with that day's actual views
+      const analyticsDays = Object.keys(analyticsByDay).sort();
+      for (const date of analyticsDays) {
+        const dayAnalytics = analyticsByDay[date]?.[videoId];
+        const reportingDay = reportingData?.byDate?.[date]?.[videoId] || {};
 
-      // Only create snapshot if we have some data (include cumulative counts)
-      const hasData = snapshotData.view_count || snapshotData.impressions || snapshotData.watch_hours ||
-                      snapshotData.likes || snapshotData.comments || snapshotData.shares ||
-                      snapshotData.total_view_count;
-      if (hasData) {
-        const { error: snapshotError } = await supabase
-          .from('video_snapshots')
-          .upsert(snapshotData, { onConflict: 'video_id,snapshot_date' });
+        const snapshotData = {
+          video_id: video.id,
+          snapshot_date: date,
+          view_count: dayAnalytics?.views || reportingDay.views || null,
+          impressions: reportingDay.impressions || null,
+          ctr: reportingDay.ctr || null,
+          avg_view_percentage: dayAnalytics?.avgViewPercentage || null,
+          watch_hours: dayAnalytics?.watchHours || reportingDay.watchHours || null,
+          subscribers_gained: dayAnalytics?.subscribersGained || reportingDay.subscribersGained || null,
+          subscribers_lost: reportingDay.subscribersLost || null,
+          likes: reportingDay.likes || null,
+          comments: reportingDay.comments || null,
+          shares: reportingDay.shares || null,
+          // Cumulative Data API counts (only meaningful on most recent date)
+          total_view_count: date === yesterday ? (video.view_count || null) : null,
+          total_like_count: date === yesterday ? (video.like_count || null) : null,
+          total_comment_count: date === yesterday ? (video.comment_count || null) : null,
+        };
 
-        if (!snapshotError) {
+        const hasData = snapshotData.view_count || snapshotData.impressions || snapshotData.watch_hours ||
+                        snapshotData.likes || snapshotData.total_view_count;
+        if (hasData) {
+          const { error: snapshotError } = await supabase
+            .from('video_snapshots')
+            .upsert(snapshotData, { onConflict: 'video_id,snapshot_date' });
+
+          if (!snapshotError) {
+            results.snapshotsCreated++;
+          }
+        }
+      }
+
+      // If no analytics days had data for this video, still store cumulative counts for yesterday
+      if (!analyticsDays.some(d => analyticsByDay[d]?.[videoId])) {
+        const reportingDay = reportingData?.byDate?.[yesterday]?.[videoId] || {};
+        const fallback = {
+          video_id: video.id,
+          snapshot_date: yesterday,
+          view_count: reportingDay.views || null,
+          impressions: reportingDay.impressions || reporting.impressions || null,
+          ctr: reportingDay.ctr || reporting.ctr || null,
+          watch_hours: reportingDay.watchHours || null,
+          total_view_count: video.view_count || null,
+          total_like_count: video.like_count || null,
+          total_comment_count: video.comment_count || null,
+        };
+        if (fallback.view_count || fallback.impressions || fallback.total_view_count) {
+          await supabase
+            .from('video_snapshots')
+            .upsert(fallback, { onConflict: 'video_id,snapshot_date' });
           results.snapshotsCreated++;
         }
       }
@@ -686,43 +740,50 @@ async function syncConnection(connection) {
   return results;
 }
 
-// Backfill mode: fetch per-video analytics for a date range and create missing snapshots.
-// Usage: /api/cron/daily-sync?backfill=2026-02-23,2026-02-28&manual=true
+// Backfill mode: fetch per-day-per-video analytics and create accurate snapshots.
+// Processes ONE channel per request and one month at a time to avoid timeouts.
+//
+// Usage (processes next unfinished channel+month automatically):
+//   /api/cron/daily-sync?backfill=2024-10-01,2026-04-01&manual=true
+//
+// Or target a specific channel:
+//   /api/cron/daily-sync?backfill=2024-10-01,2026-04-01&channel=CONNECTION_ID&manual=true
+//
+// The response includes a `next` URL to continue. Call it repeatedly until done.
 async function handleBackfill(req, res) {
   const startTime = Date.now();
-  const [startDate, endDate] = req.query.backfill.split(',');
+  const [rangeStart, rangeEnd] = req.query.backfill.split(',');
+  const targetConnectionId = req.query.channel || null;
 
-  if (!startDate || !endDate) {
+  if (!rangeStart || !rangeEnd) {
     return res.status(400).json({ error: 'backfill requires start,end dates (YYYY-MM-DD,YYYY-MM-DD)' });
   }
 
-  console.log(`[Backfill] Filling snapshots for ${startDate} → ${endDate}`);
-
-  const { data: connections, error: connError } = await supabase
+  // Get connections
+  let connQuery = supabase
     .from('youtube_oauth_connections')
     .select('*')
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .order('id');
 
+  if (targetConnectionId) {
+    connQuery = connQuery.eq('id', targetConnectionId);
+  }
+
+  const { data: connections, error: connError } = await connQuery;
   if (connError) throw connError;
   if (!connections?.length) {
-    return res.status(200).json({ success: true, message: 'No active connections' });
+    return res.status(200).json({ success: true, done: true, message: 'No active connections' });
   }
 
-  // Build list of dates to backfill
-  const dates = [];
-  const cur = new Date(startDate + 'T00:00:00Z');
-  const end = new Date(endDate + 'T00:00:00Z');
-  while (cur <= end) {
-    dates.push(cur.toISOString().split('T')[0]);
-    cur.setUTCDate(cur.getUTCDate() + 1);
-  }
-
-  const allResults = [];
-
+  // Process one channel at a time. Pick the first one that still has months to backfill.
+  // Track progress via a simple table or query what months already have data.
   for (const connection of connections) {
-    const connResult = {
+    const result = {
       channel: connection.youtube_channel_title,
+      connectionId: connection.id,
       snapshotsCreated: 0,
+      monthProcessed: null,
       errors: []
     };
 
@@ -730,7 +791,6 @@ async function handleBackfill(req, res) {
       const accessToken = await getAccessToken(connection);
       const channelId = connection.youtube_channel_id;
 
-      // Find the client channel in our database
       const { data: dbChannel } = await supabase
         .from('channels')
         .select('id, name')
@@ -739,110 +799,185 @@ async function handleBackfill(req, res) {
         .single();
 
       if (!dbChannel) {
-        connResult.errors.push('No matching client channel in database');
-        allResults.push(connResult);
+        result.errors.push('No matching client channel');
         continue;
       }
 
-      // Get all videos for this channel (need DB id → youtube_video_id mapping)
       const { data: videos } = await supabase
         .from('videos')
         .select('id, youtube_video_id, view_count, like_count, comment_count')
         .eq('channel_id', dbChannel.id);
 
       if (!videos?.length) {
-        connResult.errors.push('No videos in database for this channel');
-        allResults.push(connResult);
+        result.errors.push('No videos in database');
         continue;
       }
 
       const videoMap = {};
       for (const v of videos) { videoMap[v.youtube_video_id] = v; }
 
-      // Fetch analytics in weekly chunks (fast + accurate)
-      let batch = [];
-      const batchSize = 50;
-      const chunkSize = 7; // days per API call
+      // Find the next month that needs backfilling for this channel
+      // by checking which months already have per-day analytics snapshots
+      const monthStart = new Date(rangeStart + 'T00:00:00Z');
+      const rangeEndDate = new Date(rangeEnd + 'T00:00:00Z');
+      let targetMonth = null;
 
-      for (let i = 0; i < dates.length; i += chunkSize) {
-        const chunkStart = dates[i];
-        const chunkEnd = dates[Math.min(i + chunkSize - 1, dates.length - 1)];
+      while (monthStart < rangeEndDate) {
+        const mStart = monthStart.toISOString().split('T')[0];
+        const mEndDate = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 0));
+        if (mEndDate > rangeEndDate) mEndDate.setTime(rangeEndDate.getTime());
+        const mEnd = mEndDate.toISOString().split('T')[0];
+
+        // Count existing snapshots with view_count for this channel+month
+        const videoIds = videos.map(v => v.id);
+        // Check a sample — if we have per-day data, there should be many snapshot rows
+        const { count } = await supabase
+          .from('video_snapshots')
+          .select('id', { count: 'exact', head: true })
+          .in('video_id', videoIds.slice(0, 50))
+          .gte('snapshot_date', mStart)
+          .lte('snapshot_date', mEnd)
+          .not('view_count', 'is', null);
+
+        // Expect roughly (days × videos) snapshots. If we have less than half, backfill this month.
+        const daysInMonth = Math.round((mEndDate - monthStart) / 86400000) + 1;
+        const expectedMin = Math.min(videoIds.length, 50) * daysInMonth * 0.3;
+
+        if ((count || 0) < expectedMin) {
+          targetMonth = { start: mStart, end: mEnd };
+          break;
+        }
+
+        monthStart.setUTCMonth(monthStart.getUTCMonth() + 1);
+        monthStart.setUTCDate(1);
+      }
+
+      if (!targetMonth) {
+        // This channel is fully backfilled, try next connection
+        result.monthProcessed = 'complete';
+        console.log(`[Backfill] ${connection.youtube_channel_title}: fully backfilled`);
+
+        // If targeting a specific channel, we're done
+        if (targetConnectionId) {
+          return res.status(200).json({
+            success: true,
+            done: true,
+            channel: connection.youtube_channel_title,
+            message: 'All months backfilled for this channel',
+            duration: Date.now() - startTime
+          });
+        }
+        continue;
+      }
+
+      console.log(`[Backfill] ${connection.youtube_channel_title}: backfilling ${targetMonth.start} → ${targetMonth.end}`);
+      result.monthProcessed = `${targetMonth.start} → ${targetMonth.end}`;
+
+      // Fetch per-day analytics in weekly chunks within this month
+      const chunkSize = 7;
+      let batch = [];
+      const batchSize = 100;
+
+      const startD = new Date(targetMonth.start + 'T00:00:00Z');
+      const endD = new Date(targetMonth.end + 'T00:00:00Z');
+
+      while (startD <= endD) {
+        const chunkStart = startD.toISOString().split('T')[0];
+        const chunkEndD = new Date(Math.min(startD.getTime() + (chunkSize - 1) * 86400000, endD.getTime()));
+        const chunkEnd = chunkEndD.toISOString().split('T')[0];
 
         try {
+          // Uses the updated fetchAnalytics with dimensions=day,video
           const analytics = await fetchAnalytics(accessToken, channelId, chunkStart, chunkEnd);
 
           if (analytics.rows) {
             for (const row of analytics.rows) {
-              const ytVideoId = row[0];
+              // dimensions=day,video → [date, videoId, views, watchMinutes, avgViewPct, subsGained]
+              const date = row[0];
+              const ytVideoId = row[1];
               const dbVideo = videoMap[ytVideoId];
               if (!dbVideo) continue;
 
-              const views = row[1] ?? 0;
-              const watchHours = ((row[2] ?? 0) / 60);
-              const avgViewPct = (row[3] ?? 0) / 100;
-              const subsGained = row[4] ?? 0;
+              const views = row[2] ?? 0;
+              const watchHours = ((row[3] ?? 0) / 60);
+              const avgViewPct = (row[4] ?? 0) / 100;
+              const subsGained = row[5] ?? 0;
 
               if (views === 0 && watchHours === 0) continue;
 
               batch.push({
                 video_id: dbVideo.id,
-                snapshot_date: chunkEnd, // Use end of chunk as snapshot date
+                snapshot_date: date,
                 view_count: views || null,
                 watch_hours: watchHours || null,
                 avg_view_percentage: avgViewPct || null,
                 subscribers_gained: subsGained || null,
-                total_view_count: dbVideo.view_count || null,
-                total_like_count: dbVideo.like_count || null,
-                total_comment_count: dbVideo.comment_count || null,
               });
 
               if (batch.length >= batchSize) {
                 const { error } = await supabase
                   .from('video_snapshots')
                   .upsert(batch, { onConflict: 'video_id,snapshot_date' });
-                if (!error) connResult.snapshotsCreated += batch.length;
-                else connResult.errors.push(`Upsert error: ${error.message}`);
+                if (!error) result.snapshotsCreated += batch.length;
+                else result.errors.push(`Upsert: ${error.message}`);
                 batch = [];
               }
             }
           }
         } catch (e) {
-          connResult.errors.push(`${chunkStart}-${chunkEnd}: ${e.message}`);
+          result.errors.push(`${chunkStart}-${chunkEnd}: ${e.message}`);
         }
 
-        // Rate limit between API calls
-        await new Promise(r => setTimeout(r, 200));
+        // Rate limit
+        await new Promise(r => setTimeout(r, 150));
+        startD.setUTCDate(startD.getUTCDate() + chunkSize);
       }
 
-      // Flush remaining
+      // Flush
       if (batch.length > 0) {
         const { error } = await supabase
           .from('video_snapshots')
           .upsert(batch, { onConflict: 'video_id,snapshot_date' });
-        if (!error) connResult.snapshotsCreated += batch.length;
-        else connResult.errors.push(`Upsert error: ${error.message}`);
+        if (!error) result.snapshotsCreated += batch.length;
+        else result.errors.push(`Upsert: ${error.message}`);
       }
 
-      console.log(`[Backfill] ${connection.youtube_channel_title}: ${connResult.snapshotsCreated} snapshots`);
-    } catch (e) {
-      connResult.errors.push(e.message);
-    }
+      console.log(`[Backfill] ${connection.youtube_channel_title} ${targetMonth.start}→${targetMonth.end}: ${result.snapshotsCreated} snapshots`);
 
-    allResults.push(connResult);
+      const duration = Date.now() - startTime;
+
+      // Build the "next" URL for the caller to continue
+      const baseUrl = `/api/cron/daily-sync?backfill=${rangeStart},${rangeEnd}&manual=true`;
+
+      return res.status(200).json({
+        success: true,
+        done: false,
+        channel: connection.youtube_channel_title,
+        monthProcessed: result.monthProcessed,
+        snapshotsCreated: result.snapshotsCreated,
+        errors: result.errors,
+        duration,
+        next: baseUrl,
+        message: `Backfilled ${result.snapshotsCreated} snapshots. Call 'next' URL to continue.`
+      });
+
+    } catch (e) {
+      result.errors.push(e.message);
+      return res.status(200).json({
+        success: false,
+        channel: connection.youtube_channel_title,
+        error: e.message,
+        next: `/api/cron/daily-sync?backfill=${rangeStart},${rangeEnd}&manual=true`
+      });
+    }
   }
 
-  const totalSnapshots = allResults.reduce((s, r) => s + r.snapshotsCreated, 0);
-  const duration = Date.now() - startTime;
-  console.log(`[Backfill] Done: ${totalSnapshots} snapshots in ${duration}ms`);
-
+  // All channels complete
   return res.status(200).json({
     success: true,
-    mode: 'backfill',
-    dateRange: { start: startDate, end: endDate },
-    daysProcessed: dates.length,
-    totalSnapshots,
-    results: allResults,
-    duration
+    done: true,
+    message: 'All channels fully backfilled',
+    duration: Date.now() - startTime
   });
 }
 
