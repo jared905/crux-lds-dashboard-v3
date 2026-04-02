@@ -158,12 +158,13 @@ export default function App() {
           const mergedClients = [...supabaseWithLocalData, ...localOnlyClients];
           setClients(mergedClients);
 
-          // Set active client from Supabase data if available
+          // Set active client — respect permissions for non-admin viewers
           const savedId = localStorage.getItem('fullview_active_client');
-          const activeFromSupabase = mergedClients.find(c => c.id === savedId) || mergedClients[0];
-          if (activeFromSupabase) {
-            setActiveClient(activeFromSupabase);
-          }
+          const allowed = isAdmin
+            ? mergedClients
+            : mergedClients.filter(c => canAccessClient(c.id));
+          const activeFromSupabase = allowed.find(c => c.id === savedId) || allowed[0] || null;
+          setActiveClient(activeFromSupabase);
 
           console.log(`[Supabase] Loaded ${supabaseClients.length} clients`);
         } else {
