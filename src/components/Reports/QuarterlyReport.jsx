@@ -37,7 +37,7 @@ function DeltaBadge({ delta }) {
   );
 }
 
-export default function QuarterlyReport({ activeClient, channelId }) {
+export default function QuarterlyReport({ activeClient }) {
   const [reportData, setReportData] = useState(null);
   const [narrative, setNarrative] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -46,21 +46,25 @@ export default function QuarterlyReport({ activeClient, channelId }) {
   const [selectedQuarter, setSelectedQuarter] = useState(Math.floor(new Date().getMonth() / 3) + 1);
   const [exporting, setExporting] = useState(false);
 
-  // Load report data
+  // Load report data — use all network member IDs for multi-channel clients
   const loadReport = useCallback(async () => {
-    if (!channelId) return;
+    if (!activeClient?.id) return;
     setLoading(true);
     setNarrative(null);
     try {
       const { generateQuarterlyReport } = await import('../../services/quarterlyReportService');
-      const data = await generateQuarterlyReport(channelId, selectedYear, selectedQuarter);
+      // For network clients, pass all member channel IDs explicitly
+      const allChannelIds = activeClient.isNetwork && activeClient.networkMembers
+        ? activeClient.networkMembers.map(m => m.id)
+        : [activeClient.id];
+      const data = await generateQuarterlyReport(activeClient.id, selectedYear, selectedQuarter, allChannelIds);
       setReportData(data);
     } catch (err) {
       console.error('[QuarterlyReport] Failed:', err);
     } finally {
       setLoading(false);
     }
-  }, [channelId, selectedYear, selectedQuarter]);
+  }, [activeClient?.id, activeClient?.isNetwork, selectedYear, selectedQuarter]);
 
   useEffect(() => { loadReport(); }, [loadReport]);
 
@@ -142,7 +146,7 @@ export default function QuarterlyReport({ activeClient, channelId }) {
           </div>
           <div>
             <div style={{ fontSize: '20px', fontWeight: '700', color: '#fff' }}>Quarterly Report</div>
-            <div style={{ fontSize: '12px', color: '#888' }}>{channel?.name || activeClient?.name || 'Channel'}</div>
+            <div style={{ fontSize: '12px', color: '#888' }}>{activeClient?.name || channel?.name || 'Channel'}</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>

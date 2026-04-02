@@ -1355,7 +1355,6 @@ export default function App() {
             {tab === "quarterly-report" && (
               <QuarterlyReport
                 activeClient={activeClient}
-                channelId={activeClient?.id || null}
               />
             )}
 

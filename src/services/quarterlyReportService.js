@@ -201,14 +201,18 @@ async function getAllChannelIds(channelId) {
 
 /**
  * Generate full quarterly report data
+ * @param {string} channelId - Primary channel ID
+ * @param {number} year
+ * @param {number} quarter
+ * @param {string[]} [explicitChannelIds] - If provided, use these IDs instead of auto-detecting network members
  */
-export async function generateQuarterlyReport(channelId, year, quarter) {
+export async function generateQuarterlyReport(channelId, year, quarter, explicitChannelIds) {
   const current = getQuarterDates(year, quarter);
   const prev = getPreviousQuarter(year, quarter);
   const previous = getQuarterDates(prev.year, prev.quarter);
 
-  // Get all channel IDs (parent + network members for multi-channel clients)
-  const allChannelIds = await getAllChannelIds(channelId);
+  // Use explicit channel IDs if provided (from activeClient.networkMembers), otherwise auto-detect
+  const allChannelIds = explicitChannelIds?.length > 0 ? explicitChannelIds : await getAllChannelIds(channelId);
 
   // Fetch data for both quarters across ALL channels
   const [currentVideos, previousVideos, currentSnapshots, previousSnapshots] = await Promise.all([
