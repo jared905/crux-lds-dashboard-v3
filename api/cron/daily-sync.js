@@ -1242,6 +1242,106 @@ async function handleBackfill(req, res) {
   });
 }
 
+// Sync-all mode: run Analytics API fetch for every channel to refresh
+// subscribers_gained, watch_hours, and avg_view_percentage on the videos table.
+// Same API call the manual sync uses from the dashboard.
+// Usage: /api/cron/daily-sync?syncall=true&manual=true
+async function handleSyncAll(req, res) {
+  const startTime = Date.now();
+
+  const { data: connections } = await supabase
+    .from('youtube_oauth_connections')
+    .select('*')
+    .eq('is_active', true)
+    .order('id');
+
+  if (!connections?.length) {
+    return res.status(200).json({ success: true, message: 'No active connections' });
+  }
+
+  const allResults = [];
+
+  for (const connection of connections) {
+    const result = { channel: connection.youtube_channel_title, videosUpdated: 0, errors: [] };
+
+    try {
+      const accessToken = await getAccessToken(connection);
+      const channelId = connection.youtube_channel_id;
+
+      const { data: dbChannel } = await supabase
+        .from('channels')
+        .select('id')
+        .eq('youtube_channel_id', channelId)
+        .eq('is_client', true)
+        .single();
+
+      if (!dbChannel) { result.errors.push('No client channel'); allResults.push(result); continue; }
+
+      // Fetch Analytics API — same call the manual sync uses (365-day window)
+      const end = new Date().toISOString().split('T')[0];
+      const start = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
+
+      let analytics;
+      try {
+        analytics = await fetchAnalytics(accessToken, channelId, start, end);
+      } catch (e) {
+        result.errors.push(`Analytics API: ${e.message}`);
+        allResults.push(result);
+        continue;
+      }
+
+      if (!analytics?.rows?.length) {
+        result.errors.push('No analytics data returned');
+        allResults.push(result);
+        continue;
+      }
+
+      const ms = analytics._metricSet || {};
+
+      // Get all videos for this channel
+      const { data: videos } = await supabase
+        .from('videos')
+        .select('id, youtube_video_id')
+        .eq('channel_id', dbChannel.id);
+
+      const videoMap = {};
+      for (const v of (videos || [])) { videoMap[v.youtube_video_id] = v; }
+
+      // Update each video
+      for (const row of analytics.rows) {
+        const ytVideoId = row[0];
+        const dbVideo = videoMap[ytVideoId];
+        if (!dbVideo) continue;
+
+        const updateData = { last_synced_at: new Date().toISOString() };
+        const views = row[1] ?? 0;
+        const watchHours = (row[2] ?? 0) / 60;
+        const avgViewPct = ms.hasRetention ? (row[3] ?? 0) / 100 : null;
+        const subsGained = ms.hasSubs ? (row[ms.hasRetention ? 4 : 3] ?? 0) : null;
+
+        if (avgViewPct != null) updateData.avg_view_percentage = avgViewPct;
+        if (watchHours) updateData.watch_hours = watchHours;
+        if (subsGained != null) updateData.subscribers_gained = subsGained;
+
+        await supabase.from('videos').update(updateData).eq('id', dbVideo.id);
+        result.videosUpdated++;
+      }
+
+      console.log(`[SyncAll] ${connection.youtube_channel_title}: ${result.videosUpdated} videos updated`);
+    } catch (e) {
+      result.errors.push(e.message);
+    }
+
+    allResults.push(result);
+  }
+
+  return res.status(200).json({
+    success: true,
+    duration: Date.now() - startTime,
+    results: allResults,
+  });
+}
+
 export default async function handler(req, res) {
   // Verify this is a legitimate cron request from Vercel
   const authHeader = req.headers.authorization;
@@ -1253,9 +1353,15 @@ export default async function handler(req, res) {
     }
   }
 
-  // Backfill mode: /api/cron/daily-sync?backfill=2026-02-23,2026-02-28&manual=true
+  // Backfill mode
   if (req.query?.backfill) {
     return handleBackfill(req, res);
+  }
+
+  // Sync-all mode: run Analytics API fetch for all channels to update subs/retention/watch hours
+  // Usage: /api/cron/daily-sync?syncall=true&manual=true
+  if (req.query?.syncall) {
+    return handleSyncAll(req, res);
   }
 
   console.log('[Daily Sync] Starting...');
