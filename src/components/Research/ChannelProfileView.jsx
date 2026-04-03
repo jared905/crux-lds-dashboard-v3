@@ -45,6 +45,7 @@ export default function ChannelProfileView({
   categoryConfig,
   masterView,
   userTimezone,
+  refreshKey,
 }) {
   const [dbData, setDbData] = useState({ recent: [], top: null, allVideos: [], subDelta: null, snapshots: [] });
   const [loading, setLoading] = useState(true);
@@ -107,7 +108,7 @@ export default function ChannelProfileView({
     })();
 
     return () => { cancelled = true; };
-  }, [channel.supabaseId]);
+  }, [channel.supabaseId, refreshKey]);
 
   // Content analysis
   const titleAnalysis = useMemo(() => channel.videos?.length > 0 ? analyzeTitlePatterns(channel.videos) : null, [channel.videos]);

@@ -170,6 +170,7 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
   const [expandedCategories, setExpandedCategories] = useState({});
   const [refreshingId, setRefreshingId] = useState(null);
   const [syncAllState, setSyncAllState] = useState(null); // { total, completed, errors }
+  const [dataRefreshKey, setDataRefreshKey] = useState(0);
   const [refreshError, setRefreshError] = useState({});
   const [newCompetitor, setNewCompetitor] = useState("");
   const [addCategory, setAddCategory] = useState("");
@@ -376,6 +377,60 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
         clientId: masterView ? undefined : activeClient?.id,
         isCompetitor: true
       });
+
+      // Enrich channels with video stats from Supabase so list view has accurate data
+      if (channels?.length > 0) {
+        try {
+          const { supabase } = await import('../../services/supabaseClient');
+          if (supabase) {
+            const channelIds = channels.map(c => c.id);
+            const now = new Date();
+            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+            const { data: videos } = await supabase
+              .from('videos')
+              .select('channel_id, youtube_video_id, view_count, like_count, comment_count, published_at, video_type, duration_seconds')
+              .in('channel_id', channelIds)
+              .gte('published_at', ninetyDaysAgo.toISOString());
+
+            if (videos?.length > 0) {
+              const videosByChannel = {};
+              for (const v of videos) {
+                if (!videosByChannel[v.channel_id]) videosByChannel[v.channel_id] = [];
+                videosByChannel[v.channel_id].push(v);
+              }
+              for (const ch of channels) {
+                const chVideos = videosByChannel[ch.id] || [];
+                if (chVideos.length === 0) continue;
+                const last30 = chVideos.filter(v => new Date(v.published_at) >= thirtyDaysAgo);
+                const isShort = (v) => v.video_type === 'short' || (!v.video_type && v.duration_seconds && v.duration_seconds <= 60);
+                const shorts = chVideos.filter(isShort);
+                const longs = chVideos.filter(v => !isShort(v));
+                const shorts30d = last30.filter(isShort).length;
+                const longs30d = last30.filter(v => !isShort(v)).length;
+                const totalViews = chVideos.reduce((s, v) => s + (v.view_count || 0), 0);
+                const totalLikes = chVideos.reduce((s, v) => s + (v.like_count || 0), 0);
+                const totalComments = chVideos.reduce((s, v) => s + (v.comment_count || 0), 0);
+                ch._videoStats = {
+                  uploadsLast30Days: last30.length,
+                  uploadsLast90Days: chVideos.length,
+                  shortsCount: shorts.length,
+                  longsCount: longs.length,
+                  shorts30d,
+                  longs30d,
+                  avgViewsPerVideo: chVideos.length > 0 ? totalViews / chVideos.length : 0,
+                  engagementRate: totalViews > 0 ? (totalLikes + totalComments) / totalViews : 0,
+                  uploadFrequency: last30.length > 0 ? 30 / last30.length : 0,
+                };
+              }
+            }
+          }
+        } catch (enrichErr) {
+          console.warn('[Competitors] Video stats enrichment failed:', enrichErr);
+        }
+      }
+
       setSupabaseCompetitors(channels || []);
     } catch (err) {
       console.error('[Competitors] Failed to reload from Supabase:', err);
@@ -1123,20 +1178,21 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
 
     if (supabaseCompetitors.length > 0) {
       result = supabaseCompetitors.map(ch => {
-        // Base defaults for fields not stored in Supabase
+        // Base defaults — overridden by DB video stats if available
+        const dbStats = ch._videoStats || {};
         const defaults = {
-          uploadsLast30Days: 0,
+          uploadsLast30Days: dbStats.uploadsLast30Days ?? 0,
           uploadsLast60Days: 0,
-          uploadsLast90Days: 0,
-          shortsCount: 0,
-          longsCount: 0,
-          shorts30d: 0,
-          longs30d: 0,
-          avgViewsPerVideo: ch.video_count > 0 ? (ch.total_view_count || 0) / ch.video_count : 0,
+          uploadsLast90Days: dbStats.uploadsLast90Days ?? 0,
+          shortsCount: dbStats.shortsCount ?? 0,
+          longsCount: dbStats.longsCount ?? 0,
+          shorts30d: dbStats.shorts30d ?? 0,
+          longs30d: dbStats.longs30d ?? 0,
+          avgViewsPerVideo: dbStats.avgViewsPerVideo ?? (ch.video_count > 0 ? (ch.total_view_count || 0) / ch.video_count : 0),
           avgShortsViews: 0,
           avgLongsViews: 0,
-          engagementRate: 0,
-          uploadFrequency: 0,
+          engagementRate: dbStats.engagementRate ?? 0,
+          uploadFrequency: dbStats.uploadFrequency ?? 0,
           topVideos: [],
           contentSeries: [],
           videos: [],
@@ -1615,6 +1671,7 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
                     });
 
                     await reloadSupabaseCompetitors();
+                    setDataRefreshKey(k => k + 1);
                     setTimeout(() => setSyncAllState(null), 3000);
                   } catch (err) {
                     console.error('[Sync All] Failed:', err);
@@ -2107,6 +2164,7 @@ function CompetitorAnalysisInner({ rows, activeClient }) {
               categoryConfig={categoryConfig}
               masterView={masterView}
               userTimezone={userTimezone}
+              refreshKey={dataRefreshKey}
             />
           </div>
         </div>
