@@ -52,9 +52,52 @@ export default function ChannelProfileView({
 
   const catCfg = categoryConfig?.[channel.category] || { color: '#3b82f6', icon: '📁', label: channel.category || 'Uncategorized' };
 
-  // Load all video + snapshot data
+  // Load all video + snapshot data from Supabase, fall back to localStorage videos
   useEffect(() => {
-    if (!channel.supabaseId) { setLoading(false); return; }
+    if (!channel.supabaseId) {
+      // No Supabase record — fall back to localStorage videos if available
+      if (channel.videos?.length > 0) {
+        const now = new Date();
+        const cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        const recentLocal = channel.videos
+          .filter(v => v.publishedAt && new Date(v.publishedAt) >= cutoff)
+          .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+          .slice(0, 10)
+          .map(v => ({
+            youtube_video_id: v.id,
+            title: v.title,
+            thumbnail_url: v.thumbnail,
+            view_count: v.views,
+            like_count: v.likes,
+            comment_count: v.comments,
+            published_at: v.publishedAt,
+            video_type: v.type === 'short' ? 'short' : 'long',
+            duration_seconds: v.duration,
+          }));
+        const allLocal = channel.videos.map(v => ({
+          youtube_video_id: v.id,
+          title: v.title,
+          thumbnail_url: v.thumbnail,
+          view_count: v.views,
+          like_count: v.likes,
+          comment_count: v.comments,
+          published_at: v.publishedAt,
+          video_type: v.type === 'short' ? 'short' : 'long',
+          duration_seconds: v.duration,
+        }));
+        const topLocal = [...allLocal].sort((a, b) => (b.view_count || 0) - (a.view_count || 0)).slice(0, 5);
+        setDbData({
+          recent: recentLocal,
+          allVideos: allLocal,
+          top: topLocal[0] || null,
+          topVideos: topLocal,
+          subDelta: null,
+          snapshots: [],
+        });
+      }
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
 
     (async () => {
@@ -90,12 +133,58 @@ export default function ChannelProfileView({
           .limit(30);
 
         if (!cancelled) {
+          // If Supabase returned no videos, fall back to localStorage videos
+          const hasDbVideos = videos && videos.length > 0;
+          let finalVideos = videos || [];
+          let finalTop = topArr || [];
+
+          if (!hasDbVideos && channel.videos?.length > 0) {
+            const cutoffDate = new Date(cutoff);
+            finalVideos = channel.videos
+              .filter(v => v.publishedAt && new Date(v.publishedAt) >= cutoffDate)
+              .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+              .map(v => ({
+                youtube_video_id: v.id,
+                title: v.title,
+                thumbnail_url: v.thumbnail,
+                view_count: v.views,
+                like_count: v.likes,
+                comment_count: v.comments,
+                published_at: v.publishedAt,
+                video_type: v.type === 'short' ? 'short' : 'long',
+                duration_seconds: v.duration,
+              }));
+            finalTop = [...channel.videos]
+              .sort((a, b) => (b.views || 0) - (a.views || 0))
+              .slice(0, 5)
+              .map(v => ({
+                youtube_video_id: v.id,
+                title: v.title,
+                thumbnail_url: v.thumbnail,
+                view_count: v.views,
+                like_count: v.likes,
+                comment_count: v.comments,
+                published_at: v.publishedAt,
+                video_type: v.type === 'short' ? 'short' : 'long',
+              }));
+          }
+
           const delta = snaps?.length >= 2 ? (snaps[0].subscriber_count || 0) - (snaps[1].subscriber_count || 0) : null;
           setDbData({
-            recent: (videos || []).slice(0, 10),
-            allVideos: videos || [],
-            top: topArr?.[0] || null,
-            topVideos: topArr || [],
+            recent: finalVideos.slice(0, 10),
+            allVideos: hasDbVideos ? finalVideos : (channel.videos || []).map(v => ({
+              youtube_video_id: v.id,
+              title: v.title,
+              thumbnail_url: v.thumbnail,
+              view_count: v.views,
+              like_count: v.likes,
+              comment_count: v.comments,
+              published_at: v.publishedAt,
+              video_type: v.type === 'short' ? 'short' : 'long',
+              duration_seconds: v.duration,
+            })),
+            top: finalTop[0] || null,
+            topVideos: finalTop,
             subDelta: delta,
             snapshots: (snaps || []).reverse(),
           });
@@ -108,7 +197,7 @@ export default function ChannelProfileView({
     })();
 
     return () => { cancelled = true; };
-  }, [channel.supabaseId, refreshKey]);
+  }, [channel.supabaseId, channel.videos, refreshKey]);
 
   // Content analysis
   const titleAnalysis = useMemo(() => channel.videos?.length > 0 ? analyzeTitlePatterns(channel.videos) : null, [channel.videos]);
