@@ -199,6 +199,17 @@ export default function ChannelProfileView({
     return () => { cancelled = true; };
   }, [channel.supabaseId, channel.videos, refreshKey]);
 
+  // Auto-refresh when no video data is available from any source
+  const [autoRefreshed, setAutoRefreshed] = useState(false);
+  useEffect(() => {
+    if (!loading && !autoRefreshed && !isRefreshing
+        && dbData.allVideos.length === 0 && (!channel.videos || channel.videos.length === 0)
+        && channel.id && onRefresh) {
+      setAutoRefreshed(true);
+      onRefresh(channel.id);
+    }
+  }, [loading, autoRefreshed, isRefreshing, dbData.allVideos.length, channel.videos, channel.id, onRefresh]);
+
   // Content analysis
   const titleAnalysis = useMemo(() => channel.videos?.length > 0 ? analyzeTitlePatterns(channel.videos) : null, [channel.videos]);
   const scheduleAnalysis = useMemo(() => channel.videos?.length > 0 ? analyzeUploadSchedule(channel.videos, userTimezone) : null, [channel.videos, userTimezone]);
