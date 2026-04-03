@@ -1016,8 +1016,9 @@ export default function App() {
   }
 
   // New user onboarding — show if user has no clients and hasn't skipped
+  // Wait for supabaseLoading to finish so we don't flash cached data from another account
   const onboardingSkipped = sessionStorage.getItem('onboarding_skipped');
-  if (user && clients.length === 0 && !loading && !onboardingSkipped) {
+  if (user && !supabaseLoading && clients.length === 0 && !onboardingSkipped) {
     return (
       <WelcomeOnboarding
         user={user}
