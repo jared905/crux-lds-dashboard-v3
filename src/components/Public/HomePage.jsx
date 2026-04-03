@@ -1,5 +1,80 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BarChart3, Users, Zap, Target, FileText, Layers, ArrowRight, Play, TrendingUp, Eye, Shield, Youtube } from 'lucide-react';
+
+const METRICS = [
+  { label: 'Total Views', end: 2400000, format: v => v >= 1e6 ? (v/1e6).toFixed(1) + 'M' : Math.round(v).toLocaleString(), change: '+18.3%' },
+  { label: 'Watch Hours', end: 142000, format: v => v >= 1e3 ? Math.round(v/1e3) + 'K' : Math.round(v).toLocaleString(), change: '+12.1%' },
+  { label: 'Subscribers', end: 89200, format: v => v >= 1e3 ? (v/1e3).toFixed(1) + 'K' : Math.round(v).toLocaleString(), change: '+2,340' },
+  { label: 'Avg CTR', end: 6.8, format: v => v.toFixed(1) + '%', change: '+0.9%' },
+];
+
+function DashboardMetrics() {
+  const [values, setValues] = useState(METRICS.map(() => 0));
+  const [started, setStarted] = useState(false);
+  const [hovered, setHovered] = useState(null);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !started) setStarted(true);
+    }, { threshold: 0.5 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [started]);
+
+  useEffect(() => {
+    if (!started) return;
+    const duration = 1200;
+    const steps = 40;
+    const interval = duration / steps;
+    let step = 0;
+    const timer = setInterval(() => {
+      step++;
+      const t = Math.min(step / steps, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      setValues(METRICS.map(m => m.end * ease));
+      if (step >= steps) clearInterval(timer);
+    }, interval);
+    return () => clearInterval(timer);
+  }, [started]);
+
+  return (
+    <div ref={ref} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+      {METRICS.map((m, i) => (
+        <div
+          key={i}
+          onMouseEnter={() => setHovered(i)}
+          onMouseLeave={() => setHovered(null)}
+          style={{
+            background: hovered === i ? '#111' : '#0a0a0a',
+            borderRadius: 10,
+            padding: '16px 14px',
+            cursor: 'default',
+            transition: 'all 0.2s ease',
+            transform: hovered === i ? 'translateY(-2px)' : 'none',
+            boxShadow: hovered === i ? '0 8px 24px rgba(0,0,0,0.3)' : 'none',
+          }}
+        >
+          <div style={{ fontSize: 11, color: '#555', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>{m.label}</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <div style={{ fontSize: 26, fontWeight: 700, color: '#fff', transition: 'color 0.2s', ...(hovered === i ? { color: '#3b82f6' } : {}) }}>
+              {m.format(values[i])}
+            </div>
+            <div style={{
+              fontSize: 12, color: '#22c55e', fontWeight: 500,
+              opacity: hovered === i ? 1 : 0.7,
+              transition: 'opacity 0.2s',
+            }}>
+              {m.change}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const FEATURES = [
   {
@@ -211,45 +286,51 @@ export default function HomePage({ onSignIn }) {
             <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#333' }} />
             <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#333' }} />
           </div>
-          {/* Metric cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
-            {[
-              { label: 'Total Views', value: '2.4M', change: '+18.3%' },
-              { label: 'Watch Hours', value: '142K', change: '+12.1%' },
-              { label: 'Subscribers', value: '89.2K', change: '+2,340' },
-              { label: 'Avg CTR', value: '6.8%', change: '+0.9%' },
-            ].map((m, i) => (
-              <div key={i} style={{
-                background: '#0a0a0a', borderRadius: 10, padding: '16px 14px',
-              }}>
-                <div style={{ fontSize: 11, color: '#555', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>{m.label}</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <div style={{ fontSize: 26, fontWeight: 700, color: '#fff' }}>{m.value}</div>
-                  <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 500 }}>{m.change}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-          {/* Chart — area style with subtle fill */}
+          {/* Metric cards with count-up animation */}
+          <DashboardMetrics />
+          {/* Chart — before/after story */}
           <div style={{
-            background: '#0a0a0a', borderRadius: 10, padding: '24px 16px 16px', height: 150,
+            background: '#0a0a0a', borderRadius: 10, padding: '16px 16px 12px', height: 170,
             position: 'relative', overflow: 'hidden',
           }}>
-            <svg width="100%" height="100%" viewBox="0 0 400 100" preserveAspectRatio="none" style={{ display: 'block' }}>
+            {/* "Before" / "After" labels */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, padding: '0 4px' }}>
+              <span style={{ fontSize: 10, color: '#555', textTransform: 'uppercase', letterSpacing: 1 }}>Before Full View</span>
+              <span style={{ fontSize: 10, color: '#2962FF', textTransform: 'uppercase', letterSpacing: 1 }}>After Full View</span>
+            </div>
+            <svg width="100%" height="calc(100% - 24px)" viewBox="0 0 400 110" preserveAspectRatio="none" style={{ display: 'block' }}>
               <defs>
-                <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2962FF" stopOpacity="0.3" />
+                <linearGradient id="afterFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#2962FF" stopOpacity="0.25" />
                   <stop offset="100%" stopColor="#2962FF" stopOpacity="0" />
                 </linearGradient>
+                <linearGradient id="beforeFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#666" stopOpacity="0.08" />
+                  <stop offset="100%" stopColor="#666" stopOpacity="0" />
+                </linearGradient>
               </defs>
+              {/* Divider line at midpoint */}
+              <line x1="200" y1="0" x2="200" y2="110" stroke="#222" strokeWidth="1" strokeDasharray="4,4" />
+              {/* Before: flat/declining (left half) */}
               <path
-                d="M0,80 C20,75 40,70 60,65 C80,60 100,55 120,48 C140,42 160,45 180,38 C200,32 220,35 240,28 C260,22 280,25 300,18 C320,14 340,16 360,10 C380,8 400,5 400,5 L400,100 L0,100 Z"
-                fill="url(#areaFill)"
+                d="M0,55 C15,56 30,58 50,57 C70,56 90,60 110,62 C130,61 150,64 170,63 C180,63 190,62 200,62"
+                fill="none" stroke="#444" strokeWidth="1.5"
               />
               <path
-                d="M0,80 C20,75 40,70 60,65 C80,60 100,55 120,48 C140,42 160,45 180,38 C200,32 220,35 240,28 C260,22 280,25 300,18 C320,14 340,16 360,10 C380,8 400,5 400,5"
+                d="M0,55 C15,56 30,58 50,57 C70,56 90,60 110,62 C130,61 150,64 170,63 C180,63 190,62 200,62 L200,110 L0,110 Z"
+                fill="url(#beforeFill)"
+              />
+              {/* After: accelerating growth (right half) */}
+              <path
+                d="M200,62 C215,58 225,52 240,46 C255,40 265,36 280,30 C295,24 305,20 320,16 C335,13 350,10 370,7 C385,5 395,4 400,3"
                 fill="none" stroke="#2962FF" strokeWidth="2"
               />
+              <path
+                d="M200,62 C215,58 225,52 240,46 C255,40 265,36 280,30 C295,24 305,20 320,16 C335,13 350,10 370,7 C385,5 395,4 400,3 L400,110 L200,110 Z"
+                fill="url(#afterFill)"
+              />
+              {/* Inflection point dot */}
+              <circle cx="200" cy="62" r="4" fill="#0a0a0a" stroke="#2962FF" strokeWidth="2" />
             </svg>
           </div>
           {/* Gradient fade at bottom */}
