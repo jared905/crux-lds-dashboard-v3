@@ -1,10 +1,10 @@
 -- 054: Use accurate view counts that match YouTube Studio
 --
 -- Priority for views:
---   1. total_view_count delta across the date range (accurate when cron has run daily)
---   2. Lifetime view_count for videos published within the date range
---      (all views happened in-period, so lifetime = period)
---   3. SUM(view_count) from reach reports (partial — only impression-sourced views)
+--   1. For videos published within the date range: use lifetime view_count
+--      (all views happened in-period, so lifetime = period views)
+--   2. total_view_count delta across snapshots (for older videos)
+--   3. SUM(view_count) from reach reports (partial fallback)
 
 CREATE OR REPLACE FUNCTION get_video_snapshot_aggregates(
   channel_ids UUID[],
@@ -45,10 +45,10 @@ AS $$
     v.content_source,
     -- Views: best available source
     COALESCE(
-      -- 1. Delta of cumulative counts (works when cron has written different values over time)
+      -- 1. Videos published in-period: lifetime = period views (matches YouTube Studio)
+      CASE WHEN v.published_at >= start_date::timestamptz THEN NULLIF(v.view_count, 0) END,
+      -- 2. Older videos: delta of cumulative counts across date range
       NULLIF(GREATEST(MAX(vs.total_view_count) - MIN(vs.total_view_count), 0), 0),
-      -- 2. For videos published in-period: lifetime views ≈ period views
-      CASE WHEN v.published_at >= start_date::timestamptz THEN v.view_count END,
       -- 3. Reach-report views (only impression-sourced, ~40% of total)
       NULLIF(SUM(vs.view_count), 0),
       0
@@ -83,8 +83,8 @@ AS $$
     OR (MAX(vs.total_view_count) - MIN(vs.total_view_count)) > 0
     OR (v.published_at >= start_date::timestamptz AND v.view_count > 0)
   ORDER BY COALESCE(
+    CASE WHEN v.published_at >= start_date::timestamptz THEN NULLIF(v.view_count, 0) END,
     NULLIF(GREATEST(MAX(vs.total_view_count) - MIN(vs.total_view_count), 0), 0),
-    CASE WHEN v.published_at >= start_date::timestamptz THEN v.view_count END,
     NULLIF(SUM(vs.view_count), 0),
     0
   ) DESC;
