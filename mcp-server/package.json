@@ -1,0 +1,14 @@
+{
+  "name": "fullview-mcp-server",
+  "version": "1.0.0",
+  "description": "Full View Analytics MCP server — YouTube channel intelligence inside Claude",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@supabase/supabase-js": "^2.93.2"
+  }
+}
