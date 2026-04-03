@@ -212,23 +212,6 @@ export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
                 </p>
               )}
 
-              {/* Skip */}
-              <button
-                onClick={onSkip}
-                style={{
-                  width: '100%',
-                  marginTop: 12,
-                  padding: '10px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#666',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                }}
-              >
-                Skip for now
-              </button>
-
               <p style={{
                 fontSize: 11,
                 color: '#444',

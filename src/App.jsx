@@ -1018,18 +1018,13 @@ export default function App() {
     return <HomePage onSignIn={() => setAuthView("login")} />;
   }
 
-  // New user onboarding — show if user has no clients and hasn't skipped
+  // New user onboarding — no channels connected yet
   // Wait for supabaseLoading to finish so we don't flash cached data from another account
-  const onboardingSkipped = sessionStorage.getItem('onboarding_skipped');
-  if (user && !supabaseLoading && clients.length === 0 && !onboardingSkipped) {
+  if (user && !supabaseLoading && clients.length === 0) {
     return (
       <WelcomeOnboarding
         user={user}
         onComplete={() => window.location.reload()}
-        onSkip={() => {
-          sessionStorage.setItem('onboarding_skipped', 'true');
-          window.location.reload();
-        }}
       />
     );
   }
