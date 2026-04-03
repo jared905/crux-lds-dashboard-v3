@@ -581,13 +581,58 @@ async function syncConnection(connection) {
     console.log(`[Daily Sync] Analytics: ${syncDates.length} days fetched, ${Object.keys(analyticsData).length} videos`);
 
 
-    // Fetch reporting data (impressions/CTR)
+    // Fetch reporting data from BOTH report types:
+    // - Reach report (reporting_job_id): impressions, CTR
+    // - Basic report (basic_reporting_job_id): views, watch time, subs, likes, comments, shares
     let reportingData = null;
+    let basicReportingData = null;
+
     if (connection.reporting_job_id) {
       try {
         reportingData = await fetchReportingData(accessToken, connection.reporting_job_id);
       } catch (e) {
-        results.errors.push(`Reporting: ${e.message}`);
+        results.errors.push(`Reach reporting: ${e.message}`);
+      }
+    }
+
+    if (connection.basic_reporting_job_id) {
+      try {
+        basicReportingData = await fetchReportingData(accessToken, connection.basic_reporting_job_id);
+      } catch (e) {
+        results.errors.push(`Basic reporting: ${e.message}`);
+      }
+    }
+
+    // Merge basic report data into reporting data (basic has views/subs/watch, reach has impressions/CTR)
+    if (basicReportingData?.byDate) {
+      if (!reportingData) reportingData = { videoData: {}, byDate: {} };
+      for (const [date, videos] of Object.entries(basicReportingData.byDate)) {
+        if (!reportingData.byDate[date]) reportingData.byDate[date] = {};
+        for (const [videoId, metrics] of Object.entries(videos)) {
+          if (!reportingData.byDate[date][videoId]) {
+            reportingData.byDate[date][videoId] = metrics;
+          } else {
+            // Merge: basic report fills views/subs/watch, reach report fills impressions/CTR
+            const existing = reportingData.byDate[date][videoId];
+            if (metrics.views && !existing.views) existing.views = metrics.views;
+            if (metrics.watchHours && !existing.watchHours) existing.watchHours = metrics.watchHours;
+            if (metrics.subscribersGained) existing.subscribersGained = metrics.subscribersGained;
+            if (metrics.subscribersLost) existing.subscribersLost = metrics.subscribersLost;
+            if (metrics.likes && !existing.likes) existing.likes = metrics.likes;
+            if (metrics.comments && !existing.comments) existing.comments = metrics.comments;
+            if (metrics.shares && !existing.shares) existing.shares = metrics.shares;
+          }
+        }
+      }
+      // Merge aggregated video data too
+      for (const [videoId, metrics] of Object.entries(basicReportingData.videoData || {})) {
+        if (!reportingData.videoData[videoId]) {
+          reportingData.videoData[videoId] = metrics;
+        } else {
+          const existing = reportingData.videoData[videoId];
+          if (metrics.views && !existing.views) existing.views = metrics.views;
+          if (metrics.subscribersGained) existing.subscribersGained += metrics.subscribersGained;
+        }
       }
     }
 
@@ -869,59 +914,80 @@ async function handleBackfill(req, res) {
       const videoMap = {};
       for (const v of videos) { videoMap[v.youtube_video_id] = v; }
 
-      // Try to auto-create a reporting job if one doesn't exist
-      if (!connection.reporting_job_id) {
-        try {
-          // List available report types
-          const rtResponse = await fetch(
-            'https://youtubereporting.googleapis.com/v1/reportTypes',
-            { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
-          );
-          if (rtResponse.ok) {
-            const rtData = await rtResponse.json();
-            const reachType = rtData.reportTypes?.find(rt =>
-              rt.id === 'channel_reach_basic_a1' || rt.id?.includes('channel_reach_')
-            );
+      // Auto-setup both reporting jobs: reach (impressions/CTR) + basic (views/subs/watch)
+      try {
+        const jobsResp = await fetch(
+          'https://youtubereporting.googleapis.com/v1/jobs',
+          { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
+        );
+        const jobsData = jobsResp.ok ? await jobsResp.json() : {};
+        const allJobs = jobsData.jobs || [];
 
+        const rtResponse = await fetch(
+          'https://youtubereporting.googleapis.com/v1/reportTypes',
+          { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
+        );
+        const rtData = rtResponse.ok ? await rtResponse.json() : {};
+        const allTypes = rtData.reportTypes || [];
+
+        // Ensure reach job exists
+        if (!connection.reporting_job_id) {
+          const reachJob = allJobs.find(j => j.reportTypeId?.includes('channel_reach_'));
+          if (reachJob) {
+            connection.reporting_job_id = reachJob.id;
+            await supabase.from('youtube_oauth_connections')
+              .update({ reporting_job_id: reachJob.id, reporting_job_type: reachJob.reportTypeId })
+              .eq('id', connection.id);
+          } else {
+            const reachType = allTypes.find(rt => rt.id === 'channel_reach_basic_a1' || rt.id?.includes('channel_reach_'));
             if (reachType) {
-              // Check for existing job
-              const jobsResp = await fetch(
-                'https://youtubereporting.googleapis.com/v1/jobs',
-                { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
-              );
-              const jobsData = jobsResp.ok ? await jobsResp.json() : {};
-              const existingJob = jobsData.jobs?.find(j => j.reportTypeId?.includes('channel_reach_'));
-
-              if (existingJob) {
-                connection.reporting_job_id = existingJob.id;
+              const resp = await fetch('https://youtubereporting.googleapis.com/v1/jobs', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reportTypeId: reachType.id, name: `Reach - ${connection.youtube_channel_title}` })
+              });
+              if (resp.ok) {
+                const job = await resp.json();
+                connection.reporting_job_id = job.id;
                 await supabase.from('youtube_oauth_connections')
-                  .update({ reporting_job_id: existingJob.id, reporting_job_type: existingJob.reportTypeId })
+                  .update({ reporting_job_id: job.id, reporting_job_type: job.reportTypeId })
                   .eq('id', connection.id);
-                console.log(`[Backfill] Found existing reporting job for ${connection.youtube_channel_title}`);
-              } else {
-                // Create new job
-                const createResp = await fetch(
-                  'https://youtubereporting.googleapis.com/v1/jobs',
-                  {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reportTypeId: reachType.id, name: `Backfill - ${connection.youtube_channel_title}` })
-                  }
-                );
-                if (createResp.ok) {
-                  const newJob = await createResp.json();
-                  connection.reporting_job_id = newJob.id;
-                  await supabase.from('youtube_oauth_connections')
-                    .update({ reporting_job_id: newJob.id, reporting_job_type: newJob.reportTypeId })
-                    .eq('id', connection.id);
-                  result.errors.push('Reporting job created — first reports available in ~24 hours. Run backfill again tomorrow.');
-                }
+                result.errors.push('Reach reporting job created — reports in ~24 hours.');
               }
             }
           }
-        } catch (e) {
-          result.errors.push(`Auto-create reporting job failed: ${e.message}`);
         }
+
+        // Ensure basic job exists (views, subs, watch time per video per day)
+        if (!connection.basic_reporting_job_id) {
+          const basicJob = allJobs.find(j => j.reportTypeId?.includes('channel_basic_'));
+          if (basicJob) {
+            connection.basic_reporting_job_id = basicJob.id;
+            await supabase.from('youtube_oauth_connections')
+              .update({ basic_reporting_job_id: basicJob.id, basic_reporting_job_type: basicJob.reportTypeId })
+              .eq('id', connection.id);
+            console.log(`[Backfill] Found existing basic job for ${connection.youtube_channel_title}`);
+          } else {
+            const basicType = allTypes.find(rt => rt.id === 'channel_basic_a2' || rt.id?.includes('channel_basic_'));
+            if (basicType) {
+              const resp = await fetch('https://youtubereporting.googleapis.com/v1/jobs', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reportTypeId: basicType.id, name: `Basic - ${connection.youtube_channel_title}` })
+              });
+              if (resp.ok) {
+                const job = await resp.json();
+                connection.basic_reporting_job_id = job.id;
+                await supabase.from('youtube_oauth_connections')
+                  .update({ basic_reporting_job_id: job.id, basic_reporting_job_type: job.reportTypeId })
+                  .eq('id', connection.id);
+                result.errors.push('Basic reporting job created — reports with subs/views in ~24 hours.');
+              }
+            }
+          }
+        }
+      } catch (e) {
+        result.errors.push(`Auto-setup jobs: ${e.message}`);
       }
 
       if (!connection.reporting_job_id) {
@@ -1066,6 +1132,73 @@ async function handleBackfill(req, res) {
 
         // Rate limit
         await new Promise(r => setTimeout(r, 50));
+      }
+
+      // Also download basic reports (views, subs, watch time) if available
+      if (connection.basic_reporting_job_id) {
+        try {
+          const basicResp = await fetch(
+            `https://youtubereporting.googleapis.com/v1/jobs/${connection.basic_reporting_job_id}/reports`,
+            { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
+          );
+          if (basicResp.ok) {
+            const basicData = await basicResp.json();
+            const basicReports = (basicData.reports || []).sort((a, b) => new Date(b.createTime) - new Date(a.createTime));
+            console.log(`[Backfill] ${connection.youtube_channel_title}: ${basicReports.length} basic reports`);
+
+            for (const report of basicReports) {
+              try {
+                const reportResponse = await fetch(report.downloadUrl, {
+                  headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                if (!reportResponse.ok) continue;
+                const csvContent = await reportResponse.text();
+                const { byDate } = parseReportCSV(csvContent);
+                result.reportsDownloaded++;
+
+                for (const [date, dayVideos] of Object.entries(byDate)) {
+                  for (const [ytVideoId, metrics] of Object.entries(dayVideos)) {
+                    const dbVideo = videoMap[ytVideoId];
+                    if (!dbVideo) continue;
+
+                    const key = `${dbVideo.id}|${date}`;
+                    if (snapshotMap[key]) {
+                      // Merge: basic fills views/subs/watch, reach fills impressions/CTR
+                      const existing = snapshotMap[key];
+                      if (metrics.views && !existing.view_count) existing.view_count = metrics.views;
+                      if (metrics.watchHours && !existing.watch_hours) existing.watch_hours = metrics.watchHours;
+                      if (metrics.subscribersGained) existing.subscribers_gained = metrics.subscribersGained;
+                      if (metrics.subscribersLost) existing.subscribers_lost = metrics.subscribersLost;
+                      if (metrics.likes && !existing.likes) existing.likes = metrics.likes;
+                      if (metrics.comments && !existing.comments) existing.comments = metrics.comments;
+                      if (metrics.shares && !existing.shares) existing.shares = metrics.shares;
+                    } else {
+                      const hasData = metrics.views || metrics.watchHours || metrics.subscribersGained || metrics.likes;
+                      if (!hasData) continue;
+                      snapshotMap[key] = {
+                        video_id: dbVideo.id,
+                        snapshot_date: date,
+                        view_count: metrics.views || null,
+                        watch_hours: metrics.watchHours || null,
+                        subscribers_gained: metrics.subscribersGained || null,
+                        subscribers_lost: metrics.subscribersLost || null,
+                        likes: metrics.likes || null,
+                        comments: metrics.comments || null,
+                        shares: metrics.shares || null,
+                        total_view_count: dbVideo.view_count || null,
+                      };
+                    }
+                  }
+                }
+              } catch (e) {
+                result.errors.push(`Basic report: ${e.message}`);
+              }
+              await new Promise(r => setTimeout(r, 50));
+            }
+          }
+        } catch (e) {
+          result.errors.push(`Basic reports: ${e.message}`);
+        }
       }
 
       // Write deduped snapshots in batches
