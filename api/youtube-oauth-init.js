@@ -121,6 +121,7 @@ export default async function handler(req, res) {
       scope: 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly https://www.googleapis.com/auth/yt-analytics-monetary.readonly https://www.googleapis.com/auth/userinfo.email',
       access_type: 'offline',      // Request refresh token
       prompt: 'consent',           // Force consent to always get refresh token
+      include_granted_scopes: 'true', // Incremental authorization support
       state,
       code_challenge: codeChallenge,
       code_challenge_method: 'S256'
