@@ -966,7 +966,7 @@ async function handleBackfill(req, res) {
             await supabase.from('youtube_oauth_connections')
               .update({ basic_reporting_job_id: basicJob.id, basic_reporting_job_type: basicJob.reportTypeId })
               .eq('id', connection.id);
-            console.log(`[Backfill] Found existing basic job for ${connection.youtube_channel_title}`);
+            result.errors.push(`Found existing basic job: ${basicJob.reportTypeId}`);
           } else {
             const basicType = allTypes.find(rt => rt.id === 'channel_basic_a2' || rt.id?.includes('channel_basic_'));
             if (basicType) {
@@ -982,7 +982,12 @@ async function handleBackfill(req, res) {
                   .update({ basic_reporting_job_id: job.id, basic_reporting_job_type: job.reportTypeId })
                   .eq('id', connection.id);
                 result.errors.push('Basic reporting job created — reports with subs/views in ~24 hours.');
+              } else {
+                const err = await resp.json().catch(() => ({}));
+                result.errors.push(`Failed to create basic job: ${err.error?.message || resp.status}`);
               }
+            } else {
+              result.errors.push(`No channel_basic_ report type available. Types: ${allTypes.map(t => t.id).join(', ')}`);
             }
           }
         }
