@@ -214,35 +214,43 @@ export default function HomePage({ onSignIn }) {
           {/* Metric cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
             {[
-              { label: 'Total Views', value: '2.4M', change: '+18.3%', color: '#3b82f6' },
-              { label: 'Watch Hours', value: '142K', change: '+12.1%', color: '#8b5cf6' },
-              { label: 'Subscribers', value: '89.2K', change: '+2,340', color: '#10b981' },
-              { label: 'Avg CTR', value: '6.8%', change: '+0.9%', color: '#f59e0b' },
+              { label: 'Total Views', value: '2.4M', change: '+18.3%' },
+              { label: 'Watch Hours', value: '142K', change: '+12.1%' },
+              { label: 'Subscribers', value: '89.2K', change: '+2,340' },
+              { label: 'Avg CTR', value: '6.8%', change: '+0.9%' },
             ].map((m, i) => (
               <div key={i} style={{
                 background: '#0a0a0a', borderRadius: 10, padding: '16px 14px',
-                borderLeft: `3px solid ${m.color}`,
               }}>
-                <div style={{ fontSize: 11, color: '#666', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{m.label}</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: '#fff', marginBottom: 4 }}>{m.value}</div>
-                <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 600 }}>{m.change}</div>
+                <div style={{ fontSize: 11, color: '#555', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>{m.label}</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <div style={{ fontSize: 26, fontWeight: 700, color: '#fff' }}>{m.value}</div>
+                  <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 500 }}>{m.change}</div>
+                </div>
               </div>
             ))}
           </div>
-          {/* Chart placeholder */}
+          {/* Chart — area style with subtle fill */}
           <div style={{
-            background: '#0a0a0a', borderRadius: 10, padding: '20px 14px', height: 140,
-            display: 'flex', alignItems: 'flex-end', gap: 4,
+            background: '#0a0a0a', borderRadius: 10, padding: '24px 16px 16px', height: 150,
+            position: 'relative', overflow: 'hidden',
           }}>
-            {[35,42,38,55,48,62,58,72,65,80,75,90,85,95,88,100,92,105,98,110].map((h, i) => (
-              <div key={i} style={{
-                flex: 1,
-                height: `${h}%`,
-                background: `linear-gradient(to top, #2962FF, #2962FF88)`,
-                borderRadius: '3px 3px 0 0',
-                opacity: 0.6 + (i / 20) * 0.4,
-              }} />
-            ))}
+            <svg width="100%" height="100%" viewBox="0 0 400 100" preserveAspectRatio="none" style={{ display: 'block' }}>
+              <defs>
+                <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#2962FF" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="#2962FF" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M0,80 C20,75 40,70 60,65 C80,60 100,55 120,48 C140,42 160,45 180,38 C200,32 220,35 240,28 C260,22 280,25 300,18 C320,14 340,16 360,10 C380,8 400,5 400,5 L400,100 L0,100 Z"
+                fill="url(#areaFill)"
+              />
+              <path
+                d="M0,80 C20,75 40,70 60,65 C80,60 100,55 120,48 C140,42 160,45 180,38 C200,32 220,35 240,28 C260,22 280,25 300,18 C320,14 340,16 360,10 C380,8 400,5 400,5"
+                fill="none" stroke="#2962FF" strokeWidth="2"
+              />
+            </svg>
           </div>
           {/* Gradient fade at bottom */}
           <div style={{
