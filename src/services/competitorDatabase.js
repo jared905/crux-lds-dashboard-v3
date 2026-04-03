@@ -1027,6 +1027,56 @@ export async function getRecentVideosByChannels(channelIds, { days = 30 } = {}) 
   return byChannel;
 }
 
+/**
+ * Enrich channel records with video stats from the videos table.
+ * Mutates each channel by adding a `_videoStats` property.
+ */
+export async function enrichChannelsWithVideoStats(channels) {
+  if (!supabase || !channels?.length) return;
+
+  const channelIds = channels.map(c => c.id);
+  const now = Date.now();
+  const thirtyDaysAgo = new Date(now - 30 * 86_400_000);
+  const ninetyDaysAgo = new Date(now - 90 * 86_400_000);
+
+  const { data: videos } = await supabase
+    .from('videos')
+    .select('channel_id, youtube_video_id, view_count, like_count, comment_count, published_at, video_type, duration_seconds')
+    .in('channel_id', channelIds)
+    .gte('published_at', ninetyDaysAgo.toISOString());
+
+  if (!videos?.length) return;
+
+  const byChannel = {};
+  for (const v of videos) {
+    (byChannel[v.channel_id] ??= []).push(v);
+  }
+
+  const isShort = (v) => v.video_type === 'short' || (!v.video_type && v.duration_seconds && v.duration_seconds <= 60);
+
+  for (const ch of channels) {
+    const vids = byChannel[ch.id];
+    if (!vids?.length) continue;
+
+    const last30 = vids.filter(v => new Date(v.published_at) >= thirtyDaysAgo);
+    const totalViews = vids.reduce((s, v) => s + (v.view_count || 0), 0);
+    const totalLikes = vids.reduce((s, v) => s + (v.like_count || 0), 0);
+    const totalComments = vids.reduce((s, v) => s + (v.comment_count || 0), 0);
+
+    ch._videoStats = {
+      uploadsLast30Days: last30.length,
+      uploadsLast90Days: vids.length,
+      shortsCount: vids.filter(isShort).length,
+      longsCount: vids.filter(v => !isShort(v)).length,
+      shorts30d: last30.filter(isShort).length,
+      longs30d: last30.filter(v => !isShort(v)).length,
+      avgViewsPerVideo: totalViews / vids.length,
+      engagementRate: totalViews > 0 ? (totalLikes + totalComments) / totalViews : 0,
+      uploadFrequency: last30.length > 0 ? 30 / last30.length : 0,
+    };
+  }
+}
+
 export default {
   // Channels
   getChannels,
@@ -1076,4 +1126,7 @@ export default {
 
   // Migration
   migrateFromLocalStorage,
+
+  // Video stats enrichment
+  enrichChannelsWithVideoStats,
 };

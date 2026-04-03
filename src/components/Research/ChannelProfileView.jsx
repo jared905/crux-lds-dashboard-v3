@@ -52,143 +52,98 @@ export default function ChannelProfileView({
 
   const catCfg = categoryConfig?.[channel.category] || { color: '#3b82f6', icon: '📁', label: channel.category || 'Uncategorized' };
 
-  // Load all video + snapshot data from Supabase, fall back to localStorage videos
+  // Normalize localStorage video shape → DB schema shape (single source of truth)
+  const normalizeLocal = (v) => ({
+    youtube_video_id: v.id,
+    title: v.title,
+    thumbnail_url: v.thumbnail,
+    view_count: v.views,
+    like_count: v.likes,
+    comment_count: v.comments,
+    published_at: v.publishedAt,
+    video_type: v.type === 'short' ? 'short' : 'long',
+    duration_seconds: v.duration,
+  });
+
+  // Stable key to avoid re-triggering on object identity changes
+  const localVideoCount = channel.videos?.length || 0;
+
   useEffect(() => {
-    if (!channel.supabaseId) {
-      // No Supabase record — fall back to localStorage videos if available
-      if (channel.videos?.length > 0) {
-        const now = new Date();
-        const cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-        const recentLocal = channel.videos
-          .filter(v => v.publishedAt && new Date(v.publishedAt) >= cutoff)
-          .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-          .slice(0, 10)
-          .map(v => ({
-            youtube_video_id: v.id,
-            title: v.title,
-            thumbnail_url: v.thumbnail,
-            view_count: v.views,
-            like_count: v.likes,
-            comment_count: v.comments,
-            published_at: v.publishedAt,
-            video_type: v.type === 'short' ? 'short' : 'long',
-            duration_seconds: v.duration,
-          }));
-        const allLocal = channel.videos.map(v => ({
-          youtube_video_id: v.id,
-          title: v.title,
-          thumbnail_url: v.thumbnail,
-          view_count: v.views,
-          like_count: v.likes,
-          comment_count: v.comments,
-          published_at: v.publishedAt,
-          video_type: v.type === 'short' ? 'short' : 'long',
-          duration_seconds: v.duration,
-        }));
-        const topLocal = [...allLocal].sort((a, b) => (b.view_count || 0) - (a.view_count || 0)).slice(0, 5);
-        setDbData({
-          recent: recentLocal,
-          allVideos: allLocal,
-          top: topLocal[0] || null,
-          topVideos: topLocal,
-          subDelta: null,
-          snapshots: [],
-        });
-      }
-      setLoading(false);
-      return;
-    }
     let cancelled = false;
 
     (async () => {
+      // If no Supabase record, use localStorage only
+      if (!channel.supabaseId) {
+        if (localVideoCount > 0) {
+          const all = channel.videos.map(normalizeLocal);
+          const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+          const recent = all
+            .filter(v => v.published_at && new Date(v.published_at).getTime() >= cutoff)
+            .sort((a, b) => new Date(b.published_at) - new Date(a.published_at))
+            .slice(0, 10);
+          const top = [...all].sort((a, b) => (b.view_count || 0) - (a.view_count || 0)).slice(0, 5);
+          setDbData({ recent, allVideos: all, top: top[0] || null, topVideos: top, subDelta: null, snapshots: [] });
+        }
+        setLoading(false);
+        return;
+      }
+
       try {
         const { supabase } = await import('../../services/supabaseClient');
-        if (!supabase) return;
+        if (!supabase || cancelled) return;
 
-        // Recent uploads (last 90 days)
         const cutoff = new Date();
         cutoff.setDate(cutoff.getDate() - 90);
-        const { data: videos } = await supabase
-          .from('videos')
-          .select('youtube_video_id, title, thumbnail_url, view_count, like_count, comment_count, published_at, video_type, duration_seconds')
-          .eq('channel_id', channel.supabaseId)
-          .gte('published_at', cutoff.toISOString())
-          .order('published_at', { ascending: false })
-          .limit(50);
+        const VIDEO_COLS = 'youtube_video_id, title, thumbnail_url, view_count, like_count, comment_count, published_at, video_type, duration_seconds';
 
-        // Top video all time
-        const { data: topArr } = await supabase
-          .from('videos')
-          .select('youtube_video_id, title, thumbnail_url, view_count, like_count, comment_count, published_at, video_type')
-          .eq('channel_id', channel.supabaseId)
-          .order('view_count', { ascending: false })
-          .limit(5);
+        const [{ data: videos }, { data: topArr }, { data: snaps }] = await Promise.all([
+          supabase.from('videos').select(VIDEO_COLS)
+            .eq('channel_id', channel.supabaseId)
+            .gte('published_at', cutoff.toISOString())
+            .order('published_at', { ascending: false }).limit(50),
+          supabase.from('videos').select(VIDEO_COLS)
+            .eq('channel_id', channel.supabaseId)
+            .order('view_count', { ascending: false }).limit(5),
+          supabase.from('channel_snapshots').select('subscriber_count, total_view_count, snapshot_date')
+            .eq('channel_id', channel.supabaseId)
+            .order('snapshot_date', { ascending: false }).limit(30),
+        ]);
 
-        // Snapshots for sparkline
-        const { data: snaps } = await supabase
-          .from('channel_snapshots')
-          .select('subscriber_count, total_view_count, snapshot_date')
-          .eq('channel_id', channel.supabaseId)
-          .order('snapshot_date', { ascending: false })
-          .limit(30);
+        if (cancelled) return;
 
-        if (!cancelled) {
-          // If Supabase returned no videos, fall back to localStorage videos
-          const hasDbVideos = videos && videos.length > 0;
-          let finalVideos = videos || [];
-          let finalTop = topArr || [];
+        const hasDbVideos = videos?.length > 0;
 
-          if (!hasDbVideos && channel.videos?.length > 0) {
-            const cutoffDate = new Date(cutoff);
-            finalVideos = channel.videos
-              .filter(v => v.publishedAt && new Date(v.publishedAt) >= cutoffDate)
-              .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-              .map(v => ({
-                youtube_video_id: v.id,
-                title: v.title,
-                thumbnail_url: v.thumbnail,
-                view_count: v.views,
-                like_count: v.likes,
-                comment_count: v.comments,
-                published_at: v.publishedAt,
-                video_type: v.type === 'short' ? 'short' : 'long',
-                duration_seconds: v.duration,
-              }));
-            finalTop = [...channel.videos]
-              .sort((a, b) => (b.views || 0) - (a.views || 0))
-              .slice(0, 5)
-              .map(v => ({
-                youtube_video_id: v.id,
-                title: v.title,
-                thumbnail_url: v.thumbnail,
-                view_count: v.views,
-                like_count: v.likes,
-                comment_count: v.comments,
-                published_at: v.publishedAt,
-                video_type: v.type === 'short' ? 'short' : 'long',
-              }));
-          }
-
-          const delta = snaps?.length >= 2 ? (snaps[0].subscriber_count || 0) - (snaps[1].subscriber_count || 0) : null;
-          setDbData({
-            recent: finalVideos.slice(0, 10),
-            allVideos: hasDbVideos ? finalVideos : (channel.videos || []).map(v => ({
-              youtube_video_id: v.id,
-              title: v.title,
-              thumbnail_url: v.thumbnail,
-              view_count: v.views,
-              like_count: v.likes,
-              comment_count: v.comments,
-              published_at: v.publishedAt,
-              video_type: v.type === 'short' ? 'short' : 'long',
-              duration_seconds: v.duration,
-            })),
-            top: finalTop[0] || null,
-            topVideos: finalTop,
-            subDelta: delta,
-            snapshots: (snaps || []).reverse(),
-          });
+        // Fall back to localStorage when Supabase has no videos
+        let recent, allVideos, topVideos;
+        if (hasDbVideos) {
+          recent = videos.slice(0, 10);
+          allVideos = videos;
+          topVideos = topArr || [];
+        } else if (localVideoCount > 0) {
+          allVideos = channel.videos.map(normalizeLocal);
+          recent = allVideos
+            .filter(v => v.published_at && new Date(v.published_at) >= cutoff)
+            .sort((a, b) => new Date(b.published_at) - new Date(a.published_at))
+            .slice(0, 10);
+          topVideos = [...allVideos].sort((a, b) => (b.view_count || 0) - (a.view_count || 0)).slice(0, 5);
+        } else {
+          recent = [];
+          allVideos = [];
+          topVideos = [];
         }
+
+        const subDelta = snaps?.length >= 2
+          ? (snaps[0].subscriber_count || 0) - (snaps[1].subscriber_count || 0)
+          : null;
+
+        setDbData({
+          recent,
+          allVideos,
+          top: topVideos[0] || null,
+          topVideos,
+          subDelta,
+          snapshots: (snaps || []).reverse(),
+        });
       } catch (err) {
         console.warn('[ChannelProfile] Load failed:', err);
       } finally {
@@ -197,18 +152,17 @@ export default function ChannelProfileView({
     })();
 
     return () => { cancelled = true; };
-  }, [channel.supabaseId, channel.videos, refreshKey]);
+  }, [channel.supabaseId, localVideoCount, refreshKey]);
 
-  // Auto-refresh when no video data is available from any source
+  // Auto-refresh: if we finished loading and have zero videos from any source, fetch once
   const [autoRefreshed, setAutoRefreshed] = useState(false);
   useEffect(() => {
-    if (!loading && !autoRefreshed && !isRefreshing
-        && dbData.allVideos.length === 0 && (!channel.videos || channel.videos.length === 0)
-        && channel.id && onRefresh) {
-      setAutoRefreshed(true);
-      onRefresh(channel.id);
-    }
-  }, [loading, autoRefreshed, isRefreshing, dbData.allVideos.length, channel.videos, channel.id, onRefresh]);
+    if (loading || autoRefreshed || isRefreshing) return;
+    if (dbData.allVideos.length > 0 || localVideoCount > 0) return;
+    if (!channel.id || !onRefresh) return;
+    setAutoRefreshed(true);
+    onRefresh(channel.id);
+  }, [loading, autoRefreshed, isRefreshing, dbData.allVideos.length, localVideoCount, channel.id, onRefresh]);
 
   // Content analysis
   const titleAnalysis = useMemo(() => channel.videos?.length > 0 ? analyzeTitlePatterns(channel.videos) : null, [channel.videos]);
