@@ -1,16 +1,10 @@
--- 054: Prefer total_view_count delta for views (matches YouTube Studio)
+-- 054: Use accurate view counts that match YouTube Studio
 --
--- The Reporting API reach reports only count views from thumbnail impressions,
--- missing views from search, browse, external, and suggested traffic.
--- The Data API total_view_count is the real lifetime count (matches YouTube Studio).
--- By taking MAX(total_view_count) - MIN(total_view_count) across the date range,
--- we get the actual views gained during that period.
---
--- Priority order:
---   1. total_view_count delta (most accurate — all traffic sources)
---   2. SUM(view_count) from reach reports (fallback if no cumulative data)
---
--- Also applies the same logic to watch_hours where available.
+-- Priority for views:
+--   1. total_view_count delta across the date range (accurate when cron has run daily)
+--   2. Lifetime view_count for videos published within the date range
+--      (all views happened in-period, so lifetime = period)
+--   3. SUM(view_count) from reach reports (partial — only impression-sourced views)
 
 CREATE OR REPLACE FUNCTION get_video_snapshot_aggregates(
   channel_ids UUID[],
@@ -49,25 +43,24 @@ AS $$
     v.duration_seconds,
     v.video_type,
     v.content_source,
-    -- Views: prefer total_view_count delta (all traffic sources, matches YouTube Studio)
-    -- Fall back to reach-report SUM(view_count) if no cumulative data
+    -- Views: best available source
     COALESCE(
+      -- 1. Delta of cumulative counts (works when cron has written different values over time)
       NULLIF(GREATEST(MAX(vs.total_view_count) - MIN(vs.total_view_count), 0), 0),
+      -- 2. For videos published in-period: lifetime views ≈ period views
+      CASE WHEN v.published_at >= start_date::timestamptz THEN v.view_count END,
+      -- 3. Reach-report views (only impression-sourced, ~40% of total)
       NULLIF(SUM(vs.view_count), 0),
       0
     ) AS views,
     COALESCE(NULLIF(SUM(vs.watch_hours), 0), v.watch_hours) AS watch_hours,
-    -- Subscribers: prefer snapshot sum, fall back to videos table
     COALESCE(NULLIF(SUM(vs.subscribers_gained), 0), v.subscribers_gained) AS subscribers_gained,
-    -- Impressions from reach reports
     COALESCE(NULLIF(SUM(vs.impressions), 0), v.impressions) AS impressions,
-    -- CTR: weighted avg from reach reports, fall back to videos table
     CASE
       WHEN SUM(vs.impressions) > 0
       THEN SUM(vs.ctr * vs.impressions) / SUM(vs.impressions)
       ELSE v.ctr
     END AS ctr,
-    -- Retention: weighted avg, fall back to videos table
     CASE
       WHEN COALESCE(SUM(vs.view_count), 0) > 0
       THEN SUM(vs.avg_view_percentage * vs.view_count) / SUM(vs.view_count)
@@ -85,11 +78,13 @@ AS $$
   GROUP BY v.id, v.youtube_video_id, v.title, v.published_at,
            v.thumbnail_url, v.duration_seconds, v.video_type, v.content_source,
            v.avg_view_percentage, v.watch_hours, v.subscribers_gained,
-           v.impressions, v.ctr
+           v.impressions, v.ctr, v.view_count
   HAVING SUM(vs.view_count) > 0 OR SUM(vs.impressions) > 0
     OR (MAX(vs.total_view_count) - MIN(vs.total_view_count)) > 0
+    OR (v.published_at >= start_date::timestamptz AND v.view_count > 0)
   ORDER BY COALESCE(
     NULLIF(GREATEST(MAX(vs.total_view_count) - MIN(vs.total_view_count), 0), 0),
+    CASE WHEN v.published_at >= start_date::timestamptz THEN v.view_count END,
     NULLIF(SUM(vs.view_count), 0),
     0
   ) DESC;
