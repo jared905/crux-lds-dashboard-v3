@@ -288,49 +288,52 @@ export default function HomePage({ onSignIn }) {
           </div>
           {/* Metric cards with count-up animation */}
           <DashboardMetrics />
-          {/* Chart — before/after story */}
+          {/* Chart — before/after with realistic peaks and valleys */}
           <div style={{
-            background: '#0a0a0a', borderRadius: 10, padding: '16px 16px 12px', height: 170,
+            background: '#0a0a0a', borderRadius: 10, padding: '16px 16px 12px',
             position: 'relative', overflow: 'hidden',
           }}>
-            {/* "Before" / "After" labels */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, padding: '0 4px' }}>
               <span style={{ fontSize: 10, color: '#555', textTransform: 'uppercase', letterSpacing: 1 }}>Before Full View</span>
-              <span style={{ fontSize: 10, color: '#2962FF', textTransform: 'uppercase', letterSpacing: 1 }}>After Full View</span>
+              <span style={{ fontSize: 10, color: '#2962FF', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 }}>After Full View</span>
             </div>
-            <svg width="100%" height="calc(100% - 24px)" viewBox="0 0 400 110" preserveAspectRatio="none" style={{ display: 'block' }}>
+            <svg width="100%" viewBox="0 0 600 140" style={{ display: 'block' }}>
               <defs>
                 <linearGradient id="afterFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2962FF" stopOpacity="0.25" />
+                  <stop offset="0%" stopColor="#2962FF" stopOpacity="0.2" />
                   <stop offset="100%" stopColor="#2962FF" stopOpacity="0" />
                 </linearGradient>
                 <linearGradient id="beforeFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#666" stopOpacity="0.08" />
+                  <stop offset="0%" stopColor="#666" stopOpacity="0.06" />
                   <stop offset="100%" stopColor="#666" stopOpacity="0" />
                 </linearGradient>
               </defs>
-              {/* Divider line at midpoint */}
-              <line x1="200" y1="0" x2="200" y2="110" stroke="#222" strokeWidth="1" strokeDasharray="4,4" />
-              {/* Before: flat/declining (left half) */}
+              {/* Subtle grid lines */}
+              {[35, 65, 95].map(y => (
+                <line key={y} x1="0" y1={y} x2="600" y2={y} stroke="#1a1a1a" strokeWidth="0.5" />
+              ))}
+              {/* Divider */}
+              <line x1="300" y1="8" x2="300" y2="132" stroke="#333" strokeWidth="1" strokeDasharray="3,3" />
+              {/* Before: flat with realistic variation — upload spikes then decay */}
               <path
-                d="M0,55 C15,56 30,58 50,57 C70,56 90,60 110,62 C130,61 150,64 170,63 C180,63 190,62 200,62"
-                fill="none" stroke="#444" strokeWidth="1.5"
+                d="M0,78 L15,75 L25,68 L35,72 L50,80 L60,77 L70,74 L85,70 L95,76 L110,82 L120,78 L130,72 L140,68 L150,74 L165,80 L175,83 L190,78 L200,73 L210,69 L225,75 L235,80 L250,84 L260,79 L275,76 L285,72 L295,78 L300,76"
+                fill="none" stroke="#555" strokeWidth="1.5" strokeLinejoin="round"
               />
               <path
-                d="M0,55 C15,56 30,58 50,57 C70,56 90,60 110,62 C130,61 150,64 170,63 C180,63 190,62 200,62 L200,110 L0,110 Z"
+                d="M0,78 L15,75 L25,68 L35,72 L50,80 L60,77 L70,74 L85,70 L95,76 L110,82 L120,78 L130,72 L140,68 L150,74 L165,80 L175,83 L190,78 L200,73 L210,69 L225,75 L235,80 L250,84 L260,79 L275,76 L285,72 L295,78 L300,76 L300,132 L0,132 Z"
                 fill="url(#beforeFill)"
               />
-              {/* After: accelerating growth (right half) */}
+              {/* After: peaks and valleys but trending upward */}
               <path
-                d="M200,62 C215,58 225,52 240,46 C255,40 265,36 280,30 C295,24 305,20 320,16 C335,13 350,10 370,7 C385,5 395,4 400,3"
-                fill="none" stroke="#2962FF" strokeWidth="2"
+                d="M300,76 L310,72 L320,64 L330,58 L340,62 L350,55 L360,48 L370,52 L380,44 L390,38 L400,42 L410,34 L420,28 L430,32 L440,26 L450,20 L460,24 L470,30 L480,22 L490,16 L500,20 L510,14 L520,18 L530,12 L540,8 L555,14 L565,10 L580,6 L590,10 L600,4"
+                fill="none" stroke="#2962FF" strokeWidth="2" strokeLinejoin="round"
               />
               <path
-                d="M200,62 C215,58 225,52 240,46 C255,40 265,36 280,30 C295,24 305,20 320,16 C335,13 350,10 370,7 C385,5 395,4 400,3 L400,110 L200,110 Z"
+                d="M300,76 L310,72 L320,64 L330,58 L340,62 L350,55 L360,48 L370,52 L380,44 L390,38 L400,42 L410,34 L420,28 L430,32 L440,26 L450,20 L460,24 L470,30 L480,22 L490,16 L500,20 L510,14 L520,18 L530,12 L540,8 L555,14 L565,10 L580,6 L590,10 L600,4 L600,132 L300,132 Z"
                 fill="url(#afterFill)"
               />
-              {/* Inflection point dot */}
-              <circle cx="200" cy="62" r="4" fill="#0a0a0a" stroke="#2962FF" strokeWidth="2" />
+              {/* Inflection dot */}
+              <circle cx="300" cy="76" r="4" fill="#0a0a0a" stroke="#2962FF" strokeWidth="2" />
             </svg>
           </div>
           {/* Gradient fade at bottom */}
