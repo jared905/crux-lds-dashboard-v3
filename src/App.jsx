@@ -1236,13 +1236,21 @@ export default function App() {
                   Connect your YouTube channel to get started with analytics, content strategy, and performance insights.
                 </div>
                 <button
-                  onClick={() => setTab("api-keys")}
+                  onClick={async () => {
+                    try {
+                      const { youtubeOAuthService } = await import("./services/youtubeOAuthService.js");
+                      await youtubeOAuthService.initiateOAuth();
+                    } catch (e) {
+                      console.error("OAuth error:", e);
+                      alert(e.message || "Failed to connect. Please try again.");
+                    }
+                  }}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "10px",
                     padding: "14px 32px",
-                    background: "#2962FF",
+                    background: "#dc2626",
                     border: "none",
                     borderRadius: "10px",
                     color: "#fff",
@@ -1251,14 +1259,14 @@ export default function App() {
                     cursor: "pointer",
                     transition: "background 0.2s",
                   }}
-                  onMouseEnter={(e) => e.target.style.background = "#1a4bb8"}
-                  onMouseLeave={(e) => e.target.style.background = "#2962FF"}
+                  onMouseEnter={(e) => e.target.style.background = "#b91c1c"}
+                  onMouseLeave={(e) => e.target.style.background = "#dc2626"}
                 >
                   <Youtube size={20} />
-                  Connect YouTube Channel
+                  Connect with YouTube
                 </button>
                 <div style={{ fontSize: "13px", color: "#666", marginTop: "20px" }}>
-                  Your data stays private. We only request read-only access.
+                  Read-only access. We never post, modify, or delete anything on your channel.
                 </div>
               </>
             )}
