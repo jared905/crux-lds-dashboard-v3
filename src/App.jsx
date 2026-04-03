@@ -8,6 +8,7 @@ import SignupPage from "./components/Auth/SignupPage.jsx";
 import HomePage from "./components/Public/HomePage.jsx";
 import PrivacyPolicy from "./components/Public/PrivacyPolicy.jsx";
 import TermsOfService from "./components/Public/TermsOfService.jsx";
+import WelcomeOnboarding from "./components/Onboarding/WelcomeOnboarding.jsx";
 
 // Services
 import { youtubeAPI } from "./services/youtubeAPI.js";
@@ -1012,6 +1013,21 @@ export default function App() {
     }
     // Default: public homepage (not behind login)
     return <HomePage onSignIn={() => setAuthView("login")} />;
+  }
+
+  // New user onboarding — show if user has no clients and hasn't skipped
+  const onboardingSkipped = sessionStorage.getItem('onboarding_skipped');
+  if (user && clients.length === 0 && !loading && !onboardingSkipped) {
+    return (
+      <WelcomeOnboarding
+        user={user}
+        onComplete={() => window.location.reload()}
+        onSkip={() => {
+          sessionStorage.setItem('onboarding_skipped', 'true');
+          window.location.reload();
+        }}
+      />
+    );
   }
 
   return (
