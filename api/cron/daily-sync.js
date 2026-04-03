@@ -1277,18 +1277,30 @@ async function handleSyncAll(req, res) {
 
       if (!dbChannel) { result.errors.push('No client channel'); allResults.push(result); continue; }
 
-      // Fetch Analytics API — same call the manual sync uses (365-day window)
+      // Fetch Analytics API — exact same call the manual sync (youtube-analytics-fetch.js) uses
       const end = new Date().toISOString().split('T')[0];
       const start = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
+      const headers = { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' };
 
-      let analytics;
-      try {
-        analytics = await fetchAnalytics(accessToken, channelId, start, end);
-      } catch (e) {
-        result.errors.push(`Analytics API: ${e.message}`);
+      const analyticsUrl = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
+      analyticsUrl.searchParams.append('ids', `channel==${channelId}`);
+      analyticsUrl.searchParams.append('startDate', start);
+      analyticsUrl.searchParams.append('endDate', end);
+      analyticsUrl.searchParams.append('dimensions', 'video');
+      analyticsUrl.searchParams.append('metrics', 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained');
+      analyticsUrl.searchParams.append('sort', '-views');
+      analyticsUrl.searchParams.append('maxResults', '500');
+
+      const analyticsResp = await fetch(analyticsUrl.toString(), { headers });
+
+      if (!analyticsResp.ok) {
+        const errData = await analyticsResp.json().catch(() => ({}));
+        result.errors.push(`Analytics API ${analyticsResp.status}: ${errData.error?.message || JSON.stringify(errData.error || {})}`);
         allResults.push(result);
         continue;
       }
+
+      const analytics = await analyticsResp.json();
 
       if (!analytics?.rows?.length) {
         result.errors.push('No analytics data returned');
@@ -1296,7 +1308,7 @@ async function handleSyncAll(req, res) {
         continue;
       }
 
-      const ms = analytics._metricSet || {};
+      // Row format: [videoId, views, watchMinutes, avgViewPct, subsGained]
 
       // Get all videos for this channel
       const { data: videos } = await supabase
@@ -1314,14 +1326,13 @@ async function handleSyncAll(req, res) {
         if (!dbVideo) continue;
 
         const updateData = { last_synced_at: new Date().toISOString() };
-        const views = row[1] ?? 0;
         const watchHours = (row[2] ?? 0) / 60;
-        const avgViewPct = ms.hasRetention ? (row[3] ?? 0) / 100 : null;
-        const subsGained = ms.hasSubs ? (row[ms.hasRetention ? 4 : 3] ?? 0) : null;
+        const avgViewPct = (row[3] ?? 0) / 100;
+        const subsGained = row[4] ?? 0;
 
-        if (avgViewPct != null) updateData.avg_view_percentage = avgViewPct;
-        if (watchHours) updateData.watch_hours = watchHours;
-        if (subsGained != null) updateData.subscribers_gained = subsGained;
+        if (avgViewPct > 0) updateData.avg_view_percentage = avgViewPct;
+        if (watchHours > 0) updateData.watch_hours = watchHours;
+        updateData.subscribers_gained = subsGained;
 
         await supabase.from('videos').update(updateData).eq('id', dbVideo.id);
         result.videosUpdated++;
