@@ -126,7 +126,10 @@ export default function App() {
   const [previousSnapshotRows, setPreviousSnapshotRows] = useState(null);
 
   // Load clients from Supabase on startup
+  // Clear cached clients immediately so stale data from another account doesn't flash
   useEffect(() => {
+    setClients([]);
+    setActiveClient(null);
     const loadFromSupabase = async () => {
       console.log('[Supabase] Starting client load...');
       try {
