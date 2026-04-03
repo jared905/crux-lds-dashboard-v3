@@ -54,9 +54,13 @@ export async function generateExecutiveSummary(auditId, context) {
       channelSnapshot,
       seriesSummary,
       benchmarkData,
+      competitorData,
       opportunities,
       recommendations,
       formatMix = {},
+      auditVoice,
+      audienceBlock,
+      auditStructure,
     } = context;
 
     const isProspect = auditType === 'prospect';
@@ -123,7 +127,15 @@ ${isProspect
     const basePrompt = isProspect
       ? SUMMARY_SYSTEM_PROMPT_PROSPECT
       : SUMMARY_SYSTEM_PROMPT_BASELINE;
-    const systemPrompt = basePrompt + (brandContextBlock ? '\n\n' + brandContextBlock : '');
+    // Prepend shared identity blocks, then section-specific prompt
+    const systemPrompt = [
+      auditVoice,
+      audienceBlock,
+      auditStructure,
+      '--- EXECUTIVE SUMMARY INSTRUCTIONS BELOW ---',
+      basePrompt,
+      brandContextBlock || null,
+    ].filter(Boolean).join('\n\n');
 
     const result = await claudeAPI.call(
       prompt,

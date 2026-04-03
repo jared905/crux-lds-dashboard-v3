@@ -48,7 +48,7 @@ export async function analyzeOpportunities(auditId, context) {
   await updateAuditProgress(auditId, { step: 'opportunity_analysis', pct: 57, message: 'Analyzing opportunities...' });
 
   try {
-    const { channelId, channelSnapshot, seriesSummary, benchmarkData, competitorData, longFormVideos = [], shortFormVideos = [], formatMix = {}, brandIntent = null, paidContentSummary = null } = context;
+    const { channelId, channelSnapshot, seriesSummary, benchmarkData, competitorData, longFormVideos = [], shortFormVideos = [], formatMix = {}, brandIntent = null, paidContentSummary = null, auditVoice, audienceBlock, auditStructure } = context;
 
     // Fetch brand context for prompt enrichment
     let brandContextBlock = '';
@@ -60,7 +60,15 @@ export async function analyzeOpportunities(auditId, context) {
       }
     }
 
-    const systemPrompt = OPPORTUNITIES_SYSTEM_PROMPT + (brandContextBlock ? '\n\n' + brandContextBlock : '');
+    // Prepend shared identity blocks, then section-specific prompt
+    const systemPrompt = [
+      auditVoice,
+      audienceBlock,
+      auditStructure,
+      '--- OPPORTUNITIES INSTRUCTIONS BELOW ---',
+      OPPORTUNITIES_SYSTEM_PROMPT,
+      brandContextBlock || null,
+    ].filter(Boolean).join('\n\n');
 
     // Build context summary for the prompt — split by format
     const cutoff90d = new Date();

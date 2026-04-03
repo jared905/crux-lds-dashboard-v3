@@ -48,7 +48,7 @@ export async function generateRecommendations(auditId, context) {
   await updateAuditProgress(auditId, { step: 'recommendations', pct: 72, message: 'Generating recommendations...' });
 
   try {
-    const { channelId, channelSnapshot, seriesSummary, benchmarkData, opportunities, longFormVideos = [], shortFormVideos = [], formatMix = {}, brandIntent = null } = context;
+    const { channelId, channelSnapshot, seriesSummary, benchmarkData, competitorData, opportunities, longFormVideos = [], shortFormVideos = [], formatMix = {}, brandIntent = null, auditVoice, audienceBlock, auditStructure } = context;
 
     // Fetch brand context for prompt enrichment
     let brandContextBlock = '';
@@ -60,7 +60,15 @@ export async function generateRecommendations(auditId, context) {
       }
     }
 
-    const systemPrompt = RECOMMENDATIONS_SYSTEM_PROMPT + (brandContextBlock ? '\n\n' + brandContextBlock : '');
+    // Prepend shared identity blocks, then section-specific prompt
+    const systemPrompt = [
+      auditVoice,
+      audienceBlock,
+      auditStructure,
+      '--- RECOMMENDATIONS INSTRUCTIONS BELOW ---',
+      RECOMMENDATIONS_SYSTEM_PROMPT,
+      brandContextBlock || null,
+    ].filter(Boolean).join('\n\n');
 
     // Identify underperforming content — split by format
     const avgViews = channelSnapshot?.avg_views_recent || 0;

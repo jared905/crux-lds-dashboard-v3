@@ -29,6 +29,14 @@ import { generateExecutiveSummary } from './auditSummary';
 import { saveBrandContext } from './brandContextService';
 import { fetchAuditCompetitors } from './auditCompetitorFetch';
 import { generateLandscapeAnalysis } from './auditLandscape';
+import { buildDeltaTable } from '../lib/buildDeltaTable';
+import {
+  AUDIT_VOICE,
+  AUDIT_AUDIENCE_PROSPECT,
+  AUDIT_AUDIENCE_BASELINE,
+  buildAuditStructure,
+  buildLandscapeStructure,
+} from '../lib/auditIdentity';
 
 const AUDIT_STEPS = [
   'ingestion',
@@ -261,6 +269,85 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
 
     await updateAudit(auditId, { benchmark_data: benchmarkData });
 
+    // ── Pre-compute Delta Table + Trend Data ──
+    // Content format analysis for the audited channel (same regexes as auditCompetitorFetch)
+    const FORMAT_REGEXES = [
+      { name: 'tutorial', regex: /\b(tutorial|how to|guide|learn|teach|step by step|tips|tricks)\b/i },
+      { name: 'review', regex: /\b(review|reaction|reacts?|responds?|first time|listening to|watching)\b/i },
+      { name: 'vlog', regex: /\b(vlog|behind|day in|life|personal|story|journey|update)\b/i },
+      { name: 'comparison', regex: /\b(vs\.?|versus|compare|comparison|battle)\b/i },
+      { name: 'listicle', regex: /\b(top \d+|best|worst|\d+ (things|ways|tips|reasons))\b/i },
+      { name: 'challenge', regex: /\b(challenge|try|attempt|test|experiment)\b/i },
+    ];
+    const channelContentFormats = {};
+    FORMAT_REGEXES.forEach(f => { channelContentFormats[f.name] = { count: 0, pct: 0 }; });
+    const totalOrganic = organicVideos.length || 1;
+    for (const v of organicVideos) {
+      if (!v.title) continue;
+      const match = FORMAT_REGEXES.find(f => f.regex.test(v.title));
+      if (match) channelContentFormats[match.name].count++;
+    }
+    for (const fmt of Object.values(channelContentFormats)) {
+      fmt.pct = Math.round((fmt.count / totalOrganic) * 100);
+    }
+
+    // Trend data: find snapshot from ~90 days ago
+    let trendData = null;
+    try {
+      const { supabase } = await import('./supabaseClient');
+      if (supabase) {
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const { data: historicalSnapshot } = await supabase
+          .from('channel_snapshots')
+          .select('subscriber_count, avg_views_per_video, snapshot_date')
+          .eq('channel_id', channel.id)
+          .lte('snapshot_date', ninetyDaysAgo.toISOString())
+          .order('snapshot_date', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (historicalSnapshot && historicalSnapshot.subscriber_count) {
+          const currentAvgViews = benchmarkData?.channel_metrics?.avgViews || 0;
+          const pastAvgViews = historicalSnapshot.avg_views_per_video || 0;
+          trendData = {
+            subsStart: historicalSnapshot.subscriber_count,
+            avgViewsStart: pastAvgViews,
+            subsDeltaPct: historicalSnapshot.subscriber_count > 0
+              ? ((channelSnapshot.subscriber_count - historicalSnapshot.subscriber_count) / historicalSnapshot.subscriber_count) * 100
+              : 0,
+            viewsDeltaPct: pastAvgViews > 0
+              ? ((currentAvgViews - pastAvgViews) / pastAvgViews) * 100
+              : 0,
+          };
+        }
+      }
+    } catch (trendErr) {
+      console.warn('[auditOrchestrator] Trend data fetch failed, continuing without:', trendErr.message);
+    }
+
+    // Build delta table and format mix table
+    const channelMetricsForDelta = {
+      avgViews: benchmarkData?.channel_metrics?.avgViews || 0,
+      avgEngagement: benchmarkData?.channel_metrics?.avgEngagement || 0,
+      uploadFrequency: benchmarkData?.channel_metrics?.uploadFrequency || 0,
+      subscriberCount: channelSnapshot?.subscriber_count || 0,
+      contentFormats: channelContentFormats,
+    };
+    const { deltaTable, formatMixTable, hasCompetitors } = buildDeltaTable(
+      channelMetricsForDelta,
+      competitorData?.competitors || [],
+      trendData,
+    );
+
+    // Resolve audience block based on audit type
+    const audienceBlock = auditType === 'prospect'
+      ? AUDIT_AUDIENCE_PROSPECT
+      : AUDIT_AUDIENCE_BASELINE;
+
+    const auditStructure = buildAuditStructure(deltaTable, formatMixTable, hasCompetitors);
+    const landscapeStructure = buildLandscapeStructure(deltaTable, formatMixTable, hasCompetitors);
+
     // ── Optional: Landscape Analysis ──
     let landscapeData = null;
     if (config.landscapeOptIn && competitorData?.competitors?.length > 0) {
@@ -270,6 +357,8 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
         channelSnapshot,
         competitorData,
         benchmarkData,
+        auditVoice: AUDIT_VOICE,
+        auditStructure: landscapeStructure,
       });
       await updateAudit(auditId, { landscape_data: landscapeData });
     }
@@ -290,6 +379,9 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
       formatMix,
       brandIntent: config.brandIntent || null,
       paidContentSummary: channelSnapshot.paid_content || null,
+      auditVoice: AUDIT_VOICE,
+      audienceBlock,
+      auditStructure,
     });
 
     await updateAudit(auditId, { opportunities });
@@ -302,12 +394,16 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
       channelSnapshot,
       seriesSummary,
       benchmarkData,
+      competitorData,
       opportunities,
       videos: organicVideos,
       longFormVideos,
       shortFormVideos,
       formatMix,
       brandIntent: config.brandIntent || null,
+      auditVoice: AUDIT_VOICE,
+      audienceBlock,
+      auditStructure,
     });
 
     await updateAudit(auditId, { recommendations });
@@ -321,9 +417,13 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
       channelSnapshot,
       seriesSummary,
       benchmarkData,
+      competitorData,
       opportunities,
       recommendations,
       formatMix,
+      auditVoice: AUDIT_VOICE,
+      audienceBlock,
+      auditStructure,
     });
 
     await updateAudit(auditId, { executive_summary: executiveSummary });
@@ -427,6 +527,49 @@ export async function resumeAudit(auditId, onProgress) {
       hasBothFormats: longFormVideos.length > 0 && shortFormVideos.length > 0,
     };
 
+    // Pre-compute identity blocks for resumed steps
+    // (will be rebuilt after benchmarking if it runs during resume)
+    const organicVideosResume = (videos || []).filter(v => !v.is_paid);
+    const FORMAT_REGEXES_RESUME = [
+      { name: 'tutorial', regex: /\b(tutorial|how to|guide|learn|teach|step by step|tips|tricks)\b/i },
+      { name: 'review', regex: /\b(review|reaction|reacts?|responds?|first time|listening to|watching)\b/i },
+      { name: 'vlog', regex: /\b(vlog|behind|day in|life|personal|story|journey|update)\b/i },
+      { name: 'comparison', regex: /\b(vs\.?|versus|compare|comparison|battle)\b/i },
+      { name: 'listicle', regex: /\b(top \d+|best|worst|\d+ (things|ways|tips|reasons))\b/i },
+      { name: 'challenge', regex: /\b(challenge|try|attempt|test|experiment)\b/i },
+    ];
+    const resumeContentFormats = {};
+    FORMAT_REGEXES_RESUME.forEach(f => { resumeContentFormats[f.name] = { count: 0, pct: 0 }; });
+    const totalOrganicResume = organicVideosResume.length || 1;
+    for (const v of organicVideosResume) {
+      if (!v.title) continue;
+      const match = FORMAT_REGEXES_RESUME.find(f => f.regex.test(v.title));
+      if (match) resumeContentFormats[match.name].count++;
+    }
+    for (const fmt of Object.values(resumeContentFormats)) {
+      fmt.pct = Math.round((fmt.count / totalOrganicResume) * 100);
+    }
+
+    const buildResumeIdentity = () => {
+      const compList = (audit.competitor_data?.competitors || []);
+      const chMetrics = {
+        avgViews: benchmarkData?.channel_metrics?.avgViews || 0,
+        avgEngagement: benchmarkData?.channel_metrics?.avgEngagement || 0,
+        uploadFrequency: benchmarkData?.channel_metrics?.uploadFrequency || 0,
+        subscriberCount: channelSnapshot?.subscriber_count || 0,
+        contentFormats: resumeContentFormats,
+      };
+      const { deltaTable: dt, formatMixTable: fmt, hasCompetitors: hc } = buildDeltaTable(chMetrics, compList, null);
+      const audBlock = audit.audit_type === 'prospect' ? AUDIT_AUDIENCE_PROSPECT : AUDIT_AUDIENCE_BASELINE;
+      return {
+        auditVoice: AUDIT_VOICE,
+        audienceBlock: audBlock,
+        auditStructure: buildAuditStructure(dt, fmt, hc),
+        landscapeStructure: buildLandscapeStructure(dt, fmt, hc),
+      };
+    };
+    let resumeIdentity = benchmarkData ? buildResumeIdentity() : null;
+
     // Run remaining steps
     for (let i = resumeFromIndex; i < AUDIT_STEPS.length; i++) {
       const step = AUDIT_STEPS[i];
@@ -461,12 +604,15 @@ export async function resumeAudit(auditId, onProgress) {
           specifiedCompetitors: competitorData,
         });
         await updateAudit(auditId, { benchmark_data: benchmarkData });
+        resumeIdentity = buildResumeIdentity();
 
         // Landscape analysis if opted in
         if (audit.config?.landscapeOptIn && competitorData?.competitors?.length > 0 && !audit.landscape_data) {
           notify({ step, pct: 50, message: 'Generating landscape analysis...' });
           const landscapeData = await generateLandscapeAnalysis(auditId, {
             channel, channelSnapshot, competitorData, benchmarkData,
+            auditVoice: resumeIdentity.auditVoice,
+            auditStructure: resumeIdentity.landscapeStructure,
           });
           await updateAudit(auditId, { landscape_data: landscapeData });
         }
@@ -479,10 +625,12 @@ export async function resumeAudit(auditId, onProgress) {
           channelSnapshot,
           seriesSummary,
           benchmarkData,
+          competitorData: audit.competitor_data,
           videos: videos || [],
           longFormVideos,
           shortFormVideos,
           formatMix,
+          ...(resumeIdentity || {}),
         });
         await updateAudit(auditId, { opportunities });
       }
@@ -494,11 +642,13 @@ export async function resumeAudit(auditId, onProgress) {
           channelSnapshot,
           seriesSummary,
           benchmarkData,
+          competitorData: audit.competitor_data,
           opportunities,
           videos: videos || [],
           longFormVideos,
           shortFormVideos,
           formatMix,
+          ...(resumeIdentity || {}),
         });
         await updateAudit(auditId, { recommendations });
       }
@@ -511,9 +661,11 @@ export async function resumeAudit(auditId, onProgress) {
           channelSnapshot,
           seriesSummary,
           benchmarkData,
+          competitorData: audit.competitor_data,
           opportunities,
           recommendations,
           formatMix,
+          ...(resumeIdentity || {}),
         });
         await updateAudit(auditId, { executive_summary: executiveSummary });
       }

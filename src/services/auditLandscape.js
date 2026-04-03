@@ -35,7 +35,7 @@ Return ONLY valid JSON (no markdown fences, no commentary), starting with { and 
  * @param {Object} context.benchmarkData - From runBenchmarking
  */
 export async function generateLandscapeAnalysis(auditId, context) {
-  const { channelSnapshot, competitorData, benchmarkData } = context;
+  const { channelSnapshot, competitorData, benchmarkData, auditVoice, auditStructure } = context;
 
   if (!competitorData?.competitors?.length) {
     return null;
@@ -111,9 +111,17 @@ Return a landscape analysis in this JSON format:
   "narrative": "2-3 paragraph strategic landscape summary written for a media executive. Reference specific channels and data. End with the single most important strategic implication."
 }`;
 
+  // Prepend shared identity blocks to section-specific prompt
+  const fullSystemPrompt = [
+    auditVoice,
+    auditStructure,
+    '--- LANDSCAPE INSTRUCTIONS BELOW ---',
+    LANDSCAPE_SYSTEM_PROMPT,
+  ].filter(Boolean).join('\n\n');
+
   const result = await claudeAPI.call(
     prompt,
-    LANDSCAPE_SYSTEM_PROMPT,
+    fullSystemPrompt,
     'audit_landscape',
     4000
   );
