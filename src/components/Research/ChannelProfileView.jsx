@@ -169,14 +169,18 @@ export default function ChannelProfileView({
   const scheduleAnalysis = useMemo(() => channel.videos?.length > 0 ? analyzeUploadSchedule(channel.videos, userTimezone) : null, [channel.videos, userTimezone]);
   const formatAnalysis = useMemo(() => channel.videos?.length > 0 ? categorizeContentFormats(channel.videos) : null, [channel.videos]);
 
-  // Content mix — use channel.videos (same source as Format Breakdown), fall back to DB
+  // Content mix — derive from formatAnalysis (same computation as Format Breakdown)
+  // This guarantees Content Mix and Format Breakdown always agree.
   const contentMix = useMemo(() => {
-    if (channel.videos?.length > 0) {
-      const isShort = (v) => v.type === 'short' || (!v.type && v.duration && v.duration <= 60);
-      const shorts = channel.videos.filter(isShort).length;
-      const total = channel.videos.length;
-      return { shorts, longs: total - shorts, total, shortsRatio: total > 0 ? (shorts / total) * 100 : 0 };
+    if (formatAnalysis?.durationStats?.length > 0) {
+      const shortStat = formatAnalysis.durationStats[0]; // 'Short Form (<60s)'
+      const longStat = formatAnalysis.durationStats[1];  // 'Long Form (≥60s)'
+      const shorts = shortStat?.count || 0;
+      const longs = longStat?.count || 0;
+      const total = shorts + longs;
+      return { shorts, longs, total, shortsRatio: total > 0 ? (shorts / total) * 100 : 0 };
     }
+    // Fallback to DB data
     if (dbData.allVideos.length > 0) {
       const isShort = (v) => v.video_type === 'short' || (!v.video_type && v.duration_seconds && v.duration_seconds <= 60);
       const shorts = dbData.allVideos.filter(isShort).length;
@@ -184,14 +188,13 @@ export default function ChannelProfileView({
       return { shorts, longs: total - shorts, total, shortsRatio: total > 0 ? (shorts / total) * 100 : 0 };
     }
     return { shorts: 0, longs: 0, total: 0, shortsRatio: 0 };
-  }, [channel.videos, dbData.allVideos]);
+  }, [formatAnalysis, dbData.allVideos]);
 
-  // Recent uploads — use channel.videos first (same source that works for Format Breakdown)
+  // Recent uploads — use channel.videos (same source as Format Breakdown), fall back to DB
   const recentUploads = useMemo(() => {
     if (channel.videos?.length > 0) {
-      const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
       return channel.videos
-        .filter(v => v.publishedAt && new Date(v.publishedAt).getTime() >= cutoff)
+        .filter(v => v.publishedAt)
         .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
         .slice(0, 10)
         .map(normalizeLocal);
