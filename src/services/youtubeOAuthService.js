@@ -73,7 +73,7 @@ class YouTubeOAuthService {
       throw new Error('Your session has expired. Please refresh the page and log in again.');
     }
 
-    const response = await fetch('/api/youtube-oauth-init', {
+    const response = await fetch('/api/youtube-oauth?action=init', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

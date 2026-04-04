@@ -91,6 +91,50 @@ async function handleGet(user, res) {
   return res.status(200).json({ connections: enrichedConnections, count: enrichedConnections.length });
 }
 
+/* ── POST ?action=init: start OAuth flow ── */
+async function handleInit(user, req, res) {
+  if (!process.env.GOOGLE_CLIENT_ID) {
+    return res.status(500).json({ error: 'OAuth not configured' });
+  }
+
+  const state = crypto.randomBytes(24).toString('base64url');
+  const codeVerifier = crypto.randomBytes(48).toString('base64url');
+  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+
+  const ipAddress = req.headers['x-forwarded-for']?.split(',')[0] || req.headers['x-real-ip'] || null;
+  const userAgent = req.headers['user-agent'] || null;
+
+  const { error: stateError } = await supabase
+    .from('youtube_oauth_state')
+    .insert({ user_id: user.id, state, code_verifier: codeVerifier, code_challenge: codeChallenge, ip_address: ipAddress, user_agent: userAgent });
+
+  if (stateError) {
+    console.error('Failed to store OAuth state:', stateError);
+    return res.status(500).json({ error: 'Failed to initialize OAuth flow' });
+  }
+
+  await logAuditEvent(user.id, 'oauth_initiated', {
+    ip_address: ipAddress, user_agent: userAgent,
+    metadata: { scopes: ['youtube.readonly', 'yt-analytics.readonly', 'yt-analytics-monetary.readonly', 'userinfo.email'], pkce_method: 'S256' }
+  });
+
+  const baseUrl = process.env.FRONTEND_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+  const params = new URLSearchParams({
+    client_id: process.env.GOOGLE_CLIENT_ID,
+    redirect_uri: `${baseUrl}/api/youtube-oauth-callback`,
+    response_type: 'code',
+    scope: 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly https://www.googleapis.com/auth/yt-analytics-monetary.readonly https://www.googleapis.com/auth/userinfo.email',
+    access_type: 'offline',
+    prompt: 'consent',
+    include_granted_scopes: 'true',
+    state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256'
+  });
+
+  return res.status(200).json({ authUrl: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`, state });
+}
+
 /* ── POST: refresh token ── */
 async function handlePost(user, req, res) {
   const { connectionId } = req.body;
@@ -250,7 +294,10 @@ export default async function handler(req, res) {
     if (authError || !user) return res.status(401).json({ error: 'Invalid or expired session' });
 
     if (req.method === 'GET') return await handleGet(user, res);
-    if (req.method === 'POST') return await handlePost(user, req, res);
+    if (req.method === 'POST') {
+      if (req.query?.action === 'init') return await handleInit(user, req, res);
+      return await handlePost(user, req, res);
+    }
     if (req.method === 'DELETE') return await handleDelete(user, req, res);
   } catch (error) {
     console.error('OAuth handler error:', error);
