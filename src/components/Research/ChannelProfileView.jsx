@@ -169,31 +169,35 @@ export default function ChannelProfileView({
   const scheduleAnalysis = useMemo(() => channel.videos?.length > 0 ? analyzeUploadSchedule(channel.videos, userTimezone) : null, [channel.videos, userTimezone]);
   const formatAnalysis = useMemo(() => channel.videos?.length > 0 ? categorizeContentFormats(channel.videos) : null, [channel.videos]);
 
-  // Content mix — prefer DB data, fall back to localStorage videos at render time
+  // Content mix — use channel.videos (same source as Format Breakdown), fall back to DB
   const contentMix = useMemo(() => {
-    let source = dbData.allVideos;
-    if (source.length === 0 && channel.videos?.length > 0) {
-      source = channel.videos.map(normalizeLocal);
+    if (channel.videos?.length > 0) {
+      const isShort = (v) => v.type === 'short' || (!v.type && v.duration && v.duration <= 60);
+      const shorts = channel.videos.filter(isShort).length;
+      const total = channel.videos.length;
+      return { shorts, longs: total - shorts, total, shortsRatio: total > 0 ? (shorts / total) * 100 : 0 };
     }
-    const isShort = (v) => v.video_type === 'short' || (!v.video_type && v.duration_seconds && v.duration_seconds <= 60);
-    const isLong = (v) => v.video_type === 'long' || (!v.video_type && (!v.duration_seconds || v.duration_seconds > 60));
-    const shorts = source.filter(isShort).length;
-    const longs = source.filter(isLong).length;
-    const total = shorts + longs;
-    return { shorts, longs, total, shortsRatio: total > 0 ? (shorts / total) * 100 : 0 };
-  }, [dbData.allVideos, channel.videos]);
+    if (dbData.allVideos.length > 0) {
+      const isShort = (v) => v.video_type === 'short' || (!v.video_type && v.duration_seconds && v.duration_seconds <= 60);
+      const shorts = dbData.allVideos.filter(isShort).length;
+      const total = dbData.allVideos.length;
+      return { shorts, longs: total - shorts, total, shortsRatio: total > 0 ? (shorts / total) * 100 : 0 };
+    }
+    return { shorts: 0, longs: 0, total: 0, shortsRatio: 0 };
+  }, [channel.videos, dbData.allVideos]);
 
-  // Recent uploads — prefer DB data, fall back to localStorage
+  // Recent uploads — use channel.videos first (same source that works for Format Breakdown)
   const recentUploads = useMemo(() => {
-    if (dbData.recent.length > 0) return dbData.recent;
-    if (!channel.videos?.length) return [];
-    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
-    return channel.videos
-      .filter(v => v.publishedAt && new Date(v.publishedAt).getTime() >= cutoff)
-      .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-      .slice(0, 10)
-      .map(normalizeLocal);
-  }, [dbData.recent, channel.videos]);
+    if (channel.videos?.length > 0) {
+      const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+      return channel.videos
+        .filter(v => v.publishedAt && new Date(v.publishedAt).getTime() >= cutoff)
+        .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+        .slice(0, 10)
+        .map(normalizeLocal);
+    }
+    return dbData.recent;
+  }, [channel.videos, dbData.recent]);
 
   return (
     <div style={{ marginBottom: '16px' }}>
