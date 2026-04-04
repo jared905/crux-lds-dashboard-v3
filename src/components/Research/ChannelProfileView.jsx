@@ -169,15 +169,31 @@ export default function ChannelProfileView({
   const scheduleAnalysis = useMemo(() => channel.videos?.length > 0 ? analyzeUploadSchedule(channel.videos, userTimezone) : null, [channel.videos, userTimezone]);
   const formatAnalysis = useMemo(() => channel.videos?.length > 0 ? categorizeContentFormats(channel.videos) : null, [channel.videos]);
 
-  // Content mix from DB data — fall back to duration_seconds if video_type not set
+  // Content mix — prefer DB data, fall back to localStorage videos at render time
   const contentMix = useMemo(() => {
+    let source = dbData.allVideos;
+    if (source.length === 0 && channel.videos?.length > 0) {
+      source = channel.videos.map(normalizeLocal);
+    }
     const isShort = (v) => v.video_type === 'short' || (!v.video_type && v.duration_seconds && v.duration_seconds <= 60);
     const isLong = (v) => v.video_type === 'long' || (!v.video_type && (!v.duration_seconds || v.duration_seconds > 60));
-    const shorts = dbData.allVideos.filter(isShort).length;
-    const longs = dbData.allVideos.filter(isLong).length;
+    const shorts = source.filter(isShort).length;
+    const longs = source.filter(isLong).length;
     const total = shorts + longs;
     return { shorts, longs, total, shortsRatio: total > 0 ? (shorts / total) * 100 : 0 };
-  }, [dbData.allVideos]);
+  }, [dbData.allVideos, channel.videos]);
+
+  // Recent uploads — prefer DB data, fall back to localStorage
+  const recentUploads = useMemo(() => {
+    if (dbData.recent.length > 0) return dbData.recent;
+    if (!channel.videos?.length) return [];
+    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    return channel.videos
+      .filter(v => v.publishedAt && new Date(v.publishedAt).getTime() >= cutoff)
+      .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+      .slice(0, 10)
+      .map(normalizeLocal);
+  }, [dbData.recent, channel.videos]);
 
   return (
     <div style={{ marginBottom: '16px' }}>
@@ -348,17 +364,17 @@ export default function ChannelProfileView({
           <div style={{ padding: '14px 16px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Clock size={14} style={{ color: catCfg.color }} />
             <span style={{ fontSize: '13px', fontWeight: '700', color: '#fff' }}>Recent Uploads</span>
-            <span style={{ fontSize: '10px', color: '#666' }}>{dbData.recent.length} videos</span>
+            <span style={{ fontSize: '10px', color: '#666' }}>{recentUploads.length} videos</span>
           </div>
           <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
             {loading ? (
               <div style={{ padding: '32px', textAlign: 'center', color: '#666' }}>
                 <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
               </div>
-            ) : dbData.recent.length === 0 ? (
+            ) : recentUploads.length === 0 ? (
               <div style={{ padding: '24px', textAlign: 'center', color: '#555', fontSize: '11px' }}>No recent uploads</div>
             ) : (
-              dbData.recent.map((v, i) => (
+              recentUploads.map((v, i) => (
                 <a key={v.youtube_video_id || i} href={`https://www.youtube.com/watch?v=${v.youtube_video_id}`}
                   target="_blank" rel="noopener noreferrer"
                   style={{
