@@ -253,7 +253,8 @@ Respond with ONLY a JSON object (no markdown, no code fences) in this exact form
       "beat_flow": ["hook_1", "story_1", "scripture_1", "doctrine_1", "application_1"],
       "beat_role_counts": {"content": 4, "pacing": 1, "hybrid": 1, "transition": 0},
       "virality_score": 8,
-      "virality_rationale": "1-2 sentences referencing strategy brief, performance data, or competitor patterns"
+      "virality_rationale": "1-2 sentences referencing strategy brief, performance data, or competitor patterns",
+      "quick_pitch": "One sentence (max 20 words) — the value proposition for the creative director"
     }
   ],
   "short_form_directions": [
@@ -278,7 +279,8 @@ Respond with ONLY a JSON object (no markdown, no code fences) in this exact form
       "beat_flow": ["humor_1", "application_1"],
       "featured_hybrid_beats": ["humor_1"],
       "virality_score": 7,
-      "virality_rationale": "Why this works — reference context if provided"
+      "virality_rationale": "Why this works — reference context if provided",
+      "quick_pitch": "One sentence (max 20 words) — the value proposition for the creative director"
     }
   ],
   "summary": "One paragraph summarizing the transcript's themes and the overall editorial strategy behind these directions.",
