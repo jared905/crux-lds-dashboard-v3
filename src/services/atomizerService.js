@@ -17,6 +17,10 @@ import { supabase } from './supabaseClient';
 import { claudeAPI } from './claudeAPI';
 import { getBrandContextWithSignals, getCurrentBrandContext } from './brandContextService';
 import { parseClaudeJSON } from '../lib/parseClaudeJSON';
+import {
+  CONTENT_TYPES, getPalette, getBeats, getCompleteness,
+  buildVocabularyBlock, buildCompletenessBlock,
+} from '../lib/contentTypePalettes';
 
 // ============================================
 // LEGACY SYSTEM PROMPT (V1 — clips/shorts/quotes)
@@ -322,42 +326,33 @@ Respond with ONLY a JSON object (no markdown, no code fences):
 }`;
 
 // ============================================
-// V3.1: BEAT TYPE VOCABULARY & THREAD COMPLETENESS
-// ============================================
-
-const BEAT_TYPE_VOCABULARY = {
-  faith: ['hook', 'story', 'scripture', 'doctrine', 'application', 'testimony', 'transition', 'invitation', 'humor', 'context'],
-  brand: ['pattern_interrupt', 'problem', 'solution', 'proof', 'offer', 'cta', 'transition', 'humor'],
-  thought_leadership: ['provocative_opening', 'thesis', 'evidence', 'counterargument', 'synthesis', 'invitation', 'transition'],
-  documentary: ['cold_open', 'context', 'inciting_incident', 'rising_action', 'climax', 'resolution', 'epilogue', 'transition'],
-};
-
-const THREAD_COMPLETENESS_CRITERIA = {
-  faith: { required: ['story', 'application'], either: [['scripture', 'doctrine'], ['testimony']], label: 'well-grounded' },
-  brand: { required: ['problem', 'solution', 'proof'], label: 'complete argument' },
-  thought_leadership: { required: ['thesis', 'evidence', 'synthesis'], label: 'rigorous' },
-  documentary: { required: ['context', 'rising_action', 'resolution'], label: 'complete narrative' },
-};
+// V4: Beat vocabularies and completeness criteria are imported from
+// src/lib/contentTypePalettes.js — the single source of truth.
+// To add a new content type, add a palette entry there.
 
 // ============================================
 // STAGE 0a: SEGMENT BEATS PROMPT
 // ============================================
 
-const SEGMENT_BEATS_PROMPT = `You are a narrative structure analyst for YouTube content. Your job is to segment a transcript into its fundamental narrative BEATS — the structural building blocks that make up the content's flow.
+function buildSegmentBeatsPrompt(contentTypeOverride = null) {
+  const typeList = CONTENT_TYPES.join(', ');
+  const vocabBlock = buildVocabularyBlock();
+  const overrideDirective = contentTypeOverride
+    ? `\nCONTENT TYPE IS PRE-SET TO "${contentTypeOverride}". Skip auto-detection in STEP 1 — set content_type to "${contentTypeOverride}" with confidence 1.0 and proceed directly to STEP 2 using the "${contentTypeOverride}" vocabulary.\n`
+    : '';
+
+  return `You are a narrative structure analyst for YouTube content. Your job is to segment a transcript into its fundamental narrative BEATS — the structural building blocks that make up the content's flow.
 
 This is FORM-BASED analysis only. Identify WHAT each beat IS (story, scripture, humor, etc.), not what principle it teaches. Thread/principle analysis happens separately.
-
+${overrideDirective}
 STEP 1: AUTO-DETECT CONTENT TYPE
-Classify the content as one of: faith, brand, thought_leadership, documentary.
+Classify the content as one of: ${typeList}.
 Provide a confidence score (0.0 - 1.0).
 
 STEP 2: BEAT TYPE VOCABULARY
 These are a PALETTE, not a sequence. A talk may have three "story" beats and zero "testimony" beats. Use ONLY these types for the detected content type:
 
-- faith: hook, story, scripture, doctrine, application, testimony, transition, invitation, humor, context
-- brand: pattern_interrupt, problem, solution, proof, offer, cta, transition, humor
-- thought_leadership: provocative_opening, thesis, evidence, counterargument, synthesis, invitation, transition
-- documentary: cold_open, context, inciting_incident, rising_action, climax, resolution, epilogue, transition
+${vocabBlock}
 
 STEP 3: SEGMENT BEATS
 Find all narrative beats in the transcript (typically 5-20 depending on length). For each beat, provide:
@@ -417,6 +412,7 @@ CRITICAL:
 - weaknessFlags should be honest and actionable, not generic praise.
 - beatRole "hybrid" is specifically for beats that serve dual purpose (the humor IS the illustration, the funny story IS the teaching). Do NOT mark all humorous content beats as hybrid — only those where entertainment and substance are inseparable.
 - If the transcript lacks timecodes, use descriptive positions (beginning/middle/end, paragraph references).`;
+}
 
 // ============================================
 // STAGE 0b: ANALYZE THREADS PROMPT
@@ -1093,7 +1089,7 @@ ${text}
  * @param {Object} [options.contextInputs] - Manual context inputs
  * @returns {Promise<Object>} Parsed directions + beat_analysis + stage_costs
  */
-export async function generateStrategy(text, title = 'Untitled', channelId = null, { v2 = true, contextInputs } = {}) {
+export async function generateStrategy(text, title = 'Untitled', channelId = null, { v2 = true, contextInputs, contentTypeOverride = null } = {}) {
   if (!v2) return analyzeTranscriptLegacy(text, title, channelId);
 
   const wordCount = text.trim().split(/\s+/).length;
@@ -1104,7 +1100,7 @@ export async function generateStrategy(text, title = 'Untitled', channelId = nul
   // --- Stage 0a: Segment Beats (graceful fallback) ---
   try {
     console.log('[atomizer] Stage 0a: Segmenting beats...');
-    const segResult = await segmentBeats(text, title, channelId, contextInputs);
+    const segResult = await segmentBeats(text, title, channelId, contextInputs, contentTypeOverride);
     segCost = { usage: segResult.usage, cost: segResult.cost };
     const { usage: _u1, cost: _c1, ...segData } = segResult;
     console.log('[atomizer] Stage 0a: Segmentation complete —', segData.beats?.length || 0, 'beats found');
@@ -1339,10 +1335,10 @@ Produce the edited transcript (restructured for narrative flow, filler removed),
  * @param {Object} [contextInputs] - Manual context inputs
  * @returns {Promise<Object>} { content_type, content_type_confidence, beats[], usage, cost }
  */
-export async function segmentBeats(text, title = 'Untitled', channelId = null, contextInputs = null) {
+export async function segmentBeats(text, title = 'Untitled', channelId = null, contextInputs = null, contentTypeOverride = null) {
   const wordCount = text.trim().split(/\s+/).length;
 
-  let systemPrompt = SEGMENT_BEATS_PROMPT;
+  let systemPrompt = buildSegmentBeatsPrompt(contentTypeOverride);
 
   if (channelId) {
     try {
@@ -1456,7 +1452,7 @@ export function validateBeatSegmentation(beats, transcriptWordCount) {
  */
 export async function analyzeThreads(beats, contentType, text, title = 'Untitled', channelId = null, contextInputs = null) {
   // Build completeness criteria string for the detected content type
-  const criteria = THREAD_COMPLETENESS_CRITERIA[contentType] || THREAD_COMPLETENESS_CRITERIA.faith;
+  const criteria = getCompleteness(contentType);
   let criteriaStr = `Required beat types: ${criteria.required.join(', ')}`;
   if (criteria.either) {
     criteriaStr += `\nPlus at least one of: ${criteria.either.map(g => g.join(' or ')).join('; ')}`;
@@ -2082,6 +2078,29 @@ export async function getAtomizedContent(transcriptId) {
   return data;
 }
 
+// ============================================
+// CHANNEL CONTENT TYPE PERSISTENCE
+// ============================================
+
+export async function getChannelContentType(channelId) {
+  if (!supabase || !channelId) return null;
+  const { data } = await supabase
+    .from('channels')
+    .select('atomizer_content_type')
+    .eq('id', channelId)
+    .single();
+  return data?.atomizer_content_type || null;
+}
+
+export async function updateChannelContentType(channelId, contentType) {
+  if (!supabase || !channelId) return;
+  const { error } = await supabase
+    .from('channels')
+    .update({ atomizer_content_type: contentType })
+    .eq('id', channelId);
+  if (error) throw error;
+}
+
 export default {
   generateStrategy,
   analyzeTranscript,
@@ -2106,4 +2125,6 @@ export default {
   buildManualContext,
   getTranscripts,
   getAtomizedContent,
+  getChannelContentType,
+  updateChannelContentType,
 };

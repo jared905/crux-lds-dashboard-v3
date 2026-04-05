@@ -13,10 +13,12 @@ import {
   getAtomizedContent,
   deployDirection, updateAtomizedContentWithProduction,
   generateRecut, updateAtomizedContentWithRecut,
+  getChannelContentType, updateChannelContentType,
 } from "../../services/atomizerService";
 import { getChannels } from "../../services/competitorDatabase";
 import AtomizerHistory from "./AtomizerHistory";
 import BeatMapPanel, { THREAD_COLORS } from "./BeatMapPanel";
+import ContentTypeConfirmBanner from "./ContentTypeConfirmBanner";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 
@@ -784,6 +786,12 @@ export default function Atomizer({ activeClient }) {
   const [channelFilter, setChannelFilter] = useState(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
+  // Content type state (persists per channel)
+  const [channelContentType, setChannelContentType] = useState(null);
+  const [detectedContentType, setDetectedContentType] = useState(null);
+  const [detectedConfidence, setDetectedConfidence] = useState(null);
+  const [showContentTypeBanner, setShowContentTypeBanner] = useState(false);
+
   // Expansion
   const [expandedCards, setExpandedCards] = useState(new Set());
 
@@ -879,6 +887,14 @@ export default function Atomizer({ activeClient }) {
       .catch(err => console.warn('[atomizer] Failed to fetch channels:', err.message));
   }, [activeClient?.id]);
 
+  // Fetch saved content type when channel changes
+  useEffect(() => {
+    if (!selectedChannelId) { setChannelContentType(null); return; }
+    getChannelContentType(selectedChannelId)
+      .then(type => setChannelContentType(type))
+      .catch(() => setChannelContentType(null));
+  }, [selectedChannelId]);
+
   // Cost estimates — Stages 0a (8192) + 0b (8192) + 1 (16384 output tokens)
   const estimatedInputTokens = 2800 + Math.ceil(wordCount / 0.75);
   const estimatedCostAnalysis = wordCount > 0
@@ -964,14 +980,21 @@ export default function Atomizer({ activeClient }) {
       const data = await generateStrategy(
         transcriptText,
         title || "Untitled",
-        activeClient?.id,
-        { contextInputs },
+        selectedChannelId || activeClient?.id,
+        { contextInputs, contentTypeOverride: channelContentType },
       );
       setResults(data);
 
       // Store beat analysis and per-stage costs
       if (data.beat_analysis) {
         setBeatAnalysis(data.beat_analysis);
+
+        // Show content type confirmation banner if channel doesn't have a saved type
+        if (!channelContentType && selectedChannelId && data.beat_analysis.content_type) {
+          setDetectedContentType(data.beat_analysis.content_type);
+          setDetectedConfidence(data.beat_analysis.content_type_confidence);
+          setShowContentTypeBanner(true);
+        }
       }
       if (data.stage_costs) {
         setStageCosts(data.stage_costs);
@@ -1539,6 +1562,24 @@ export default function Atomizer({ activeClient }) {
                 {results.summary}
               </div>
             </div>
+          )}
+
+          {/* Content Type Confirmation Banner */}
+          {showContentTypeBanner && selectedChannelId && (
+            <ContentTypeConfirmBanner
+              detectedType={detectedContentType}
+              confidence={detectedConfidence}
+              onConfirm={async (type) => {
+                try {
+                  await updateChannelContentType(selectedChannelId, type);
+                  setChannelContentType(type);
+                } catch (e) {
+                  console.warn('[atomizer] Failed to save content type:', e.message);
+                }
+                setShowContentTypeBanner(false);
+              }}
+              onDismiss={() => setShowContentTypeBanner(false)}
+            />
           )}
 
           {/* Collapsible Structure Panel */}
