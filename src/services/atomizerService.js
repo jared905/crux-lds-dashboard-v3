@@ -294,6 +294,86 @@ Guidelines:
 - IMPORTANT: Most transcripts will NOT have precise timecodes. Use section descriptions (e.g., "Opening paragraph", "The story about X") rather than MM:SS. Only use MM:SS if the transcript contains actual timecodes.`;
 
 // ============================================
+// STAGE 1b: SHORT-FORM PROMPT (dedicated)
+// ============================================
+
+const ATOMIZER_STAGE1B_SHORT_FORM_PROMPT = `You are a YouTube Shorts specialist. Your ONLY job is to extract the highest-potential short-form clips from a transcript. You think in terms of scroll-stopping moments, not narrative arcs.
+
+Shorts are NOT "small long-form." They are a fundamentally different product:
+- The viewer is ALREADY scrolling. You have 1.5 seconds before they pass you.
+- Context Collapse: the viewer is dropped into the middle of the action. They must catch up instantly.
+- The best Shorts feel like you walked into the room at exactly the right second.
+
+CRITICAL RULES:
+- Every hook MUST use EXACT WORDS from the transcript. Verbatim — no paraphrasing.
+- Each Short should pull from a SINGLE moment or thread. Multi-thread clips lose comprehensibility.
+- If beat analysis is provided, prefer "hybrid" beats (both entertaining AND substantive) and high-intensity moments.
+
+SCORING (replace virality_score with these):
+- hook_strength (0-10): How fast does this grab attention? Target: viewer hooked in <2 seconds.
+- emotional_punch (0-10): Does this make someone FEEL something — laugh, gasp, nod, get angry?
+- comprehensibility (0-10): Can a stranger understand this clip with zero context? Audio-off test: does it work with just captions?
+- loop_potential (0-10): Does the ending make you want to watch it again? Does the payoff recontextualize the hook?
+- overall (0-10): Weighted average — loop_potential and hook_strength matter most.
+
+ADDITIONAL FIELDS:
+- comment_bait: What about this clip provokes comments? ("This is SO true", "Wait WHAT", "Who else does this?")
+- hook_to_payoff_seconds: Estimated seconds from hook to payoff (target: under 30).
+- audio_off_works: Boolean — does this work without sound (just captions + visuals)?
+
+THREAD-AWARE (if beat analysis provided):
+- featured_hybrid_beats: Array of hybrid beat IDs featured in this clip.
+- thread_refs: [{thread_id, role: "featured"}] — the ONE thread this clip orbits.
+- beat_flow: Ordered array of beat IDs for this clip.
+
+Respond with ONLY a JSON object (no markdown, no code fences):
+{
+  "short_form_directions": [
+    {
+      "title": "Short-form working title",
+      "format_type": "YouTube Short",
+      "hook": "EXACT transcript words for the first 1-3 seconds — verbatim",
+      "hook_timecode": "Section reference or MM:SS",
+      "arc_summary": "Micro-arc: hook > core moment > payoff",
+      "title_variations": [
+        { "text": "Title option 1", "style": "curiosity_gap" },
+        { "text": "Title option 2", "style": "direct_value" }
+      ],
+      "description": "First-person short caption with a transcript quote.",
+      "thumbnail_suggestion": {
+        "concept": "Cover frame concept",
+        "transcript_reference": "Specific moment",
+        "visual_elements": ["element1"]
+      },
+      "estimated_duration": "30-45 sec",
+      "thread_refs": [{"thread_id": "thread_1", "role": "featured"}],
+      "beat_flow": ["humor_1"],
+      "featured_hybrid_beats": ["humor_1"],
+      "subscores": {
+        "hook_strength": 9,
+        "emotional_punch": 7,
+        "comprehensibility": 8,
+        "loop_potential": 6,
+        "overall": 8,
+        "subscoreRationale": "Brief explanation"
+      },
+      "comment_bait": "The relatable moment that makes people tag a friend",
+      "hook_to_payoff_seconds": 22,
+      "audio_off_works": true,
+      "virality_rationale": "Why this works — reference context if provided",
+      "quick_pitch": "One sentence — the value proposition for the creative director"
+    }
+  ],
+  "summary": "One paragraph on the short-form potential of this transcript."
+}
+
+Guidelines:
+- Propose 3-5 Shorts. Quality over quantity — if the transcript only has 2 great moments, give 2.
+- Prioritize: reaction moments, surprising claims, emotional peaks, hot takes, relatable confessions.
+- A Short that scores below 6 on comprehensibility should be cut — context collapse kills it.
+- IMPORTANT: Use section descriptions (e.g., "The story about X") rather than MM:SS unless the transcript has timecodes.`;
+
+// ============================================
 // STAGE 2 SYSTEM PROMPT — Production Package
 // ============================================
 
@@ -1145,57 +1225,70 @@ export async function generateStrategy(text, title = 'Untitled', channelId = nul
     console.warn('[atomizer] Stage 0a: Beat segmentation failed, proceeding without beats:', e.message);
   }
 
-  // --- Stage 1: Direction Discovery (generateStrategy) ---
-  let systemPrompt = ATOMIZER_STAGE1_SYSTEM_PROMPT;
-
+  // --- Stage 1a + 1b: Parallel direction discovery ---
+  // Build shared context blocks
+  let brandBlock = '';
   if (channelId) {
     try {
-      const brandBlock = await getBrandContextWithSignals(channelId, 'atomizer');
-      if (brandBlock) systemPrompt += '\n\n' + brandBlock;
+      brandBlock = await getBrandContextWithSignals(channelId, 'atomizer') || '';
     } catch (e) {
       console.warn('[atomizer] Brand context fetch failed, proceeding without:', e.message);
     }
   }
-
   const manualBlock = buildManualContext(contextInputs);
-  if (manualBlock) systemPrompt += '\n\n' + manualBlock;
-
-  // Inject beat/thread context if available
   const beatBlock = formatBeatContext(beatAnalysis);
-  if (beatBlock) systemPrompt += '\n\n' + beatBlock;
-
   const threadNote = beatAnalysis?.threads?.length
-    ? '\n\nThread-based beat analysis is provided — reference thread principles in arc summaries, use hook analysis to inform your hooks, and produce subscores for short-form directions. Short-form clips should ideally pull from a single thread cluster.'
+    ? '\n\nThread-based beat analysis is provided — reference thread principles in arc summaries and use hook analysis to inform hooks.'
     : beatAnalysis?.beats?.length
-      ? '\n\nBeat analysis is provided (without thread grouping) — reference beat IDs in arc summaries, use hook analysis, and produce subscores for short-form.'
+      ? '\n\nBeat analysis is provided — reference beat IDs in arc summaries and use hook analysis.'
       : '';
 
-  const prompt = `Analyze this transcript and propose creative direction options for both long-form and short-form content. Focus on titles, hooks, descriptions, thumbnails, and virality analysis. Do NOT include EDL, B-roll, motion graphics, or edited transcript — those come later when a direction is chosen.${threadNote}
+  const transcriptBlock = `\nTitle: ${title}\nWord Count: ${wordCount}\n\n--- TRANSCRIPT ---\n${text}\n--- END TRANSCRIPT ---`;
 
-Title: ${title}
-Word Count: ${wordCount}
+  // Stage 1a: Long-form directions
+  let longFormSystemPrompt = ATOMIZER_STAGE1_SYSTEM_PROMPT;
+  if (brandBlock) longFormSystemPrompt += '\n\n' + brandBlock;
+  if (manualBlock) longFormSystemPrompt += '\n\n' + manualBlock;
+  if (beatBlock) longFormSystemPrompt += '\n\n' + beatBlock;
 
---- TRANSCRIPT ---
-${text}
---- END TRANSCRIPT ---`;
+  const longFormPrompt = `Analyze this transcript and propose LONG-FORM direction options. Focus on titles, hooks, descriptions, thumbnails, and virality analysis. Do NOT include EDL, B-roll, motion graphics, or edited transcript.${threadNote}${transcriptBlock}`;
 
-  const result = await claudeAPI.call(prompt, systemPrompt, 'atomizer_stage1', 16384);
-  const parsed = parseClaudeJSON(result.text);
+  // Stage 1b: Short-form directions (dedicated prompt)
+  let shortFormSystemPrompt = ATOMIZER_STAGE1B_SHORT_FORM_PROMPT;
+  if (brandBlock) shortFormSystemPrompt += '\n\n' + brandBlock;
+  if (manualBlock) shortFormSystemPrompt += '\n\n' + manualBlock;
+  if (beatBlock) shortFormSystemPrompt += '\n\n' + beatBlock;
+
+  const shortFormPrompt = `Extract the highest-potential YouTube Shorts from this transcript. Focus on scroll-stopping moments, emotional peaks, and standalone clips that need zero context.${threadNote}${transcriptBlock}`;
+
+  console.log('[atomizer] Stage 1a+1b: Running long-form and short-form in parallel...');
+  const [longResult, shortResult] = await Promise.all([
+    claudeAPI.call(longFormPrompt, longFormSystemPrompt, 'atomizer_stage1_long', 8192),
+    claudeAPI.call(shortFormPrompt, shortFormSystemPrompt, 'atomizer_stage1_short', 8192),
+  ]);
+
+  const longParsed = parseClaudeJSON(longResult.text);
+  const shortParsed = parseClaudeJSON(shortResult.text);
 
   // Combine costs from all stages
-  const costs = [segCost?.cost, threadCost?.cost, result.cost].filter(Boolean);
-  let totalCost = costs.reduce((sum, c) => sum + (parseFloat(c) || 0), 0);
-  totalCost = totalCost.toFixed(4);
+  const strategyCost = (parseFloat(longResult.cost) || 0) + (parseFloat(shortResult.cost) || 0);
+  const costs = [segCost?.cost, threadCost?.cost, strategyCost].filter(Boolean);
+  let totalCost = costs.reduce((sum, c) => sum + (parseFloat(c) || 0), 0).toFixed(4);
 
   return {
-    ...parsed,
+    long_form_directions: longParsed.long_form_directions || [],
+    short_form_directions: shortParsed.short_form_directions || [],
+    summary: longParsed.summary || shortParsed.summary || '',
+    total_directions: (longParsed.long_form_directions?.length || 0) + (shortParsed.short_form_directions?.length || 0),
     beat_analysis: beatAnalysis,
-    usage: result.usage,
+    usage: { ...longResult.usage, short_form_usage: shortResult.usage },
     cost: totalCost,
     stage_costs: {
       segment: segCost?.cost || null,
       threads: threadCost?.cost || null,
-      strategy: result.cost,
+      strategy_long: longResult.cost,
+      strategy_short: shortResult.cost,
+      strategy: strategyCost.toFixed(4),
     },
   };
 }

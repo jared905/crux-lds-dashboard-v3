@@ -19,6 +19,7 @@ import AtomizerHistory from "./AtomizerHistory";
 import BeatMapPanel, { THREAD_COLORS } from "./BeatMapPanel";
 import ContentTypeConfirmBanner from "./ContentTypeConfirmBanner";
 import DirectionCard from "./DirectionCard";
+import DirectionLanes from "./DirectionLanes";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 
@@ -183,19 +184,20 @@ export default function Atomizer({ activeClient }) {
   );
 
   // Current tab's directions
-  const currentDirections = useMemo(() => {
-    if (!results) return [];
-    let dirs;
-    if (activeTab === "long_form") dirs = [...(results.long_form_directions || [])];
-    else if (activeTab === "short_form") dirs = [...(results.short_form_directions || [])];
-    else return [];
-    // Best directions first
-    return dirs.sort((a, b) => {
-      const sa = a.subscores?.overall ?? a.virality_score ?? 0;
-      const sb = b.subscores?.overall ?? b.virality_score ?? 0;
-      return sb - sa;
-    });
-  }, [results, activeTab]);
+  const sortByScore = (dirs) => [...dirs].sort((a, b) => {
+    const sa = a.subscores?.overall ?? a.virality_score ?? 0;
+    const sb = b.subscores?.overall ?? b.virality_score ?? 0;
+    return sb - sa;
+  });
+
+  const sortedLongForm = useMemo(
+    () => results ? sortByScore(results.long_form_directions || []) : [],
+    [results]
+  );
+  const sortedShortForm = useMemo(
+    () => results ? sortByScore(results.short_form_directions || []) : [],
+    [results]
+  );
 
   // ============================================
   // Handlers
@@ -888,79 +890,26 @@ export default function Atomizer({ activeClient }) {
             </div>
           )}
 
-          {/* Tab Navigation */}
-          <div style={{ display: "flex", gap: "2px", marginBottom: "2px" }}>
-            {[
-              { id: "long_form", label: "Long-Form", icon: Film, count: tabCounts.long_form, color: "#3b82f6" },
-              { id: "short_form", label: "Short-Form", icon: Smartphone, count: tabCounts.short_form, color: "#ec4899" },
-            ].map(t => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                style={{
-                  flex: 1,
-                  background: activeTab === t.id ? "#1E1E1E" : "#161616",
-                  border: activeTab === t.id ? "1px solid #333" : "1px solid transparent",
-                  borderBottom: activeTab === t.id ? "none" : "1px solid #333",
-                  borderRadius: "8px 8px 0 0", padding: "12px",
-                  color: activeTab === t.id ? "#fff" : "#888",
-                  fontSize: "13px", fontWeight: "600", cursor: "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-                }}
-              >
-                <t.icon size={14} color={activeTab === t.id ? t.color : "#888"} />
-                {t.label}
-                <span style={{
-                  background: activeTab === t.id ? t.color + "22" : "#333",
-                  color: activeTab === t.id ? t.color : "#888",
-                  borderRadius: "10px", padding: "2px 8px",
-                  fontSize: "11px", fontWeight: "700",
-                }}>
-                  {t.count}
-                </span>
-              </button>
-            ))}
+          {/* Direction Lanes — two columns on wide, tabs on narrow */}
+          <div style={{ marginBottom: "24px" }}>
+            <DirectionLanes
+              longFormDirs={sortedLongForm}
+              shortFormDirs={sortedShortForm}
+              expandedCards={expandedCards}
+              onToggleExpand={toggleCardExpanded}
+              selections={selections}
+              onToggleElement={toggleElement}
+              onCreateBrief={handleCreateBrief}
+              briefCreating={briefCreating}
+              onDeploy={handleDeploy}
+              deploying={deploying}
+              deployedData={deployedData}
+              onRecut={handleRecut}
+              recutting={recutting}
+              recutData={recutData}
+              beatAnalysis={beatAnalysis}
+            />
           </div>
-
-          {/* Tab Content — Direction Cards */}
-          {(
-          <div style={{
-            background: "#1E1E1E", border: "1px solid #333", borderTop: "none",
-            borderRadius: "0 0 12px 12px", padding: "20px 24px", marginBottom: "24px",
-          }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {currentDirections.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "24px", color: "#666", fontSize: "13px" }}>
-                  No {activeTab === "long_form" ? "long-form" : "short-form"} directions found.
-                </div>
-              ) : currentDirections.map((dir, idx) => {
-                const dirKey = `${activeTab}_${idx}`;
-                return (
-                  <DirectionCard
-                    key={dirKey}
-                    dir={dir}
-                    dirKey={dirKey}
-                    isLongForm={activeTab === "long_form"}
-                    expanded={expandedCards.has(dirKey)}
-                    onToggleExpand={toggleCardExpanded}
-                    selectedElements={selections[dirKey]?.elements || new Set()}
-                    onToggleElement={toggleElement}
-                    onCreateBrief={handleCreateBrief}
-                    briefCreating={briefCreating}
-                    accentColor={activeTab === "long_form" ? "#3b82f6" : "#ec4899"}
-                    onDeploy={handleDeploy}
-                    deploying={deploying}
-                    deployedData={deployedData[dirKey] || null}
-                    onRecut={handleRecut}
-                    recutting={recutting}
-                    recutData={recutData[dirKey] || null}
-                    beatAnalysis={beatAnalysis}
-                  />
-                );
-              })}
-            </div>
-          </div>
-          )}
 
           {/* Remix Bar — appears when elements are selected */}
           {selectedCount > 0 && (
