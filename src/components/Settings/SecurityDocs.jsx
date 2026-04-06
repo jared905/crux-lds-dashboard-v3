@@ -181,9 +181,9 @@ export default function SecurityDocs() {
           <div>
             <div style={{ fontWeight: "600", marginBottom: "6px" }}>Minimal Scope</div>
             <p style={{ fontSize: "13px", color: "#9E9E9E", margin: 0, lineHeight: "1.6" }}>
-              We request only <code style={{ background: "#333", padding: "2px 6px", borderRadius: "4px" }}>youtube.readonly</code> access.
-              This means we can view your channel data but cannot modify anything, upload videos,
-              or access private information.
+              We request only <code style={{ background: "#333", padding: "2px 6px", borderRadius: "4px" }}>youtube.readonly</code> and <code style={{ background: "#333", padding: "2px 6px", borderRadius: "4px" }}>yt-analytics-monetary.readonly</code> access.
+              This means we can view your channel data and analytics but cannot modify anything, upload videos,
+              or access private information. Both scopes are verified by Google.
             </p>
           </div>
         </div>

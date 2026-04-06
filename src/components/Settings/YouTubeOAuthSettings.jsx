@@ -1417,7 +1417,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
           <li>Tokens encrypted with AES-256-GCM before storage</li>
           <li>PKCE flow prevents authorization code interception</li>
           <li>Server-side token exchange (secrets never in browser)</li>
-          <li>Read-only access scope (youtube.readonly)</li>
+          <li>Read-only access scopes (youtube.readonly + yt-analytics-monetary.readonly)</li>
           <li>Comprehensive audit logging for compliance</li>
         </ul>
         {onNavigateToSecurity && (
