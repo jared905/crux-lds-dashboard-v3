@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   Zap, FileText, Scissors, MessageSquare, Loader,
   ChevronDown, ChevronUp, Check, Plus, Shuffle,
-  Film, Smartphone, AlignLeft, X,
+  Film, Smartphone, AlignLeft, X, Layers,
   Target, BarChart3, Users, Swords, GitBranch,
 } from "lucide-react";
 import {
