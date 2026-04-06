@@ -2,6 +2,11 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/cron/daily-sync.js": { "maxDuration": 300 },
+    "api/sync-competitors.js": { "maxDuration": 300 },
+    "api/youtube-analytics-fetch.js": { "maxDuration": 300 }
+  },
   "rewrites": [
     {
       "source": "/((?!api/)(?!.*\\..+$).*)",
