@@ -95,21 +95,22 @@ async function fetchSnapshotsForPeriod(channelId, startDate, endDate) {
 }
 
 /**
- * Fetch channel-level subscriber delta for a period from channel_snapshots.
- * This is the most reliable subscriber source — it comes directly from the
+ * Fetch channel-level deltas for a period from channel_snapshots.
+ * Returns subscriber delta, view delta, and snapshot count.
+ * This is the most reliable source — it comes directly from the
  * YouTube Data API's channel statistics, tracked daily.
  */
-async function fetchChannelSubsDelta(channelIds, startDate, endDate) {
+async function fetchChannelDeltas(channelIds, startDate, endDate) {
   if (!supabase) return null;
-  let totalDelta = 0;
+  let totalSubsDelta = 0;
+  let totalViewDelta = 0;
   let hasData = false;
 
   for (const channelId of channelIds) {
-    // Get earliest and latest snapshot in the period
     const [{ data: earliest }, { data: latest }] = await Promise.all([
       supabase
         .from('channel_snapshots')
-        .select('subscriber_count')
+        .select('subscriber_count, total_view_count')
         .eq('channel_id', channelId)
         .gte('snapshot_date', startDate)
         .lte('snapshot_date', endDate)
@@ -118,7 +119,7 @@ async function fetchChannelSubsDelta(channelIds, startDate, endDate) {
         .single(),
       supabase
         .from('channel_snapshots')
-        .select('subscriber_count')
+        .select('subscriber_count, total_view_count')
         .eq('channel_id', channelId)
         .gte('snapshot_date', startDate)
         .lte('snapshot_date', endDate)
@@ -128,12 +129,15 @@ async function fetchChannelSubsDelta(channelIds, startDate, endDate) {
     ]);
 
     if (earliest?.subscriber_count != null && latest?.subscriber_count != null) {
-      totalDelta += latest.subscriber_count - earliest.subscriber_count;
+      totalSubsDelta += latest.subscriber_count - earliest.subscriber_count;
       hasData = true;
+    }
+    if (earliest?.total_view_count != null && latest?.total_view_count != null) {
+      totalViewDelta += latest.total_view_count - earliest.total_view_count;
     }
   }
 
-  return hasData ? totalDelta : null;
+  return hasData ? { subsDelta: totalSubsDelta, viewDelta: totalViewDelta } : null;
 }
 
 /**
@@ -324,23 +328,22 @@ export async function generateQuarterlyReport(channelId, year, quarter, explicit
   const currentMetrics = computeQuarterMetrics(currentVideos, currentSnapshots, allChannelIds.length);
   const previousMetrics = computeQuarterMetrics(previousVideos, previousSnapshots, allChannelIds.length);
 
-  // Channel-level subscriber delta fallback: if per-video snapshot/video table subs
-  // are both empty, use the channel_snapshots table (Data API subscriber_count deltas).
-  // This is the most reliable source — it works for ALL channels regardless of
-  // whether the Analytics or Reporting APIs support subscriber metrics.
-  if (currentMetrics.totalSubsGained === 0) {
-    const channelSubsDelta = await fetchChannelSubsDelta(allChannelIds, current.start, current.end);
-    if (channelSubsDelta != null) {
-      currentMetrics.totalSubsGained = channelSubsDelta;
-      currentMetrics._subsSource = 'channel_snapshots';
-    }
+  // Channel-level delta fallback from channel_snapshots (Data API subscriber_count
+  // and total_view_count). This is the most reliable source — it works for ALL
+  // channels regardless of whether Analytics or Reporting APIs are available.
+  // Used when per-video snapshot/video table data is empty.
+  const [currentChannelDeltas, previousChannelDeltas] = await Promise.all([
+    fetchChannelDeltas(allChannelIds, current.start, current.end),
+    fetchChannelDeltas(allChannelIds, previous.start, previous.end),
+  ]);
+
+  if (currentMetrics.totalSubsGained === 0 && currentChannelDeltas?.subsDelta != null) {
+    currentMetrics.totalSubsGained = currentChannelDeltas.subsDelta;
+    currentMetrics._subsSource = 'channel_snapshots';
   }
-  if (previousMetrics.totalSubsGained === 0) {
-    const prevSubsDelta = await fetchChannelSubsDelta(allChannelIds, previous.start, previous.end);
-    if (prevSubsDelta != null) {
-      previousMetrics.totalSubsGained = prevSubsDelta;
-      previousMetrics._subsSource = 'channel_snapshots';
-    }
+  if (previousMetrics.totalSubsGained === 0 && previousChannelDeltas?.subsDelta != null) {
+    previousMetrics.totalSubsGained = previousChannelDeltas.subsDelta;
+    previousMetrics._subsSource = 'channel_snapshots';
   }
 
   const deltas = computeDeltas(currentMetrics, previousMetrics);

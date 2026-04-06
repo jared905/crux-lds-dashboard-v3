@@ -589,6 +589,57 @@ async function syncConnection(connection) {
     if (Object.keys(analyticsData).length > 0) results.dataSources.analyticsAPI = true;
     console.log(`[Daily Sync] Analytics: ${syncDates.length} days fetched, ${Object.keys(analyticsData).length} videos`);
 
+    // FALLBACK: If per-video analytics failed (OAuth verification pending), try
+    // channel-level daily analytics (dimensions=day). This gives us total daily
+    // views, watch hours, and subscribers for the channel — not per-video, but
+    // critical for quarterly reports where per-video isn't required.
+    let channelDailyAnalytics = null;
+    if (Object.keys(analyticsData).length === 0) {
+      try {
+        const headers = { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' };
+        const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
+        url.searchParams.append('ids', `channel==${channelId}`);
+        url.searchParams.append('startDate', weekAgo);
+        url.searchParams.append('endDate', yesterday);
+        url.searchParams.append('dimensions', 'day');
+        url.searchParams.append('metrics', 'views,estimatedMinutesWatched,subscribersGained');
+        url.searchParams.append('sort', 'day');
+
+        const resp = await fetch(url.toString(), { headers });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.rows?.length) {
+            channelDailyAnalytics = {};
+            let totalViews = 0, totalWatchHours = 0, totalSubs = 0;
+            for (const row of data.rows) {
+              // row: [date, views, watchMinutes, subsGained]
+              const date = row[0];
+              channelDailyAnalytics[date] = {
+                views: row[1] || 0,
+                watchHours: (row[2] || 0) / 60,
+                subscribersGained: row[3] || 0,
+              };
+              totalViews += row[1] || 0;
+              totalWatchHours += (row[2] || 0) / 60;
+              totalSubs += row[3] || 0;
+            }
+            results.dataSources.channelAnalytics = true;
+            results.channelAnalyticsSummary = {
+              days: data.rows.length,
+              views: totalViews,
+              watchHours: Math.round(totalWatchHours * 10) / 10,
+              subsGained: totalSubs,
+            };
+            console.log(`[Daily Sync] Channel-level analytics: ${data.rows.length} days, ${totalViews} views, ${totalSubs} subs for ${connection.youtube_channel_title}`);
+          }
+        } else {
+          const errBody = await resp.json().catch(() => ({}));
+          console.log(`[Daily Sync] Channel-level analytics also failed for ${connection.youtube_channel_title}: ${errBody.error?.message || resp.status}`);
+        }
+      } catch (e) {
+        console.warn(`[Daily Sync] Channel analytics fallback failed: ${e.message}`);
+      }
+    }
 
     // Fetch reporting data from BOTH report types:
     // - Reach report (reporting_job_id): impressions, CTR
@@ -1511,13 +1562,19 @@ export default async function handler(req, res) {
 
     console.log(`[Daily Sync] Syncing ${connections.length} connection(s)`);
 
-    // Sync each connection
+    // Sync each connection — with time guard to avoid Vercel timeout.
+    // Process as many channels as possible within the time limit.
+    const MAX_DURATION_MS = 270_000; // 270s of 300s max — leave 30s buffer
     const results = [];
     for (const connection of connections) {
+      if (Date.now() - startTime > MAX_DURATION_MS) {
+        console.log(`[Daily Sync] Time limit reached after ${results.length}/${connections.length} channels`);
+        break;
+      }
       console.log(`[Daily Sync] Syncing ${connection.youtube_channel_title}...`);
       const result = await syncConnection(connection);
       results.push(result);
-      console.log(`[Daily Sync] ${connection.youtube_channel_title}: ${result.videosUpdated} videos, ${result.snapshotsCreated} snapshots`);
+      console.log(`[Daily Sync] ${connection.youtube_channel_title}: ${result.videosUpdated} videos, ${result.snapshotsCreated} snapshots, sources: ${JSON.stringify(result.dataSources)}`);
     }
 
     const duration = Date.now() - startTime;
