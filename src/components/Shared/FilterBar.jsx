@@ -113,12 +113,37 @@ export default function FilterBar({
                   <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "600", textTransform: "uppercase" }}>
                     Date:
                   </div>
-                  <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} style={{ border: "1px solid #333", background: "#252525", borderRadius: "8px", padding: "8px 12px", color: "#E0E0E0", fontSize: "13px", cursor: "pointer", flex: isMobile ? 1 : "none" }}>
+                  <select value={dateRange} onChange={(e) => {
+                    const val = e.target.value;
+                    if (val.startsWith('month_')) {
+                      const [, y, m] = val.split('_');
+                      const year = parseInt(y), month = parseInt(m);
+                      const start = `${year}-${String(month).padStart(2, '0')}-01`;
+                      const lastDay = new Date(year, month, 0).getDate();
+                      const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+                      setDateRange('custom');
+                      setCustomDateRange({ start, end });
+                    } else {
+                      setDateRange(val);
+                    }
+                  }} style={{ border: "1px solid #333", background: "#252525", borderRadius: "8px", padding: "8px 12px", color: "#E0E0E0", fontSize: "13px", cursor: "pointer", flex: isMobile ? 1 : "none" }}>
                     <option value="all">All Time (Lifetime Stats)</option>
                     <option value="ytd">YTD</option>
                     <option value="90d">Last 90 Days</option>
                     <option value="28d">Last 28 Days</option>
                     <option value="7d">Last 7 Days</option>
+                    <optgroup label="Monthly">
+                      {(() => {
+                        const months = [];
+                        const now = new Date();
+                        for (let i = 0; i < 6; i++) {
+                          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                          const label = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+                          months.push(<option key={i} value={`month_${d.getFullYear()}_${d.getMonth() + 1}`}>{label}</option>);
+                        }
+                        return months;
+                      })()}
+                    </optgroup>
                     <option value="custom">Custom Range</option>
                   </select>
                 </div>

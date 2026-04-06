@@ -404,7 +404,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
 
           <!-- Summary Stats -->
           <div data-pdf-section style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 24px 28px; border-radius: 12px; margin-bottom: 28px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; text-align: center;">
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; text-align: center;">
               <div>
                 <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">VIDEOS PUBLISHED</div>
                 <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${periodPublished.length}</div>
@@ -413,6 +413,10 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
                 <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">AVG VIEWS/VIDEO</div>
                 <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${filtered.length > 0 ? Math.round(kpis.views / filtered.length).toLocaleString() : '0'}</div>
                 ${kpis.avgViewsPerVideoChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.avgViewsPerVideoChange >= 0 ? '#86efac' : '#fca5a5'}; margin-top: 8px; font-weight: 600; line-height: 1.4;">${kpis.avgViewsPerVideoChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.avgViewsPerVideoChange).toFixed(1)}%</div>` : ''}
+              </div>
+              <div>
+                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">IMPRESSIONS</div>
+                <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${(kpis.impressions || 0).toLocaleString()}</div>
               </div>
               <div>
                 <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">AVG CTR</div>
