@@ -317,8 +317,8 @@ export default function TopVideos({ rows, n = 10 }) {
           const isShort = video.type === "short";
           const viewPct = Math.max(2, ((video.views || 0) / maxViews) * 100);
 
-          const retColor = (video.avgViewPct || 0) > 1.0 && isShort ? "#FFD700" : (video.avgViewPct || 0) > 0.6 ? "#00C853" : "#E0E0E0";
-          const ctrColor = (video.ctr || 0) > 0.055 ? "#00C853" : "#E0E0E0";
+          const retColor = !video.avgViewPct ? "#555" : video.avgViewPct > 1.0 && isShort ? "#FFD700" : video.avgViewPct > 0.6 ? "#00C853" : "#E0E0E0";
+          const ctrColor = !video.ctr ? "#555" : video.ctr > 0.055 ? "#00C853" : "#E0E0E0";
 
           return (
             <div key={idx} className="comparison-row" style={{
@@ -480,19 +480,23 @@ export default function TopVideos({ rows, n = 10 }) {
 
                 <div style={s.metricCol("auto")}>
                   <div style={s.metricLabel}><Percent size={12} /> Ret</div>
-                  <div style={s.metricValue(retColor)}>
-                    {fmtPct(video.avgViewPct || 0, 0)}
+                  <div style={s.metricValue(video.avgViewPct ? retColor : "#555")}>
+                    {video.avgViewPct ? fmtPct(video.avgViewPct, 0) : "—"}
                   </div>
                 </div>
 
                 <div style={s.metricCol("auto")}>
                   <div style={s.metricLabel}><MousePointerClick size={12} /> CTR</div>
-                  <div style={s.metricValue(ctrColor)}>{fmtPct(video.ctr || 0, 1)}</div>
+                  <div style={s.metricValue(video.ctr ? ctrColor : "#555")}>
+                    {video.ctr ? fmtPct(video.ctr, 1) : "—"}
+                  </div>
                 </div>
 
                 <div style={s.metricCol("auto")}>
                   <div style={s.metricLabel}><UserPlus size={12} /> Subs</div>
-                  <div style={s.metricValue()}>{fmtInt(video.subscribers || 0)}</div>
+                  <div style={s.metricValue(video.subscribers ? undefined : "#555")}>
+                    {video.subscribers ? fmtInt(video.subscribers) : "—"}
+                  </div>
                 </div>
               </div>
 
