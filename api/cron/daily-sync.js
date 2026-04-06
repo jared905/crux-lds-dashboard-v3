@@ -810,6 +810,49 @@ async function syncConnection(connection) {
       results.historicalBackfill = backfillCount;
     }
 
+    // Auto-create Reporting API job if missing (enables impressions/CTR data)
+    if (!connection.reporting_job_id) {
+      try {
+        const reportTypesRes = await fetch(
+          'https://youtubereporting.googleapis.com/v1/reportTypes',
+          { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } }
+        );
+        if (reportTypesRes.ok) {
+          const reportTypes = await reportTypesRes.json();
+          const reachType = reportTypes.reportTypes?.find(rt =>
+            rt.id === 'channel_reach_basic_a1' || rt.id === 'channel_reach_combined_a1' || rt.id.includes('channel_reach_')
+          );
+          if (reachType) {
+            const jobsRes = await fetch('https://youtubereporting.googleapis.com/v1/jobs',
+              { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } });
+            const jobsData = jobsRes.ok ? await jobsRes.json() : {};
+            const existingJob = jobsData.jobs?.find(j => j.reportTypeId?.includes('channel_reach_'));
+            if (existingJob) {
+              await supabase.from('youtube_oauth_connections').update({
+                reporting_job_id: existingJob.id, reporting_job_type: existingJob.reportTypeId, updated_at: new Date().toISOString(),
+              }).eq('id', connection.id);
+              console.log(`[Daily Sync] Linked existing reporting job for ${connection.youtube_channel_title}`);
+            } else {
+              const createRes = await fetch('https://youtubereporting.googleapis.com/v1/jobs', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ reportTypeId: reachType.id, name: `Dashboard Reach Report - ${connection.youtube_channel_title}` }),
+              });
+              if (createRes.ok) {
+                const newJob = await createRes.json();
+                await supabase.from('youtube_oauth_connections').update({
+                  reporting_job_id: newJob.id, reporting_job_type: newJob.reportTypeId, updated_at: new Date().toISOString(),
+                }).eq('id', connection.id);
+                console.log(`[Daily Sync] Created reporting job for ${connection.youtube_channel_title}`);
+              }
+            }
+          }
+        }
+      } catch (reportErr) {
+        console.warn(`[Daily Sync] Reporting job setup failed for ${connection.youtube_channel_title}:`, reportErr.message);
+      }
+    }
+
     // Update connection last sync time
     await supabase
       .from('youtube_oauth_connections')
@@ -1109,7 +1152,7 @@ async function handleBackfill(req, res) {
               const dbVideo = videoMap[ytVideoId];
               if (!dbVideo) continue;
 
-              const hasData = metrics.views || metrics.impressions || metrics.watchHours || metrics.likes;
+              const hasData = metrics.views || metrics.impressions || metrics.watchHours || metrics.likes || metrics.subscribersGained;
               if (!hasData) continue;
 
               const key = `${dbVideo.id}|${date}`;
@@ -1121,8 +1164,8 @@ async function handleBackfill(req, res) {
                 impressions: metrics.impressions || null,
                 ctr: metrics.ctr || null,
                 avg_view_percentage: metrics.avgViewPercentage || null,
-                subscribers_gained: metrics.subscribersGained || null,
-                subscribers_lost: metrics.subscribersLost || null,
+                subscribers_gained: metrics.subscribersGained ?? null,
+                subscribers_lost: metrics.subscribersLost ?? null,
                 likes: metrics.likes || null,
                 comments: metrics.comments || null,
                 shares: metrics.shares || null,
@@ -1185,8 +1228,8 @@ async function handleBackfill(req, res) {
                         snapshot_date: date,
                         view_count: metrics.views || null,
                         watch_hours: metrics.watchHours || null,
-                        subscribers_gained: metrics.subscribersGained || null,
-                        subscribers_lost: metrics.subscribersLost || null,
+                        subscribers_gained: metrics.subscribersGained ?? null,
+                        subscribers_lost: metrics.subscribersLost ?? null,
                         likes: metrics.likes || null,
                         comments: metrics.comments || null,
                         shares: metrics.shares || null,

@@ -120,11 +120,18 @@ function computeQuarterMetrics(videos, snapshots, channelCount = 1) {
   const videoWatchHours = videos.reduce((s, v) => s + (v.watch_hours || 0), 0);
   const totalWatchHours = snapshotWatchHours > 0 ? snapshotWatchHours : videoWatchHours;
 
-  const totalImpressions = snapshots.reduce((s, snap) => s + (snap.impressions || 0), 0);
+  // Impressions from snapshots, with videos table fallback when snapshots are sparse
+  const snapshotImpressions = snapshots.reduce((s, snap) => s + (snap.impressions || 0), 0);
+  const videoImpressions = videos.reduce((s, v) => s + (v.impressions || 0), 0);
+  const totalImpressions = snapshotImpressions > 0 ? snapshotImpressions : videoImpressions;
 
-  const snapshotSubsGained = snapshots.reduce((s, snap) => s + (snap.subscribers_gained || 0), 0);
+  // Subscribers: prefer snapshot sum (accurate per-day data).
+  // Check if any snapshots have subscriber data at all before falling back,
+  // since net subs can legitimately be zero or negative.
+  const subsSnapshots = snapshots.filter(s => s.subscribers_gained != null);
+  const snapshotSubsGained = subsSnapshots.reduce((s, snap) => s + (snap.subscribers_gained || 0), 0);
   const videoSubsGained = videos.reduce((s, v) => s + (v.subscribers_gained || 0), 0);
-  const totalSubsGained = snapshotSubsGained > 0 ? snapshotSubsGained : videoSubsGained;
+  const totalSubsGained = subsSnapshots.length > 0 ? snapshotSubsGained : videoSubsGained;
 
   // Build video ID sets for format-split retention
   const shortVideoIds = new Set(shorts.map(v => v.id));
@@ -140,9 +147,21 @@ function computeQuarterMetrics(videos, snapshots, channelCount = 1) {
   const shortsAvgRetention = shortsRetentionVals.length > 0 ? shortsRetentionVals.reduce((s, v) => s + v, 0) / shortsRetentionVals.length : 0;
   const longsAvgRetention = longsRetentionVals.length > 0 ? longsRetentionVals.reduce((s, v) => s + v, 0) / longsRetentionVals.length : 0;
 
-  // Average CTR from snapshots
-  const ctrVals = snapshots.filter(s => s.ctr > 0).map(s => s.ctr);
-  const avgCTR = ctrVals.length > 0 ? ctrVals.reduce((s, v) => s + v, 0) / ctrVals.length : 0;
+  // Impression-weighted CTR from snapshots (simple average overweights low-impression days)
+  // Falls back to impression-weighted average from videos table if snapshots lack CTR
+  const ctrRows = snapshots.filter(s => s.ctr > 0 && s.impressions > 0);
+  const ctrImpressionTotal = ctrRows.reduce((s, r) => s + r.impressions, 0);
+  let avgCTR = 0;
+  if (ctrImpressionTotal > 0) {
+    avgCTR = ctrRows.reduce((s, r) => s + r.ctr * r.impressions, 0) / ctrImpressionTotal;
+  } else {
+    // Fallback: impression-weighted CTR from videos table
+    const videoCtrRows = videos.filter(v => v.ctr > 0 && v.impressions > 0);
+    const videoImpTotal = videoCtrRows.reduce((s, v) => s + v.impressions, 0);
+    avgCTR = videoImpTotal > 0
+      ? videoCtrRows.reduce((s, v) => s + v.ctr * v.impressions, 0) / videoImpTotal
+      : 0;
+  }
 
   // Upload frequency (videos per week)
   const uploadFrequency = totalVideos / 13; // 13 weeks in a quarter

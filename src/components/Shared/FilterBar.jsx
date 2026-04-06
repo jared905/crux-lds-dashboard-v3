@@ -186,30 +186,33 @@ export default function FilterBar({
                   </div>
                 )}
 
-                {/* Snapshot data coverage indicator */}
-                {hasSnapshotData && !isMobile && (
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "5px",
-                    padding: "5px 10px",
-                    background: "#3b82f610",
-                    border: "1px solid #3b82f630",
-                    borderRadius: "6px",
-                    fontSize: "11px",
-                    color: "#60a5fa",
-                    fontWeight: "500"
-                  }}>
-                    <Activity size={11} />
-                    {snapshotDays} {snapshotDays === 1 ? 'day' : 'days'} of synced data
-                  </div>
+                {/* Data source indicator */}
+                {dateRange !== "all" && !snapshotLoading && !isMobile && (
+                  hasSnapshotData ? (
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: "5px",
+                      padding: "5px 10px", background: "#3b82f610",
+                      border: "1px solid #3b82f630", borderRadius: "6px",
+                      fontSize: "11px", color: "#60a5fa", fontWeight: "500",
+                    }}>
+                      <Activity size={11} />
+                      {snapshotDays} {snapshotDays === 1 ? 'day' : 'days'} of synced data
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: "5px",
+                      padding: "5px 10px", background: "#f59e0b10",
+                      border: "1px solid #f59e0b30", borderRadius: "6px",
+                      fontSize: "11px", color: "#f59e0b", fontWeight: "500",
+                      cursor: "help",
+                    }} title="No daily snapshots for this date range. Showing lifetime totals on videos published in the period.">
+                      <Activity size={11} />
+                      Lifetime data (no period snapshots)
+                    </div>
+                  )
                 )}
                 {snapshotLoading && dateRange !== "all" && (
-                  <div style={{
-                    fontSize: "11px",
-                    color: "#9E9E9E",
-                    fontStyle: "italic"
-                  }}>
+                  <div style={{ fontSize: "11px", color: "#9E9E9E", fontStyle: "italic" }}>
                     Loading performance data...
                   </div>
                 )}

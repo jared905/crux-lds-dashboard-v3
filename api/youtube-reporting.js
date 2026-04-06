@@ -411,8 +411,8 @@ async function handleBackfill(connection, accessToken, res) {
         view_count: data.views > 0 ? data.views : null,
         watch_hours: data.watchTimeMinutes > 0 ? data.watchTimeMinutes / 60 : null,
         avg_view_duration_seconds: data.avgDurationCount > 0 ? data.avgDurationSum / data.avgDurationCount : null,
-        subscribers_gained: data.subscribersGained > 0 ? data.subscribersGained : null,
-        subscribers_lost: data.subscribersLost > 0 ? data.subscribersLost : null,
+        subscribers_gained: data.subscribersGained !== 0 ? (data.subscribersGained ?? null) : null,
+        subscribers_lost: data.subscribersLost !== 0 ? (data.subscribersLost ?? null) : null,
         likes: data.likes > 0 ? data.likes : null,
         comments: data.comments > 0 ? data.comments : null,
         shares: data.shares > 0 ? data.shares : null
