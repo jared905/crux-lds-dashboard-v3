@@ -115,7 +115,7 @@ async function handleInit(user, req, res) {
 
   await logAuditEvent(user.id, 'oauth_initiated', {
     ip_address: ipAddress, user_agent: userAgent,
-    metadata: { scopes: ['youtube.readonly', 'yt-analytics.readonly', 'yt-analytics-monetary.readonly', 'userinfo.email'], pkce_method: 'S256' }
+    metadata: { scopes: ['youtube.readonly', 'yt-analytics-monetary.readonly', 'userinfo.email'], pkce_method: 'S256' }
   });
 
   const baseUrl = process.env.FRONTEND_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
@@ -123,7 +123,7 @@ async function handleInit(user, req, res) {
     client_id: process.env.GOOGLE_CLIENT_ID,
     redirect_uri: `${baseUrl}/api/youtube-oauth-callback`,
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly https://www.googleapis.com/auth/yt-analytics-monetary.readonly https://www.googleapis.com/auth/userinfo.email',
+    scope: 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics-monetary.readonly https://www.googleapis.com/auth/userinfo.email',
     access_type: 'offline',
     prompt: 'consent',
     include_granted_scopes: 'true',
