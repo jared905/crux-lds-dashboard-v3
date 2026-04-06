@@ -131,23 +131,37 @@ class ClaudeAPIService {
     return Math.ceil(text.length / 4);
   }
 
-  // Post-process AI output: replace dash bullets with bullet dots, remove dash separators
+  // Post-process AI output: strip remaining AI artifacts
   // Skips JSON responses to avoid breaking structured data
-  _sanitizeDashes(text) {
+  _sanitizeOutput(text) {
     if (!text) return text;
     const trimmed = text.trim();
-    // Skip JSON responses — they'll be parsed by consumers
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) return text;
     return text
-      // Replace "- " at the start of a line (bullet points) with "• "
+      // Replace "- " bullet points with "• "
       .replace(/^- /gm, '• ')
-      // Replace "--- " or "-- " horizontal rules / separators with blank line
-      .replace(/^-{2,}\s*$/gm, '');
+      // Replace em-dashes used as bullets ("— ") at line start
+      .replace(/^— /gm, '• ')
+      // Replace "--- " or "-- " horizontal rules with blank line
+      .replace(/^-{2,}\s*$/gm, '')
+      // Strip "In conclusion," / "In summary," / "Overall," openers
+      .replace(/^(In conclusion,?|In summary,?|Overall,?)\s*/gim, '')
+      // Strip "It's worth noting that" / "It's important to note"
+      .replace(/It(?:'s| is) (?:worth noting|important to (?:note|understand)) that /gi, '')
+      // Strip "As mentioned earlier" / "As discussed above"
+      .replace(/As (?:mentioned|discussed|noted) (?:earlier|above|previously),?\s*/gi, '');
   }
 
-  // Global formatting rules appended to every system prompt
+  // Global rules appended to every system prompt
   _applyGlobalRules(systemPrompt) {
-    const rules = '\n\nFORMATTING RULE: Never use dashes or hyphens (-) as bullet points, list markers, or separators in your response. Use numbered lists, letters, or plain sentences instead.';
+    const rules = `
+
+MANDATORY OUTPUT RULES (apply to ALL responses):
+1. NEVER use dashes or hyphens (-) as bullet points, list markers, or separators. Use numbered lists (1. 2. 3.) or plain paragraphs.
+2. NEVER use em-dashes (—) to introduce list items.
+3. NEVER begin a sentence with: "It's worth noting", "It's important to", "In conclusion", "In summary", "Overall", "As mentioned earlier", "Leveraging", "Diving deeper".
+4. NEVER use the phrase "dive into", "deep dive", "leverage", "utilize", "harness the power of", or "in today's landscape".
+5. Write like a human strategist briefing a colleague, not like a report generator.`;
     if (systemPrompt && systemPrompt.trim()) {
       return systemPrompt + rules;
     }
@@ -203,7 +217,7 @@ class ClaudeAPIService {
       this.updateUsageStats(inputTokens, outputTokens, feature);
 
       return {
-        text: this._sanitizeDashes(data.content[0].text),
+        text: this._sanitizeOutput(data.content[0].text),
         usage: data.usage,
         cost: this.calculateCost(inputTokens, outputTokens)
       };
@@ -295,7 +309,7 @@ class ClaudeAPIService {
       this.updateUsageStats(inputTokens, outputTokens, feature);
 
       return {
-        text: this._sanitizeDashes(fullText),
+        text: this._sanitizeOutput(fullText),
         usage: { input_tokens: inputTokens, output_tokens: outputTokens },
         cost: this.calculateCost(inputTokens, outputTokens)
       };
