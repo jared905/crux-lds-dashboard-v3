@@ -1237,6 +1237,18 @@ export async function generateStrategy(text, title = 'Untitled', channelId = nul
   }
   const manualBlock = buildManualContext(contextInputs);
   const beatBlock = formatBeatContext(beatAnalysis);
+
+  // Anti-library: past topics/hooks to avoid repeating
+  let antiLibBlock = '';
+  if (channelId) {
+    try {
+      const antiLib = await getAntiLibrary(channelId);
+      antiLibBlock = formatAntiLibrary(antiLib);
+    } catch (e) {
+      console.warn('[atomizer] Anti-library fetch failed:', e.message);
+    }
+  }
+
   const threadNote = beatAnalysis?.threads?.length
     ? '\n\nThread-based beat analysis is provided — reference thread principles in arc summaries and use hook analysis to inform hooks.'
     : beatAnalysis?.beats?.length
@@ -1250,6 +1262,7 @@ export async function generateStrategy(text, title = 'Untitled', channelId = nul
   if (brandBlock) longFormSystemPrompt += '\n\n' + brandBlock;
   if (manualBlock) longFormSystemPrompt += '\n\n' + manualBlock;
   if (beatBlock) longFormSystemPrompt += '\n\n' + beatBlock;
+  if (antiLibBlock) longFormSystemPrompt += '\n\n' + antiLibBlock;
 
   const longFormPrompt = `Analyze this transcript and propose LONG-FORM direction options. Focus on titles, hooks, descriptions, thumbnails, and virality analysis. Do NOT include EDL, B-roll, motion graphics, or edited transcript.${threadNote}${transcriptBlock}`;
 
@@ -1258,6 +1271,7 @@ export async function generateStrategy(text, title = 'Untitled', channelId = nul
   if (brandBlock) shortFormSystemPrompt += '\n\n' + brandBlock;
   if (manualBlock) shortFormSystemPrompt += '\n\n' + manualBlock;
   if (beatBlock) shortFormSystemPrompt += '\n\n' + beatBlock;
+  if (antiLibBlock) shortFormSystemPrompt += '\n\n' + antiLibBlock;
 
   const shortFormPrompt = `Extract the highest-potential YouTube Shorts from this transcript. Focus on scroll-stopping moments, emotional peaks, and standalone clips that need zero context.${threadNote}${transcriptBlock}`;
 
@@ -2196,6 +2210,44 @@ export async function updateChannelContentType(channelId, contentType) {
   if (error) throw error;
 }
 
+// ============================================
+// ANTI-LIBRARY — past topics/hooks to avoid repeating
+// ============================================
+
+export async function getAntiLibrary(channelId, limit = 50) {
+  if (!supabase || !channelId) return { topics: [], hooks: [], count: 0 };
+
+  const { data, error } = await supabase
+    .from('atomized_content')
+    .select('title, hook, arc_summary, content_type, status')
+    .eq('channel_id', channelId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error || !data?.length) return { topics: [], hooks: [], count: 0 };
+
+  const topics = [...new Set(data.map(d => d.title).filter(Boolean))];
+  const hooks = [...new Set(data.map(d => d.hook).filter(Boolean))].slice(0, 20);
+  const approved = data.filter(d => d.status === 'approved' || d.status === 'brief_created').length;
+
+  return { topics, hooks, count: data.length, approvedCount: approved };
+}
+
+export function formatAntiLibrary(antiLib) {
+  if (!antiLib || (!antiLib.topics.length && !antiLib.hooks.length)) return '';
+  const parts = ['<anti_library>'];
+  if (antiLib.topics.length > 0) {
+    parts.push('Topics already atomized for this channel (FIND FRESH ANGLES — avoid repeating these):');
+    antiLib.topics.slice(0, 15).forEach(t => parts.push(`- "${t}"`));
+  }
+  if (antiLib.hooks.length > 0) {
+    parts.push('\nHooks already used (AVOID SIMILAR HOOKS — find new entry points):');
+    antiLib.hooks.slice(0, 10).forEach(h => parts.push(`- "${h}"`));
+  }
+  parts.push('</anti_library>');
+  return parts.join('\n');
+}
+
 export default {
   generateStrategy,
   analyzeTranscript,
@@ -2222,4 +2274,6 @@ export default {
   getAtomizedContent,
   getChannelContentType,
   updateChannelContentType,
+  getAntiLibrary,
+  formatAntiLibrary,
 };

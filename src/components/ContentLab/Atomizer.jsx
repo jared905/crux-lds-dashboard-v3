@@ -13,6 +13,7 @@ import {
   deployDirection, updateAtomizedContentWithProduction,
   generateRecut, updateAtomizedContentWithRecut,
   getChannelContentType, updateChannelContentType,
+  getAntiLibrary,
 } from "../../services/atomizerService";
 import { getChannels } from "../../services/competitorDatabase";
 import AtomizerHistory from "./AtomizerHistory";
@@ -53,6 +54,7 @@ export default function Atomizer({ activeClient }) {
   const [detectedContentType, setDetectedContentType] = useState(null);
   const [detectedConfidence, setDetectedConfidence] = useState(null);
   const [showContentTypeBanner, setShowContentTypeBanner] = useState(false);
+  const [antiLibrary, setAntiLibrary] = useState(null);
 
   // Expansion
   const [expandedCards, setExpandedCards] = useState(new Set());
@@ -149,12 +151,15 @@ export default function Atomizer({ activeClient }) {
       .catch(err => console.warn('[atomizer] Failed to fetch channels:', err.message));
   }, [activeClient?.id]);
 
-  // Fetch saved content type when channel changes
+  // Fetch saved content type + anti-library when channel changes
   useEffect(() => {
-    if (!selectedChannelId) { setChannelContentType(null); return; }
+    if (!selectedChannelId) { setChannelContentType(null); setAntiLibrary(null); return; }
     getChannelContentType(selectedChannelId)
       .then(type => setChannelContentType(type))
       .catch(() => setChannelContentType(null));
+    getAntiLibrary(selectedChannelId)
+      .then(lib => setAntiLibrary(lib))
+      .catch(() => setAntiLibrary(null));
   }, [selectedChannelId]);
 
   // Cost estimates — Stages 0a (8192) + 0b (8192) + 1 (16384 output tokens)
@@ -739,6 +744,22 @@ export default function Atomizer({ activeClient }) {
                   />
                 </div>
               ))}
+              {/* Anti-Library summary */}
+              {antiLibrary && antiLibrary.count > 0 && (
+                <div style={{ gridColumn: "1 / -1", background: "#1a1a2e", border: "1px solid #2a2a4a", borderRadius: "6px", padding: "10px 12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                    <GitBranch size={12} color="#a78bfa" />
+                    <span style={{ fontSize: "11px", fontWeight: "600", color: "#a78bfa" }}>Anti-Library</span>
+                    <span style={{ fontSize: "9px", fontWeight: "600", color: "#8b5cf6", background: "#8b5cf618", borderRadius: "6px", padding: "1px 6px" }}>
+                      {antiLibrary.count} past directions
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#888", lineHeight: "1.5" }}>
+                    The AI will avoid repeating {antiLibrary.topics.length} past topics and {antiLibrary.hooks.length} past hooks for this channel.
+                    {antiLibrary.approvedCount > 0 && ` (${antiLibrary.approvedCount} approved/briefed)`}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
