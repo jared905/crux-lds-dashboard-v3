@@ -95,6 +95,48 @@ async function fetchSnapshotsForPeriod(channelId, startDate, endDate) {
 }
 
 /**
+ * Fetch channel-level subscriber delta for a period from channel_snapshots.
+ * This is the most reliable subscriber source — it comes directly from the
+ * YouTube Data API's channel statistics, tracked daily.
+ */
+async function fetchChannelSubsDelta(channelIds, startDate, endDate) {
+  if (!supabase) return null;
+  let totalDelta = 0;
+  let hasData = false;
+
+  for (const channelId of channelIds) {
+    // Get earliest and latest snapshot in the period
+    const [{ data: earliest }, { data: latest }] = await Promise.all([
+      supabase
+        .from('channel_snapshots')
+        .select('subscriber_count')
+        .eq('channel_id', channelId)
+        .gte('snapshot_date', startDate)
+        .lte('snapshot_date', endDate)
+        .order('snapshot_date', { ascending: true })
+        .limit(1)
+        .single(),
+      supabase
+        .from('channel_snapshots')
+        .select('subscriber_count')
+        .eq('channel_id', channelId)
+        .gte('snapshot_date', startDate)
+        .lte('snapshot_date', endDate)
+        .order('snapshot_date', { ascending: false })
+        .limit(1)
+        .single(),
+    ]);
+
+    if (earliest?.subscriber_count != null && latest?.subscriber_count != null) {
+      totalDelta += latest.subscriber_count - earliest.subscriber_count;
+      hasData = true;
+    }
+  }
+
+  return hasData ? totalDelta : null;
+}
+
+/**
  * Compute quarter metrics from video data
  */
 function computeQuarterMetrics(videos, snapshots, channelCount = 1) {
@@ -281,6 +323,26 @@ export async function generateQuarterlyReport(channelId, year, quarter, explicit
 
   const currentMetrics = computeQuarterMetrics(currentVideos, currentSnapshots, allChannelIds.length);
   const previousMetrics = computeQuarterMetrics(previousVideos, previousSnapshots, allChannelIds.length);
+
+  // Channel-level subscriber delta fallback: if per-video snapshot/video table subs
+  // are both empty, use the channel_snapshots table (Data API subscriber_count deltas).
+  // This is the most reliable source — it works for ALL channels regardless of
+  // whether the Analytics or Reporting APIs support subscriber metrics.
+  if (currentMetrics.totalSubsGained === 0) {
+    const channelSubsDelta = await fetchChannelSubsDelta(allChannelIds, current.start, current.end);
+    if (channelSubsDelta != null) {
+      currentMetrics.totalSubsGained = channelSubsDelta;
+      currentMetrics._subsSource = 'channel_snapshots';
+    }
+  }
+  if (previousMetrics.totalSubsGained === 0) {
+    const prevSubsDelta = await fetchChannelSubsDelta(allChannelIds, previous.start, previous.end);
+    if (prevSubsDelta != null) {
+      previousMetrics.totalSubsGained = prevSubsDelta;
+      previousMetrics._subsSource = 'channel_snapshots';
+    }
+  }
+
   const deltas = computeDeltas(currentMetrics, previousMetrics);
 
   // Get channel info
@@ -298,6 +360,8 @@ export async function generateQuarterlyReport(channelId, year, quarter, explicit
     deltas,
     hasSnapshotData: currentSnapshots.length > 0,
     hasPreviousData: previousVideos.length > 0,
+    hasImpressions: currentMetrics.totalImpressions > 0,
+    subsSource: currentMetrics._subsSource || (currentSnapshots.some(s => s.subscribers_gained != null) ? 'video_snapshots' : 'videos_table'),
     generatedAt: new Date().toISOString(),
   };
 }

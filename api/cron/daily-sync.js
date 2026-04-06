@@ -490,6 +490,13 @@ async function syncConnection(connection) {
     channelTitle: connection.youtube_channel_title,
     videosUpdated: 0,
     snapshotsCreated: 0,
+    dataSources: {
+      analyticsAPI: false,     // per-video views, watch hours, retention, subs
+      reachReporting: false,   // impressions, CTR
+      basicReporting: false,   // views, subs, watch from Reporting API
+      dataAPI: false,          // cumulative video stats
+      channelSnapshot: false,  // channel-level subscriber tracking
+    },
     errors: []
   };
 
@@ -516,6 +523,7 @@ async function syncConnection(connection) {
       const discovered = await discoverVideos(accessToken, channelId, dbChannel.id, dbChannel.name);
       console.log(`[Daily Sync] Discovered/updated ${discovered} videos for ${connection.youtube_channel_title}`);
       results.videosDiscovered = discovered;
+      results.dataSources.dataAPI = true;
     } catch (e) {
       results.errors.push(`Video discovery: ${e.message}`);
     }
@@ -578,6 +586,7 @@ async function syncConnection(connection) {
       if (vid._dayCount > 0) vid.avgViewPercentage = vid.avgViewPercentage / vid._dayCount;
       delete vid._dayCount;
     }
+    if (Object.keys(analyticsData).length > 0) results.dataSources.analyticsAPI = true;
     console.log(`[Daily Sync] Analytics: ${syncDates.length} days fetched, ${Object.keys(analyticsData).length} videos`);
 
 
@@ -590,6 +599,7 @@ async function syncConnection(connection) {
     if (connection.reporting_job_id) {
       try {
         reportingData = await fetchReportingData(accessToken, connection.reporting_job_id);
+        if (reportingData) results.dataSources.reachReporting = true;
       } catch (e) {
         results.errors.push(`Reach reporting: ${e.message}`);
       }
@@ -598,6 +608,7 @@ async function syncConnection(connection) {
     if (connection.basic_reporting_job_id) {
       try {
         basicReportingData = await fetchReportingData(accessToken, connection.basic_reporting_job_id);
+        if (basicReportingData) results.dataSources.basicReporting = true;
       } catch (e) {
         results.errors.push(`Basic reporting: ${e.message}`);
       }
@@ -853,6 +864,63 @@ async function syncConnection(connection) {
       }
     }
 
+    // Create channel_snapshot for subscriber/view tracking (same as competitor sync).
+    // This is critical for quarterly reports: channel-level subscriber deltas are
+    // the most reliable source when per-video Analytics API subs are unavailable.
+    try {
+      const channelStatsRes = await fetch(
+        `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelId}`,
+        { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
+      );
+      if (channelStatsRes.ok) {
+        const channelStats = await channelStatsRes.json();
+        const stats = channelStats.items?.[0]?.statistics;
+        if (stats) {
+          const subCount = parseInt(stats.subscriberCount) || 0;
+          const viewCount = parseInt(stats.viewCount) || 0;
+          const vidCount = parseInt(stats.videoCount) || 0;
+
+          // Get previous snapshot for delta calculation
+          const { data: prevSnap } = await supabase
+            .from('channel_snapshots')
+            .select('subscriber_count, total_view_count, video_count')
+            .eq('channel_id', dbChannel.id)
+            .order('snapshot_date', { ascending: false })
+            .limit(1)
+            .single();
+
+          await supabase
+            .from('channel_snapshots')
+            .upsert({
+              channel_id: dbChannel.id,
+              snapshot_date: yesterday,
+              subscriber_count: subCount,
+              total_view_count: viewCount,
+              video_count: vidCount,
+              subscriber_change: prevSnap ? subCount - prevSnap.subscriber_count : null,
+              view_change: prevSnap ? viewCount - prevSnap.total_view_count : null,
+              video_change: prevSnap ? vidCount - prevSnap.video_count : null,
+            }, { onConflict: 'channel_id,snapshot_date' });
+
+          // Also update the channels table with current stats
+          await supabase
+            .from('channels')
+            .update({
+              subscriber_count: subCount,
+              total_view_count: viewCount,
+              video_count: vidCount,
+              last_synced_at: new Date().toISOString(),
+            })
+            .eq('id', dbChannel.id);
+
+          results.channelSnapshot = { subscribers: subCount, views: viewCount };
+          results.dataSources.channelSnapshot = true;
+        }
+      }
+    } catch (snapErr) {
+      results.errors.push(`Channel snapshot: ${snapErr.message}`);
+    }
+
     // Update connection last sync time
     await supabase
       .from('youtube_oauth_connections')
@@ -1047,7 +1115,7 @@ async function handleBackfill(req, res) {
       // Download ALL available Reporting API reports (up to 180 days)
       console.log(`[Backfill] ${connection.youtube_channel_title}: fetching all Reporting API reports...`);
 
-      const reportsResponse = await fetch(
+      let reportsResponse = await fetch(
         `https://youtubereporting.googleapis.com/v1/jobs/${connection.reporting_job_id}/reports`,
         { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } }
       );
