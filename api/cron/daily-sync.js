@@ -151,14 +151,13 @@ async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
       const errorBody = await response.json().catch(() => ({}));
       const errorMsg = errorBody.error?.message || '';
       const status = response.status;
+      console.log(`[Analytics API] ${ids} metrics=${metricSet.metrics} → ${status}: ${errorMsg}`);
 
-      // 400 errors = query/metric issue → try next metric set or ids variant
-      // 401/403 errors = auth issue → skip to next ids variant
-      // 500 errors = transient → try next metric set
+      // 401/403 = auth issue → skip to next ids variant
       if (status === 401 || status === 403) {
-        break; // Auth issue with this identity — try next ids
+        break;
       }
-      // For 400/500, try next metric set (continue inner loop)
+      // All other errors (400/500) → try next metric set
       continue;
     }
   }
