@@ -134,7 +134,7 @@ async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
       url.searchParams.append('dimensions', 'video');
       url.searchParams.append('metrics', metricSet.metrics);
       url.searchParams.append('sort', '-views');
-      url.searchParams.append('maxResults', '500');
+      url.searchParams.append('maxResults', '200');
 
       const response = await fetch(url.toString(), { headers });
 
