@@ -1470,9 +1470,9 @@ async function handleSyncAll(req, res) {
       } catch (e) { result.channelIdTest = { error: e.message }; }
 
       // Fetch Analytics API — uses fetchAnalytics which handles Brand Account fallback
-      // YouTube Analytics data has 2-3 day processing delay — never query today
-      const end = new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0];
-      const start = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+      // Use same date range as the working Explorer test
+      const end = '2026-03-31';
+      const start = '2026-03-01';
       let analytics;
       try {
         analytics = await fetchAnalytics(accessToken, channelId, start, end);
