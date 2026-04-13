@@ -116,17 +116,14 @@ async function getAccessToken(connection) {
 async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
   const headers = { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' };
 
-  // Metric sets to try in order — first that succeeds wins
   const metricSets = [
     { metrics: 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained', hasRetention: true, hasSubs: true },
     { metrics: 'views,estimatedMinutesWatched,averageViewPercentage', hasRetention: true, hasSubs: false },
     { metrics: 'views,estimatedMinutesWatched', hasRetention: false, hasSubs: false },
   ];
 
-  // For Brand Accounts, the token may be tied to the brand identity rather than
-  // the personal account. Try both `channel==CHANNEL_ID` and `channel==MINE`.
-  // MINE works when the OAuth token was issued while the Brand Account was selected.
   const idsToTry = [`channel==${channelId}`, 'channel==MINE'];
+  const attempts = []; // Diagnostic log
 
   for (const ids of idsToTry) {
     for (const metricSet of metricSets) {
@@ -145,24 +142,24 @@ async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
         const data = await response.json();
         data._metricSet = metricSet;
         data._idsUsed = ids;
+        data._attempts = attempts;
         return data;
       }
 
       const errorBody = await response.json().catch(() => ({}));
       const errorMsg = errorBody.error?.message || '';
       const status = response.status;
-      console.log(`[Analytics API] ${ids} metrics=${metricSet.metrics} → ${status}: ${errorMsg}`);
+      attempts.push(`${ids} [${metricSet.metrics.split(',').length} metrics] → ${status}`);
 
-      // 401/403 = auth issue → skip to next ids variant
       if (status === 401 || status === 403) {
         break;
       }
-      // All other errors (400/500) → try next metric set
-      continue;
     }
   }
 
-  throw new Error('No supported metric combination found for this channel');
+  const err = new Error('No supported metric combination found for this channel');
+  err.attempts = attempts;
+  throw err;
 }
 
 // Build list of date strings between start and end (inclusive)
@@ -1481,6 +1478,7 @@ async function handleSyncAll(req, res) {
         analytics = await fetchAnalytics(accessToken, channelId, start, end);
       } catch (e) {
         result.errors.push(`Analytics API: ${e.message}`);
+        if (e.attempts) result.attempts = e.attempts;
         allResults.push(result);
         continue;
       }
