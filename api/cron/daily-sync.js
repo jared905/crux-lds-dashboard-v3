@@ -150,14 +150,16 @@ async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
 
       const errorBody = await response.json().catch(() => ({}));
       const errorMsg = errorBody.error?.message || '';
-      if (errorMsg.includes('not supported') || errorMsg.includes('supported queries')) {
-        continue; // Try next metric set
-      }
+      const status = response.status;
 
-      // Non-metric error — try next ids variant before throwing
-      if (ids === idsToTry[0]) break; // Skip to MINE
-      console.error(`[Analytics API] Error for ${channelId} ${startDate}-${endDate}: ${JSON.stringify(errorBody)}`);
-      throw new Error(errorMsg || 'Analytics API failed');
+      // 400 errors = query/metric issue → try next metric set or ids variant
+      // 401/403 errors = auth issue → skip to next ids variant
+      // 500 errors = transient → try next metric set
+      if (status === 401 || status === 403) {
+        break; // Auth issue with this identity — try next ids
+      }
+      // For 400/500, try next metric set (continue inner loop)
+      continue;
     }
   }
 
