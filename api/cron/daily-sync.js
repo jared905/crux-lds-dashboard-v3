@@ -1462,9 +1462,11 @@ async function handleSyncAll(req, res) {
         continue;
       }
 
-      // Row shape depends on metricSet: Full [vid,views,watch,ret,subs], NoSub [vid,views,watch,ret], Basic [vid,views,watch]
       const ms = analytics._metricSet || {};
       result.idsUsed = analytics._idsUsed;
+      result.metricsUsed = ms.metrics;
+      result.hasRetention = ms.hasRetention || false;
+      result.hasSubs = ms.hasSubs || false;
 
       const { data: videos } = await supabase
         .from('videos')
