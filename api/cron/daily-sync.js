@@ -1439,6 +1439,15 @@ async function handleSyncAll(req, res) {
 
       if (!dbChannel) { result.errors.push('No client channel'); allResults.push(result); continue; }
 
+      // Check token scopes for diagnostics
+      try {
+        const tokenInfoResp = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${accessToken}`);
+        if (tokenInfoResp.ok) {
+          const tokenInfo = await tokenInfoResp.json();
+          result.tokenScopes = tokenInfo.scope;
+        }
+      } catch (e) { /* non-critical */ }
+
       // Fetch Analytics API — exact same call the manual sync (youtube-analytics-fetch.js) uses
       const end = new Date().toISOString().split('T')[0];
       const start = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
