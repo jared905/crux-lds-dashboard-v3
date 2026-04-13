@@ -1569,16 +1569,15 @@ async function handleAnalyticsBackfill(req, res) {
       const videoMap = {};
       for (const v of videos) { videoMap[v.youtube_video_id] = v; }
 
-      // Fetch analytics one day at a time for accurate per-day snapshots
-      for (const date of dates) {
-        if (Date.now() - startTime > MAX_DURATION_MS) break;
+      // Fetch analytics for the FULL date range in one call per channel.
+      // This returns aggregated totals per video (not per-day), which is what
+      // quarterly reports need for watch hours, retention, and subs.
+      // We store them as a single snapshot on the endDate.
+      try {
+        const analytics = await fetchAnalytics(accessToken, channelId, startDate, endDate);
+        const ms = analytics._metricSet || {};
 
-        try {
-          const analytics = await fetchAnalytics(accessToken, channelId, date, date);
-          const ms = analytics._metricSet || {};
-
-          if (!analytics.rows?.length) continue;
-
+        if (analytics.rows?.length) {
           const batch = [];
           for (const row of analytics.rows) {
             const ytVideoId = row[0];
@@ -1587,32 +1586,30 @@ async function handleAnalyticsBackfill(req, res) {
 
             batch.push({
               video_id: dbVideo.id,
-              snapshot_date: date,
+              snapshot_date: endDate, // Store aggregated data on the period end date
               view_count: row[1] || null,
               watch_hours: row[2] ? row[2] / 60 : null,
               avg_view_percentage: ms.hasRetention ? (row[3] ? row[3] / 100 : null) : null,
               subscribers_gained: ms.hasSubs ? (row[ms.hasRetention ? 4 : 3] ?? null) : null,
-              // Preserve cumulative counts for delta calculations
               total_view_count: dbVideo.view_count || null,
               total_like_count: dbVideo.like_count || null,
               total_comment_count: dbVideo.comment_count || null,
             });
           }
 
-          if (batch.length > 0) {
+          // Upsert in batches of 100
+          for (let i = 0; i < batch.length; i += 100) {
+            const chunk = batch.slice(i, i + 100);
             const { data: count, error } = await supabase
-              .rpc('upsert_video_snapshots_safe', { snapshots: batch });
-            if (!error) result.snapshotsCreated += (count || batch.length);
+              .rpc('upsert_video_snapshots_safe', { snapshots: chunk });
+            if (!error) result.snapshotsCreated += (count || chunk.length);
+            else result.errors.push(`Upsert: ${error.message}`);
           }
-          result.daysProcessed++;
-        } catch (e) {
-          // Log first error per channel, skip rest of days
-          if (result.errors.length === 0) result.errors.push(`${date}: ${e.message}`);
-          break;
+          result.daysProcessed = 1;
+          result.videosFound = analytics.rows.length;
         }
-
-        // Rate limit
-        await new Promise(r => setTimeout(r, 100));
+      } catch (e) {
+        result.errors.push(e.message);
       }
 
       console.log(`[AnalyticsBackfill] ${connection.youtube_channel_title}: ${result.daysProcessed} days, ${result.snapshotsCreated} snapshots`);
