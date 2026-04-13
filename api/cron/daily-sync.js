@@ -1507,6 +1507,133 @@ async function handleSyncAll(req, res) {
   });
 }
 
+// Analytics API backfill: fetch per-video per-day data for a custom date range.
+// This uses the (now working) Analytics API with dimensions=video to populate
+// watch_hours, avg_view_percentage, and subscribers_gained in video_snapshots.
+// Usage: /api/cron/daily-sync?analyticsBackfill=true&start=2026-01-01&end=2026-03-31&manual=true
+async function handleAnalyticsBackfill(req, res) {
+  const startTime = Date.now();
+  const startDate = req.query.start || '2026-01-01';
+  const endDate = req.query.end || '2026-03-31';
+  const targetChannel = req.query.channel || null;
+  const MAX_DURATION_MS = 270_000;
+
+  const { data: connections } = await supabase
+    .from('youtube_oauth_connections')
+    .select('*')
+    .eq('is_active', true)
+    .order('id');
+
+  if (!connections?.length) {
+    return res.status(200).json({ success: true, message: 'No active connections' });
+  }
+
+  const allResults = [];
+  const dates = getDateRange(startDate, endDate);
+
+  for (const connection of connections) {
+    if (targetChannel && connection.id !== targetChannel) continue;
+    if (Date.now() - startTime > MAX_DURATION_MS) {
+      console.log(`[AnalyticsBackfill] Time limit after ${allResults.length} channels`);
+      break;
+    }
+
+    const result = {
+      channel: connection.youtube_channel_title,
+      snapshotsCreated: 0,
+      daysProcessed: 0,
+      errors: [],
+    };
+
+    try {
+      const accessToken = await getAccessToken(connection);
+      const channelId = connection.youtube_channel_id;
+
+      const { data: dbChannel } = await supabase
+        .from('channels')
+        .select('id')
+        .eq('youtube_channel_id', channelId)
+        .eq('is_client', true)
+        .single();
+
+      if (!dbChannel) { result.errors.push('No client channel'); allResults.push(result); continue; }
+
+      // Get all videos for this channel
+      const { data: videos } = await supabase
+        .from('videos')
+        .select('id, youtube_video_id, view_count, like_count, comment_count')
+        .eq('channel_id', dbChannel.id);
+
+      if (!videos?.length) { result.errors.push('No videos'); allResults.push(result); continue; }
+
+      const videoMap = {};
+      for (const v of videos) { videoMap[v.youtube_video_id] = v; }
+
+      // Fetch analytics one day at a time for accurate per-day snapshots
+      for (const date of dates) {
+        if (Date.now() - startTime > MAX_DURATION_MS) break;
+
+        try {
+          const analytics = await fetchAnalytics(accessToken, channelId, date, date);
+          const ms = analytics._metricSet || {};
+
+          if (!analytics.rows?.length) continue;
+
+          const batch = [];
+          for (const row of analytics.rows) {
+            const ytVideoId = row[0];
+            const dbVideo = videoMap[ytVideoId];
+            if (!dbVideo) continue;
+
+            batch.push({
+              video_id: dbVideo.id,
+              snapshot_date: date,
+              view_count: row[1] || null,
+              watch_hours: row[2] ? row[2] / 60 : null,
+              avg_view_percentage: ms.hasRetention ? (row[3] ? row[3] / 100 : null) : null,
+              subscribers_gained: ms.hasSubs ? (row[ms.hasRetention ? 4 : 3] ?? null) : null,
+              // Preserve cumulative counts for delta calculations
+              total_view_count: dbVideo.view_count || null,
+              total_like_count: dbVideo.like_count || null,
+              total_comment_count: dbVideo.comment_count || null,
+            });
+          }
+
+          if (batch.length > 0) {
+            const { data: count, error } = await supabase
+              .rpc('upsert_video_snapshots_safe', { snapshots: batch });
+            if (!error) result.snapshotsCreated += (count || batch.length);
+          }
+          result.daysProcessed++;
+        } catch (e) {
+          // Log first error per channel, skip rest of days
+          if (result.errors.length === 0) result.errors.push(`${date}: ${e.message}`);
+          break;
+        }
+
+        // Rate limit
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      console.log(`[AnalyticsBackfill] ${connection.youtube_channel_title}: ${result.daysProcessed} days, ${result.snapshotsCreated} snapshots`);
+    } catch (e) {
+      result.errors.push(e.message);
+    }
+
+    allResults.push(result);
+  }
+
+  const totalSnapshots = allResults.reduce((s, r) => s + r.snapshotsCreated, 0);
+  return res.status(200).json({
+    success: true,
+    totalSnapshots,
+    dateRange: `${startDate} to ${endDate}`,
+    daysInRange: dates.length,
+    duration: Date.now() - startTime,
+    results: allResults,
+  });
+}
+
 export default async function handler(req, res) {
   // Verify this is a legitimate cron request from Vercel
   const authHeader = req.headers.authorization;
@@ -1518,7 +1645,13 @@ export default async function handler(req, res) {
     }
   }
 
-  // Backfill mode
+  // Analytics API backfill: per-video per-day data for any date range
+  // Usage: /api/cron/daily-sync?analyticsBackfill=true&start=2026-01-01&end=2026-03-31&manual=true
+  if (req.query?.analyticsBackfill) {
+    return handleAnalyticsBackfill(req, res);
+  }
+
+  // Reporting API backfill: CSV reports for impressions/CTR
   if (req.query?.backfill) {
     return handleBackfill(req, res);
   }
