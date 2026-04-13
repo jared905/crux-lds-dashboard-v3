@@ -146,9 +146,8 @@ async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
         return data;
       }
 
-      const errorBody = await response.json().catch(() => ({}));
-      const errorMsg = errorBody.error?.message || '';
       const status = response.status;
+      await response.json().catch(() => {}); // Consume body
       attempts.push(`${ids} [${metricSet.metrics.split(',').length} metrics] → ${status}`);
 
       if (status === 401 || status === 403) {
@@ -1443,36 +1442,10 @@ async function handleSyncAll(req, res) {
 
       if (!dbChannel) { result.errors.push('No client channel'); allResults.push(result); continue; }
 
-      // Diagnostic: exact Explorer-matching call
-      try {
-        const diagUrl = `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel%3D%3DMINE&startDate=2026-03-01&endDate=2026-03-31&dimensions=video&metrics=views%2CestimatedMinutesWatched&sort=-views&maxResults=10`;
-        const diagResp = await fetch(diagUrl, { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } });
-        const diagBody = await diagResp.json();
-        result.explorerTest = {
-          status: diagResp.status,
-          hasRows: !!(diagBody.rows?.length),
-          rowCount: diagBody.rows?.length || 0,
-          error: diagBody.error?.message || null,
-        };
-      } catch (e) { result.explorerTest = { error: e.message }; }
-
-      // Also test with explicit channel ID
-      try {
-        const diagUrl2 = `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel%3D%3D${channelId}&startDate=2026-03-01&endDate=2026-03-31&dimensions=video&metrics=views%2CestimatedMinutesWatched&sort=-views&maxResults=10`;
-        const diagResp2 = await fetch(diagUrl2, { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } });
-        const diagBody2 = await diagResp2.json();
-        result.channelIdTest = {
-          status: diagResp2.status,
-          hasRows: !!(diagBody2.rows?.length),
-          rowCount: diagBody2.rows?.length || 0,
-          error: diagBody2.error?.message || null,
-        };
-      } catch (e) { result.channelIdTest = { error: e.message }; }
-
       // Fetch Analytics API — uses fetchAnalytics which handles Brand Account fallback
-      // Use same date range as the working Explorer test
-      const end = '2026-03-31';
-      const start = '2026-03-01';
+      // YouTube Analytics data has 2-3 day processing delay
+      const end = new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0];
+      const start = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
       let analytics;
       try {
         analytics = await fetchAnalytics(accessToken, channelId, start, end);
