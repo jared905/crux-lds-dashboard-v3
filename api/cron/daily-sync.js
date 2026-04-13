@@ -123,38 +123,44 @@ async function fetchAnalytics(accessToken, channelId, startDate, endDate) {
     { metrics: 'views,estimatedMinutesWatched', hasRetention: false, hasSubs: false },
   ];
 
-  for (const metricSet of metricSets) {
-    const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
-    url.searchParams.append('ids', `channel==${channelId}`);
-    url.searchParams.append('startDate', startDate);
-    url.searchParams.append('endDate', endDate);
-    url.searchParams.append('dimensions', 'video');
-    url.searchParams.append('metrics', metricSet.metrics);
-    url.searchParams.append('sort', '-views');
-    url.searchParams.append('maxResults', '500');
+  // For Brand Accounts, the token may be tied to the brand identity rather than
+  // the personal account. Try both `channel==CHANNEL_ID` and `channel==MINE`.
+  // MINE works when the OAuth token was issued while the Brand Account was selected.
+  const idsToTry = [`channel==${channelId}`, 'channel==MINE'];
 
-    const response = await fetch(url.toString(), { headers });
+  for (const ids of idsToTry) {
+    for (const metricSet of metricSets) {
+      const url = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
+      url.searchParams.append('ids', ids);
+      url.searchParams.append('startDate', startDate);
+      url.searchParams.append('endDate', endDate);
+      url.searchParams.append('dimensions', 'video');
+      url.searchParams.append('metrics', metricSet.metrics);
+      url.searchParams.append('sort', '-views');
+      url.searchParams.append('maxResults', '500');
 
-    if (response.ok) {
-      const data = await response.json();
-      // Tag the result so callers know which metrics are present
-      data._metricSet = metricSet;
-      return data;
+      const response = await fetch(url.toString(), { headers });
+
+      if (response.ok) {
+        const data = await response.json();
+        data._metricSet = metricSet;
+        data._idsUsed = ids;
+        return data;
+      }
+
+      const errorBody = await response.json().catch(() => ({}));
+      const errorMsg = errorBody.error?.message || '';
+      if (errorMsg.includes('not supported') || errorMsg.includes('supported queries')) {
+        continue; // Try next metric set
+      }
+
+      // Non-metric error — try next ids variant before throwing
+      if (ids === idsToTry[0]) break; // Skip to MINE
+      console.error(`[Analytics API] Error for ${channelId} ${startDate}-${endDate}: ${JSON.stringify(errorBody)}`);
+      throw new Error(errorMsg || 'Analytics API failed');
     }
-
-    // If this metric set was rejected, try the next one
-    const errorBody = await response.json().catch(() => ({}));
-    const errorMsg = errorBody.error?.message || '';
-    if (errorMsg.includes('not supported') || errorMsg.includes('supported queries')) {
-      continue; // Try next metric set
-    }
-
-    // Non-metric error (auth, rate limit, etc.) — throw immediately
-    console.error(`[Analytics API] Error for ${channelId} ${startDate}-${endDate} metrics=${metricSet.metrics}: ${JSON.stringify(errorBody)}`);
-    throw new Error(errorMsg || 'Analytics API failed');
   }
 
-  // All metric sets failed
   throw new Error('No supported metric combination found for this channel');
 }
 
@@ -1448,30 +1454,17 @@ async function handleSyncAll(req, res) {
         }
       } catch (e) { /* non-critical */ }
 
-      // Fetch Analytics API — exact same call the manual sync (youtube-analytics-fetch.js) uses
+      // Fetch Analytics API — uses fetchAnalytics which handles Brand Account fallback
       const end = new Date().toISOString().split('T')[0];
-      const start = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0];
-      const headers = { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' };
-
-      const analyticsUrl = new URL('https://youtubeanalytics.googleapis.com/v2/reports');
-      analyticsUrl.searchParams.append('ids', `channel==${channelId}`);
-      analyticsUrl.searchParams.append('startDate', start);
-      analyticsUrl.searchParams.append('endDate', end);
-      analyticsUrl.searchParams.append('dimensions', 'video');
-      analyticsUrl.searchParams.append('metrics', 'views,estimatedMinutesWatched,averageViewPercentage,subscribersGained');
-      analyticsUrl.searchParams.append('sort', '-views');
-      analyticsUrl.searchParams.append('maxResults', '500');
-
-      const analyticsResp = await fetch(analyticsUrl.toString(), { headers });
-
-      if (!analyticsResp.ok) {
-        const errData = await analyticsResp.json().catch(() => ({}));
-        result.errors.push(`Analytics API ${analyticsResp.status}: ${errData.error?.message || JSON.stringify(errData.error || {})}`);
+      const start = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]; // 30 days, not 365
+      let analytics;
+      try {
+        analytics = await fetchAnalytics(accessToken, channelId, start, end);
+      } catch (e) {
+        result.errors.push(`Analytics API: ${e.message}`);
         allResults.push(result);
         continue;
       }
-
-      const analytics = await analyticsResp.json();
 
       if (!analytics?.rows?.length) {
         result.errors.push('No analytics data returned');
@@ -1479,9 +1472,10 @@ async function handleSyncAll(req, res) {
         continue;
       }
 
-      // Row format: [videoId, views, watchMinutes, avgViewPct, subsGained]
+      // Row shape depends on metricSet: Full [vid,views,watch,ret,subs], NoSub [vid,views,watch,ret], Basic [vid,views,watch]
+      const ms = analytics._metricSet || {};
+      result.idsUsed = analytics._idsUsed;
 
-      // Get all videos for this channel
       const { data: videos } = await supabase
         .from('videos')
         .select('id, youtube_video_id')
@@ -1490,7 +1484,6 @@ async function handleSyncAll(req, res) {
       const videoMap = {};
       for (const v of (videos || [])) { videoMap[v.youtube_video_id] = v; }
 
-      // Update each video
       for (const row of analytics.rows) {
         const ytVideoId = row[0];
         const dbVideo = videoMap[ytVideoId];
@@ -1498,12 +1491,12 @@ async function handleSyncAll(req, res) {
 
         const updateData = { last_synced_at: new Date().toISOString() };
         const watchHours = (row[2] ?? 0) / 60;
-        const avgViewPct = (row[3] ?? 0) / 100;
-        const subsGained = row[4] ?? 0;
+        const avgViewPct = ms.hasRetention ? (row[3] ?? 0) / 100 : 0;
+        const subsGained = ms.hasSubs ? (row[ms.hasRetention ? 4 : 3] ?? 0) : 0;
 
         if (avgViewPct > 0) updateData.avg_view_percentage = avgViewPct;
         if (watchHours > 0) updateData.watch_hours = watchHours;
-        updateData.subscribers_gained = subsGained;
+        if (ms.hasSubs) updateData.subscribers_gained = subsGained;
 
         await supabase.from('videos').update(updateData).eq('id', dbVideo.id);
         result.videosUpdated++;
