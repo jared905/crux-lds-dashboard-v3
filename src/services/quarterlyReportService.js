@@ -184,12 +184,19 @@ function computeQuarterMetrics(videos, snapshots, channelCount = 1) {
   const longVideoIds = new Set(longs.map(v => v.id));
 
   // Average retention from snapshots (blended)
-  const retentionVals = snapshots.filter(s => s.avg_view_percentage > 0).map(s => s.avg_view_percentage);
+  // Normalize: Analytics API stores as decimal (0.45 for 45%), but some older data
+  // or CSV imports may store as percentage (45.0). Values > 1 are treated as percentages.
+  const normalizeRetention = (v) => v > 1 ? v / 100 : v;
+  let retentionVals = snapshots.filter(s => s.avg_view_percentage > 0).map(s => normalizeRetention(s.avg_view_percentage));
+  // Fallback: if snapshots have no retention data, use videos table
+  if (retentionVals.length === 0) {
+    retentionVals = videos.filter(v => v.avg_view_percentage > 0).map(v => normalizeRetention(v.avg_view_percentage));
+  }
   const avgRetention = retentionVals.length > 0 ? retentionVals.reduce((s, v) => s + v, 0) / retentionVals.length : 0;
 
   // Format-split retention
-  const shortsRetentionVals = snapshots.filter(s => s.avg_view_percentage > 0 && shortVideoIds.has(s.video_id)).map(s => s.avg_view_percentage);
-  const longsRetentionVals = snapshots.filter(s => s.avg_view_percentage > 0 && longVideoIds.has(s.video_id)).map(s => s.avg_view_percentage);
+  const shortsRetentionVals = snapshots.filter(s => s.avg_view_percentage > 0 && shortVideoIds.has(s.video_id)).map(s => normalizeRetention(s.avg_view_percentage));
+  const longsRetentionVals = snapshots.filter(s => s.avg_view_percentage > 0 && longVideoIds.has(s.video_id)).map(s => normalizeRetention(s.avg_view_percentage));
   const shortsAvgRetention = shortsRetentionVals.length > 0 ? shortsRetentionVals.reduce((s, v) => s + v, 0) / shortsRetentionVals.length : 0;
   const longsAvgRetention = longsRetentionVals.length > 0 ? longsRetentionVals.reduce((s, v) => s + v, 0) / longsRetentionVals.length : 0;
 
