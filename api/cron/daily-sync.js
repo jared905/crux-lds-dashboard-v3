@@ -1473,8 +1473,9 @@ async function handleSyncAll(req, res) {
       } catch (e) { result.channelIdTest = { error: e.message }; }
 
       // Fetch Analytics API — uses fetchAnalytics which handles Brand Account fallback
-      const end = new Date().toISOString().split('T')[0];
-      const start = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]; // 30 days, not 365
+      // YouTube Analytics data has 2-3 day processing delay — never query today
+      const end = new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0];
+      const start = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
       let analytics;
       try {
         analytics = await fetchAnalytics(accessToken, channelId, start, end);
