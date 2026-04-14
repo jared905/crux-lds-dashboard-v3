@@ -22,6 +22,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
   const [draftName, setDraftName] = useState('');
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftSavedFlash, setDraftSavedFlash] = useState(false);
+  const [pendingAudienceData, setPendingAudienceData] = useState(null);
 
   // Load AI content from localStorage if it should be included
   const getAIContent = () => {
@@ -278,7 +279,62 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
       emptyOpps._closing = '';
       setPendingOpportunities(emptyOpps);
       setRecError(null);
+      // Fetch audience intelligence data for the PDF
+      let audienceData = null;
+      try {
+        const { supabase } = await import('../../services/supabaseClient');
+        const channelIds = selectedChannel && selectedChannel !== 'all' && activeClient?.networkMembers
+          ? [activeClient.networkMembers.find(m => m.name === selectedChannel)?.id].filter(Boolean)
+          : activeClient?.isNetwork && activeClient?.networkMembers
+            ? activeClient.networkMembers.map(m => m.id)
+            : [activeClient?.id].filter(Boolean);
+
+        const mergedAudience = { gender: {}, age: {}, country: {}, province: {}, trafficSources: {} };
+        for (const chId of channelIds) {
+          const { data: snap } = await supabase
+            .from('channel_audience_snapshots')
+            .select('gender_distribution, age_distribution, country_data, province_data, traffic_sources')
+            .eq('channel_id', chId)
+            .order('snapshot_date', { ascending: false })
+            .limit(1)
+            .single();
+          if (!snap) continue;
+          if (snap.gender_distribution) for (const [k, v] of Object.entries(snap.gender_distribution)) mergedAudience.gender[k] = (mergedAudience.gender[k] || 0) + v;
+          if (snap.age_distribution) for (const [k, v] of Object.entries(snap.age_distribution)) mergedAudience.age[k] = (mergedAudience.age[k] || 0) + v;
+          if (snap.country_data) for (const [k, v] of Object.entries(snap.country_data)) {
+            if (!mergedAudience.country[k]) mergedAudience.country[k] = { views: 0, pct: 0 };
+            mergedAudience.country[k].views += v.views || 0;
+          }
+          if (snap.province_data) for (const [k, v] of Object.entries(snap.province_data)) {
+            if (!mergedAudience.province[k]) mergedAudience.province[k] = { views: 0, pct: 0 };
+            mergedAudience.province[k].views += v.views || 0;
+          }
+          if (snap.traffic_sources) for (const [k, v] of Object.entries(snap.traffic_sources)) {
+            if (!mergedAudience.trafficSources[k]) mergedAudience.trafficSources[k] = { views: 0, pct: 0 };
+            mergedAudience.trafficSources[k].views += v.views || 0;
+          }
+        }
+        // Normalize demographics by channel count
+        const chCount = channelIds.length;
+        if (chCount > 1) {
+          for (const k of Object.keys(mergedAudience.gender)) mergedAudience.gender[k] /= chCount;
+          for (const k of Object.keys(mergedAudience.age)) mergedAudience.age[k] /= chCount;
+        }
+        // Recalculate percentages
+        const totalTV = Object.values(mergedAudience.trafficSources).reduce((s, t) => s + t.views, 0);
+        for (const t of Object.values(mergedAudience.trafficSources)) t.pct = totalTV > 0 ? (t.views / totalTV) * 100 : 0;
+        const totalCV = Object.values(mergedAudience.country).reduce((s, c) => s + c.views, 0);
+        for (const c of Object.values(mergedAudience.country)) c.pct = totalCV > 0 ? (c.views / totalCV) * 100 : 0;
+        const totalPV = Object.values(mergedAudience.province).reduce((s, p) => s + p.views, 0);
+        for (const p of Object.values(mergedAudience.province)) p.pct = totalPV > 0 ? (p.views / totalPV) * 100 : 0;
+
+        if (Object.keys(mergedAudience.gender).length > 0) audienceData = mergedAudience;
+      } catch (err) {
+        console.warn('Could not fetch audience data for PDF:', err);
+      }
+
       setPendingPublishedHtml(publishedSectionHtml);
+      setPendingAudienceData(audienceData);
       setShowReviewModal(true);
 
     } catch (error) {
@@ -300,6 +356,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
       opportunities._closing = pendingOpportunities._closing || '';
       const topComments = pendingComments;
       const publishedSectionHtml = pendingPublishedHtml;
+      const audienceData = pendingAudienceData;
 
       // Create a temporary container for the PDF content
       const container = document.createElement('div');
@@ -546,6 +603,97 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
                 </div>
               </div>
             `).join('')}
+          </div>
+          ` : ''}
+
+          ${audienceData ? `
+          <!-- Audience Intelligence -->
+          <div data-pdf-section style="margin-bottom: 32px;">
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; line-height: 1.3; letter-spacing: 1px;">AUDIENCE INTELLIGENCE</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+              ${/* Demographics */ ''}
+              <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
+                <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 14px;">Demographics</div>
+                ${/* Gender */ ''}
+                <div style="margin-bottom: 14px;">
+                  <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Gender</div>
+                  ${Object.entries(audienceData.gender || {}).sort(([,a],[,b]) => b - a).map(([g, pct]) => {
+                    const label = g === 'user_specified' ? 'Other' : g.charAt(0).toUpperCase() + g.slice(1);
+                    const color = g === 'male' ? '#2563eb' : g === 'female' ? '#db2777' : '#7c3aed';
+                    const totalG = Object.values(audienceData.gender).reduce((s,v) => s+v, 0);
+                    const barW = totalG > 0 ? (pct / totalG) * 100 : 0;
+                    return `<div style="margin-bottom: 6px;">
+                      <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                        <span style="font-size: 13px; color: #374151; font-weight: 500;">${label}</span>
+                        <span style="font-size: 13px; color: #1e293b; font-weight: 700;">${pct.toFixed(1)}%</span>
+                      </div>
+                      <div style="height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                        <div style="width: ${barW}%; height: 100%; background: ${color}; border-radius: 4px;"></div>
+                      </div>
+                    </div>`;
+                  }).join('')}
+                </div>
+                ${/* Age */ ''}
+                <div>
+                  <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Age Distribution</div>
+                  ${['age13-17','age18-24','age25-34','age35-44','age45-54','age55-64','age65-']
+                    .filter(k => audienceData.age?.[k] != null)
+                    .map(k => {
+                      const label = {'age13-17':'13-17','age18-24':'18-24','age25-34':'25-34','age35-44':'35-44','age45-54':'45-54','age55-64':'55-64','age65-':'65+'}[k] || k;
+                      const val = audienceData.age[k];
+                      const maxAge = Math.max(...Object.values(audienceData.age));
+                      const barW = maxAge > 0 ? (val / maxAge) * 100 : 0;
+                      return `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <span style="width: 36px; font-size: 12px; color: #64748b; text-align: right; font-weight: 600;">${label}</span>
+                        <div style="flex: 1; height: 12px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                          <div style="width: ${Math.max(barW, 2)}%; height: 100%; background: linear-gradient(90deg, #f59e0b, #fbbf24); border-radius: 3px;"></div>
+                        </div>
+                        <span style="width: 38px; font-size: 12px; color: #1e293b; font-weight: 700; text-align: right;">${val.toFixed(1)}%</span>
+                      </div>`;
+                    }).join('')}
+                </div>
+              </div>
+
+              ${/* Traffic Sources + Geography */ ''}
+              <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
+                <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 14px;">Traffic Sources</div>
+                ${Object.entries(audienceData.trafficSources || {})
+                  .sort(([,a],[,b]) => b.views - a.views)
+                  .filter(([,v]) => v.pct >= 1)
+                  .map(([key, val]) => {
+                    const labels = {YT_SEARCH:'YouTube Search',SUBSCRIBER:'Subscribers',SUGGESTED:'Suggested',BROWSE:'Browse',EXT_URL:'External',NOTIFICATION:'Notifications',PLAYLIST:'Playlists',SHORTS:'Shorts Feed',YT_CHANNEL:'Channel Page',END_SCREEN:'End Screens',NO_LINK_OTHER:'Direct'};
+                    const label = labels[key] || key.replace(/_/g, ' ');
+                    const maxPct = Math.max(...Object.values(audienceData.trafficSources).map(t => t.pct));
+                    const barW = maxPct > 0 ? (val.pct / maxPct) * 100 : 0;
+                    return `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                      <span style="width: 100px; font-size: 12px; color: #374151; font-weight: 500;">${label}</span>
+                      <div style="flex: 1; height: 10px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                        <div style="width: ${Math.max(barW, 2)}%; height: 100%; background: linear-gradient(90deg, #2563eb, #60a5fa); border-radius: 3px;"></div>
+                      </div>
+                      <span style="width: 40px; font-size: 12px; color: #1e293b; font-weight: 700; text-align: right;">${val.pct.toFixed(1)}%</span>
+                    </div>`;
+                  }).join('')}
+
+                <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-top: 18px; margin-bottom: 10px;">Top Regions</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                  ${Object.entries(audienceData.country || {})
+                    .sort(([,a],[,b]) => b.views - a.views)
+                    .slice(0, 8)
+                    .map(([code, val]) => `<span style="font-size: 11px; padding: 4px 10px; background: #e0e7ff; border-radius: 6px; color: #3730a3; font-weight: 600;">${code} ${val.pct.toFixed(1)}%</span>`)
+                    .join('')}
+                </div>
+                ${Object.keys(audienceData.province || {}).length > 0 ? `
+                <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-top: 14px; margin-bottom: 10px;">Top US States</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                  ${Object.entries(audienceData.province || {})
+                    .sort(([,a],[,b]) => b.views - a.views)
+                    .slice(0, 8)
+                    .map(([code, val]) => `<span style="font-size: 11px; padding: 4px 10px; background: #dbeafe; border-radius: 6px; color: #1e40af; font-weight: 600;">${code.replace('US-','')} ${val.pct.toFixed(1)}%</span>`)
+                    .join('')}
+                </div>
+                ` : ''}
+              </div>
+            </div>
           </div>
           ` : ''}
 
