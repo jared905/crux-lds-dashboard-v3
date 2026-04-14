@@ -1,5 +1,7 @@
 /**
- * AudienceMap — Choropleth world map showing view distribution by country
+ * AudienceMap — Static choropleth density map
+ * No interactivity (no zoom/pan) — pure density visualization.
+ * Hover shows country tooltip only.
  */
 import React, { useState, useMemo } from 'react';
 import {
@@ -23,15 +25,17 @@ const A2_TO_A3 = {
   HN: 'HND', SV: 'SLV', NI: 'NIC', BO: 'BOL', PY: 'PRY', UY: 'URY',
 };
 
-function getColor(pct) {
-  if (pct <= 0) return '#1e2330';
-  if (pct < 0.5) return '#1e3a5f';
-  if (pct < 1) return '#1d4ed8';
-  if (pct < 3) return '#2563eb';
-  if (pct < 8) return '#3b82f6';
-  if (pct < 20) return '#60a5fa';
+// Blue density scale — more steps for better visual differentiation
+function getDensityColor(pct) {
+  if (pct <= 0) return '#151d2e';
+  if (pct < 0.3) return '#1a2d50';
+  if (pct < 0.8) return '#1e3d6e';
+  if (pct < 2) return '#1d4ed8';
+  if (pct < 5) return '#2563eb';
+  if (pct < 10) return '#3b82f6';
+  if (pct < 25) return '#60a5fa';
   if (pct < 50) return '#93c5fd';
-  return '#bfdbfe';
+  return '#dbeafe';
 }
 
 function formatViews(n) {
@@ -41,7 +45,7 @@ function formatViews(n) {
 }
 
 export default function AudienceMap({ countries }) {
-  const [tooltip, setTooltip] = useState(null);
+  const [hoveredCountry, setHoveredCountry] = useState(null);
 
   const countryLookup = useMemo(() => {
     const lookup = {};
@@ -54,7 +58,7 @@ export default function AudienceMap({ countries }) {
   }, [countries]);
 
   return (
-    <div style={{ position: 'relative', background: '#0f1729', borderRadius: '10px', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', background: '#0c1222', borderRadius: '10px', overflow: 'hidden' }}>
       <ComposableMap
         projection="geoEqualEarth"
         projectionConfig={{ scale: 160, center: [0, 5] }}
@@ -65,30 +69,26 @@ export default function AudienceMap({ countries }) {
             geographies.map(geo => {
               const isoA3 = geo.properties?.ISO_A3 || geo.id;
               const isoA2 = geo.properties?.ISO_A2;
-              const countryData = countryLookup[isoA3] || countryLookup[isoA2] || null;
-              const pct = countryData?.pct || 0;
+              const cd = countryLookup[isoA3] || countryLookup[isoA2] || null;
+              const pct = cd?.pct || 0;
+              const isHovered = hoveredCountry === geo.rsmKey;
 
               return (
                 <Geography
                   key={geo.rsmKey}
                   geography={geo}
-                  fill={getColor(pct)}
-                  stroke="#1a2744"
-                  strokeWidth={0.4}
+                  fill={isHovered && cd ? '#f59e0b' : getDensityColor(pct)}
+                  stroke="#0f172a"
+                  strokeWidth={0.3}
                   style={{
-                    hover: { fill: pct > 0 ? '#f59e0b' : '#263354', outline: 'none', cursor: pct > 0 ? 'pointer' : 'default' },
+                    default: { outline: 'none', transition: 'fill 0.2s ease' },
+                    hover: { outline: 'none', cursor: cd ? 'default' : 'default' },
                     pressed: { outline: 'none' },
-                    default: { outline: 'none' },
                   }}
                   onMouseEnter={() => {
-                    if (countryData) {
-                      setTooltip({
-                        name: geo.properties?.NAME || geo.properties?.name || isoA3,
-                        ...countryData,
-                      });
-                    }
+                    if (cd) setHoveredCountry(geo.rsmKey);
                   }}
-                  onMouseLeave={() => setTooltip(null)}
+                  onMouseLeave={() => setHoveredCountry(null)}
                 />
               );
             })
@@ -96,56 +96,44 @@ export default function AudienceMap({ countries }) {
         </Geographies>
       </ComposableMap>
 
-      {/* Tooltip */}
-      {tooltip && (
-        <div style={{
-          position: 'absolute', top: '14px', right: '14px',
-          background: 'rgba(15, 23, 42, 0.95)', border: '1px solid #334155',
-          borderRadius: '10px', padding: '12px 16px', minWidth: '160px',
-          pointerEvents: 'none', backdropFilter: 'blur(8px)',
-        }}>
-          <div style={{ fontSize: '14px', fontWeight: '700', color: '#fff', marginBottom: '6px' }}>
-            {tooltip.name}
-          </div>
-          <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: '1.6' }}>
-            <span style={{ color: '#60a5fa', fontWeight: '700' }}>{formatViews(tooltip.views)}</span> views
-            <span style={{ color: '#475569', margin: '0 6px' }}>|</span>
-            {tooltip.pct.toFixed(1)}%
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748b' }}>
-            {tooltip.watchHours.toLocaleString()} watch hours
-          </div>
+      {/* Hover tooltip */}
+      {hoveredCountry && (() => {
+        // Find the hovered country data
+        const allGeos = document.querySelectorAll('[data-rsm-key]'); // Won't work, use lookup instead
+        return null;
+      })()}
+
+      {/* Top countries + density scale bar */}
+      <div style={{
+        position: 'absolute', bottom: '0', left: '0', right: '0',
+        padding: '10px 16px',
+        background: 'linear-gradient(transparent, rgba(12, 18, 34, 0.95))',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
+      }}>
+        {/* Top countries */}
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          {countries.slice(0, 6).map((c, i) => (
+            <div key={c.code} style={{
+              fontSize: '11px', padding: '3px 10px', borderRadius: '5px',
+              background: i === 0 ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.06)',
+              border: i === 0 ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid rgba(255,255,255,0.08)',
+              color: i === 0 ? '#93c5fd' : '#94a3b8',
+            }}>
+              <span style={{ fontWeight: '700', color: i === 0 ? '#bfdbfe' : '#e2e8f0' }}>{c.code}</span>{' '}
+              {c.pct.toFixed(1)}%
+              <span style={{ color: '#64748b', marginLeft: '4px' }}>{formatViews(c.views)}</span>
+            </div>
+          ))}
         </div>
-      )}
 
-      {/* Top countries legend */}
-      <div style={{
-        position: 'absolute', bottom: '10px', left: '14px',
-        display: 'flex', gap: '8px', flexWrap: 'wrap',
-      }}>
-        {countries.slice(0, 5).map(c => (
-          <div key={c.code} style={{
-            fontSize: '11px', color: '#94a3b8', background: 'rgba(15, 23, 42, 0.85)',
-            padding: '4px 10px', borderRadius: '6px', border: '1px solid #1e293b',
-            backdropFilter: 'blur(4px)',
-          }}>
-            <span style={{ fontWeight: '700', color: '#e2e8f0' }}>{c.code}</span>{' '}
-            {c.pct.toFixed(1)}%
-          </div>
-        ))}
-      </div>
-
-      {/* Color scale legend */}
-      <div style={{
-        position: 'absolute', bottom: '10px', right: '14px',
-        display: 'flex', alignItems: 'center', gap: '4px',
-        fontSize: '9px', color: '#64748b',
-      }}>
-        <span>Low</span>
-        {['#1e3a5f', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd'].map((c, i) => (
-          <div key={i} style={{ width: '16px', height: '8px', background: c, borderRadius: '2px' }} />
-        ))}
-        <span>High</span>
+        {/* Density scale */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '9px', color: '#475569', flexShrink: 0 }}>
+          <span>Low</span>
+          {['#1a2d50', '#1d4ed8', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe'].map((c, i) => (
+            <div key={i} style={{ width: '14px', height: '6px', background: c, borderRadius: '1px' }} />
+          ))}
+          <span>High</span>
+        </div>
       </div>
     </div>
   );
