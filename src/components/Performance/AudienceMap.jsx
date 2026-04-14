@@ -1,20 +1,15 @@
 /**
  * AudienceMap — Choropleth world map showing view distribution by country
- * Uses react-simple-maps (SVG-based, no API key needed)
  */
 import React, { useState, useMemo } from 'react';
 import {
   ComposableMap,
   Geographies,
   Geography,
-  ZoomableGroup,
 } from 'react-simple-maps';
 
-// Natural Earth TopoJSON — public, no API key
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
-// ISO 3166-1 alpha-2 → alpha-3 mapping for common countries
-// react-simple-maps uses ISO_A3, YouTube API returns ISO_A2
 const A2_TO_A3 = {
   US: 'USA', GB: 'GBR', CA: 'CAN', AU: 'AUS', IN: 'IND', BR: 'BRA', DE: 'DEU',
   FR: 'FRA', MX: 'MEX', JP: 'JPN', KR: 'KOR', IT: 'ITA', ES: 'ESP', NL: 'NLD',
@@ -29,12 +24,14 @@ const A2_TO_A3 = {
 };
 
 function getColor(pct) {
-  if (pct <= 0) return '#1a1a2e';
-  if (pct < 1) return '#1e3a5f';
+  if (pct <= 0) return '#1e2330';
+  if (pct < 0.5) return '#1e3a5f';
+  if (pct < 1) return '#1d4ed8';
   if (pct < 3) return '#2563eb';
-  if (pct < 10) return '#3b82f6';
-  if (pct < 25) return '#60a5fa';
-  return '#93c5fd';
+  if (pct < 8) return '#3b82f6';
+  if (pct < 20) return '#60a5fa';
+  if (pct < 50) return '#93c5fd';
+  return '#bfdbfe';
 }
 
 function formatViews(n) {
@@ -46,96 +43,109 @@ function formatViews(n) {
 export default function AudienceMap({ countries }) {
   const [tooltip, setTooltip] = useState(null);
 
-  // Build lookup: ISO_A3 → country data
   const countryLookup = useMemo(() => {
     const lookup = {};
     for (const c of countries) {
       const a3 = A2_TO_A3[c.code];
       if (a3) lookup[a3] = c;
-      lookup[c.code] = c; // Also store by A2 as fallback
+      lookup[c.code] = c;
     }
     return lookup;
   }, [countries]);
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', background: '#0f1729', borderRadius: '10px', overflow: 'hidden' }}>
       <ComposableMap
-        projection="geoMercator"
-        projectionConfig={{ scale: 120, center: [0, 30] }}
-        style={{ width: '100%', height: '300px', background: '#111' }}
+        projection="geoEqualEarth"
+        projectionConfig={{ scale: 160, center: [0, 5] }}
+        style={{ width: '100%', height: '320px' }}
       >
-        <ZoomableGroup>
-          <Geographies geography={GEO_URL}>
-            {({ geographies }) =>
-              geographies.map(geo => {
-                const isoA3 = geo.properties?.ISO_A3 || geo.id;
-                const isoA2 = geo.properties?.ISO_A2;
-                const countryData = countryLookup[isoA3] || countryLookup[isoA2] || null;
-                const pct = countryData?.pct || 0;
+        <Geographies geography={GEO_URL}>
+          {({ geographies }) =>
+            geographies.map(geo => {
+              const isoA3 = geo.properties?.ISO_A3 || geo.id;
+              const isoA2 = geo.properties?.ISO_A2;
+              const countryData = countryLookup[isoA3] || countryLookup[isoA2] || null;
+              const pct = countryData?.pct || 0;
 
-                return (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    fill={getColor(pct)}
-                    stroke="#222"
-                    strokeWidth={0.3}
-                    style={{
-                      hover: { fill: pct > 0 ? '#f59e0b' : '#2a2a3e', outline: 'none' },
-                      pressed: { outline: 'none' },
-                      default: { outline: 'none' },
-                    }}
-                    onMouseEnter={() => {
-                      if (countryData) {
-                        setTooltip({
-                          name: geo.properties?.NAME || geo.properties?.name || isoA3,
-                          ...countryData,
-                        });
-                      }
-                    }}
-                    onMouseLeave={() => setTooltip(null)}
-                  />
-                );
-              })
-            }
-          </Geographies>
-        </ZoomableGroup>
+              return (
+                <Geography
+                  key={geo.rsmKey}
+                  geography={geo}
+                  fill={getColor(pct)}
+                  stroke="#1a2744"
+                  strokeWidth={0.4}
+                  style={{
+                    hover: { fill: pct > 0 ? '#f59e0b' : '#263354', outline: 'none', cursor: pct > 0 ? 'pointer' : 'default' },
+                    pressed: { outline: 'none' },
+                    default: { outline: 'none' },
+                  }}
+                  onMouseEnter={() => {
+                    if (countryData) {
+                      setTooltip({
+                        name: geo.properties?.NAME || geo.properties?.name || isoA3,
+                        ...countryData,
+                      });
+                    }
+                  }}
+                  onMouseLeave={() => setTooltip(null)}
+                />
+              );
+            })
+          }
+        </Geographies>
       </ComposableMap>
 
       {/* Tooltip */}
       {tooltip && (
         <div style={{
-          position: 'absolute', top: '12px', right: '12px',
-          background: 'rgba(0,0,0,0.9)', border: '1px solid #333',
-          borderRadius: '8px', padding: '10px 14px', minWidth: '140px',
-          pointerEvents: 'none',
+          position: 'absolute', top: '14px', right: '14px',
+          background: 'rgba(15, 23, 42, 0.95)', border: '1px solid #334155',
+          borderRadius: '10px', padding: '12px 16px', minWidth: '160px',
+          pointerEvents: 'none', backdropFilter: 'blur(8px)',
         }}>
-          <div style={{ fontSize: '13px', fontWeight: '700', color: '#fff', marginBottom: '4px' }}>
+          <div style={{ fontSize: '14px', fontWeight: '700', color: '#fff', marginBottom: '6px' }}>
             {tooltip.name}
           </div>
-          <div style={{ fontSize: '11px', color: '#aaa' }}>
-            {formatViews(tooltip.views)} views ({tooltip.pct.toFixed(1)}%)
+          <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: '1.6' }}>
+            <span style={{ color: '#60a5fa', fontWeight: '700' }}>{formatViews(tooltip.views)}</span> views
+            <span style={{ color: '#475569', margin: '0 6px' }}>|</span>
+            {tooltip.pct.toFixed(1)}%
           </div>
-          <div style={{ fontSize: '11px', color: '#888' }}>
+          <div style={{ fontSize: '11px', color: '#64748b' }}>
             {tooltip.watchHours.toLocaleString()} watch hours
           </div>
         </div>
       )}
 
-      {/* Top 5 countries legend */}
+      {/* Top countries legend */}
       <div style={{
-        position: 'absolute', bottom: '8px', left: '12px',
-        display: 'flex', gap: '12px', flexWrap: 'wrap',
+        position: 'absolute', bottom: '10px', left: '14px',
+        display: 'flex', gap: '8px', flexWrap: 'wrap',
       }}>
         {countries.slice(0, 5).map(c => (
           <div key={c.code} style={{
-            fontSize: '10px', color: '#aaa', background: 'rgba(0,0,0,0.7)',
-            padding: '3px 8px', borderRadius: '4px',
+            fontSize: '11px', color: '#94a3b8', background: 'rgba(15, 23, 42, 0.85)',
+            padding: '4px 10px', borderRadius: '6px', border: '1px solid #1e293b',
+            backdropFilter: 'blur(4px)',
           }}>
-            <span style={{ fontWeight: '700', color: '#fff' }}>{c.code}</span>{' '}
+            <span style={{ fontWeight: '700', color: '#e2e8f0' }}>{c.code}</span>{' '}
             {c.pct.toFixed(1)}%
           </div>
         ))}
+      </div>
+
+      {/* Color scale legend */}
+      <div style={{
+        position: 'absolute', bottom: '10px', right: '14px',
+        display: 'flex', alignItems: 'center', gap: '4px',
+        fontSize: '9px', color: '#64748b',
+      }}>
+        <span>Low</span>
+        {['#1e3a5f', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd'].map((c, i) => (
+          <div key={i} style={{ width: '16px', height: '8px', background: c, borderRadius: '2px' }} />
+        ))}
+        <span>High</span>
       </div>
     </div>
   );

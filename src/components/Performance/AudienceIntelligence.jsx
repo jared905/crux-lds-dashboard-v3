@@ -3,155 +3,59 @@
  *
  * Displays channel-level audience data from YouTube Analytics API.
  * Positioned between Performance Timeline and Brand Funnel.
+ * All sections always visible — no expand/collapse.
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Globe, Users, Smartphone, Monitor, Tv, Tablet, Gamepad2,
-  Search, ExternalLink, Play, List, Share2, Bell, BarChart3,
-  ChevronDown, ChevronUp, Loader,
+  Search, ExternalLink, Play, List, Bell, BarChart3, Loader, Map,
 } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 
-// Lazy-load map to avoid SSR issues and reduce initial bundle
 const LazyMap = React.lazy(() => import('./AudienceMap.jsx'));
 
 const TRAFFIC_SOURCE_LABELS = {
-  YT_SEARCH: 'YouTube Search',
-  SUBSCRIBER: 'Subscribers',
-  SUGGESTED: 'Suggested Videos',
-  BROWSE: 'Browse Features',
-  EXT_URL: 'External',
-  NOTIFICATION: 'Notifications',
-  PLAYLIST: 'Playlists',
-  YT_OTHER_PAGE: 'Other YouTube',
-  NO_LINK_OTHER: 'Direct / Unknown',
-  SHORTS: 'Shorts Feed',
-  CAMPAIGN_CARD: 'Campaign Cards',
-  END_SCREEN: 'End Screens',
-  YT_CHANNEL: 'Channel Page',
-  HASHTAGS: 'Hashtags',
-  ANNOTATION: 'Annotations',
-  LIVE_REDIRECT: 'Live Redirect',
-  PRODUCT_PAGE: 'Product Page',
+  YT_SEARCH: 'YouTube Search', SUBSCRIBER: 'Subscribers', SUGGESTED: 'Suggested',
+  BROWSE: 'Browse', EXT_URL: 'External', NOTIFICATION: 'Notifications',
+  PLAYLIST: 'Playlists', YT_OTHER_PAGE: 'Other YouTube', NO_LINK_OTHER: 'Direct',
+  SHORTS: 'Shorts Feed', CAMPAIGN_CARD: 'Cards', END_SCREEN: 'End Screens',
+  YT_CHANNEL: 'Channel Page', HASHTAGS: 'Hashtags',
 };
 
 const TRAFFIC_SOURCE_ICONS = {
-  YT_SEARCH: Search,
-  SUBSCRIBER: Bell,
-  SUGGESTED: Play,
-  BROWSE: BarChart3,
-  EXT_URL: ExternalLink,
-  NOTIFICATION: Bell,
-  PLAYLIST: List,
-  SHORTS: Smartphone,
+  YT_SEARCH: Search, SUBSCRIBER: Bell, SUGGESTED: Play, BROWSE: BarChart3,
+  EXT_URL: ExternalLink, NOTIFICATION: Bell, PLAYLIST: List, SHORTS: Smartphone,
 };
 
 const DEVICE_ICONS = {
-  MOBILE: Smartphone,
-  DESKTOP: Monitor,
-  TV: Tv,
-  TABLET: Tablet,
-  GAME_CONSOLE: Gamepad2,
+  MOBILE: Smartphone, DESKTOP: Monitor, TV: Tv, TABLET: Tablet, GAME_CONSOLE: Gamepad2,
 };
 
-const AGE_LABELS = {
-  'age13-17': '13-17',
-  'age18-24': '18-24',
-  'age25-34': '25-34',
-  'age35-44': '35-44',
-  'age45-54': '45-54',
-  'age55-64': '55-64',
-  'age65-': '65+',
-};
+const AGE_ORDER = ['age13-17', 'age18-24', 'age25-34', 'age35-44', 'age45-54', 'age55-64', 'age65-'];
+const AGE_LABELS = { 'age13-17': '13-17', 'age18-24': '18-24', 'age25-34': '25-34', 'age35-44': '35-44', 'age45-54': '45-54', 'age55-64': '55-64', 'age65-': '65+' };
 
-const GENDER_COLORS = {
-  male: '#3b82f6',
-  female: '#ec4899',
-  user_specified: '#8b5cf6',
-};
+const GENDER_COLORS = { male: '#3b82f6', female: '#ec4899', user_specified: '#8b5cf6' };
 
-function SectionCard({ title, icon: Icon, children, accentColor = '#3b82f6' }) {
-  return (
-    <div style={{
-      background: '#1E1E1E', border: '1px solid #2A2A2A', borderRadius: '10px',
-      borderTop: `3px solid ${accentColor}`,
-    }}>
-      <div style={{
-        padding: '14px 18px', borderBottom: '1px solid #2A2A2A',
-        display: 'flex', alignItems: 'center', gap: '8px',
-      }}>
-        {Icon && <Icon size={16} style={{ color: accentColor }} />}
-        <span style={{ fontSize: '14px', fontWeight: '700', color: '#fff' }}>{title}</span>
-      </div>
-      <div style={{ padding: '16px 18px' }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function HorizontalBar({ label, value, maxValue, color = '#3b82f6', suffix = '%' }) {
-  const pct = maxValue > 0 ? (value / maxValue) * 100 : 0;
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-      <div style={{ width: '60px', fontSize: '12px', color: '#aaa', fontWeight: '600', textAlign: 'right' }}>{label}</div>
-      <div style={{ flex: 1, height: '20px', background: '#252525', borderRadius: '4px', overflow: 'hidden' }}>
-        <div style={{
-          width: `${Math.max(pct, 1)}%`, height: '100%', background: color, borderRadius: '4px',
-          transition: 'width 0.6s ease',
-        }} />
-      </div>
-      <div style={{ width: '45px', fontSize: '12px', color: '#fff', fontWeight: '700', textAlign: 'right' }}>
-        {value.toFixed(1)}{suffix}
-      </div>
-    </div>
-  );
-}
-
-function TrafficSourceRow({ label, icon: Icon, views, pct, maxPct }) {
-  const barWidth = maxPct > 0 ? (pct / maxPct) * 100 : 0;
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-      <div style={{ width: '16px', display: 'flex', justifyContent: 'center' }}>
-        {Icon && <Icon size={13} style={{ color: '#666' }} />}
-      </div>
-      <div style={{ width: '130px', fontSize: '12px', color: '#ccc', fontWeight: '500' }}>{label}</div>
-      <div style={{ flex: 1, height: '16px', background: '#252525', borderRadius: '3px', overflow: 'hidden' }}>
-        <div style={{
-          width: `${Math.max(barWidth, 1)}%`, height: '100%',
-          background: 'linear-gradient(90deg, #3b82f6, #60a5fa)',
-          borderRadius: '3px', transition: 'width 0.6s ease',
-        }} />
-      </div>
-      <div style={{ width: '70px', fontSize: '11px', color: '#888', textAlign: 'right' }}>
-        {views >= 1000 ? `${(views / 1000).toFixed(1)}K` : views}
-      </div>
-      <div style={{ width: '40px', fontSize: '12px', color: '#fff', fontWeight: '700', textAlign: 'right' }}>
-        {pct.toFixed(1)}%
-      </div>
-    </div>
-  );
+function fmtViews(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString();
 }
 
 export default function AudienceIntelligence({ activeClient, dateRange }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState(false);
 
-  // Fetch audience data from Supabase
   useEffect(() => {
     if (!activeClient?.id) return;
     let cancelled = false;
 
     const fetchData = async () => {
       setLoading(true);
-
-      // Build channel IDs (handle network clients)
       const channelIds = activeClient.isNetwork && activeClient.networkMembers
         ? activeClient.networkMembers.map(m => m.id)
         : [activeClient.id];
 
-      // Get most recent audience snapshot for each channel
       const allData = { gender: {}, age: {}, country: {}, trafficSources: {}, deviceTypes: {} };
 
       for (const chId of channelIds) {
@@ -165,30 +69,19 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
 
         if (!snapshot) continue;
 
-        // Merge gender (average percentages)
         if (snapshot.gender_distribution) {
-          for (const [k, v] of Object.entries(snapshot.gender_distribution)) {
-            allData.gender[k] = (allData.gender[k] || 0) + v;
-          }
+          for (const [k, v] of Object.entries(snapshot.gender_distribution)) allData.gender[k] = (allData.gender[k] || 0) + v;
         }
-
-        // Merge age
         if (snapshot.age_distribution) {
-          for (const [k, v] of Object.entries(snapshot.age_distribution)) {
-            allData.age[k] = (allData.age[k] || 0) + v;
-          }
+          for (const [k, v] of Object.entries(snapshot.age_distribution)) allData.age[k] = (allData.age[k] || 0) + v;
         }
-
-        // Merge country (sum views)
         if (snapshot.country_data) {
           for (const [code, d] of Object.entries(snapshot.country_data)) {
-            if (!allData.country[code]) allData.country[code] = { views: 0, watchHours: 0, pct: 0 };
+            if (!allData.country[code]) allData.country[code] = { views: 0, watchHours: 0 };
             allData.country[code].views += d.views || 0;
             allData.country[code].watchHours += d.watchHours || 0;
           }
         }
-
-        // Merge traffic sources (sum views)
         if (snapshot.traffic_sources) {
           for (const [src, d] of Object.entries(snapshot.traffic_sources)) {
             if (!allData.trafficSources[src]) allData.trafficSources[src] = { views: 0, watchHours: 0 };
@@ -196,8 +89,6 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
             allData.trafficSources[src].watchHours += d.watchHours || 0;
           }
         }
-
-        // Merge devices (sum views)
         if (snapshot.device_types) {
           for (const [dev, d] of Object.entries(snapshot.device_types)) {
             if (!allData.deviceTypes[dev]) allData.deviceTypes[dev] = { views: 0, watchHours: 0 };
@@ -207,20 +98,16 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
         }
       }
 
-      // Normalize averaged demographics by channel count
       const chCount = channelIds.length;
       if (chCount > 1) {
         for (const k of Object.keys(allData.gender)) allData.gender[k] /= chCount;
         for (const k of Object.keys(allData.age)) allData.age[k] /= chCount;
       }
 
-      // Recalculate percentages for country/traffic/device
       const totalCountryViews = Object.values(allData.country).reduce((s, c) => s + c.views, 0);
       for (const c of Object.values(allData.country)) c.pct = totalCountryViews > 0 ? (c.views / totalCountryViews) * 100 : 0;
-
       const totalTrafficViews = Object.values(allData.trafficSources).reduce((s, t) => s + t.views, 0);
       for (const t of Object.values(allData.trafficSources)) t.pct = totalTrafficViews > 0 ? (t.views / totalTrafficViews) * 100 : 0;
-
       const totalDeviceViews = Object.values(allData.deviceTypes).reduce((s, d) => s + d.views, 0);
       for (const d of Object.values(allData.deviceTypes)) d.pct = totalDeviceViews > 0 ? (d.views / totalDeviceViews) * 100 : 0;
 
@@ -235,148 +122,163 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
     return () => { cancelled = true; };
   }, [activeClient?.id, activeClient?.isNetwork, dateRange]);
 
-  // Sorted data for rendering
   const sortedTraffic = useMemo(() => {
     if (!data?.trafficSources) return [];
     return Object.entries(data.trafficSources)
-      .map(([key, val]) => ({ key, label: TRAFFIC_SOURCE_LABELS[key] || key, ...val }))
+      .map(([key, val]) => ({ key, label: TRAFFIC_SOURCE_LABELS[key] || key.replace(/_/g, ' '), ...val }))
       .sort((a, b) => b.views - a.views);
   }, [data?.trafficSources]);
 
   const sortedDevices = useMemo(() => {
     if (!data?.deviceTypes) return [];
     return Object.entries(data.deviceTypes)
-      .map(([key, val]) => ({ key, label: key.charAt(0) + key.slice(1).toLowerCase(), ...val }))
+      .map(([key, val]) => ({ key, label: key.charAt(0) + key.slice(1).toLowerCase().replace(/_/g, ' '), ...val }))
       .sort((a, b) => b.views - a.views);
   }, [data?.deviceTypes]);
 
   const sortedCountries = useMemo(() => {
     if (!data?.country) return [];
-    return Object.entries(data.country)
-      .map(([code, val]) => ({ code, ...val }))
-      .sort((a, b) => b.views - a.views);
+    return Object.entries(data.country).map(([code, val]) => ({ code, ...val })).sort((a, b) => b.views - a.views);
   }, [data?.country]);
 
   const sortedAge = useMemo(() => {
     if (!data?.age) return [];
-    const order = ['age13-17', 'age18-24', 'age25-34', 'age35-44', 'age45-54', 'age55-64', 'age65-'];
-    return order
-      .filter(k => data.age[k] != null)
-      .map(k => ({ key: k, label: AGE_LABELS[k] || k, value: data.age[k] }));
+    return AGE_ORDER.filter(k => data.age[k] != null).map(k => ({ key: k, label: AGE_LABELS[k] || k, value: data.age[k] }));
   }, [data?.age]);
 
-  if (loading) {
-    return (
-      <div style={{ background: '#1E1E1E', border: '1px solid #2A2A2A', borderRadius: '10px', padding: '40px', textAlign: 'center', marginBottom: '24px' }}>
-        <Loader size={20} style={{ color: '#555', animation: 'spin 1s linear infinite' }} />
-        <div style={{ fontSize: '12px', color: '#555', marginTop: '8px' }}>Loading audience data...</div>
-      </div>
-    );
-  }
-
-  if (!data) {
-    return null; // No audience data yet — section hidden until sync runs
-  }
+  if (loading) return null;
+  if (!data) return null;
 
   const maxAge = Math.max(...sortedAge.map(a => a.value), 1);
   const maxTrafficPct = sortedTraffic.length > 0 ? sortedTraffic[0].pct : 1;
+  const genderEntries = Object.entries(data.gender || {}).sort(([, a], [, b]) => b - a);
+  const totalGender = genderEntries.reduce((s, [, v]) => s + v, 0);
 
   return (
-    <div style={{ marginBottom: '24px' }}>
-      {/* Section Header */}
+    <div style={{
+      background: '#1E1E1E', border: '1px solid #2A2A2A', borderRadius: '10px',
+      marginBottom: '24px', overflow: 'hidden',
+    }}>
+      {/* Header */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: '16px', cursor: 'pointer',
-      }} onClick={() => setExpanded(e => !e)}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Globe size={20} style={{ color: '#3b82f6' }} />
-          <span style={{ fontSize: '18px', fontWeight: '700', color: '#fff' }}>Audience Intelligence</span>
-          <span style={{ fontSize: '11px', color: '#555', fontWeight: '500' }}>
-            {sortedCountries.length} countries
-          </span>
-        </div>
-        {expanded ? <ChevronUp size={18} style={{ color: '#555' }} /> : <ChevronDown size={18} style={{ color: '#555' }} />}
+        padding: '16px 20px', borderBottom: '1px solid #2A2A2A',
+        display: 'flex', alignItems: 'center', gap: '10px',
+      }}>
+        <Globe size={18} style={{ color: '#3b82f6' }} />
+        <span style={{ fontSize: '16px', fontWeight: '700', color: '#fff' }}>Audience Intelligence</span>
+        <span style={{ fontSize: '11px', color: '#555', fontWeight: '500', marginLeft: '4px' }}>
+          {sortedCountries.length} countries
+        </span>
       </div>
 
-      {/* Global Map — always visible */}
-      <div style={{
-        background: '#1E1E1E', border: '1px solid #2A2A2A', borderRadius: '10px',
-        padding: '4px', marginBottom: '16px', overflow: 'hidden',
-      }}>
+      {/* Map + Demographics side by side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', minHeight: '320px' }}>
+        {/* Map */}
         <React.Suspense fallback={
-          <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Loader size={20} style={{ color: '#555', animation: 'spin 1s linear infinite' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f1729' }}>
+            <Loader size={20} style={{ color: '#334155' }} />
           </div>
         }>
           <LazyMap countries={sortedCountries} />
         </React.Suspense>
-      </div>
 
-      {/* Expandable detail cards */}
-      {expanded && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          {/* Demographics: Age */}
-          <SectionCard title="Age Distribution" icon={Users} accentColor="#f59e0b">
-            {sortedAge.map(a => (
-              <HorizontalBar key={a.key} label={a.label} value={a.value} maxValue={maxAge} color="#f59e0b" />
-            ))}
-          </SectionCard>
-
-          {/* Demographics: Gender */}
-          <SectionCard title="Gender" icon={Users} accentColor="#ec4899">
-            {Object.entries(data.gender || {})
-              .sort(([, a], [, b]) => b - a)
-              .map(([gender, pct]) => (
-                <HorizontalBar
-                  key={gender}
-                  label={gender === 'user_specified' ? 'Other' : gender.charAt(0).toUpperCase() + gender.slice(1)}
-                  value={pct}
-                  maxValue={100}
-                  color={GENDER_COLORS[gender] || '#666'}
-                />
-              ))
-            }
-          </SectionCard>
-
-          {/* Traffic Sources */}
-          <SectionCard title="Traffic Sources" icon={Search} accentColor="#3b82f6">
-            {sortedTraffic.slice(0, 8).map(t => (
-              <TrafficSourceRow
-                key={t.key}
-                label={t.label}
-                icon={TRAFFIC_SOURCE_ICONS[t.key]}
-                views={t.views}
-                pct={t.pct}
-                maxPct={maxTrafficPct}
-              />
-            ))}
-          </SectionCard>
-
-          {/* Device Types */}
-          <SectionCard title="Devices" icon={Smartphone} accentColor="#10b981">
-            {sortedDevices.map(d => {
-              const Icon = DEVICE_ICONS[d.key] || Monitor;
+        {/* Demographics sidebar */}
+        <div style={{ borderLeft: '1px solid #2A2A2A', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Gender */}
+          <div>
+            <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Gender</div>
+            {genderEntries.map(([gender, pct]) => {
+              const label = gender === 'user_specified' ? 'Other' : gender.charAt(0).toUpperCase() + gender.slice(1);
+              const barPct = totalGender > 0 ? (pct / totalGender) * 100 : 0;
               return (
-                <div key={d.key} style={{
-                  display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px',
-                  padding: '10px 12px', background: '#252525', borderRadius: '8px',
-                }}>
-                  <Icon size={18} style={{ color: '#10b981' }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '13px', color: '#fff', fontWeight: '600' }}>{d.label}</div>
-                    <div style={{ fontSize: '11px', color: '#666' }}>
-                      {d.views >= 1000 ? `${(d.views / 1000).toFixed(1)}K` : d.views} views
-                    </div>
+                <div key={gender} style={{ marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                    <span style={{ fontSize: '12px', color: '#ccc', fontWeight: '500' }}>{label}</span>
+                    <span style={{ fontSize: '12px', color: '#fff', fontWeight: '700' }}>{pct.toFixed(1)}%</span>
                   </div>
-                  <div style={{ fontSize: '16px', fontWeight: '800', color: '#10b981' }}>
-                    {d.pct.toFixed(1)}%
+                  <div style={{ height: '6px', background: '#252525', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${barPct}%`, height: '100%', background: GENDER_COLORS[gender] || '#666', borderRadius: '3px', transition: 'width 0.5s ease' }} />
                   </div>
                 </div>
               );
             })}
-          </SectionCard>
+          </div>
+
+          {/* Age */}
+          <div>
+            <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Age Distribution</div>
+            {sortedAge.map(a => (
+              <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <span style={{ width: '38px', fontSize: '11px', color: '#888', textAlign: 'right', fontWeight: '600' }}>{a.label}</span>
+                <div style={{ flex: 1, height: '14px', background: '#252525', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${Math.max((a.value / maxAge) * 100, 2)}%`, height: '100%',
+                    background: 'linear-gradient(90deg, #f59e0b, #fbbf24)',
+                    borderRadius: '3px', transition: 'width 0.5s ease',
+                  }} />
+                </div>
+                <span style={{ width: '40px', fontSize: '11px', color: '#fff', fontWeight: '700', textAlign: 'right' }}>{a.value.toFixed(1)}%</span>
+              </div>
+            ))}
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* Traffic Sources + Devices row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid #2A2A2A' }}>
+        {/* Traffic Sources */}
+        <div style={{ padding: '16px 20px', borderRight: '1px solid #2A2A2A' }}>
+          <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
+            Traffic Sources
+          </div>
+          {sortedTraffic.slice(0, 6).map(t => {
+            const Icon = TRAFFIC_SOURCE_ICONS[t.key];
+            const barWidth = maxTrafficPct > 0 ? (t.pct / maxTrafficPct) * 100 : 0;
+            return (
+              <div key={t.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <div style={{ width: '14px', display: 'flex', justifyContent: 'center' }}>
+                  {Icon && <Icon size={12} style={{ color: '#555' }} />}
+                </div>
+                <span style={{ width: '100px', fontSize: '12px', color: '#ccc', fontWeight: '500' }}>{t.label}</span>
+                <div style={{ flex: 1, height: '12px', background: '#252525', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${Math.max(barWidth, 2)}%`, height: '100%',
+                    background: 'linear-gradient(90deg, #3b82f6, #60a5fa)',
+                    borderRadius: '3px', transition: 'width 0.5s ease',
+                  }} />
+                </div>
+                <span style={{ width: '45px', fontSize: '11px', color: '#888', textAlign: 'right' }}>{fmtViews(t.views)}</span>
+                <span style={{ width: '38px', fontSize: '12px', color: '#fff', fontWeight: '700', textAlign: 'right' }}>{t.pct.toFixed(1)}%</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Devices */}
+        <div style={{ padding: '16px 20px' }}>
+          <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
+            Devices
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            {sortedDevices.map(d => {
+              const Icon = DEVICE_ICONS[d.key] || Monitor;
+              return (
+                <div key={d.key} style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  padding: '10px 12px', background: '#252525', borderRadius: '8px',
+                }}>
+                  <Icon size={16} style={{ color: '#10b981' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '12px', color: '#fff', fontWeight: '600' }}>{d.label}</div>
+                    <div style={{ fontSize: '10px', color: '#555' }}>{fmtViews(d.views)}</div>
+                  </div>
+                  <div style={{ fontSize: '15px', fontWeight: '800', color: '#10b981' }}>{d.pct.toFixed(0)}%</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
