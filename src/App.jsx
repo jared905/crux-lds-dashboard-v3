@@ -1289,6 +1289,7 @@ export default function App() {
                 setChartMetric={setChartMetric}
                 channelStats={channelStats}
                 activeClient={activeClient}
+                selectedChannel={selectedChannel}
                 setTab={setTab}
               />
             )}

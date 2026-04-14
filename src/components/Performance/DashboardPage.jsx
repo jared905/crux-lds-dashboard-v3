@@ -219,7 +219,7 @@ function KpiCard({ icon: Icon, iconSrc, label, value, allTimeLabel, allTimeValue
   );
 }
 
-export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, customDateRange, chartMetric, setChartMetric, channelStats, activeClient, setTab }) {
+export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previousKpis, dateRange, customDateRange, chartMetric, setChartMetric, channelStats, activeClient, selectedChannel, setTab }) {
   const { isMobile } = useMediaQuery();
   // Channel stats (subscribers, views, videoCount) are fetched by the parent (App.jsx)
   // which correctly handles per-channel resolution and "all channels" aggregation.
@@ -725,7 +725,7 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
 
       {/* Audience Intelligence — Demographics, Geography, Traffic Sources, Devices */}
       <AnimatedSection delay={0.05}>
-        <AudienceIntelligence activeClient={activeClient} dateRange={dateRange} />
+        <AudienceIntelligence activeClient={activeClient} selectedChannel={selectedChannel} dateRange={dateRange} />
       </AnimatedSection>
 
       {/* Dataset Info Note */}

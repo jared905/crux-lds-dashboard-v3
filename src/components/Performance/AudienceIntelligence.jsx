@@ -44,7 +44,7 @@ function fmtViews(n) {
   return n.toLocaleString();
 }
 
-export default function AudienceIntelligence({ activeClient, dateRange }) {
+export default function AudienceIntelligence({ activeClient, selectedChannel, dateRange }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -54,9 +54,16 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
 
     const fetchData = async () => {
       setLoading(true);
-      const channelIds = activeClient.isNetwork && activeClient.networkMembers
-        ? activeClient.networkMembers.map(m => m.id)
-        : [activeClient.id];
+      let channelIds;
+      if (selectedChannel && selectedChannel !== 'all' && activeClient.networkMembers) {
+        // Single channel selected within a network
+        const match = activeClient.networkMembers.find(m => m.name === selectedChannel);
+        channelIds = match ? [match.id] : [activeClient.id];
+      } else if (activeClient.isNetwork && activeClient.networkMembers) {
+        channelIds = activeClient.networkMembers.map(m => m.id);
+      } else {
+        channelIds = [activeClient.id];
+      }
 
       const allData = { gender: {}, age: {}, country: {}, province: {}, city: {}, trafficSources: {}, deviceTypes: {} };
 
@@ -138,7 +145,7 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
 
     fetchData();
     return () => { cancelled = true; };
-  }, [activeClient?.id, activeClient?.isNetwork, dateRange]);
+  }, [activeClient?.id, activeClient?.isNetwork, selectedChannel, dateRange]);
 
   const sortedTraffic = useMemo(() => {
     if (!data?.trafficSources) return [];
