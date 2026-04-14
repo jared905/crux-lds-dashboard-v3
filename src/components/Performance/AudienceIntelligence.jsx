@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 
-const LazyMap = React.lazy(() => import('./AudienceMap.jsx'));
+const LazyWorldMap = React.lazy(() => import('./AudienceMap.jsx'));
+const LazyUSMap = React.lazy(() => import('./USStateMap.jsx'));
 
 const TRAFFIC_SOURCE_LABELS = {
   YT_SEARCH: 'YouTube Search', SUBSCRIBER: 'Subscribers', SUGGESTED: 'Suggested',
@@ -57,7 +58,7 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
         ? activeClient.networkMembers.map(m => m.id)
         : [activeClient.id];
 
-      const allData = { gender: {}, age: {}, country: {}, trafficSources: {}, deviceTypes: {} };
+      const allData = { gender: {}, age: {}, country: {}, province: {}, city: {}, trafficSources: {}, deviceTypes: {} };
 
       for (const chId of channelIds) {
         const { data: snapshot } = await supabase
@@ -81,6 +82,20 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
             if (!allData.country[code]) allData.country[code] = { views: 0, watchHours: 0 };
             allData.country[code].views += d.views || 0;
             allData.country[code].watchHours += d.watchHours || 0;
+          }
+        }
+        if (snapshot.province_data) {
+          for (const [code, d] of Object.entries(snapshot.province_data)) {
+            if (!allData.province[code]) allData.province[code] = { views: 0, watchHours: 0 };
+            allData.province[code].views += d.views || 0;
+            allData.province[code].watchHours += d.watchHours || 0;
+          }
+        }
+        if (snapshot.city_data) {
+          for (const [city, d] of Object.entries(snapshot.city_data)) {
+            if (!allData.city[city]) allData.city[city] = { views: 0, watchHours: 0 };
+            allData.city[city].views += d.views || 0;
+            allData.city[city].watchHours += d.watchHours || 0;
           }
         }
         if (snapshot.traffic_sources) {
@@ -107,6 +122,8 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
 
       const totalCountryViews = Object.values(allData.country).reduce((s, c) => s + c.views, 0);
       for (const c of Object.values(allData.country)) c.pct = totalCountryViews > 0 ? (c.views / totalCountryViews) * 100 : 0;
+      const totalProvinceViews = Object.values(allData.province).reduce((s, p) => s + p.views, 0);
+      for (const p of Object.values(allData.province)) p.pct = totalProvinceViews > 0 ? (p.views / totalProvinceViews) * 100 : 0;
       const totalTrafficViews = Object.values(allData.trafficSources).reduce((s, t) => s + t.views, 0);
       for (const t of Object.values(allData.trafficSources)) t.pct = totalTrafficViews > 0 ? (t.views / totalTrafficViews) * 100 : 0;
       const totalDeviceViews = Object.values(allData.deviceTypes).reduce((s, d) => s + d.views, 0);
@@ -172,56 +189,77 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
         </span>
       </div>
 
-      {/* Map + Demographics side by side */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', minHeight: '320px' }}>
-        {/* Map */}
-        <React.Suspense fallback={
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f1729' }}>
-            <Loader size={20} style={{ color: '#334155' }} />
+      {/* Dual Maps: US States (left) + World (right) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+        {/* US State Map */}
+        <div style={{ borderRight: '1px solid #2A2A2A' }}>
+          <div style={{ padding: '10px 16px', borderBottom: '1px solid #2A2A2A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Map size={13} style={{ color: '#60a5fa' }} />
+            <span style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8' }}>United States</span>
           </div>
-        }>
-          <LazyMap countries={sortedCountries} />
-        </React.Suspense>
+          <React.Suspense fallback={
+            <div style={{ height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c1222' }}>
+              <Loader size={18} style={{ color: '#334155' }} />
+            </div>
+          }>
+            <LazyUSMap provinces={data.province} topCities={data.city} />
+          </React.Suspense>
+        </div>
 
-        {/* Demographics sidebar */}
-        <div style={{ borderLeft: '1px solid #2A2A2A', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Gender */}
-          <div>
-            <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Gender</div>
-            {genderEntries.map(([gender, pct]) => {
-              const label = gender === 'user_specified' ? 'Other' : gender.charAt(0).toUpperCase() + gender.slice(1);
-              const barPct = totalGender > 0 ? (pct / totalGender) * 100 : 0;
-              return (
-                <div key={gender} style={{ marginBottom: '6px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                    <span style={{ fontSize: '12px', color: '#ccc', fontWeight: '500' }}>{label}</span>
-                    <span style={{ fontSize: '12px', color: '#fff', fontWeight: '700' }}>{pct.toFixed(1)}%</span>
-                  </div>
-                  <div style={{ height: '6px', background: '#252525', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ width: `${barPct}%`, height: '100%', background: GENDER_COLORS[gender] || '#666', borderRadius: '3px', transition: 'width 0.5s ease' }} />
-                  </div>
-                </div>
-              );
-            })}
+        {/* World Map */}
+        <div>
+          <div style={{ padding: '10px 16px', borderBottom: '1px solid #2A2A2A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Globe size={13} style={{ color: '#60a5fa' }} />
+            <span style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8' }}>Global</span>
           </div>
+          <React.Suspense fallback={
+            <div style={{ height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c1222' }}>
+              <Loader size={18} style={{ color: '#334155' }} />
+            </div>
+          }>
+            <LazyWorldMap countries={sortedCountries} />
+          </React.Suspense>
+        </div>
+      </div>
 
-          {/* Age */}
-          <div>
-            <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Age Distribution</div>
-            {sortedAge.map(a => (
-              <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                <span style={{ width: '38px', fontSize: '11px', color: '#888', textAlign: 'right', fontWeight: '600' }}>{a.label}</span>
-                <div style={{ flex: 1, height: '14px', background: '#252525', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${Math.max((a.value / maxAge) * 100, 2)}%`, height: '100%',
-                    background: 'linear-gradient(90deg, #f59e0b, #fbbf24)',
-                    borderRadius: '3px', transition: 'width 0.5s ease',
-                  }} />
-                </div>
-                <span style={{ width: '40px', fontSize: '11px', color: '#fff', fontWeight: '700', textAlign: 'right' }}>{a.value.toFixed(1)}%</span>
+      {/* Demographics row: Age + Gender */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid #2A2A2A' }}>
+        {/* Age Distribution */}
+        <div style={{ padding: '16px 20px', borderRight: '1px solid #2A2A2A' }}>
+          <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Age Distribution</div>
+          {sortedAge.map(a => (
+            <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
+              <span style={{ width: '38px', fontSize: '11px', color: '#888', textAlign: 'right', fontWeight: '600' }}>{a.label}</span>
+              <div style={{ flex: 1, height: '14px', background: '#252525', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{
+                  width: `${Math.max((a.value / maxAge) * 100, 2)}%`, height: '100%',
+                  background: 'linear-gradient(90deg, #f59e0b, #fbbf24)',
+                  borderRadius: '3px', transition: 'width 0.5s ease',
+                }} />
               </div>
-            ))}
-          </div>
+              <span style={{ width: '40px', fontSize: '11px', color: '#fff', fontWeight: '700', textAlign: 'right' }}>{a.value.toFixed(1)}%</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Gender */}
+        <div style={{ padding: '16px 20px' }}>
+          <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Gender</div>
+          {genderEntries.map(([gender, pct]) => {
+            const label = gender === 'user_specified' ? 'Other' : gender.charAt(0).toUpperCase() + gender.slice(1);
+            const barPct = totalGender > 0 ? (pct / totalGender) * 100 : 0;
+            return (
+              <div key={gender} style={{ marginBottom: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '13px', color: '#ccc', fontWeight: '500' }}>{label}</span>
+                  <span style={{ fontSize: '13px', color: '#fff', fontWeight: '700' }}>{pct.toFixed(1)}%</span>
+                </div>
+                <div style={{ height: '8px', background: '#252525', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${barPct}%`, height: '100%', background: GENDER_COLORS[gender] || '#666', borderRadius: '4px', transition: 'width 0.5s ease' }} />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

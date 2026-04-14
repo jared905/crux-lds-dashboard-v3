@@ -98,6 +98,7 @@ async function fetchReport(accessToken, channelId, startDate, endDate, dimension
   url.searchParams.append('metrics', metrics);
   if (options.sort) url.searchParams.append('sort', options.sort);
   if (options.maxResults) url.searchParams.append('maxResults', String(options.maxResults));
+  if (options.filters) url.searchParams.append('filters', options.filters);
 
   const response = await fetch(url.toString(), { headers });
   if (!response.ok) {
@@ -115,6 +116,8 @@ async function fetchAudienceData(accessToken, channelId, startDate, endDate) {
     gender: null,
     age: null,
     country: null,
+    province: null,
+    city: null,
     trafficSource: null,
     deviceType: null,
   };
@@ -149,6 +152,38 @@ async function fetchAudienceData(accessToken, channelId, startDate, endDate) {
       };
     }
     result.country = countries;
+  }
+
+  // 2b. US States (province dimension, requires country==US filter)
+  const provinceData = await fetchReport(accessToken, channelId, startDate, endDate,
+    'province', 'views,estimatedMinutesWatched', { sort: '-views', maxResults: 55, filters: 'country==US' });
+  if (provinceData?.rows) {
+    const totalViews = provinceData.rows.reduce((s, r) => s + (r[1] || 0), 0);
+    const provinces = {};
+    for (const row of provinceData.rows) {
+      const [provinceCode, views, watchMins] = row;
+      provinces[provinceCode] = {
+        views,
+        watchHours: Math.round((watchMins / 60) * 10) / 10,
+        pct: totalViews > 0 ? Math.round((views / totalViews) * 1000) / 10 : 0,
+      };
+    }
+    result.province = provinces;
+  }
+
+  // 2c. Top cities
+  const cityData = await fetchReport(accessToken, channelId, startDate, endDate,
+    'city', 'views,estimatedMinutesWatched', { sort: '-views', maxResults: 25 });
+  if (cityData?.rows) {
+    const cities = {};
+    for (const row of cityData.rows) {
+      const [cityName, views, watchMins] = row;
+      cities[cityName] = {
+        views,
+        watchHours: Math.round((watchMins / 60) * 10) / 10,
+      };
+    }
+    result.city = cities;
   }
 
   // 3. Traffic sources
@@ -237,6 +272,8 @@ async function handleSync(req, res) {
           gender_distribution: audience.gender,
           age_distribution: audience.age,
           country_data: audience.country,
+          province_data: audience.province,
+          city_data: audience.city,
           traffic_sources: audience.trafficSource,
           device_types: audience.deviceType,
         }, { onConflict: 'channel_id,snapshot_date' });
