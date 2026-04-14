@@ -358,24 +358,65 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
       const publishedSectionHtml = pendingPublishedHtml;
       const audienceData = pendingAudienceData;
 
-      // Capture map images from the live DOM using data-map attributes
+      // Capture map images in light mode for PDF (white background)
       let usMapImage = null;
       let worldMapImage = null;
       try {
         const captureMap = async (selector) => {
           const el = document.querySelector(selector);
           if (!el) return null;
-          // Scroll into view to ensure it's rendered (lazy-loaded)
           el.scrollIntoView({ block: 'center' });
-          await new Promise(r => setTimeout(r, 500)); // Wait for render
+          await new Promise(r => setTimeout(r, 300));
+
+          // Switch to light mode: swap backgrounds and SVG fills
+          const origBg = el.style.background;
+          el.style.background = '#e8edf5';
+          const paths = el.querySelectorAll('path');
+          const origFills = [];
+          paths.forEach(p => {
+            origFills.push(p.getAttribute('fill'));
+            const fill = p.getAttribute('fill');
+            if (fill === '#151d2e' || fill === '#1e2330') {
+              p.setAttribute('fill', '#d1d5db'); // No-data countries → light gray
+            } else if (fill === '#0f172a' || fill === '#0c1222') {
+              // Skip strokes stored as fill
+            }
+          });
+          const origStrokes = [];
+          paths.forEach(p => {
+            origStrokes.push(p.getAttribute('stroke'));
+            const stroke = p.getAttribute('stroke');
+            if (stroke === '#0f172a' || stroke === '#1a2744') {
+              p.setAttribute('stroke', '#cbd5e1'); // Light gray borders
+            }
+          });
+
+          // Hide overlay elements (bottom gradient, tooltips) — they have dark bg
+          const overlays = el.querySelectorAll('div[style*="gradient"], div[style*="rgba"]');
+          const origOverlayDisplay = [];
+          overlays.forEach(o => {
+            origOverlayDisplay.push(o.style.display);
+            o.style.display = 'none';
+          });
+
+          await new Promise(r => setTimeout(r, 100));
+
           const canvas = await html2canvas(el, {
-            backgroundColor: '#0c1222',
+            backgroundColor: '#e8edf5',
             scale: 2,
             logging: false,
             useCORS: true,
             allowTaint: true,
           });
-          return canvas.toDataURL('image/png');
+          const img = canvas.toDataURL('image/png');
+
+          // Restore dark mode
+          el.style.background = origBg;
+          paths.forEach((p, i) => p.setAttribute('fill', origFills[i]));
+          paths.forEach((p, i) => p.setAttribute('stroke', origStrokes[i]));
+          overlays.forEach((o, i) => o.style.display = origOverlayDisplay[i]);
+
+          return img;
         };
         usMapImage = await captureMap('[data-map="us-states"]');
         worldMapImage = await captureMap('[data-map="world"]');
