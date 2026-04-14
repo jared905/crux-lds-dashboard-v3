@@ -358,63 +358,71 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
       const publishedSectionHtml = pendingPublishedHtml;
       const audienceData = pendingAudienceData;
 
-      // Capture map images in light mode for PDF (white background)
+      // Capture map images in light mode for PDF
       let usMapImage = null;
       let worldMapImage = null;
       try {
+        // Dark-to-light color mapping for SVG fills
+        const DARK_TO_LIGHT = {
+          '#151d2e': '#e2e8f0', '#1e2330': '#e2e8f0', // no-data → light gray
+          '#1a2d50': '#bfdbfe', '#1e3d6e': '#bfdbfe', // low density
+          '#1d4ed8': '#93c5fd', '#2563eb': '#60a5fa',  // medium density
+          '#3b82f6': '#3b82f6', '#60a5fa': '#2563eb',  // high density (keep/darken)
+          '#93c5fd': '#1d4ed8', '#dbeafe': '#1e40af',  // very high (darken for contrast on white)
+          '#0f172a': '#cbd5e1', '#1a2744': '#cbd5e1',  // strokes → light gray
+          '#0c1222': '#f1f5f9',                         // background
+        };
+
         const captureMap = async (selector) => {
           const el = document.querySelector(selector);
           if (!el) return null;
           el.scrollIntoView({ block: 'center' });
           await new Promise(r => setTimeout(r, 300));
 
-          // Switch to light mode: swap backgrounds and SVG fills
-          const origBg = el.style.background;
-          el.style.background = '#e8edf5';
+          // Save and swap all path fills + strokes (handles both attribute and inline style)
           const paths = el.querySelectorAll('path');
-          const origFills = [];
+          const saved = [];
           paths.forEach(p => {
-            origFills.push(p.getAttribute('fill'));
-            const fill = p.getAttribute('fill');
-            if (fill === '#151d2e' || fill === '#1e2330') {
-              p.setAttribute('fill', '#d1d5db'); // No-data countries → light gray
-            } else if (fill === '#0f172a' || fill === '#0c1222') {
-              // Skip strokes stored as fill
-            }
-          });
-          const origStrokes = [];
-          paths.forEach(p => {
-            origStrokes.push(p.getAttribute('stroke'));
-            const stroke = p.getAttribute('stroke');
-            if (stroke === '#0f172a' || stroke === '#1a2744') {
-              p.setAttribute('stroke', '#cbd5e1'); // Light gray borders
-            }
+            const origFill = p.style.fill || p.getAttribute('fill') || '';
+            const origStroke = p.style.stroke || p.getAttribute('stroke') || '';
+            saved.push({ fill: origFill, stroke: origStroke, styleFill: p.style.fill, styleStroke: p.style.stroke });
+            const newFill = DARK_TO_LIGHT[origFill.toLowerCase()] || DARK_TO_LIGHT[origFill];
+            const newStroke = DARK_TO_LIGHT[origStroke.toLowerCase()] || DARK_TO_LIGHT[origStroke];
+            if (newFill) { p.style.fill = newFill; p.setAttribute('fill', newFill); }
+            if (newStroke) { p.style.stroke = newStroke; p.setAttribute('stroke', newStroke); }
           });
 
-          // Hide overlay elements (bottom gradient, tooltips) — they have dark bg
-          const overlays = el.querySelectorAll('div[style*="gradient"], div[style*="rgba"]');
-          const origOverlayDisplay = [];
+          // Swap background
+          const origBg = el.style.background;
+          el.style.background = '#f1f5f9';
+
+          // Hide dark overlays
+          const overlays = el.querySelectorAll('div');
+          const hiddenOverlays = [];
           overlays.forEach(o => {
-            origOverlayDisplay.push(o.style.display);
-            o.style.display = 'none';
+            const bg = o.style.background || '';
+            if (bg.includes('gradient') || bg.includes('rgba')) {
+              hiddenOverlays.push({ el: o, display: o.style.display });
+              o.style.display = 'none';
+            }
           });
 
           await new Promise(r => setTimeout(r, 100));
 
           const canvas = await html2canvas(el, {
-            backgroundColor: '#e8edf5',
-            scale: 2,
-            logging: false,
-            useCORS: true,
-            allowTaint: true,
+            backgroundColor: '#f1f5f9', scale: 2, logging: false, useCORS: true, allowTaint: true,
           });
           const img = canvas.toDataURL('image/png');
 
-          // Restore dark mode
+          // Restore everything
           el.style.background = origBg;
-          paths.forEach((p, i) => p.setAttribute('fill', origFills[i]));
-          paths.forEach((p, i) => p.setAttribute('stroke', origStrokes[i]));
-          overlays.forEach((o, i) => o.style.display = origOverlayDisplay[i]);
+          paths.forEach((p, i) => {
+            p.setAttribute('fill', saved[i].fill);
+            p.setAttribute('stroke', saved[i].stroke);
+            p.style.fill = saved[i].styleFill || '';
+            p.style.stroke = saved[i].styleStroke || '';
+          });
+          hiddenOverlays.forEach(h => h.el.style.display = h.display);
 
           return img;
         };
@@ -763,24 +771,6 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
                     </div>`;
                   }).join('')}
 
-                <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-top: 18px; margin-bottom: 10px;">Top Regions</div>
-                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                  ${Object.entries(audienceData.country || {})
-                    .sort(([,a],[,b]) => b.views - a.views)
-                    .slice(0, 8)
-                    .map(([code, val]) => `<span style="font-size: 11px; padding: 4px 10px; background: #e0e7ff; border-radius: 6px; color: #3730a3; font-weight: 600;">${code} ${val.pct.toFixed(1)}%</span>`)
-                    .join('')}
-                </div>
-                ${Object.keys(audienceData.province || {}).length > 0 ? `
-                <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-top: 14px; margin-bottom: 10px;">Top US States</div>
-                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                  ${Object.entries(audienceData.province || {})
-                    .sort(([,a],[,b]) => b.views - a.views)
-                    .slice(0, 8)
-                    .map(([code, val]) => `<span style="font-size: 11px; padding: 4px 10px; background: #dbeafe; border-radius: 6px; color: #1e40af; font-weight: 600;">${code.replace('US-','')} ${val.pct.toFixed(1)}%</span>`)
-                    .join('')}
-                </div>
-                ` : ''}
               </div>
             </div>
           </div>
