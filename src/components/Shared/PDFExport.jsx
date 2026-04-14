@@ -358,6 +358,36 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
       const publishedSectionHtml = pendingPublishedHtml;
       const audienceData = pendingAudienceData;
 
+      // Capture map images from the live DOM (they're rendered on the Performance page)
+      let usMapImage = null;
+      let worldMapImage = null;
+      try {
+        const mapSvgs = document.querySelectorAll('.rsm-svg');
+        if (mapSvgs.length >= 2) {
+          // US map is first, world map is second
+          const captureMap = async (svgEl) => {
+            const mapContainer = svgEl.closest('div[style*="background"]') || svgEl.parentElement;
+            const canvas = await html2canvas(mapContainer, {
+              backgroundColor: '#0c1222',
+              scale: 2,
+              logging: false,
+              useCORS: true,
+            });
+            return canvas.toDataURL('image/png');
+          };
+          usMapImage = await captureMap(mapSvgs[0]);
+          worldMapImage = await captureMap(mapSvgs[1]);
+        } else if (mapSvgs.length === 1) {
+          const mapContainer = mapSvgs[0].closest('div[style*="background"]') || mapSvgs[0].parentElement;
+          const canvas = await html2canvas(mapContainer, {
+            backgroundColor: '#0c1222', scale: 2, logging: false, useCORS: true,
+          });
+          worldMapImage = canvas.toDataURL('image/png');
+        }
+      } catch (err) {
+        console.warn('Could not capture map images for PDF:', err);
+      }
+
       // Create a temporary container for the PDF content
       const container = document.createElement('div');
       container.style.position = 'absolute';
@@ -610,6 +640,29 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
           <!-- Audience Intelligence -->
           <div data-pdf-section style="margin-bottom: 32px;">
             <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; line-height: 1.3; letter-spacing: 1px;">AUDIENCE INTELLIGENCE</h2>
+
+            ${(usMapImage || worldMapImage) ? `
+            <!-- Maps -->
+            <div style="display: grid; grid-template-columns: ${usMapImage && worldMapImage ? '1fr 1fr' : '1fr'}; gap: 12px; margin-bottom: 20px;">
+              ${usMapImage ? `
+              <div style="border-radius: 10px; overflow: hidden; border: 2px solid #e2e8f0;">
+                <div style="padding: 8px 14px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">
+                  <span style="font-size: 12px; font-weight: 600; color: #64748b;">United States</span>
+                </div>
+                <img src="${usMapImage}" style="width: 100%; display: block;" />
+              </div>
+              ` : ''}
+              ${worldMapImage ? `
+              <div style="border-radius: 10px; overflow: hidden; border: 2px solid #e2e8f0;">
+                <div style="padding: 8px 14px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">
+                  <span style="font-size: 12px; font-weight: 600; color: #64748b;">Global</span>
+                </div>
+                <img src="${worldMapImage}" style="width: 100%; display: block;" />
+              </div>
+              ` : ''}
+            </div>
+            ` : ''}
+
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
               ${/* Demographics */ ''}
               <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
@@ -644,7 +697,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
                       const maxAge = Math.max(...Object.values(audienceData.age));
                       const barW = maxAge > 0 ? (val / maxAge) * 100 : 0;
                       return `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                        <span style="width: 36px; font-size: 12px; color: #64748b; text-align: right; font-weight: 600;">${label}</span>
+                        <span style="width: 42px; font-size: 12px; color: #64748b; text-align: right; font-weight: 600; white-space: nowrap;">${label}</span>
                         <div style="flex: 1; height: 12px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
                           <div style="width: ${Math.max(barW, 2)}%; height: 100%; background: linear-gradient(90deg, #f59e0b, #fbbf24); border-radius: 3px;"></div>
                         </div>
