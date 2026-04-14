@@ -7,6 +7,7 @@ import TopVideos from "./TopVideos.jsx";
 import PublishingTimeline from "./PublishingTimeline.jsx";
 import BrandFunnel from "./BrandFunnel.jsx";
 import AudienceSignals from "./AudienceSignals.jsx";
+import AudienceIntelligence from "./AudienceIntelligence.jsx";
 import HeroBanner from "./HeroBanner.jsx";
 import AnimatedSection from "../Shared/AnimatedSection.jsx";
 
@@ -721,6 +722,11 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         </div>
         <Chart rows={filtered} metric={chartMetric} />
       </div>
+
+      {/* Audience Intelligence — Demographics, Geography, Traffic Sources, Devices */}
+      <AnimatedSection delay={0.05}>
+        <AudienceIntelligence activeClient={activeClient} dateRange={dateRange} />
+      </AnimatedSection>
 
       {/* Dataset Info Note */}
       {rows.length > 0 && (
