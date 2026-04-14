@@ -694,6 +694,13 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
                   <span style="font-size: 12px; font-weight: 600; color: #64748b;">United States</span>
                 </div>
                 <img src="${usMapImage}" style="width: 100%; display: block;" />
+                <div style="padding: 8px 12px; background: #f8fafc; display: flex; flex-wrap: wrap; gap: 5px; border-top: 1px solid #e2e8f0;">
+                  ${Object.entries(audienceData?.province || {})
+                    .sort(([,a],[,b]) => b.views - a.views)
+                    .slice(0, 8)
+                    .map(([code, val], i) => `<span style="font-size: 10px; padding: 2px 8px; background: ${i === 0 ? '#dbeafe' : '#f1f5f9'}; border: 1px solid ${i === 0 ? '#93c5fd' : '#e2e8f0'}; border-radius: 4px; color: ${i === 0 ? '#1e40af' : '#475569'}; font-weight: ${i === 0 ? '700' : '600'};">${code.replace('US-','')} ${val.pct.toFixed(1)}%</span>`)
+                    .join('')}
+                </div>
               </div>
               ` : ''}
               ${worldMapImage ? `
@@ -702,6 +709,13 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
                   <span style="font-size: 12px; font-weight: 600; color: #64748b;">Global</span>
                 </div>
                 <img src="${worldMapImage}" style="width: 100%; display: block;" />
+                <div style="padding: 8px 12px; background: #f8fafc; display: flex; flex-wrap: wrap; gap: 5px; border-top: 1px solid #e2e8f0;">
+                  ${Object.entries(audienceData?.country || {})
+                    .sort(([,a],[,b]) => b.views - a.views)
+                    .slice(0, 8)
+                    .map(([code, val], i) => `<span style="font-size: 10px; padding: 2px 8px; background: ${i === 0 ? '#dbeafe' : '#f1f5f9'}; border: 1px solid ${i === 0 ? '#93c5fd' : '#e2e8f0'}; border-radius: 4px; color: ${i === 0 ? '#1e40af' : '#475569'}; font-weight: ${i === 0 ? '700' : '600'};">${code} ${val.pct.toFixed(1)}%</span>`)
+                    .join('')}
+                </div>
               </div>
               ` : ''}
             </div>
