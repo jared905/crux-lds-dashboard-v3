@@ -176,7 +176,7 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
   return (
     <div style={{
       background: '#1E1E1E', border: '1px solid #2A2A2A', borderRadius: '10px',
-      marginTop: '24px', marginBottom: '24px', overflow: 'hidden',
+      marginTop: '40px', marginBottom: '24px', overflow: 'hidden',
     }}>
       {/* Header */}
       <div style={{
@@ -295,8 +295,8 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
         </div>
 
         {/* Devices — Donut Chart */}
-        <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '24px' }}>
-          <div style={{ position: 'relative', width: '130px', height: '130px', flexShrink: 0 }}>
+        <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '28px' }}>
+          <div style={{ position: 'relative', width: '180px', height: '180px', flexShrink: 0 }}>
             <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
               {(() => {
                 const DONUT_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
@@ -332,11 +332,11 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
               return sortedDevices.map((d, i) => {
                 const Icon = DEVICE_ICONS[d.key] || Monitor;
                 return (
-                  <div key={d.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0 }} />
-                    <Icon size={13} style={{ color: '#666', flexShrink: 0 }} />
-                    <span style={{ fontSize: '12px', color: '#ccc', fontWeight: '500', flex: 1 }}>{d.label}</span>
-                    <span style={{ fontSize: '12px', color: '#fff', fontWeight: '700' }}>{d.pct.toFixed(1)}%</span>
+                  <div key={d.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0 }} />
+                    <Icon size={16} style={{ color: '#888', flexShrink: 0 }} />
+                    <span style={{ fontSize: '14px', color: '#ccc', fontWeight: '500', flex: 1 }}>{d.label}</span>
+                    <span style={{ fontSize: '16px', color: '#fff', fontWeight: '800' }}>{d.pct.toFixed(1)}%</span>
                   </div>
                 );
               });

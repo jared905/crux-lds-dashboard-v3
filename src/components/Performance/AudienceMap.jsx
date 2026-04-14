@@ -12,6 +12,22 @@ import {
 
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
+// ISO 3166-1 numeric → alpha-2 (world-atlas uses numeric IDs)
+const NUM_TO_A2 = {
+  '840': 'US', '826': 'GB', '124': 'CA', '036': 'AU', '356': 'IN', '076': 'BR',
+  '276': 'DE', '250': 'FR', '484': 'MX', '392': 'JP', '410': 'KR', '380': 'IT',
+  '724': 'ES', '528': 'NL', '752': 'SE', '578': 'NO', '208': 'DK', '246': 'FI',
+  '608': 'PH', '360': 'ID', '764': 'TH', '704': 'VN', '458': 'MY', '702': 'SG',
+  '554': 'NZ', '710': 'ZA', '566': 'NG', '404': 'KE', '288': 'GH', '818': 'EG',
+  '586': 'PK', '050': 'BD', '170': 'CO', '032': 'AR', '152': 'CL', '604': 'PE',
+  '643': 'RU', '616': 'PL', '804': 'UA', '642': 'RO', '203': 'CZ', '348': 'HU',
+  '040': 'AT', '756': 'CH', '056': 'BE', '620': 'PT', '372': 'IE', '376': 'IL',
+  '784': 'AE', '682': 'SA', '792': 'TR', '158': 'TW', '344': 'HK', '156': 'CN',
+  '320': 'GT', '214': 'DO', '218': 'EC', '862': 'VE', '188': 'CR', '591': 'PA',
+  '388': 'JM', '780': 'TT', '630': 'PR', '340': 'HN', '222': 'SV', '558': 'NI',
+  '068': 'BO', '600': 'PY', '858': 'UY', '304': 'GL', '352': 'IS',
+};
+
 const A2_TO_A3 = {
   US: 'USA', GB: 'GBR', CA: 'CAN', AU: 'AUS', IN: 'IND', BR: 'BRA', DE: 'DEU',
   FR: 'FRA', MX: 'MEX', JP: 'JPN', KR: 'KOR', IT: 'ITA', ES: 'ESP', NL: 'NLD',
@@ -49,9 +65,14 @@ export default function AudienceMap({ countries }) {
   const countryLookup = useMemo(() => {
     const lookup = {};
     for (const c of countries) {
+      // Store by alpha-2, alpha-3, and numeric for maximum matching
+      lookup[c.code] = c;
       const a3 = A2_TO_A3[c.code];
       if (a3) lookup[a3] = c;
-      lookup[c.code] = c;
+    }
+    // Also build reverse: numeric → country data
+    for (const [num, a2] of Object.entries(NUM_TO_A2)) {
+      if (lookup[a2]) lookup[num] = lookup[a2];
     }
     return lookup;
   }, [countries]);
@@ -66,9 +87,10 @@ export default function AudienceMap({ countries }) {
         <Geographies geography={GEO_URL}>
           {({ geographies }) =>
             geographies.map(geo => {
-              const isoA3 = geo.properties?.ISO_A3 || geo.id;
+              const numId = geo.id; // world-atlas uses numeric IDs like "840"
+              const isoA3 = geo.properties?.ISO_A3;
               const isoA2 = geo.properties?.ISO_A2;
-              const cd = countryLookup[isoA3] || countryLookup[isoA2] || null;
+              const cd = countryLookup[numId] || countryLookup[isoA3] || countryLookup[isoA2] || null;
               const pct = cd?.pct || 0;
               const isHovered = hoveredCountry === geo.rsmKey;
 
