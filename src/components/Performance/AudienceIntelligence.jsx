@@ -23,8 +23,9 @@ const TRAFFIC_SOURCE_LABELS = {
 };
 
 const TRAFFIC_SOURCE_ICONS = {
-  YT_SEARCH: Search, SUBSCRIBER: Bell, SUGGESTED: Play, BROWSE: BarChart3,
+  YT_SEARCH: Search, SUBSCRIBER: Bell, SUGGESTED: Play, BROWSE: Globe,
   EXT_URL: ExternalLink, NOTIFICATION: Bell, PLAYLIST: List, SHORTS: Smartphone,
+  END_SCREEN: Play, YT_CHANNEL: Monitor, NO_LINK_OTHER: ExternalLink,
 };
 
 const DEVICE_ICONS = {
@@ -231,7 +232,7 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
           <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
             Traffic Sources
           </div>
-          {sortedTraffic.slice(0, 6).map(t => {
+          {sortedTraffic.map(t => {
             const Icon = TRAFFIC_SOURCE_ICONS[t.key];
             const barWidth = maxTrafficPct > 0 ? (t.pct / maxTrafficPct) * 100 : 0;
             return (
