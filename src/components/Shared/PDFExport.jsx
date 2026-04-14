@@ -358,32 +358,27 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
       const publishedSectionHtml = pendingPublishedHtml;
       const audienceData = pendingAudienceData;
 
-      // Capture map images from the live DOM (they're rendered on the Performance page)
+      // Capture map images from the live DOM using data-map attributes
       let usMapImage = null;
       let worldMapImage = null;
       try {
-        const mapSvgs = document.querySelectorAll('.rsm-svg');
-        if (mapSvgs.length >= 2) {
-          // US map is first, world map is second
-          const captureMap = async (svgEl) => {
-            const mapContainer = svgEl.closest('div[style*="background"]') || svgEl.parentElement;
-            const canvas = await html2canvas(mapContainer, {
-              backgroundColor: '#0c1222',
-              scale: 2,
-              logging: false,
-              useCORS: true,
-            });
-            return canvas.toDataURL('image/png');
-          };
-          usMapImage = await captureMap(mapSvgs[0]);
-          worldMapImage = await captureMap(mapSvgs[1]);
-        } else if (mapSvgs.length === 1) {
-          const mapContainer = mapSvgs[0].closest('div[style*="background"]') || mapSvgs[0].parentElement;
-          const canvas = await html2canvas(mapContainer, {
-            backgroundColor: '#0c1222', scale: 2, logging: false, useCORS: true,
+        const captureMap = async (selector) => {
+          const el = document.querySelector(selector);
+          if (!el) return null;
+          // Scroll into view to ensure it's rendered (lazy-loaded)
+          el.scrollIntoView({ block: 'center' });
+          await new Promise(r => setTimeout(r, 500)); // Wait for render
+          const canvas = await html2canvas(el, {
+            backgroundColor: '#0c1222',
+            scale: 2,
+            logging: false,
+            useCORS: true,
+            allowTaint: true,
           });
-          worldMapImage = canvas.toDataURL('image/png');
-        }
+          return canvas.toDataURL('image/png');
+        };
+        usMapImage = await captureMap('[data-map="us-states"]');
+        worldMapImage = await captureMap('[data-map="world"]');
       } catch (err) {
         console.warn('Could not capture map images for PDF:', err);
       }
@@ -696,12 +691,12 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
                       const val = audienceData.age[k];
                       const maxAge = Math.max(...Object.values(audienceData.age));
                       const barW = maxAge > 0 ? (val / maxAge) * 100 : 0;
-                      return `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                        <span style="width: 42px; font-size: 12px; color: #64748b; text-align: right; font-weight: 600; white-space: nowrap;">${label}</span>
-                        <div style="flex: 1; height: 12px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
-                          <div style="width: ${Math.max(barW, 2)}%; height: 100%; background: linear-gradient(90deg, #f59e0b, #fbbf24); border-radius: 3px;"></div>
+                      return `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                        <div style="min-width: 44px; width: 44px; flex-shrink: 0; font-size: 12px; color: #64748b; text-align: right; font-weight: 600;">${label}</div>
+                        <div style="flex: 1; height: 14px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                          <div style="width: ${Math.max(barW, 2)}%; height: 100%; background: linear-gradient(90deg, #f59e0b, #fbbf24); border-radius: 4px;"></div>
                         </div>
-                        <span style="width: 38px; font-size: 12px; color: #1e293b; font-weight: 700; text-align: right;">${val.toFixed(1)}%</span>
+                        <div style="min-width: 42px; width: 42px; flex-shrink: 0; font-size: 12px; color: #1e293b; font-weight: 700; text-align: right;">${val.toFixed(1)}%</div>
                       </div>`;
                     }).join('')}
                 </div>

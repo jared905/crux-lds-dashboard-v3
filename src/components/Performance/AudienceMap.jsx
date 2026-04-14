@@ -78,7 +78,7 @@ export default function AudienceMap({ countries }) {
   }, [countries]);
 
   return (
-    <div style={{ position: 'relative', background: '#0c1222', borderRadius: '10px', overflow: 'hidden' }}>
+    <div data-map="world" style={{ position: 'relative', background: '#0c1222', borderRadius: '10px', overflow: 'hidden' }}>
       <ComposableMap
         projection="geoEqualEarth"
         projectionConfig={{ scale: 160, center: [0, 5] }}

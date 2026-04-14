@@ -94,7 +94,7 @@ export default function USStateMap({ provinces, topCities }) {
   }
 
   return (
-    <div style={{ position: 'relative', background: '#0c1222', borderRadius: '10px', overflow: 'hidden' }}>
+    <div data-map="us-states" style={{ position: 'relative', background: '#0c1222', borderRadius: '10px', overflow: 'hidden' }}>
       <ComposableMap
         projection="geoAlbersUsa"
         projectionConfig={{ scale: 900 }}
