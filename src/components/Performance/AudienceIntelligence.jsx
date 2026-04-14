@@ -168,14 +168,15 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
   if (!data) return null;
 
   const maxAge = Math.max(...sortedAge.map(a => a.value), 1);
-  const maxTrafficPct = sortedTraffic.length > 0 ? sortedTraffic[0].pct : 1;
+  const significantTraffic = sortedTraffic.filter(t => t.pct >= 1);
+  const maxTrafficPct = significantTraffic.length > 0 ? significantTraffic[0].pct : 1;
   const genderEntries = Object.entries(data.gender || {}).sort(([, a], [, b]) => b - a);
   const totalGender = genderEntries.reduce((s, [, v]) => s + v, 0);
 
   return (
     <div style={{
       background: '#1E1E1E', border: '1px solid #2A2A2A', borderRadius: '10px',
-      marginBottom: '24px', overflow: 'hidden',
+      marginTop: '24px', marginBottom: '24px', overflow: 'hidden',
     }}>
       {/* Header */}
       <div style={{
@@ -270,7 +271,7 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
           <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
             Traffic Sources
           </div>
-          {sortedTraffic.map(t => {
+          {significantTraffic.map(t => {
             const Icon = TRAFFIC_SOURCE_ICONS[t.key];
             const barWidth = maxTrafficPct > 0 ? (t.pct / maxTrafficPct) * 100 : 0;
             return (
@@ -293,28 +294,53 @@ export default function AudienceIntelligence({ activeClient, dateRange }) {
           })}
         </div>
 
-        {/* Devices */}
-        <div style={{ padding: '16px 20px' }}>
-          <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
-            Devices
+        {/* Devices — Donut Chart */}
+        <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <div style={{ position: 'relative', width: '130px', height: '130px', flexShrink: 0 }}>
+            <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+              {(() => {
+                const DONUT_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
+                let offset = 0;
+                return sortedDevices.map((d, i) => {
+                  const dash = d.pct * 0.01 * 100; // circumference fraction
+                  const el = (
+                    <circle key={d.key} cx="18" cy="18" r="15.9155" fill="none"
+                      stroke={DONUT_COLORS[i % DONUT_COLORS.length]} strokeWidth="3.5"
+                      strokeDasharray={`${dash} ${100 - dash}`} strokeDashoffset={`${-offset}`}
+                      strokeLinecap="round"
+                    />
+                  );
+                  offset += dash;
+                  return el;
+                });
+              })()}
+              {/* Center background */}
+              <circle cx="18" cy="18" r="12" fill="#1E1E1E" />
+            </svg>
+            {/* Center label */}
+            <div style={{
+              position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: '11px', color: '#666', fontWeight: '600' }}>Devices</div>
+            </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            {sortedDevices.map(d => {
-              const Icon = DEVICE_ICONS[d.key] || Monitor;
-              return (
-                <div key={d.key} style={{
-                  display: 'flex', alignItems: 'center', gap: '10px',
-                  padding: '10px 12px', background: '#252525', borderRadius: '8px',
-                }}>
-                  <Icon size={16} style={{ color: '#10b981' }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '12px', color: '#fff', fontWeight: '600' }}>{d.label}</div>
-                    <div style={{ fontSize: '10px', color: '#555' }}>{fmtViews(d.views)}</div>
+          {/* Legend */}
+          <div style={{ flex: 1 }}>
+            {(() => {
+              const DONUT_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
+              return sortedDevices.map((d, i) => {
+                const Icon = DEVICE_ICONS[d.key] || Monitor;
+                return (
+                  <div key={d.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0 }} />
+                    <Icon size={13} style={{ color: '#666', flexShrink: 0 }} />
+                    <span style={{ fontSize: '12px', color: '#ccc', fontWeight: '500', flex: 1 }}>{d.label}</span>
+                    <span style={{ fontSize: '12px', color: '#fff', fontWeight: '700' }}>{d.pct.toFixed(1)}%</span>
                   </div>
-                  <div style={{ fontSize: '15px', fontWeight: '800', color: '#10b981' }}>{d.pct.toFixed(0)}%</div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         </div>
       </div>

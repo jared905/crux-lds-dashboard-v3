@@ -25,16 +25,15 @@ const A2_TO_A3 = {
   HN: 'HND', SV: 'SLV', NI: 'NIC', BO: 'BOL', PY: 'PRY', UY: 'URY',
 };
 
-// Blue density scale — more steps for better visual differentiation
+// Same density scale as USStateMap for visual consistency
 function getDensityColor(pct) {
   if (pct <= 0) return '#151d2e';
-  if (pct < 0.3) return '#1a2d50';
-  if (pct < 0.8) return '#1e3d6e';
-  if (pct < 2) return '#1d4ed8';
-  if (pct < 5) return '#2563eb';
-  if (pct < 10) return '#3b82f6';
-  if (pct < 25) return '#60a5fa';
-  if (pct < 50) return '#93c5fd';
+  if (pct < 0.5) return '#1a2d50';
+  if (pct < 1) return '#1d4ed8';
+  if (pct < 2) return '#2563eb';
+  if (pct < 4) return '#3b82f6';
+  if (pct < 8) return '#60a5fa';
+  if (pct < 15) return '#93c5fd';
   return '#dbeafe';
 }
 
