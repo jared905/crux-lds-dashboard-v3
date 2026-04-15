@@ -145,18 +145,21 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
           ? '<span style="font-size: 10px; padding: 2px 8px; background: #fff7ed; color: #f97316; border-radius: 4px; font-weight: 700; border: 1px solid #fed7aa;">SHORT</span>'
           : '<span style="font-size: 10px; padding: 2px 8px; background: #eff6ff; color: #0ea5e9; border-radius: 4px; font-weight: 700; border: 1px solid #bae6fd;">LONG</span>';
         const date = v.published_at ? new Date(v.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+        const ctr = v.ctr ? (v.ctr * 100).toFixed(1) + '%' : '—';
+        const ret = v.avg_view_percentage ? (v.avg_view_percentage > 1 ? v.avg_view_percentage.toFixed(1) : (v.avg_view_percentage * 100).toFixed(1)) + '%' : '—';
         return `<tr style="border-bottom: 1px solid #e2e8f0;">
           <td style="padding: 10px 14px;">
             <div style="display: flex; align-items: center; gap: 12px;">
               ${thumb ? `<img src="${thumb}" style="width: 64px; height: 36px; border-radius: 4px; object-fit: cover; flex-shrink: 0;" crossorigin="anonymous" />` : ''}
               <div style="overflow: hidden;">
-                <div style="font-size: 13px; color: #1e293b; font-weight: ${i < 3 ? '600' : '400'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;">${esc(v.title)}</div>
+                <div style="font-size: 13px; color: #1e293b; font-weight: ${i < 3 ? '600' : '400'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px;">${esc(v.title)}</div>
                 <div style="margin-top: 3px;">${typeBadge}</div>
               </div>
             </div>
           </td>
           <td style="padding: 10px 14px; font-size: 14px; color: #1e293b; text-align: right; font-weight: 600;">${f(v.view_count)}</td>
-          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${f(v.like_count)}</td>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${ctr}</td>
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${ret}</td>
           <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${date}</td>
         </tr>`;
       }).join('');
@@ -262,8 +265,8 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
                   <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.shortsAvgRetention > 0 ? (m.shortsAvgRetention * 100).toFixed(1) + '%' : '—'}</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Sub Conversion</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.subConversionRate > 0 ? (m.subConversionRate * 100).toFixed(2) + '%' : '—'}</div>
+                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Avg CTR</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.avgCTR > 0 ? (m.avgCTR * 100).toFixed(1) + '%' : '—'}</div>
                 </div>
               </div>
             </div>
@@ -284,9 +287,8 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
                   <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.longsAvgRetention > 0 ? (m.longsAvgRetention * 100).toFixed(1) + '%' : '—'}</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Upload Cadence</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.uploadFrequency.toFixed(1)}/wk</div>
-                  ${reportData.channelCount > 1 ? `<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">${m.uploadsPerChannel.toFixed(1)}/wk per channel</div>` : ''}
+                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Avg CTR</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.avgCTR > 0 ? (m.avgCTR * 100).toFixed(1) + '%' : '—'}</div>
                 </div>
               </div>
             </div>
@@ -301,7 +303,8 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
                   <tr style="background: #e2e8f0;">
                     <th style="text-align: left; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TITLE</th>
                     <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600;">VIEWS</th>
-                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600;">LIKES</th>
+                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600;">CTR</th>
+                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600;">RETENTION</th>
                     <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600;">DATE</th>
                   </tr>
                 </thead>
