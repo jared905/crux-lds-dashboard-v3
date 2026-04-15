@@ -362,12 +362,55 @@ export async function generateQuarterlyReport(channelId, year, quarter, explicit
     .eq('id', channelId)
     .single();
 
+  // Fetch audience intelligence data (demographics, traffic, geography, devices)
+  let audienceData = null;
+  try {
+    const mergedAudience = { gender: {}, age: {}, country: {}, province: {}, trafficSources: {}, deviceTypes: {} };
+    for (const chId of allChannelIds) {
+      const { data: snap } = await supabase
+        .from('channel_audience_snapshots')
+        .select('gender_distribution, age_distribution, country_data, province_data, traffic_sources, device_types')
+        .eq('channel_id', chId)
+        .order('snapshot_date', { ascending: false })
+        .limit(1)
+        .single();
+      if (!snap) continue;
+      if (snap.gender_distribution) for (const [k, v] of Object.entries(snap.gender_distribution)) mergedAudience.gender[k] = (mergedAudience.gender[k] || 0) + v;
+      if (snap.age_distribution) for (const [k, v] of Object.entries(snap.age_distribution)) mergedAudience.age[k] = (mergedAudience.age[k] || 0) + v;
+      if (snap.country_data) for (const [k, v] of Object.entries(snap.country_data)) {
+        if (!mergedAudience.country[k]) mergedAudience.country[k] = { views: 0 };
+        mergedAudience.country[k].views += v.views || 0;
+      }
+      if (snap.province_data) for (const [k, v] of Object.entries(snap.province_data)) {
+        if (!mergedAudience.province[k]) mergedAudience.province[k] = { views: 0 };
+        mergedAudience.province[k].views += v.views || 0;
+      }
+      if (snap.traffic_sources) for (const [k, v] of Object.entries(snap.traffic_sources)) {
+        if (!mergedAudience.trafficSources[k]) mergedAudience.trafficSources[k] = { views: 0 };
+        mergedAudience.trafficSources[k].views += v.views || 0;
+      }
+      if (snap.device_types) for (const [k, v] of Object.entries(snap.device_types)) {
+        if (!mergedAudience.deviceTypes[k]) mergedAudience.deviceTypes[k] = { views: 0 };
+        mergedAudience.deviceTypes[k].views += v.views || 0;
+      }
+    }
+    const chCount = allChannelIds.length;
+    if (chCount > 1) {
+      for (const k of Object.keys(mergedAudience.gender)) mergedAudience.gender[k] /= chCount;
+      for (const k of Object.keys(mergedAudience.age)) mergedAudience.age[k] /= chCount;
+    }
+    if (Object.keys(mergedAudience.gender).length > 0) audienceData = mergedAudience;
+  } catch (err) {
+    console.warn('[QuarterlyReport] Audience data fetch failed:', err);
+  }
+
   return {
     channel: channelData,
     channelCount: allChannelIds.length,
     currentQuarter: { ...current, metrics: currentMetrics },
     previousQuarter: { ...previous, metrics: previousMetrics },
     deltas,
+    audienceData,
     hasSnapshotData: currentSnapshots.length > 0,
     hasPreviousData: previousVideos.length > 0,
     hasImpressions: currentMetrics.totalImpressions > 0,
@@ -382,7 +425,7 @@ export async function generateQuarterlyReport(channelId, year, quarter, explicit
 export async function generateQuarterlyNarrative(reportData) {
   try {
     const claudeAPI = (await import('./claudeAPI')).default;
-    const { channel, currentQuarter, previousQuarter, deltas } = reportData;
+    const { channel, currentQuarter, previousQuarter, deltas, audienceData } = reportData;
 
     const fmt = (n) => {
       if (!n || isNaN(n)) return '0';
@@ -410,7 +453,24 @@ export async function generateQuarterlyNarrative(reportData) {
 
 ## Top Videos This Quarter
 ${currentQuarter.metrics.topByViews.slice(0, 5).map((v, i) => `${i + 1}. "${v.title}" — ${fmt(v.view_count)} views`).join('\n')}
+${audienceData ? `
+## Audience Profile
+- Gender: ${Object.entries(audienceData.gender || {}).sort(([,a],[,b]) => b - a).map(([g, p]) => `${g === 'user_specified' ? 'Other' : g.charAt(0).toUpperCase() + g.slice(1)} ${p.toFixed(1)}%`).join(', ')}
+- Top age groups: ${Object.entries(audienceData.age || {}).sort(([,a],[,b]) => b - a).slice(0, 3).map(([k, p]) => `${k.replace('age','')} (${p.toFixed(1)}%)`).join(', ')}
+- Top countries: ${Object.entries(audienceData.country || {}).sort(([,a],[,b]) => b.views - a.views).slice(0, 5).map(([code]) => code).join(', ')}
+- Top US states: ${Object.entries(audienceData.province || {}).sort(([,a],[,b]) => b.views - a.views).slice(0, 5).map(([code]) => code.replace('US-', '')).join(', ')}
+- Traffic sources: ${Object.entries(audienceData.trafficSources || {}).sort(([,a],[,b]) => b.views - a.views).slice(0, 5).map(([k, v]) => {
+    const labels = {YT_SEARCH:'Search',SUBSCRIBER:'Subscribers',SUGGESTED:'Suggested',BROWSE:'Browse',EXT_URL:'External',SHORTS:'Shorts Feed',NOTIFICATION:'Notifications',YT_CHANNEL:'Channel Page'};
+    const totalV = Object.values(audienceData.trafficSources).reduce((s,t) => s + t.views, 0);
+    return `${labels[k] || k} ${totalV > 0 ? ((v.views/totalV)*100).toFixed(0) : 0}%`;
+  }).join(', ')}
+- Devices: ${Object.entries(audienceData.deviceTypes || {}).sort(([,a],[,b]) => b.views - a.views).map(([k, v]) => {
+    const totalD = Object.values(audienceData.deviceTypes).reduce((s,d) => s + d.views, 0);
+    return `${k.charAt(0) + k.slice(1).toLowerCase()} ${totalD > 0 ? ((v.views/totalD)*100).toFixed(0) : 0}%`;
+  }).join(', ')}
 
+Note: Only mention device data if something is notably unusual (e.g., TV viewership above 15%, or mobile below 50%). Do not dedicate a section to devices — weave it into insights when relevant.
+` : ''}
 Generate the following sections. Return ONLY valid JSON:
 {
   "executive_summary": "3-4 sentence overview of the quarter's performance. Lead with the most important finding.",
