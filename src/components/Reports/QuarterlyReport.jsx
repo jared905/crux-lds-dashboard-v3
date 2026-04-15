@@ -136,15 +136,30 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
           ${prev ? `<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">prev: ${prev}</div>` : ''}
         </div>`;
 
-      // Build top videos HTML
-      const topVideosHtml = m.topByViews.slice(0, 10).map((v, i) =>
-        `<tr style="border-bottom: 1px solid #e2e8f0;">
-          <td style="padding: 10px 14px; font-size: 13px; color: #1e293b; font-weight: ${i < 3 ? '600' : '400'}; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">#${i+1} ${esc(v.title)}</td>
-          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${f(v.view_count)}</td>
+      // Build top videos HTML with thumbnails and type badges
+      const topVideosHtml = m.topByViews.slice(0, 10).map((v, i) => {
+        const ytId = v.youtube_video_id || '';
+        const thumb = ytId ? `https://i.ytimg.com/vi/${ytId}/mqdefault.jpg` : '';
+        const isShort = v.video_type === 'short' || (v.duration_seconds && v.duration_seconds <= 60);
+        const typeBadge = isShort
+          ? '<span style="font-size: 10px; padding: 2px 8px; background: #fff7ed; color: #f97316; border-radius: 4px; font-weight: 700; border: 1px solid #fed7aa;">SHORT</span>'
+          : '<span style="font-size: 10px; padding: 2px 8px; background: #eff6ff; color: #0ea5e9; border-radius: 4px; font-weight: 700; border: 1px solid #bae6fd;">LONG</span>';
+        const date = v.published_at ? new Date(v.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+        return `<tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 10px 14px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              ${thumb ? `<img src="${thumb}" style="width: 64px; height: 36px; border-radius: 4px; object-fit: cover; flex-shrink: 0;" crossorigin="anonymous" />` : ''}
+              <div style="overflow: hidden;">
+                <div style="font-size: 13px; color: #1e293b; font-weight: ${i < 3 ? '600' : '400'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;">${esc(v.title)}</div>
+                <div style="margin-top: 3px;">${typeBadge}</div>
+              </div>
+            </div>
+          </td>
+          <td style="padding: 10px 14px; font-size: 14px; color: #1e293b; text-align: right; font-weight: 600;">${f(v.view_count)}</td>
           <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${f(v.like_count)}</td>
-          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${v.published_at ? new Date(v.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
-        </tr>`
-      ).join('');
+          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${date}</td>
+        </tr>`;
+      }).join('');
 
       // Build narrative HTML if available
       const narrativeHtml = narrative ? `
@@ -294,6 +309,92 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
               </table>
             </div>
           </div>
+
+          ${reportData.audienceData ? (() => {
+            const ad = reportData.audienceData;
+            const genderEntries = Object.entries(ad.gender || {}).sort(([,a],[,b]) => b - a);
+            const totalGender = genderEntries.reduce((s, [,v]) => s + v, 0);
+            const ageOrder = ['age13-17','age18-24','age25-34','age35-44','age45-54','age55-64','age65-'];
+            const ageLabels = {'age13-17':'13-17','age18-24':'18-24','age25-34':'25-34','age35-44':'35-44','age45-54':'45-54','age55-64':'55-64','age65-':'65+'};
+            const ageEntries = ageOrder.filter(k => ad.age?.[k] != null).map(k => [ageLabels[k], ad.age[k]]);
+            const maxAge = Math.max(...ageEntries.map(([,v]) => v), 1);
+            const trafficLabels = {YT_SEARCH:'YouTube Search',SUBSCRIBER:'Subscribers',SUGGESTED:'Suggested',BROWSE:'Browse',EXT_URL:'External',SHORTS:'Shorts Feed',NOTIFICATION:'Notifications',YT_CHANNEL:'Channel Page',END_SCREEN:'End Screens',NO_LINK_OTHER:'Direct',PLAYLIST:'Playlists'};
+            const totalTV = Object.values(ad.trafficSources || {}).reduce((s,t) => s + t.views, 0);
+            const trafficEntries = Object.entries(ad.trafficSources || {}).sort(([,a],[,b]) => b.views - a.views).filter(([,v]) => totalTV > 0 && (v.views/totalTV)*100 >= 1);
+            const maxTPct = trafficEntries.length > 0 && totalTV > 0 ? (trafficEntries[0][1].views / totalTV) * 100 : 1;
+
+            // Capture maps (already captured above if available)
+            let mapsHtml = '';
+            // We can't capture live maps here since we're in the quarterly report, not the performance page.
+            // Instead, show top states/countries as visual badges.
+            const topCountries = Object.entries(ad.country || {}).sort(([,a],[,b]) => b.views - a.views).slice(0, 8);
+            const totalCV = Object.values(ad.country || {}).reduce((s,c) => s + c.views, 0);
+            const topStates = Object.entries(ad.province || {}).sort(([,a],[,b]) => b.views - a.views).slice(0, 8);
+            const totalPV = Object.values(ad.province || {}).reduce((s,p) => s + p.views, 0);
+
+            return `
+          <div data-pdf-section style="margin-bottom: 32px;">
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; letter-spacing: 1px;">AUDIENCE INTELLIGENCE</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+              <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
+                <div style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">Demographics</div>
+                <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Gender</div>
+                ${genderEntries.map(([g, pct]) => {
+                  const label = g === 'user_specified' ? 'Other' : g.charAt(0).toUpperCase() + g.slice(1);
+                  const color = g === 'male' ? '#2563eb' : g === 'female' ? '#db2777' : '#7c3aed';
+                  const barW = totalGender > 0 ? (pct / totalGender) * 100 : 0;
+                  return `<div style="margin-bottom: 6px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                      <span style="font-size: 13px; color: #374151; font-weight: 500;">${label}</span>
+                      <span style="font-size: 13px; color: #1e293b; font-weight: 700;">${pct.toFixed(1)}%</span>
+                    </div>
+                    <div style="height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                      <div style="width: ${barW}%; height: 100%; background: ${color}; border-radius: 4px;"></div>
+                    </div>
+                  </div>`;
+                }).join('')}
+                <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 16px; margin-bottom: 8px;">Age Distribution</div>
+                ${ageEntries.map(([label, val]) => {
+                  const barW = maxAge > 0 ? (val / maxAge) * 100 : 0;
+                  return `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                    <div style="min-width: 44px; width: 44px; flex-shrink: 0; font-size: 12px; color: #64748b; text-align: right; font-weight: 600;">${label}</div>
+                    <div style="flex: 1; height: 14px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                      <div style="width: ${Math.max(barW, 2)}%; height: 100%; background: linear-gradient(90deg, #f59e0b, #fbbf24); border-radius: 4px;"></div>
+                    </div>
+                    <div style="min-width: 42px; width: 42px; flex-shrink: 0; font-size: 12px; color: #1e293b; font-weight: 700; text-align: right;">${val.toFixed(1)}%</div>
+                  </div>`;
+                }).join('')}
+              </div>
+              <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
+                <div style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">Traffic Sources</div>
+                ${trafficEntries.map(([key, val]) => {
+                  const label = trafficLabels[key] || key.replace(/_/g, ' ');
+                  const pct = totalTV > 0 ? (val.views / totalTV) * 100 : 0;
+                  const barW = maxTPct > 0 ? (pct / maxTPct) * 100 : 0;
+                  return `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <span style="width: 100px; font-size: 12px; color: #374151; font-weight: 500;">${label}</span>
+                    <div style="flex: 1; height: 10px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                      <div style="width: ${Math.max(barW, 2)}%; height: 100%; background: linear-gradient(90deg, #2563eb, #60a5fa); border-radius: 3px;"></div>
+                    </div>
+                    <span style="width: 40px; font-size: 12px; color: #1e293b; font-weight: 700; text-align: right;">${pct.toFixed(1)}%</span>
+                  </div>`;
+                }).join('')}
+
+                ${topCountries.length > 0 ? `
+                <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 18px; margin-bottom: 8px;">Top Countries</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                  ${topCountries.map(([code, val], i) => `<span style="font-size: 10px; padding: 3px 8px; background: ${i === 0 ? '#dbeafe' : '#f1f5f9'}; border: 1px solid ${i === 0 ? '#93c5fd' : '#e2e8f0'}; border-radius: 5px; color: ${i === 0 ? '#1e40af' : '#475569'}; font-weight: ${i === 0 ? '700' : '600'};">${code} ${totalCV > 0 ? ((val.views/totalCV)*100).toFixed(1) : 0}%</span>`).join('')}
+                </div>` : ''}
+
+                ${topStates.length > 0 ? `
+                <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; margin-bottom: 8px;">Top US States</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                  ${topStates.map(([code, val], i) => `<span style="font-size: 10px; padding: 3px 8px; background: ${i === 0 ? '#dbeafe' : '#f1f5f9'}; border: 1px solid ${i === 0 ? '#93c5fd' : '#e2e8f0'}; border-radius: 5px; color: ${i === 0 ? '#1e40af' : '#475569'}; font-weight: ${i === 0 ? '700' : '600'};">${code.replace('US-','')} ${totalPV > 0 ? ((val.views/totalPV)*100).toFixed(1) : 0}%</span>`).join('')}
+                </div>` : ''}
+              </div>
+            </div>
+          </div>`;
+          })() : ''}
 
           ${narrativeHtml}
 
