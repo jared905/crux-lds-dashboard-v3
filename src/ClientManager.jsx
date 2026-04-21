@@ -253,22 +253,29 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
       if (editingClient.syncedToSupabase && editingClient.supabaseId) {
         const { supabase } = await import('./services/supabaseClient');
         if (supabase) {
+          // For network clients, also update network_name — the display falls
+          // back to network_name first, then name. Update both to keep them in sync.
+          const updatePayload = {
+            name: trimmedName,
+            custom_url: updatedClient.youtubeChannelUrl || null,
+            background_image_url: updatedClient.backgroundImageUrl || null,
+          };
+          if (editingClient.isNetwork) {
+            updatePayload.network_name = trimmedName;
+          }
+
           const { data: updated, error: updateError } = await supabase
             .from('channels')
-            .update({
-              name: trimmedName,
-              custom_url: updatedClient.youtubeChannelUrl || null,
-              background_image_url: updatedClient.backgroundImageUrl || null,
-            })
+            .update(updatePayload)
             .eq('id', editingClient.supabaseId)
-            .select('id, name, background_image_url')
+            .select('id, name, network_name, background_image_url')
             .single();
 
           if (updateError) {
             console.error('[ClientManager] Supabase update failed:', updateError);
             throw new Error('Failed to save to cloud: ' + updateError.message);
           }
-          console.log('[ClientManager] Supabase update verified:', updated?.id, '— name:', updated?.name);
+          console.log('[ClientManager] Supabase update verified:', updated?.id, '— name:', updated?.name, 'network_name:', updated?.network_name);
         }
       }
 
