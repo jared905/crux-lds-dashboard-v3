@@ -226,17 +226,24 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
         alert("Please provide a name for all detected channels");
         return;
       }
-      processCSV(uploadedFile, editingClient.name, true);
+      // Use the (possibly renamed) clientName, fall back to original
+      processCSV(uploadedFile, clientName.trim() || editingClient.name, true);
       return;
     }
 
-    // No CSV - just update metadata (background image, YouTube URL, etc.)
+    // No CSV - just update metadata (name, background image, YouTube URL, etc.)
     setIsSaving(true);
     setSaveError(null);
 
     try {
+      const trimmedName = clientName.trim();
+      if (!trimmedName) {
+        throw new Error('Client name cannot be empty');
+      }
+
       const updatedClient = {
         ...editingClient,
+        name: trimmedName,
         youtubeChannelUrl: youtubeChannelUrl.trim() || editingClient.youtubeChannelUrl,
         backgroundImageUrl: backgroundImageUrl.trim() || editingClient.backgroundImageUrl,
       };
@@ -248,18 +255,19 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
           const { data: updated, error: updateError } = await supabase
             .from('channels')
             .update({
+              name: trimmedName,
               custom_url: updatedClient.youtubeChannelUrl || null,
               background_image_url: updatedClient.backgroundImageUrl || null,
             })
             .eq('id', editingClient.supabaseId)
-            .select('id, background_image_url')
+            .select('id, name, background_image_url')
             .single();
 
           if (updateError) {
             console.error('[ClientManager] Supabase update failed:', updateError);
             throw new Error('Failed to save to cloud: ' + updateError.message);
           }
-          console.log('[ClientManager] Supabase update verified:', updated?.id, '— background_image_url:', updated?.background_image_url || '(null)');
+          console.log('[ClientManager] Supabase update verified:', updated?.id, '— name:', updated?.name);
         }
       }
 
@@ -374,6 +382,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
   const openUpdateModal = (client) => {
     setModalMode("update");
     setEditingClient(client);
+    setClientName(client.name || "");
     setUploadedFile(null);
     setYoutubeChannelUrl(client.youtubeChannelUrl || "");
     setBackgroundImageUrl(client.backgroundImageUrl || "");
@@ -976,31 +985,29 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                 marginBottom: "24px"
               }}>
                 <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>
-                  {modalMode === "add" ? "Add New Client" : `Update ${editingClient.name}`}
+                  {modalMode === "add" ? "Add New Client" : `Edit ${editingClient.name}`}
                 </div>
 
-                {modalMode === "add" && (
-                  <div style={{ marginBottom: "16px" }}>
-                    <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
-                      Client Name
-                    </label>
-                    <input
-                      type="text"
-                      value={clientName}
-                      onChange={(e) => setClientName(e.target.value)}
-                      placeholder="e.g., LDS Leadership"
-                      style={{
-                        width: "100%",
-                        background: "#1E1E1E",
-                        border: "1px solid #333",
-                        borderRadius: "8px",
-                        padding: "12px",
-                        color: "#E0E0E0",
-                        fontSize: "14px"
-                      }}
-                    />
-                  </div>
-                )}
+                <div style={{ marginBottom: "16px" }}>
+                  <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                    Client Name
+                  </label>
+                  <input
+                    type="text"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="e.g., LDS Leadership"
+                    style={{
+                      width: "100%",
+                      background: "#1E1E1E",
+                      border: "1px solid #333",
+                      borderRadius: "8px",
+                      padding: "12px",
+                      color: "#E0E0E0",
+                      fontSize: "14px"
+                    }}
+                  />
+                </div>
 
                 <div style={{ marginBottom: "16px" }}>
                   <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
