@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { Upload, Download, Trash2, Edit2, Plus, X, Calendar, Database, Youtube, Link, Cloud, Loader2, Clock, CalendarDays, ChevronDown, ChevronUp, Image } from "lucide-react";
 import Papa from "papaparse";
 import { saveClientToSupabase, deleteClientFromSupabase, saveReportPeriod, getReportPeriod, deleteReportPeriod, setActivePeriod, PERIOD_TYPES, calculatePeriodDates, periodVideoDataToRows } from "./services/clientDataService";
@@ -635,7 +636,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
         Manage Clients
       </button>
 
-      {showModal && (
+      {showModal && createPortal(
         <div
           style={{
             position: "fixed",
@@ -1556,10 +1557,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {showDeleteConfirm && (
+      {showDeleteConfirm && createPortal(
         <>
           <div
             style={{
@@ -1624,7 +1626,8 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
               </button>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </>
   );
