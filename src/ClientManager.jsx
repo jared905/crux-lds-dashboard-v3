@@ -636,29 +636,22 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
       </button>
 
       {showModal && (
-        <>
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.7)",
-              zIndex: 1000
-            }}
-            onClick={() => { if (!showDeleteConfirm) setShowModal(false); }}
-          />
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 1001,
-              overflowY: "auto",
-              padding: "40px 16px",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "flex-start",
-              pointerEvents: "none",
-            }}
-          >
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            zIndex: 1000,
+            overflowY: "auto",
+            padding: "40px 16px",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "flex-start",
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !showDeleteConfirm) setShowModal(false);
+          }}
+        >
           <div
             style={{
               background: "#1E1E1E",
@@ -667,9 +660,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
               width: "100%",
               maxWidth: "900px",
               padding: "32px",
-              pointerEvents: "auto",
-              marginTop: "auto",
-              marginBottom: "auto",
+              margin: "auto",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
@@ -1565,8 +1556,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
               )}
             </div>
           </div>
-          </div>
-        </>
+        </div>
       )}
 
       {showDeleteConfirm && (
