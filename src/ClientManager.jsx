@@ -253,29 +253,49 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
       if (editingClient.syncedToSupabase && editingClient.supabaseId) {
         const { supabase } = await import('./services/supabaseClient');
         if (supabase) {
-          // For network clients, also update network_name — the display falls
-          // back to network_name first, then name. Update both to keep them in sync.
-          const updatePayload = {
-            name: trimmedName,
-            custom_url: updatedClient.youtubeChannelUrl || null,
-            background_image_url: updatedClient.backgroundImageUrl || null,
-          };
+          // Build update payload with only fields that changed, to avoid
+          // triggering schema errors on columns that may not exist in an
+          // older DB (e.g. missing migration 015).
+          const updatePayload = { name: trimmedName };
           if (editingClient.isNetwork) {
             updatePayload.network_name = trimmedName;
           }
+          if (youtubeChannelUrl.trim() !== (editingClient.youtubeChannelUrl || '')) {
+            updatePayload.custom_url = youtubeChannelUrl.trim() || null;
+          }
+          if (backgroundImageUrl.trim() !== (editingClient.backgroundImageUrl || '')) {
+            updatePayload.background_image_url = backgroundImageUrl.trim() || null;
+          }
 
-          const { data: updated, error: updateError } = await supabase
-            .from('channels')
-            .update(updatePayload)
-            .eq('id', editingClient.supabaseId)
-            .select('id, name, network_name, background_image_url')
-            .single();
+          const tryUpdate = async (payload) => {
+            return await supabase
+              .from('channels')
+              .update(payload)
+              .eq('id', editingClient.supabaseId)
+              .select('id, name')
+              .single();
+          };
+
+          let { data: updated, error: updateError } = await tryUpdate(updatePayload);
+
+          // If a specific column is missing from schema cache, drop it and retry
+          if (updateError?.message?.includes("Could not find the '")) {
+            const match = updateError.message.match(/'([^']+)' column/);
+            const missingCol = match?.[1];
+            if (missingCol && missingCol in updatePayload) {
+              console.warn('[ClientManager] Column missing, retrying without:', missingCol);
+              const { [missingCol]: _dropped, ...retryPayload } = updatePayload;
+              const retry = await tryUpdate(retryPayload);
+              updated = retry.data;
+              updateError = retry.error;
+            }
+          }
 
           if (updateError) {
             console.error('[ClientManager] Supabase update failed:', updateError);
             throw new Error('Failed to save to cloud: ' + updateError.message);
           }
-          console.log('[ClientManager] Supabase update verified:', updated?.id, '— name:', updated?.name, 'network_name:', updated?.network_name);
+          console.log('[ClientManager] Supabase update verified:', updated?.id, '— name:', updated?.name);
         }
       }
 
