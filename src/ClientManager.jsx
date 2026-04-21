@@ -641,7 +641,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
             position: "fixed",
             inset: 0,
             background: "rgba(0,0,0,0.7)",
-            zIndex: 1000,
+            zIndex: 9999,
             overflowY: "auto",
             padding: "40px 16px",
             display: "flex",
@@ -1566,7 +1566,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
               position: "fixed",
               inset: 0,
               background: "rgba(0,0,0,0.8)",
-              zIndex: 1002
+              zIndex: 10000
             }}
             onClick={() => setShowDeleteConfirm(null)}
           />
@@ -1582,7 +1582,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
               borderRadius: "12px",
               padding: "32px",
               maxWidth: "400px",
-              zIndex: 1003
+              zIndex: 10001
             }}
           >
             <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", marginBottom: "12px" }}>
