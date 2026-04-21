@@ -649,18 +649,27 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
           <div
             style={{
               position: "fixed",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
+              inset: 0,
+              zIndex: 1001,
+              overflowY: "auto",
+              padding: "40px 16px",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "flex-start",
+              pointerEvents: "none",
+            }}
+          >
+          <div
+            style={{
               background: "#1E1E1E",
               border: "1px solid #333",
               borderRadius: "12px",
-              width: "90%",
+              width: "100%",
               maxWidth: "900px",
-              maxHeight: "90vh",
-              overflow: "auto",
-              zIndex: 1001,
-              padding: "32px"
+              padding: "32px",
+              pointerEvents: "auto",
+              marginTop: "auto",
+              marginBottom: "auto",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
@@ -1555,6 +1564,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                 </div>
               )}
             </div>
+          </div>
           </div>
         </>
       )}
