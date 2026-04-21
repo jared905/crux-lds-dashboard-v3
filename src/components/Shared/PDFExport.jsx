@@ -240,7 +240,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
           }).join('');
 
           publishedSectionHtml = '<div data-pdf-section style="margin-bottom: 28px;">'
-            + '<h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3; word-spacing: -1px; letter-spacing: 1px;">CONTENT PUBLISHED THIS PERIOD</h2>'
+            + '<h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3; letter-spacing: 0.5px;">CONTENT PUBLISHED THIS PERIOD</h2>'
             + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px;">'
             + '<div style="background: #fff7ed; padding: 18px; border-radius: 12px; border: 2px solid #fed7aa;">'
             + '<div style="font-size: 18px; font-weight: 700; color: #ea580c; margin-bottom: 12px; line-height: 1.3;">📱 Shorts Published</div>'
@@ -439,7 +439,8 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
       container.style.width = '1200px';
       container.style.backgroundColor = '#ffffff';
       container.style.padding = '50px 35px 35px 35px';
-      container.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+      container.style.fontFamily = 'Arial, Helvetica, sans-serif';
+      container.style.wordSpacing = 'normal';
       document.body.appendChild(container);
 
       const dateLabel = getDateRangeLabel();
@@ -499,7 +500,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
               </div>
               <div style="border-left: 2px solid #cbd5e1; padding-left: 22px;">
                 ${displayName ? `<div style="font-size: 20px; font-weight: 700; color: #2563eb; margin-bottom: 6px;">${displayName}</div>` : ''}
-                <h1 style="margin: 0; font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1.3; word-spacing: -1px;">Strategic YouTube Insights</h1>
+                <h1 style="margin: 0; font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1.3;">Strategic YouTube Insights</h1>
                 <p style="margin: 10px 0 0 0; font-size: 16px; color: #64748b; font-weight: 500;">${dateLabel}</p>
               </div>
             </div>
@@ -615,7 +616,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
 
           <!-- Top Performers -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3; word-spacing: -1px; letter-spacing: 1px;">TOP PERFORMING VIDEOS</h2>
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3; letter-spacing: 0.5px;">TOP PERFORMING VIDEOS</h2>
             <div style="background: #f8fafc; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0;">
               <table style="width: 100%; border-collapse: collapse;">
                 <thead>
@@ -664,7 +665,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
           ${topComments.length > 0 ? `
           <!-- Top Comments -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; line-height: 1.3; word-spacing: -1px; letter-spacing: 1px;">TOP AUDIENCE COMMENTS</h2>
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; line-height: 1.3; letter-spacing: 0.5px;">TOP AUDIENCE COMMENTS</h2>
             ${topComments.map(c => `
               <div style="background: #f8fafc; padding: 18px 22px; border-radius: 12px; margin-bottom: 14px; border-left: 4px solid #2563eb;">
                 <div style="font-size: 15px; color: #1e293b; line-height: 1.7; margin-bottom: 12px;">"${c.text}"</div>
@@ -683,7 +684,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
           ${audienceData ? `
           <!-- Audience Intelligence -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; line-height: 1.3; letter-spacing: 1px;">AUDIENCE INTELLIGENCE</h2>
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; line-height: 1.3; letter-spacing: 0.5px;">AUDIENCE INTELLIGENCE</h2>
 
             ${(usMapImage || worldMapImage) ? `
             <!-- Maps -->
@@ -795,7 +796,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
           ${opportunities.length > 0 ? `
           <!-- Strategic Recommendations -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 3px solid #10b981; line-height: 1.3; word-spacing: -1px; letter-spacing: 1px;">STRATEGIC RECOMMENDATIONS</h2>
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 3px solid #10b981; line-height: 1.3; letter-spacing: 0.5px;">STRATEGIC RECOMMENDATIONS</h2>
             ${opportunities._opening ? `<p style="font-size: 15px; color: #374151; line-height: 1.75; margin-bottom: 22px;">${opportunities._opening}</p>` : ''}
             ${opportunities.map((opp, idx) => `
               <div style="display: flex; gap: 16px; margin-bottom: 18px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); padding: 22px; border-radius: 14px; border: 2px solid #86efac;">
@@ -803,9 +804,9 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
                   ${idx + 1}
                 </div>
                 <div style="flex: 1;">
-                  <div style="font-size: 18px; font-weight: 700; color: #065f46; margin-bottom: 10px; line-height: 1.35;">${opp.title}</div>
-                  ${opp.insight ? `<div style="font-size: 14px; color: #1e293b; line-height: 1.65; margin-bottom: 8px;"><strong style="color: #1d4ed8;">The Insight:</strong> ${opp.insight}</div>` : ''}
-                  ${opp.opportunity ? `<div style="font-size: 14px; color: #1e293b; line-height: 1.65; margin-bottom: 10px;"><strong style="color: #b45309;">The Opportunity:</strong> ${opp.opportunity}</div>` : ''}
+                  <div style="font-size: 18px; font-weight: 700; color: #065f46; margin-bottom: 10px; line-height: 1.35; word-spacing: normal; letter-spacing: normal;">${opp.title}</div>
+                  ${opp.insight ? `<div style="font-size: 14px; color: #1e293b; line-height: 1.65; margin-bottom: 8px; word-spacing: normal;"><strong style="color: #1d4ed8;">The Insight:</strong> ${opp.insight}</div>` : ''}
+                  ${opp.opportunity ? `<div style="font-size: 14px; color: #1e293b; line-height: 1.65; margin-bottom: 10px; word-spacing: normal;"><strong style="color: #b45309;">The Opportunity:</strong> ${opp.opportunity}</div>` : ''}
                   ${opp.steps && opp.steps.length > 0 ? `
                     <div style="margin-top: 6px; padding-left: 2px;">
                       ${opp.steps.map((step, si) => `<div style="font-size: 13px; color: #374151; line-height: 1.6; margin-bottom: 4px; padding-left: 16px; text-indent: -16px;">${si + 1}. ${step}</div>`).join('')}

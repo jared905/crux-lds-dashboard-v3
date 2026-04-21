@@ -167,7 +167,7 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
       // Build narrative HTML if available
       const narrativeHtml = narrative ? `
         <div data-pdf-section style="margin-top: 32px;">
-          <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; letter-spacing: 1px;">AI ANALYSIS</h2>
+          <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; letter-spacing: 0.5px;">AI ANALYSIS</h2>
           ${narrative.executive_summary ? `<div style="background: #f8fafc; padding: 20px; border-radius: 12px; border-left: 5px solid #8b5cf6; margin-bottom: 20px; font-size: 15px; color: #334155; line-height: 1.7;">${esc(narrative.executive_summary)}</div>` : ''}
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
             ${narrative.wins?.length > 0 ? `<div>
@@ -193,7 +193,8 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
       container.style.width = '1200px';
       container.style.backgroundColor = '#ffffff';
       container.style.padding = '50px 35px 35px 35px';
-      container.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+      container.style.fontFamily = 'Arial, Helvetica, sans-serif';
+      container.style.wordSpacing = 'normal';
       document.body.appendChild(container);
 
       container.innerHTML = `
@@ -296,7 +297,7 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
 
           <!-- Top Videos -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; letter-spacing: 1px;">TOP PERFORMING VIDEOS</h2>
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; letter-spacing: 0.5px;">TOP PERFORMING VIDEOS</h2>
             <div style="background: #f8fafc; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0;">
               <table style="width: 100%; border-collapse: collapse;">
                 <thead>
@@ -337,7 +338,7 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
 
             return `
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; letter-spacing: 1px;">AUDIENCE INTELLIGENCE</h2>
+            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; letter-spacing: 0.5px;">AUDIENCE INTELLIGENCE</h2>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
               <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
                 <div style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">Demographics</div>
