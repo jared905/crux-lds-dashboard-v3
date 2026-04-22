@@ -180,8 +180,40 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
             </div>` : ''}
           </div>
           ${narrative.q2_recommendations?.length > 0 ? `
-            <div style="font-size: 14px; font-weight: 700; color: #2563eb; margin-bottom: 12px;">NEXT QUARTER RECOMMENDATIONS</div>
-            ${narrative.q2_recommendations.map(r => `<div style="padding: 10px 14px; background: #eff6ff; border-radius: 8px; border-left: 3px solid #2563eb; margin-bottom: 8px; font-size: 13px; color: #334155; line-height: 1.6;">${esc(r)}</div>`).join('')}
+            <div style="font-size: 14px; font-weight: 700; color: #2563eb; margin-bottom: 6px;">NEXT QUARTER RECOMMENDATIONS</div>
+            ${narrative.priority_rationale ? `<div style="font-size: 12px; color: #64748b; margin-bottom: 14px; font-style: italic;">${esc(narrative.priority_rationale)}</div>` : ''}
+            ${narrative.q2_recommendations.map((r, i) => {
+              // Handle both structured objects (new) and strings (legacy)
+              if (typeof r === 'string') {
+                return `<div style="padding: 10px 14px; background: #eff6ff; border-radius: 8px; border-left: 3px solid #2563eb; margin-bottom: 8px; font-size: 13px; color: #334155; line-height: 1.6;">${esc(r)}</div>`;
+              }
+              const rank = r.rank || (i + 1);
+              const title = r.title || r.claim || 'Recommendation';
+              const parts = [];
+              if (r.claim && r.claim !== title) parts.push(`<div style="font-size: 14px; color: #1e293b; font-weight: 600; line-height: 1.5; margin-bottom: 8px;">${esc(r.claim)}</div>`);
+              if (r.evidence) parts.push(`<div style="font-size: 13px; color: #475569; line-height: 1.65; margin-bottom: 8px;"><strong style="color: #1e40af;">Evidence:</strong> ${esc(r.evidence)}</div>`);
+              if (r.option_a || r.option_b) {
+                parts.push(`<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0;">
+                  ${r.option_a ? `<div style="background: #f1f5f9; padding: 10px 12px; border-radius: 6px; font-size: 12px; color: #334155; line-height: 1.55;"><strong style="color: #0f172a;">Option A:</strong> ${esc(r.option_a)}</div>` : ''}
+                  ${r.option_b ? `<div style="background: #f1f5f9; padding: 10px 12px; border-radius: 6px; font-size: 12px; color: #334155; line-height: 1.55;"><strong style="color: #0f172a;">Option B:</strong> ${esc(r.option_b)}</div>` : ''}
+                </div>`);
+              }
+              if (r.recommendation) parts.push(`<div style="font-size: 13px; color: #1e293b; line-height: 1.65; margin-bottom: 8px;"><strong style="color: #16a34a;">Pick:</strong> ${esc(r.recommendation)}</div>`);
+              if (r.assumption || r.invalidation) {
+                parts.push(`<div style="font-size: 12px; color: #64748b; line-height: 1.55; margin-bottom: 8px; padding: 8px 10px; background: #fafbfc; border-radius: 5px;">
+                  ${r.assumption ? `<div><strong>Assumes:</strong> ${esc(r.assumption)}</div>` : ''}
+                  ${r.invalidation ? `<div><strong>Disproved if:</strong> ${esc(r.invalidation)}</div>` : ''}
+                </div>`);
+              }
+              if (r.decision) parts.push(`<div style="font-size: 13px; color: #2563eb; font-weight: 600; line-height: 1.55;">→ ${esc(r.decision)}</div>`);
+              return `<div style="padding: 16px 18px; background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; border-left: 4px solid #2563eb; margin-bottom: 12px;">
+                <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px;">
+                  <span style="font-size: 18px; font-weight: 700; color: #2563eb; line-height: 1;">${rank}.</span>
+                  <span style="font-size: 15px; font-weight: 700; color: #0f172a; line-height: 1.4;">${esc(title)}</span>
+                </div>
+                ${parts.join('')}
+              </div>`;
+            }).join('')}
           ` : ''}
         </div>
       ` : '';
@@ -832,14 +864,70 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
 
             {narrative.q2_recommendations?.length > 0 && (
               <div>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: '#3b82f6', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: '#3b82f6', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Target size={16} /> Next Quarter Recommendations
                 </div>
-                {narrative.q2_recommendations.map((r, i) => (
-                  <div key={i} style={{ fontSize: '13px', color: '#ccc', lineHeight: '1.6', padding: '10px 12px', background: 'rgba(59,130,246,0.05)', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #3b82f6' }}>
-                    {r}
+                {narrative.priority_rationale && (
+                  <div style={{ fontSize: '11px', color: '#666', fontStyle: 'italic', marginBottom: '12px' }}>
+                    {narrative.priority_rationale}
                   </div>
-                ))}
+                )}
+                {narrative.q2_recommendations.map((r, i) => {
+                  if (typeof r === 'string') {
+                    return (
+                      <div key={i} style={{ fontSize: '13px', color: '#ccc', lineHeight: '1.6', padding: '10px 12px', background: 'rgba(59,130,246,0.05)', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #3b82f6' }}>
+                        {r}
+                      </div>
+                    );
+                  }
+                  const rank = r.rank || (i + 1);
+                  return (
+                    <div key={i} style={{ padding: '14px 16px', background: 'rgba(59,130,246,0.05)', borderRadius: '10px', marginBottom: '10px', borderLeft: '3px solid #3b82f6' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '16px', fontWeight: '700', color: '#3b82f6' }}>{rank}.</span>
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#fff', lineHeight: 1.4 }}>{r.title || r.claim}</span>
+                      </div>
+                      {r.claim && r.claim !== r.title && (
+                        <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: 1.55, marginBottom: '8px' }}>{r.claim}</div>
+                      )}
+                      {r.evidence && (
+                        <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.55, marginBottom: '8px' }}>
+                          <strong style={{ color: '#60a5fa' }}>Evidence: </strong>{r.evidence}
+                        </div>
+                      )}
+                      {(r.option_a || r.option_b) && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', margin: '8px 0' }}>
+                          {r.option_a && (
+                            <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', fontSize: '12px', color: '#cbd5e1', lineHeight: 1.5 }}>
+                              <strong style={{ color: '#fff' }}>Option A:</strong> {r.option_a}
+                            </div>
+                          )}
+                          {r.option_b && (
+                            <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', fontSize: '12px', color: '#cbd5e1', lineHeight: 1.5 }}>
+                              <strong style={{ color: '#fff' }}>Option B:</strong> {r.option_b}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {r.recommendation && (
+                        <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: 1.55, marginBottom: '6px' }}>
+                          <strong style={{ color: '#4ade80' }}>Pick: </strong>{r.recommendation}
+                        </div>
+                      )}
+                      {(r.assumption || r.invalidation) && (
+                        <div style={{ fontSize: '11px', color: '#888', lineHeight: 1.5, padding: '8px 10px', background: 'rgba(0,0,0,0.25)', borderRadius: '5px', marginBottom: '6px' }}>
+                          {r.assumption && <div><strong>Assumes:</strong> {r.assumption}</div>}
+                          {r.invalidation && <div><strong>Disproved if:</strong> {r.invalidation}</div>}
+                        </div>
+                      )}
+                      {r.decision && (
+                        <div style={{ fontSize: '12px', color: '#60a5fa', fontWeight: '600', lineHeight: 1.5 }}>
+                          → {r.decision}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 

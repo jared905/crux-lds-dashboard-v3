@@ -437,7 +437,7 @@ async function discoverVideos(accessToken, youtubeChannelId, dbChannelId, channe
   for (let i = 0; i < allVideoIds.length; i += 50) {
     const batch = allVideoIds.slice(i, i + 50);
     const videosUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
-    videosUrl.searchParams.append('part', 'snippet,contentDetails,statistics');
+    videosUrl.searchParams.append('part', 'snippet,contentDetails,statistics,status');
     videosUrl.searchParams.append('id', batch.join(','));
 
     const videosResponse = await fetch(videosUrl.toString(), {
@@ -468,6 +468,7 @@ async function discoverVideos(accessToken, youtubeChannelId, dbChannelId, channe
         video_type: isShort ? 'short' : 'long',
         engagement_rate: views > 0 ? (likes + comments) / views : 0,
         content_source: channelName,
+        privacy_status: video.status?.privacyStatus || null,
       });
     }
   }

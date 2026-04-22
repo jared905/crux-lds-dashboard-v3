@@ -15,6 +15,8 @@ export function getQuarterDates(year, quarter) {
   const starts = { 1: '01-01', 2: '04-01', 3: '07-01', 4: '10-01' };
   const ends = { 1: '03-31', 2: '06-30', 3: '09-30', 4: '12-31' };
   return {
+    year,
+    quarter,
     start: `${year}-${starts[quarter]}`,
     end: `${year}-${ends[quarter]}`,
     label: `Q${quarter} ${year}`,
@@ -45,17 +47,24 @@ export function getCurrentQuarter() {
 async function fetchVideoDataForPeriod(channelId, startDate, endDate) {
   if (!supabase) throw new Error('Supabase not configured');
 
-  // Get videos published in this period
+  // Get videos published in this period.
+  // Exclude non-public videos so scheduled/private/unlisted uploads don't
+  // pollute "underperforming" calls in the AI narrative. NULL privacy_status
+  // is treated as public (not yet synced after migration 060).
   const { data: videos, error } = await supabase
     .from('videos')
     .select('*')
     .eq('channel_id', channelId)
     .gte('published_at', `${startDate}T00:00:00`)
     .lte('published_at', `${endDate}T23:59:59`)
+    .or('privacy_status.eq.public,privacy_status.is.null')
     .order('published_at', { ascending: false });
 
   if (error) throw error;
-  return videos || [];
+
+  // Belt-and-suspenders: also drop any video with 0 views AND 0 impressions.
+  // These are effectively private even if privacy_status says otherwise.
+  return (videos || []).filter(v => (v.view_count || 0) > 0 || (v.impressions || 0) > 0);
 }
 
 /**
@@ -358,7 +367,7 @@ export async function generateQuarterlyReport(channelId, year, quarter, explicit
   // Get channel info
   const { data: channelData } = await supabase
     .from('channels')
-    .select('name, thumbnail_url, subscriber_count, youtube_channel_id')
+    .select('id, name, thumbnail_url, subscriber_count, youtube_channel_id')
     .eq('id', channelId)
     .single();
 
@@ -419,13 +428,217 @@ export async function generateQuarterlyReport(channelId, year, quarter, explicit
   };
 }
 
+// Voice block — verbatim from the prompt spec
+const VOICE_BLOCK = `VOICE
+
+Write like a thought leader on a TED stage, not a consultant in a boardroom.
+Reference voices: James Clear, Simon Sinek, Tim Ferriss.
+
+Rules:
+- Open each recommendation with the claim or reframe, not the data. Data is evidence; lead with the point it proves.
+- Use one concrete example as the argument, not as support. The example IS the insight.
+- Short sentences. Vary rhythm. No three-clause consulting sentences with semicolons.
+- No setup phrases: "Imagine if," "Consider that," "It's worth noting," "In today's landscape."
+- No forced aphorisms. If a line doesn't earn being quotable, don't try.
+
+Banned phrases (rewrite with a concrete number or outcome if one of these feels necessary):
+"meaningful incremental," "high-leverage," "repeatable model," "strong fundamentals,"
+"proven efficiency," "activate potential," "sustained growth," "at scale," "optimize,"
+"streamline," "excited to help," "full potential," "strategic opportunity,"
+"unlock value," "drive results," "level up," "game-changer."
+
+Agent-neutral framing: Recommendations are options the client evaluates, not work plans.
+- Banned: "we can," "we'd recommend," "we'll handle," "happy to draft," "we're excited to."
+- Use instead: "One path is," "An alternative is," "The tradeoff is."
+- End each rec with the decision the client faces, not the task Crux would execute.
+
+Every claim must be falsifiable. If it can't be wrong, it isn't an insight — rewrite with a testable prediction.`;
+
+const STRUCTURE_BLOCK = `STRUCTURE
+
+Produce 3-5 recommendations total. Five is a ceiling, not a target. If you can only justify
+three strong recs, write three.
+
+Per recommendation, required elements (order flexible, format flexible):
+  1. LEADING CLAIM — one sentence. The insight or reframe, not the data.
+  2. EVIDENCE — the minimum data needed to support the claim. Do not restate every metric.
+  3. TWO OPTIONS — two distinct paths the client could take, with different tradeoffs.
+     Not two versions of the same thing. Genuinely different bets.
+     Example: "Option A: invest in X (faster payoff, higher risk). Option B: invest in Y
+     (slower payoff, compounds over time)."
+  4. THE RECOMMENDATION — which option you'd pick and why, in one or two sentences.
+  5. ASSUMPTION & INVALIDATION — what has to be true for this rec to work, and what would
+     prove it wrong.
+  6. DECISION FRAME — the specific decision the client needs to make, phrased as a question.
+
+Do NOT force every rec into the same length or shape. A high-confidence rec can be 80 words.
+A rec that requires explaining context can be 250. Vary.
+
+Priority rank: Number recs 1-5 by impact × feasibility. The #1 rec is the one the client
+should act on first. Explain the ranking criteria in one sentence at the top of the section.
+
+Cross-rec tension check: Before finalizing, scan all recs for contradictions. If two recs
+depend on opposite premises, reconcile in text or drop the weaker one.
+
+Subtractive recs allowed: Not every rec must be additive. "Stop doing X" is a valid rec
+when evidence supports it.
+
+Executive summary: Open with a 2-3 sentence synthesis that a director-tier reader could act
+on without reading the recs below. Lead with the most important implication of the quarter,
+not a restatement of top-line metrics.
+
+Banned rec formats:
+- Insight / Opportunity / 3 Actions (the prior template — do not reproduce).
+- "Here are some ideas to consider" laundry lists.
+- Recs that end with "we'll track and report back" — that's a process note, not a decision.`;
+
+const NUMERIC_BLOCK = `NUMERIC DISCIPLINE
+
+Realistic lift ranges (do not exceed without explicit data justification):
+- Title/thumbnail test: 10-30% CTR change typical. 50%+ is rare and requires a specific
+  comparable in the same channel.
+- End-screen click-through: 1-3%. Never project 5%+.
+- Hook-based retention improvement: 3-8 percentage points.
+- Cross-channel traffic redistribution: 0.5-2% of source channel views, not 5%+.
+
+Framing rules:
+- Never use "even X%" to imply a conservative floor. State the realistic range.
+- Never project lifts for recs that depend on unobserved variables (e.g., "if Elder X
+  publishes 4 videos next quarter" — you don't know if that will happen).
+- When stating a projected outcome, include the baseline, the realistic range, and what
+  would constitute a win. Example: "Current CTR 5.0%. Realistic range after title test:
+  5.5-6.5%. Win condition: sustained 6%+ across next 3 uploads."
+
+Math sanity check (run before finalizing every rec):
+- Do the numbers in this rec cross-check? If you say "half of X's average," is X the total
+  or the average?
+- Do percentages add up to the claim? If you say "37.8% of network total," does the raw
+  number match?
+- Is the denominator explicit? "14,270 subscribers" — of what base? Cite it.
+- If any number fails the cross-check, rewrite the claim.
+
+Delta framing:
+- Frame current-vs-prior quarter deltas as directional signals, not proof. A single quarter
+  of movement is weak evidence. Say so when it matters.
+- Prior narratives (if provided) are read-only history. Reference them only when directly
+  relevant — e.g., "last quarter's recommendation to X played out as Y." Do not force
+  continuity where none exists.`;
+
+function buildAudienceBlock({ clientName, honorificsBlock, audienceData, channelCount }) {
+  const isLDS = /(lds|leadership|church of jesus christ|apostle)/i.test(clientName || '');
+
+  const audienceLines = [];
+  if (audienceData) {
+    if (audienceData.gender && Object.keys(audienceData.gender).length) {
+      const gender = Object.entries(audienceData.gender).sort(([,a],[,b]) => b - a)
+        .map(([g, p]) => `${g === 'user_specified' ? 'Other' : g.charAt(0).toUpperCase() + g.slice(1)} ${p.toFixed(1)}%`).join(', ');
+      audienceLines.push(`  Gender: ${gender}`);
+    }
+    if (audienceData.age && Object.keys(audienceData.age).length) {
+      const ages = Object.entries(audienceData.age).sort(([,a],[,b]) => b - a).slice(0, 3)
+        .map(([k, p]) => `${k.replace('age','')} (${p.toFixed(1)}%)`).join(', ');
+      audienceLines.push(`  Top age groups: ${ages}`);
+    }
+    if (audienceData.country && Object.keys(audienceData.country).length) {
+      const countries = Object.entries(audienceData.country).sort(([,a],[,b]) => b.views - a.views)
+        .slice(0, 5).map(([code]) => code).join(', ');
+      audienceLines.push(`  Top countries: ${countries}`);
+    }
+    if (audienceData.province && Object.keys(audienceData.province).length) {
+      const states = Object.entries(audienceData.province).sort(([,a],[,b]) => b.views - a.views)
+        .slice(0, 5).map(([code]) => code.replace('US-', '')).join(', ');
+      audienceLines.push(`  Top US states: ${states}`);
+    }
+    if (audienceData.trafficSources && Object.keys(audienceData.trafficSources).length) {
+      const labels = {YT_SEARCH:'Search',SUBSCRIBER:'Subscribers',SUGGESTED:'Suggested',BROWSE:'Browse',EXT_URL:'External',SHORTS:'Shorts Feed',NOTIFICATION:'Notifications',YT_CHANNEL:'Channel Page'};
+      const totalV = Object.values(audienceData.trafficSources).reduce((s,t) => s + t.views, 0);
+      const traffic = Object.entries(audienceData.trafficSources).sort(([,a],[,b]) => b.views - a.views).slice(0, 5)
+        .map(([k, v]) => `${labels[k] || k} ${totalV > 0 ? ((v.views/totalV)*100).toFixed(0) : 0}%`).join(', ');
+      audienceLines.push(`  Traffic sources: ${traffic}`);
+    }
+    if (audienceData.deviceTypes && Object.keys(audienceData.deviceTypes).length) {
+      const totalD = Object.values(audienceData.deviceTypes).reduce((s,d) => s + d.views, 0);
+      const devices = Object.entries(audienceData.deviceTypes).sort(([,a],[,b]) => b.views - a.views)
+        .map(([k, v]) => `${k.charAt(0) + k.slice(1).toLowerCase()} ${totalD > 0 ? ((v.views/totalD)*100).toFixed(0) : 0}%`).join(', ');
+      audienceLines.push(`  Device split: ${devices}`);
+    }
+  }
+
+  const domainLines = isLDS ? [
+    '  - Apostle speaking appearances are NOT infinitely scalable, but content production around',
+    '    existing appearances IS scalable. Valid growth paths: new series, conference recuts,',
+    '    devotional clip extraction, archival content, topical compilations, Shorts from long-form.',
+    '    Invalid frames: asking an apostle to "upload more" or "increase cadence" as if they are',
+    '    a solo creator.',
+  ] : [
+    '  - Content production scales via repurposing, series structure, and format-specific variants',
+    '    more than raw upload velocity.',
+  ];
+
+  return `AUDIENCE
+
+Client: ${clientName || 'this channel'}${channelCount > 1 ? ` (${channelCount}-channel network).` : '.'}
+
+Primary readers (mixed — same report serves all three):
+  1. Producer/strategist tier: wants tactical specificity, exact numbers, executable next steps.
+  2. Director/executive tier: wants implication, tradeoffs, and the decision they need to make.
+  3. Crux internal team: uses the report to align on monthly priorities.
+
+The report's job, ranked:
+  1. Drive client decisions (primary).
+  2. Demonstrate ongoing strategic partnership (retainer justification).
+  3. Track network health over time (scorecard).
+
+${isLDS ? `LDS honorifics (current active roster):
+${honorificsBlock}
+
+Honorific rules:
+- First reference: full title + full name ("Elder David A. Bednar," "President Henry B. Eyring").
+- Subsequent references: title + last name ("Elder Bednar," "President Eyring").
+- Never use bare last names. Never use "Mr." or no title at all.
+- If a channel name in the data doesn't match an honorifics entry, use the channel name as
+  shown and flag the line for manual review in the output.
+
+` : ''}Domain context you must know:
+${domainLines.join('\n')}
+  - Reader is YouTube-fluent. Skip algorithm 101 ("YouTube favors consistent cadence" — they know).
+  - Lead with implication before evidence.
+
+Audience profile this quarter:
+${audienceLines.length ? audienceLines.join('\n') : '  (No audience data available — do not speculate about demographics.)'}
+
+Device mentions: Only call out device data if something is notably unusual (TV viewership
+above 15%, or mobile below 50%). Do not dedicate a section to devices.
+
+Private/unlisted/scheduled video safety net:
+Any video with zero impressions AND zero views is already excluded from the data you see.
+Do not cite any video as "underperforming" without a non-zero view count.`;
+}
+
 /**
- * Generate Claude narrative for quarterly report
+ * Generate Claude narrative for quarterly report — four-block prompt architecture.
  */
-export async function generateQuarterlyNarrative(reportData) {
+export async function generateQuarterlyNarrative(reportData, opts = {}) {
   try {
     const claudeAPI = (await import('./claudeAPI')).default;
-    const { channel, currentQuarter, previousQuarter, deltas, audienceData } = reportData;
+    const { channel, currentQuarter, previousQuarter, deltas, audienceData, channelCount } = reportData;
+    const channelId = opts.channelId || channel?.id;
+    const clientName = opts.clientName || channel?.name;
+
+    // Pass 1.1: Load honorifics
+    const { fetchActiveHonorifics, formatHonorificsBlock } = await import('./honorificsService');
+    const honorifics = await fetchActiveHonorifics();
+    const honorificsBlock = formatHonorificsBlock(honorifics);
+
+    // Pass 4: Load prior narratives (cross-period memory)
+    let priorNarrativesBlock = '';
+    if (channelId && currentQuarter.year && currentQuarter.quarter) {
+      const { fetchPriorNarratives, formatPriorNarrativesBlock } = await import('./narrativeArchiveService');
+      const prior = await fetchPriorNarratives(channelId, currentQuarter.year, currentQuarter.quarter, 2);
+      if (prior.length > 0) {
+        priorNarrativesBlock = `\n\nPRIOR NARRATIVES (read-only history)\n\n${formatPriorNarrativesBlock(prior)}`;
+      }
+    }
 
     const fmt = (n) => {
       if (!n || isNaN(n)) return '0';
@@ -434,7 +647,15 @@ export async function generateQuarterlyNarrative(reportData) {
       return Math.round(n).toLocaleString();
     };
 
-    const prompt = `Generate a quarterly YouTube performance report narrative for ${channel?.name || 'this channel'}.
+    const audienceBlock = buildAudienceBlock({
+      clientName,
+      honorificsBlock,
+      audienceData,
+      channelCount: channelCount || 1,
+    });
+
+    // Data payload — unchanged format, comes after the instruction blocks
+    const dataPayload = `DATA PAYLOAD
 
 ## ${currentQuarter.label} Performance
 - Videos published: ${currentQuarter.metrics.totalVideos} (${currentQuarter.metrics.shortsCount} shorts, ${currentQuarter.metrics.longsCount} long-form)
@@ -452,64 +673,153 @@ export async function generateQuarterlyNarrative(reportData) {
 - Watch hours: ${fmt(previousQuarter.metrics.totalWatchHours)} → ${fmt(currentQuarter.metrics.totalWatchHours)}
 
 ## Top Videos This Quarter
-${currentQuarter.metrics.topByViews.slice(0, 5).map((v, i) => `${i + 1}. "${v.title}" — ${fmt(v.view_count)} views`).join('\n')}
-${audienceData ? `
-## Audience Profile
-- Gender: ${Object.entries(audienceData.gender || {}).sort(([,a],[,b]) => b - a).map(([g, p]) => `${g === 'user_specified' ? 'Other' : g.charAt(0).toUpperCase() + g.slice(1)} ${p.toFixed(1)}%`).join(', ')}
-- Top age groups: ${Object.entries(audienceData.age || {}).sort(([,a],[,b]) => b - a).slice(0, 3).map(([k, p]) => `${k.replace('age','')} (${p.toFixed(1)}%)`).join(', ')}
-- Top countries: ${Object.entries(audienceData.country || {}).sort(([,a],[,b]) => b.views - a.views).slice(0, 5).map(([code]) => code).join(', ')}
-- Top US states: ${Object.entries(audienceData.province || {}).sort(([,a],[,b]) => b.views - a.views).slice(0, 5).map(([code]) => code.replace('US-', '')).join(', ')}
-- Traffic sources: ${Object.entries(audienceData.trafficSources || {}).sort(([,a],[,b]) => b.views - a.views).slice(0, 5).map(([k, v]) => {
-    const labels = {YT_SEARCH:'Search',SUBSCRIBER:'Subscribers',SUGGESTED:'Suggested',BROWSE:'Browse',EXT_URL:'External',SHORTS:'Shorts Feed',NOTIFICATION:'Notifications',YT_CHANNEL:'Channel Page'};
-    const totalV = Object.values(audienceData.trafficSources).reduce((s,t) => s + t.views, 0);
-    return `${labels[k] || k} ${totalV > 0 ? ((v.views/totalV)*100).toFixed(0) : 0}%`;
-  }).join(', ')}
-- Devices: ${Object.entries(audienceData.deviceTypes || {}).sort(([,a],[,b]) => b.views - a.views).map(([k, v]) => {
-    const totalD = Object.values(audienceData.deviceTypes).reduce((s,d) => s + d.views, 0);
-    return `${k.charAt(0) + k.slice(1).toLowerCase()} ${totalD > 0 ? ((v.views/totalD)*100).toFixed(0) : 0}%`;
-  }).join(', ')}
+${currentQuarter.metrics.topByViews.slice(0, 5).map((v, i) => `${i + 1}. "${v.title}" — ${fmt(v.view_count)} views`).join('\n')}${priorNarrativesBlock}
 
-Note: Only mention device data if something is notably unusual (e.g., TV viewership above 15%, or mobile below 50%). Do not dedicate a section to devices — weave it into insights when relevant.
-` : ''}
-Generate the following sections. Return ONLY valid JSON:
+OUTPUT CONTRACT
+
+Return ONLY valid JSON with this shape:
 {
-  "executive_summary": "3-4 sentence overview of the quarter's performance. Lead with the most important finding.",
-  "wins": ["2-3 specific wins from the data — what worked well"],
+  "executive_summary": "2-3 sentence director-actionable synthesis. Lead with the most important implication of the quarter.",
+  "wins": ["2-3 specific wins with data — short, scannable"],
   "challenges": ["1-2 areas that underperformed or need attention"],
-  "content_insights": "2-3 sentences about what content types/topics performed best",
-  "q2_recommendations": ["3-4 specific, actionable recommendations for next quarter based on this data"],
-  "trend_narrative": "2-3 sentences describing the overall trajectory — is the channel growing, stable, or declining, and why"
-}`;
+  "content_insights": "2-3 sentences on what content types/topics performed best",
+  "priority_rationale": "One sentence explaining how the recommendations below are ranked (e.g., 'ranked by impact × feasibility over the next 90 days').",
+  "q2_recommendations": [
+    {
+      "rank": 1,
+      "title": "Short title — the leading claim or reframe in 8-12 words",
+      "claim": "The insight or reframe — one sentence, no data yet",
+      "evidence": "The minimum data needed to support the claim",
+      "option_a": "Option A description with its tradeoff",
+      "option_b": "Option B description with its tradeoff (genuinely different bet, not a variant of A)",
+      "recommendation": "Which option you'd pick and why — one or two sentences",
+      "assumption": "What has to be true for this to work",
+      "invalidation": "What would prove this wrong",
+      "decision": "The specific decision the client needs to make, as a question"
+    }
+  ],
+  "trend_narrative": "2-3 sentences describing the trajectory — directional, not definitive"
+}
 
-    const systemPrompt = `You are a senior YouTube strategist writing a quarterly performance report for a brand leadership team. You combine platform expertise with executive communication.
+Return 3-5 recommendations. Vary their length based on how much context each needs.`;
 
-VOICE & TONE:
-- Write for a CMO or VP who has 3 minutes. Lead with impact, not methodology.
-- Never use YouTube jargon without defining it: say "click-through rate (the percentage of people who saw the thumbnail and clicked)" on first use, then "CTR" after.
-- Never say "metadata discovery issues" — say "search visibility" or "discoverability."
-- Never recommend "upload more" without framing it as "repurpose existing content" — frequency advice must account for production constraints.
-- Aggregate insights at the network level. Individual video callouts belong in appendices, not executive summaries. When citing a specific video, frame it as evidence for a pattern, not a standalone finding.
-
-STRUCTURE:
-- Executive summary: verdict first, evidence second. Not "we analyzed X" but "the channel grew Y% because Z."
-- Wins: specific, with data. Not "good performance" but "Shorts drove 3.2x more views per video than long-form this quarter."
-- Recommendations: actionable within existing production resources. Prefer repurposing over new production.
-
-Return ONLY valid JSON.`;
+    const systemPrompt = [VOICE_BLOCK, audienceBlock, STRUCTURE_BLOCK, NUMERIC_BLOCK].join('\n\n');
 
     const result = await claudeAPI.call(
-      prompt,
+      dataPayload,
       systemPrompt,
       'quarterly_report',
-      2000
+      3500
     );
 
     const { parseClaudeJSON } = await import('../lib/parseClaudeJSON');
-    return parseClaudeJSON(result.text, {});
+    const parsed = parseClaudeJSON(result.text, {});
+
+    // Post-generation validation — log only, do not auto-retry
+    try {
+      const validation = validateNarrative(parsed, { honorifics, channelNames: currentQuarter.metrics.topByViews?.map(v => v.channel).filter(Boolean) });
+      if (validation.flags.length > 0) {
+        console.warn('[QuarterlyReport] Validation flags:', validation.flags);
+        parsed._validationFlags = validation.flags;
+      }
+    } catch (vErr) {
+      console.warn('[QuarterlyReport] Validation error:', vErr);
+    }
+
+    // Pass 4: Save to narrative archive for future cross-period reference
+    if (channelId && currentQuarter.year && currentQuarter.quarter && parsed && !parsed._error) {
+      try {
+        const { saveNarrative } = await import('./narrativeArchiveService');
+        await saveNarrative({
+          channelId,
+          quarterYear: currentQuarter.year,
+          quarterNumber: currentQuarter.quarter,
+          narrative: parsed,
+          metricsSnapshot: {
+            totalViews: currentQuarter.metrics.totalViews,
+            totalVideos: currentQuarter.metrics.totalVideos,
+            totalSubsGained: currentQuarter.metrics.totalSubsGained,
+            avgCTR: currentQuarter.metrics.avgCTR,
+            avgRetention: currentQuarter.metrics.avgRetention,
+          },
+        });
+      } catch (saveErr) {
+        console.warn('[QuarterlyReport] Archive save failed:', saveErr);
+      }
+    }
+
+    return parsed;
   } catch (err) {
     console.error('[QuarterlyReport] Narrative generation failed:', err);
     return null;
   }
+}
+
+/**
+ * Validate generated narrative for the things the prompt asked for.
+ * Logs flags but does not retry — this is a review signal, not a gate.
+ */
+function validateNarrative(narrative, { honorifics = [], channelNames = [] } = {}) {
+  const flags = [];
+  if (!narrative || typeof narrative !== 'object') {
+    return { flags: ['narrative missing or not an object'] };
+  }
+
+  // 1. Banned Voice phrases
+  const BANNED = [
+    'meaningful incremental', 'high-leverage', 'repeatable model', 'strong fundamentals',
+    'proven efficiency', 'activate potential', 'sustained growth', 'at scale',
+    'excited to help', 'full potential', 'strategic opportunity', 'unlock value',
+    'drive results', 'level up', 'game-changer',
+    "we can", "we'd recommend", "we'll handle", "happy to draft", "we're excited",
+  ];
+  const allText = JSON.stringify(narrative).toLowerCase();
+  for (const phrase of BANNED) {
+    if (allText.includes(phrase.toLowerCase())) {
+      flags.push(`banned phrase: "${phrase}"`);
+    }
+  }
+
+  // 2. Structure: 3-5 recs with required fields
+  const recs = narrative.q2_recommendations || narrative.recommendations || [];
+  if (!Array.isArray(recs) || recs.length < 3 || recs.length > 5) {
+    flags.push(`rec count out of range (got ${Array.isArray(recs) ? recs.length : 'non-array'}, expected 3-5)`);
+  }
+  recs.forEach((rec, i) => {
+    if (typeof rec === 'string') {
+      flags.push(`rec ${i + 1} is a string, expected structured object`);
+      return;
+    }
+    const required = ['claim', 'option_a', 'option_b', 'recommendation', 'assumption', 'invalidation', 'decision'];
+    const missing = required.filter(k => !rec?.[k] || String(rec[k]).trim().length < 5);
+    if (missing.length) flags.push(`rec ${i + 1} missing/empty fields: ${missing.join(', ')}`);
+  });
+
+  // 3. Honorifics: if any channel name appears in text without its title, flag it
+  if (honorifics.length) {
+    for (const h of honorifics) {
+      const lastName = h.full_name.split(/\s+/).pop();
+      if (!lastName || lastName.length < 4) continue;
+      const lastRe = new RegExp(`\\b${lastName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      const matches = allText.match(lastRe);
+      if (!matches) continue;
+      // For each mention, check that a title appears nearby (within 40 chars before)
+      const textStr = allText;
+      let idx = 0;
+      while ((idx = textStr.indexOf(lastName.toLowerCase(), idx)) !== -1) {
+        const before = textStr.slice(Math.max(0, idx - 40), idx);
+        const hasTitle = /(president|elder|sister|bishop|elder['']?s)\s*$/i.test(before) ||
+                         before.includes(h.full_name.toLowerCase());
+        if (!hasTitle) {
+          flags.push(`possible missing honorific before "${lastName}"`);
+          break; // one flag per person is enough
+        }
+        idx += lastName.length;
+      }
+    }
+  }
+
+  return { flags };
 }
 
 export default {
