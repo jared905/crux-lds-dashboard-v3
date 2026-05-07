@@ -48,22 +48,28 @@ async function fetchVideoDataForPeriod(channelId, startDate, endDate) {
   if (!supabase) throw new Error('Supabase not configured');
 
   // Get videos published in this period.
-  // Exclude non-public videos so scheduled/private/unlisted uploads don't
-  // pollute "underperforming" calls in the AI narrative. NULL privacy_status
-  // is treated as public (not yet synced after migration 060).
-  const { data: videos, error } = await supabase
+  // Try to filter on privacy_status first (migration 060). If that column
+  // doesn't exist yet, fall back to the views/impressions filter alone.
+  const baseQuery = () => supabase
     .from('videos')
     .select('*')
     .eq('channel_id', channelId)
     .gte('published_at', `${startDate}T00:00:00`)
     .lte('published_at', `${endDate}T23:59:59`)
-    .or('privacy_status.eq.public,privacy_status.is.null')
     .order('published_at', { ascending: false });
 
+  let { data: videos, error } = await baseQuery().or('privacy_status.eq.public,privacy_status.is.null');
+
+  if (error?.message?.includes("Could not find the 'privacy_status'")) {
+    // Column not yet migrated — retry without the filter
+    const retry = await baseQuery();
+    videos = retry.data;
+    error = retry.error;
+  }
   if (error) throw error;
 
-  // Belt-and-suspenders: also drop any video with 0 views AND 0 impressions.
-  // These are effectively private even if privacy_status says otherwise.
+  // Belt-and-suspenders: drop any video with 0 views AND 0 impressions
+  // (effectively private regardless of what privacy_status says).
   return (videos || []).filter(v => (v.view_count || 0) > 0 || (v.impressions || 0) > 0);
 }
 

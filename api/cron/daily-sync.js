@@ -473,11 +473,32 @@ async function discoverVideos(accessToken, youtubeChannelId, dbChannelId, channe
     }
   }
 
-  // Step 4: Upsert to database (only updates columns present in data — preserves impressions/ctr)
+  // Step 4: Upsert to database. If a column from a newer migration isn't in
+  // the schema cache yet (e.g., privacy_status before migration 060 runs),
+  // strip that field and retry rather than failing the whole sync.
   if (videosToUpsert.length > 0) {
-    const { error } = await supabase
-      .from('videos')
-      .upsert(videosToUpsert, { onConflict: 'youtube_video_id' });
+    const tryUpsert = async (payload) => {
+      return await supabase
+        .from('videos')
+        .upsert(payload, { onConflict: 'youtube_video_id' });
+    };
+
+    let { error } = await tryUpsert(videosToUpsert);
+    let attempts = 0;
+    while (error && attempts < 3 && error.message?.includes("Could not find the '")) {
+      const match = error.message.match(/'([^']+)' column/);
+      const missingCol = match?.[1];
+      if (!missingCol) break;
+      console.warn(`[Daily Sync] Column '${missingCol}' missing in DB — stripping and retrying`);
+      videosToUpsert = videosToUpsert.map(v => {
+        const copy = { ...v };
+        delete copy[missingCol];
+        return copy;
+      });
+      const retry = await tryUpsert(videosToUpsert);
+      error = retry.error;
+      attempts++;
+    }
 
     if (error) {
       throw new Error(`Failed to upsert videos: ${error.message}`);
