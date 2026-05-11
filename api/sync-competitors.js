@@ -446,41 +446,72 @@ export default async function handler(req, res) {
 
   const results = {
     channels_synced: 0,
+    channels_skipped_fresh: 0,
+    channels_remaining: 0,
     videos_synced: 0,
     handles_skipped: 0,
     youtube_api_calls: 0,
     errors: [],
+    timed_out: false,
   };
 
+  // Time budget: Vercel functions cap at 300s, leave 30s buffer for cleanup
+  const startTime = Date.now();
+  const TIME_BUDGET_MS = 270_000;
+  // Skip channels synced within this window (let the next invocation handle stale ones)
+  const skipIfSyncedWithinHours = Number(req.query?.skipIfFreshHours || 12);
+  const skipIfSyncedCutoff = Date.now() - skipIfSyncedWithinHours * 3600_000;
+  const channelLimit = req.query?.limit ? Number(req.query.limit) : null;
+  // Concurrency — careful with YouTube quota (default 10K/day per project)
+  const concurrency = Number(req.query?.concurrency || 3);
+
   try {
-    // Get all channels with sync enabled
+    // Order least-recently-synced first so each invocation makes progress
     const { data: channels, error: channelsError } = await supabase
       .from('channels')
       .select('*')
-      .eq('sync_enabled', true);
+      .eq('sync_enabled', true)
+      .order('last_synced_at', { ascending: true, nullsFirst: true });
 
     if (channelsError) throw channelsError;
 
-    for (const channel of channels || []) {
-      // Skip channels with unresolved handle_ IDs — they need a real UC ID to sync
-      if (channel.youtube_channel_id.startsWith('handle_')) {
+    // Filter out handles and recently-synced
+    const queue = [];
+    for (const ch of channels || []) {
+      if (ch.youtube_channel_id?.startsWith('handle_')) {
         results.handles_skipped++;
         continue;
       }
-
-      // Sync the channel (fetch stats, videos, create snapshots)
-      try {
-        const videosCount = await syncChannel(channel, apiKey);
-        results.channels_synced++;
-        results.videos_synced += videosCount;
-        results.youtube_api_calls += 3; // channels.list + playlistItems + videos.list
-      } catch (err) {
-        results.errors.push({ channel: channel.name, error: err.message });
+      if (ch.last_synced_at && new Date(ch.last_synced_at).getTime() > skipIfSyncedCutoff) {
+        results.channels_skipped_fresh++;
+        continue;
       }
-
-      // Rate limiting between channels
-      await new Promise(resolve => setTimeout(resolve, 200));
+      queue.push(ch);
     }
+    if (channelLimit) queue.splice(channelLimit);
+    results.channels_remaining = queue.length;
+
+    // Process in parallel batches with a time guard
+    let index = 0;
+    const workers = Array.from({ length: concurrency }, async () => {
+      while (index < queue.length) {
+        if (Date.now() - startTime > TIME_BUDGET_MS) {
+          results.timed_out = true;
+          break;
+        }
+        const channel = queue[index++];
+        try {
+          const videosCount = await syncChannel(channel, apiKey);
+          results.channels_synced++;
+          results.videos_synced += videosCount;
+          results.youtube_api_calls += 3;
+          results.channels_remaining = Math.max(0, queue.length - index);
+        } catch (err) {
+          results.errors.push({ channel: channel.name, error: err.message });
+        }
+      }
+    });
+    await Promise.all(workers);
 
   } catch (err) {
     results.errors.push({ error: err.message });
