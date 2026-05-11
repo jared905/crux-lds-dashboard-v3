@@ -4,18 +4,20 @@
  * One page, sticky scope picker, four lenses (Landscape / Patterns /
  * White Space / Movement). See mockups/research/ for the spec.
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Globe, BarChart3, Square, Inbox, RefreshCw, Loader } from 'lucide-react';
 import ScopeBar from './ScopeBar.jsx';
 import LandscapeLens from './LandscapeLens.jsx';
 import PatternsLens from './PatternsLens.jsx';
 import WhiteSpaceLens from './WhiteSpaceLens.jsx';
+import MovementLens from './MovementLens.jsx';
+import { countActiveAlerts, resolveScopeToChannelIds } from '../../services/movementService.js';
 
 const LENS_TABS = [
   { id: 'landscape', label: 'Landscape', icon: BarChart3, status: 'live' },
   { id: 'patterns', label: 'Patterns', icon: Globe, status: 'live' },
   { id: 'whitespace', label: 'White Space', icon: Square, status: 'live' },
-  { id: 'movement', label: 'Movement', icon: Inbox, status: 'coming' },
+  { id: 'movement', label: 'Movement', icon: Inbox, status: 'live' },
 ];
 
 export default function ResearchV2() {
@@ -31,6 +33,27 @@ export default function ResearchV2() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Keep the alert badge in sync with current scope
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const ids = await resolveScopeToChannelIds(scope);
+        if (cancelled) return;
+        const count = await countActiveAlerts({ scopeChannelIds: ids, windowDays: 14 });
+        if (!cancelled) setAlertCount(count);
+      } catch {
+        if (!cancelled) setAlertCount(0);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [
+    scope.categoryIds?.join(','),
+    scope.tags?.join(','),
+    scope.tiers?.join(','),
+    refreshKey,
+  ]);
 
   const handleRefresh = async () => {
     if (syncing) return;
@@ -65,9 +88,21 @@ export default function ResearchV2() {
         if ((data.channels_remaining || 0) === 0) break;
       }
 
+      // Generate movement alerts off the freshly synced data
+      let alertSummary = '';
+      try {
+        const alertResp = await fetch('/api/generate-competitor-alerts?manual=true', { method: 'POST' });
+        if (alertResp.ok) {
+          const alertData = await alertResp.json();
+          if (alertData?.total > 0) alertSummary = ` · ${alertData.total} new alert${alertData.total === 1 ? '' : 's'}`;
+        }
+      } catch {
+        // Alert generation is best-effort; sync result is the source of truth
+      }
+
       setSyncResult({
         ok: true,
-        message: `Synced ${totalSynced} channels · ${totalVideos} videos${totalErrors ? ` · ${totalErrors} errors` : ''}`,
+        message: `Synced ${totalSynced} channels · ${totalVideos} videos${totalErrors ? ` · ${totalErrors} errors` : ''}${alertSummary}`,
       });
       setRefreshKey(k => k + 1);
     } catch (err) {
@@ -179,6 +214,7 @@ export default function ResearchV2() {
       {activeLens === 'landscape' && <LandscapeLens scope={scope} refreshKey={refreshKey} />}
       {activeLens === 'patterns' && <PatternsLens scope={scope} refreshKey={refreshKey} />}
       {activeLens === 'whitespace' && <WhiteSpaceLens scope={scope} refreshKey={refreshKey} />}
+      {activeLens === 'movement' && <MovementLens scope={scope} refreshKey={refreshKey} />}
     </div>
   );
 }

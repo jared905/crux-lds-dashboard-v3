@@ -21,6 +21,10 @@
       "schedule": "0 7 * * *"
     },
     {
+      "path": "/api/generate-competitor-alerts",
+      "schedule": "30 7 * * *"
+    },
+    {
       "path": "/api/generate-brief",
       "schedule": "0 8 * * 1"
     }
