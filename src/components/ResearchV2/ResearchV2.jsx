@@ -34,20 +34,45 @@ export default function ResearchV2() {
     if (syncing) return;
     setSyncing(true);
     setSyncResult(null);
+
+    // Self-chain: each invocation processes a chunk; loop until queue is drained
+    // or we hit a hard cap to avoid runaways. Each call should complete in <2 min.
+    let totalSynced = 0;
+    let totalVideos = 0;
+    let totalErrors = 0;
+    const MAX_PASSES = 12;
+    let pass = 0;
+
     try {
-      const resp = await fetch('/api/sync-competitors?manual=true', { method: 'POST' });
-      const data = await resp.json();
-      if (data.success || resp.ok) {
-        setSyncResult({ ok: true, message: `Synced ${data.channels_synced || 0} channels` });
-        setRefreshKey(k => k + 1); // force lens reload
-      } else {
-        setSyncResult({ ok: false, message: data.error || 'Sync failed' });
+      while (pass < MAX_PASSES) {
+        pass++;
+        setSyncResult({ ok: true, message: `Syncing… pass ${pass} (${totalSynced} done)` });
+        const resp = await fetch(
+          '/api/sync-competitors?manual=true&limit=10&concurrency=2&skipIfFreshHours=12',
+          { method: 'POST' }
+        );
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+
+        totalSynced += data.channels_synced || 0;
+        totalVideos += data.videos_synced || 0;
+        totalErrors += (data.errors || []).length;
+
+        // Stop when the queue is empty or no progress was made
+        if ((data.channels_remaining || 0) === 0 && (data.channels_synced || 0) === 0) break;
+        if ((data.channels_remaining || 0) === 0) break;
       }
+
+      setSyncResult({
+        ok: true,
+        message: `Synced ${totalSynced} channels · ${totalVideos} videos${totalErrors ? ` · ${totalErrors} errors` : ''}`,
+      });
+      setRefreshKey(k => k + 1);
     } catch (err) {
       setSyncResult({ ok: false, message: err.message });
     } finally {
       setSyncing(false);
-      setTimeout(() => setSyncResult(null), 6000);
+      setTimeout(() => setSyncResult(null), 10000);
     }
   };
 
