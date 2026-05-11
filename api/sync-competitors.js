@@ -58,37 +58,74 @@ async function fetchChannelDetails(channelId, apiKey) {
 }
 
 /**
- * Fetch recent videos from a channel
+ * Fetch recent videos from a channel — last 90 days window.
+ * Pages through the uploads playlist until videos are older than the cutoff,
+ * with a hard ceiling so very high-cadence channels don't blow quota.
  */
-async function fetchChannelVideos(uploadsPlaylistId, apiKey, maxResults = 50) {
-  const playlistResponse = await fetch(
-    `${YOUTUBE_API_BASE}/playlistItems?part=snippet,contentDetails&playlistId=${uploadsPlaylistId}&maxResults=${maxResults}&key=${apiKey}`
-  );
-  const playlistData = await playlistResponse.json();
+async function fetchChannelVideos(uploadsPlaylistId, apiKey, options = {}) {
+  const { windowDays = 90, hardCap = 200 } = options;
+  const cutoff = new Date(Date.now() - windowDays * 86400000);
 
-  if (playlistData.error) throw new Error(playlistData.error.message);
-  if (!playlistData.items?.length) return [];
+  const collected = [];
+  let pageToken = null;
 
-  const videoIds = playlistData.items.map(item => item.contentDetails.videoId).join(',');
+  while (collected.length < hardCap) {
+    const url = new URL(`${YOUTUBE_API_BASE}/playlistItems`);
+    url.searchParams.append('part', 'snippet,contentDetails');
+    url.searchParams.append('playlistId', uploadsPlaylistId);
+    url.searchParams.append('maxResults', '50');
+    if (pageToken) url.searchParams.append('pageToken', pageToken);
+    url.searchParams.append('key', apiKey);
 
-  const videosResponse = await fetch(
-    `${YOUTUBE_API_BASE}/videos?part=statistics,contentDetails,snippet&id=${videoIds}&key=${apiKey}`
-  );
-  const videosData = await videosResponse.json();
+    const resp = await fetch(url.toString());
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+    if (!data.items?.length) break;
 
-  if (videosData.error) throw new Error(videosData.error.message);
+    let crossedCutoff = false;
+    for (const item of data.items) {
+      const publishedAt = item.contentDetails.videoPublishedAt || item.snippet.publishedAt;
+      if (publishedAt && new Date(publishedAt) < cutoff) {
+        crossedCutoff = true;
+        break;
+      }
+      collected.push(item.contentDetails.videoId);
+      if (collected.length >= hardCap) break;
+    }
 
-  return videosData.items.map(video => ({
-    youtube_video_id: video.id,
-    title: video.snippet.title,
-    description: video.snippet.description,
-    thumbnail_url: video.snippet.thumbnails?.medium?.url,
-    published_at: video.snippet.publishedAt,
-    duration_seconds: parseDuration(video.contentDetails.duration),
-    view_count: parseInt(video.statistics.viewCount) || 0,
-    like_count: parseInt(video.statistics.likeCount) || 0,
-    comment_count: parseInt(video.statistics.commentCount) || 0,
-  }));
+    if (crossedCutoff || !data.nextPageToken) break;
+    pageToken = data.nextPageToken;
+  }
+
+  if (collected.length === 0) return [];
+
+  // Fetch full stats for collected videos in batches of 50
+  const out = [];
+  for (let i = 0; i < collected.length; i += 50) {
+    const batch = collected.slice(i, i + 50);
+    const videosResponse = await fetch(
+      `${YOUTUBE_API_BASE}/videos?part=statistics,contentDetails,snippet,status&id=${batch.join(',')}&key=${apiKey}`
+    );
+    const videosData = await videosResponse.json();
+    if (videosData.error) throw new Error(videosData.error.message);
+
+    for (const video of videosData.items || []) {
+      out.push({
+        youtube_video_id: video.id,
+        title: video.snippet.title,
+        description: video.snippet.description,
+        thumbnail_url: video.snippet.thumbnails?.medium?.url,
+        published_at: video.snippet.publishedAt,
+        duration_seconds: parseDuration(video.contentDetails.duration),
+        view_count: parseInt(video.statistics.viewCount) || 0,
+        like_count: parseInt(video.statistics.likeCount) || 0,
+        comment_count: parseInt(video.statistics.commentCount) || 0,
+        privacy_status: video.status?.privacyStatus || null,
+      });
+    }
+  }
+
+  return out;
 }
 
 /**
@@ -306,6 +343,9 @@ async function syncChannel(channel, apiKey) {
       .map(v => {
         const dbId = videoIdMap[v.youtube_video_id];
         const prevViews = prevViewMap[dbId];
+        const engagement = v.view_count > 0
+          ? ((v.like_count + v.comment_count) / v.view_count)
+          : null;
         return {
           video_id: dbId,
           snapshot_date: today,
@@ -313,13 +353,64 @@ async function syncChannel(channel, apiKey) {
           like_count: v.like_count,
           comment_count: v.comment_count,
           view_velocity: prevViews != null ? v.view_count - prevViews : null,
+          engagement_rate: engagement,
         };
       });
 
     if (videoSnapshots.length > 0) {
-      await supabase
+      // Strip any column rejected by the schema cache (e.g. before migration 062)
+      const tryUpsert = async (payload) => await supabase
         .from('video_snapshots')
-        .upsert(videoSnapshots, { onConflict: 'video_id,snapshot_date' });
+        .upsert(payload, { onConflict: 'video_id,snapshot_date' });
+
+      let { error } = await tryUpsert(videoSnapshots);
+      let attempts = 0;
+      let scrubbedPayload = videoSnapshots;
+      while (error && attempts < 3 && error.message?.includes("Could not find the '")) {
+        const match = error.message.match(/'([^']+)' column/);
+        const missing = match?.[1];
+        if (!missing) break;
+        scrubbedPayload = scrubbedPayload.map(s => { const c = { ...s }; delete c[missing]; return c; });
+        const retry = await tryUpsert(scrubbedPayload);
+        error = retry.error;
+        attempts++;
+      }
+      if (error) console.warn('[sync-competitors] snapshot upsert failed:', error.message);
+    }
+
+    // === views_at_48h capture ===
+    // For videos published between 36-60 hours ago that don't yet have views_at_48h set,
+    // freeze the current view count as the canonical 48h figure.
+    const now = Date.now();
+    const eligible = videos
+      .filter(v => videoIdMap[v.youtube_video_id])
+      .filter(v => {
+        if (!v.published_at) return false;
+        const ageHours = (now - new Date(v.published_at).getTime()) / 3600000;
+        return ageHours >= 36 && ageHours <= 60;
+      });
+
+    if (eligible.length > 0) {
+      const ytIds = eligible.map(v => v.youtube_video_id);
+      const { data: existing } = await supabase
+        .from('videos')
+        .select('id, youtube_video_id, views_at_48h')
+        .in('youtube_video_id', ytIds);
+
+      const updates = (existing || [])
+        .filter(row => row.views_at_48h == null)
+        .map(row => {
+          const fresh = eligible.find(v => v.youtube_video_id === row.youtube_video_id);
+          return fresh ? { id: row.id, views_at_48h: fresh.view_count } : null;
+        })
+        .filter(Boolean);
+
+      for (const u of updates) {
+        const { error } = await supabase.from('videos').update({ views_at_48h: u.views_at_48h }).eq('id', u.id);
+        if (error && !error.message?.includes("Could not find the 'views_at_48h'")) {
+          console.warn('[sync-competitors] views_at_48h update failed:', error.message);
+        }
+      }
     }
   }
 
