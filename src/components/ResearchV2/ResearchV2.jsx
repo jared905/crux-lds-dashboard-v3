@@ -9,11 +9,12 @@ import { Globe, BarChart3, Square, Inbox, RefreshCw, Loader } from 'lucide-react
 import ScopeBar from './ScopeBar.jsx';
 import LandscapeLens from './LandscapeLens.jsx';
 import PatternsLens from './PatternsLens.jsx';
+import WhiteSpaceLens from './WhiteSpaceLens.jsx';
 
 const LENS_TABS = [
   { id: 'landscape', label: 'Landscape', icon: BarChart3, status: 'live' },
   { id: 'patterns', label: 'Patterns', icon: Globe, status: 'live' },
-  { id: 'whitespace', label: 'White Space', icon: Square, status: 'coming' },
+  { id: 'whitespace', label: 'White Space', icon: Square, status: 'live' },
   { id: 'movement', label: 'Movement', icon: Inbox, status: 'coming' },
 ];
 
@@ -177,6 +178,7 @@ export default function ResearchV2() {
       {/* Active lens content */}
       {activeLens === 'landscape' && <LandscapeLens scope={scope} refreshKey={refreshKey} />}
       {activeLens === 'patterns' && <PatternsLens scope={scope} refreshKey={refreshKey} />}
+      {activeLens === 'whitespace' && <WhiteSpaceLens scope={scope} refreshKey={refreshKey} />}
     </div>
   );
 }
