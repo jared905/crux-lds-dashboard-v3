@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Channel Profile — Research</title>
+  <link rel="stylesheet" href="_shared.css">
+  <style>
+    /* Mute the table behind the drawer */
+    .main { position: relative; }
+    .behind { opacity: 0.4; pointer-events: none; filter: blur(0.5px); }
+
+    /* DRAWER */
+    .drawer-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99;
+    }
+    .drawer {
+      position: fixed; top: 0; right: 0; bottom: 0; width: 480px;
+      background: #131316; border-left: 1px solid #2a2a30; z-index: 100;
+      box-shadow: -16px 0 40px rgba(0,0,0,0.4); overflow-y: auto;
+    }
+    .drawer-head {
+      padding: 18px 22px; border-bottom: 1px solid #1f1f24;
+      position: sticky; top: 0; background: #131316; z-index: 2;
+    }
+    .drawer-head-top {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+    }
+    .drawer-back {
+      color: #888; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px;
+    }
+    .drawer-back:hover { color: #fff; }
+    .drawer-close {
+      color: #666; font-size: 22px; cursor: pointer; line-height: 1;
+      width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    }
+    .drawer-close:hover { background: #1c1c20; color: #fff; }
+
+    .ch-hero {
+      display: flex; align-items: center; gap: 14px; margin-bottom: 16px;
+    }
+    .ch-hero .avatar {
+      width: 52px; height: 52px; font-size: 18px; border-radius: 12px;
+    }
+    .ch-hero-name { font-size: 22px; font-weight: 700; color: #fff; letter-spacing: -0.3px; line-height: 1.2; }
+    .ch-hero-handle { color: #666; font-size: 13px; }
+
+    .ch-stats {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px;
+    }
+    .stat-block {
+      background: #1a1a1f; border: 1px solid #1f1f24; border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .stat-label {
+      font-size: 10px; color: #666; font-weight: 600; letter-spacing: 0.7px;
+      text-transform: uppercase; margin-bottom: 4px;
+    }
+    .stat-value { font-size: 18px; font-weight: 700; color: #fff; }
+    .stat-delta { font-size: 11px; color: #34d399; margin-top: 2px; }
+
+    .meta-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+    /* Drawer body */
+    .drawer-body { padding: 20px 22px 60px; }
+
+    .section-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.2px; color: #555;
+      text-transform: uppercase; margin: 22px 0 12px;
+    }
+    .section-title:first-child { margin-top: 0; }
+
+    .metric-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 0; border-bottom: 1px solid #1c1c20; font-size: 13px;
+    }
+    .metric-row:last-child { border-bottom: none; }
+    .metric-label { color: #aaa; }
+    .metric-value { color: #fff; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .metric-row .spark {
+      display: inline-block; width: 80px; height: 14px;
+      background: linear-gradient(to top, transparent 0%, transparent 30%, rgba(59,130,246,0.4) 30%, rgba(59,130,246,0.4) 50%, transparent 50%);
+      margin-right: 10px; vertical-align: middle;
+    }
+
+    .video-row {
+      display: flex; align-items: center; gap: 10px; padding: 8px 0;
+      border-bottom: 1px solid #1c1c20;
+    }
+    .video-thumb {
+      width: 56px; height: 32px; border-radius: 4px; flex-shrink: 0;
+      background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+    }
+    .video-thumb.v2 { background: linear-gradient(135deg, #831843, #ec4899); }
+    .video-thumb.v3 { background: linear-gradient(135deg, #064e3b, #10b981); }
+    .video-title-line {
+      font-size: 12px; color: #d4d4d4; line-height: 1.4; flex: 1;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .video-meta { font-size: 11px; color: #888; flex-shrink: 0; }
+
+    .alert-line {
+      padding: 8px 12px; margin-bottom: 6px; border-radius: 6px;
+      background: #1a1a1f; border-left: 3px solid #f87171; font-size: 12px; color: #d4d4d4;
+    }
+    .alert-line.shift { border-left-color: #a78bfa; }
+    .alert-icon { margin-right: 6px; }
+
+    .drawer-footer-actions {
+      margin-top: 22px; padding-top: 16px; border-top: 1px solid #1f1f24;
+      display: flex; gap: 8px;
+    }
+
+    /* Drawer's inner tab strip */
+    .drawer-tabs {
+      display: flex; gap: 2px; padding: 4px; background: #1a1a1f;
+      border-radius: 7px; margin-top: 16px;
+    }
+    .drawer-tabs a {
+      flex: 1; text-align: center; padding: 6px 8px; font-size: 12px;
+      color: #888; text-decoration: none; border-radius: 5px; font-weight: 600; cursor: pointer;
+    }
+    .drawer-tabs a:hover { color: #fff; }
+    .drawer-tabs a.active { background: #2a2a32; color: #fff; }
+  </style>
+</head>
+<body>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo"><span class="logo-mark"></span> FULL VIEW</div>
+    <a class="nav-item" href="#"><span class="icon">▦</span> Performance</a>
+    <div class="nav-section-label">Research</div>
+    <a class="nav-item" href="pulse.html"><span class="icon">⌘</span> Pulse</a>
+    <a class="nav-item active" href="channels.html"><span class="icon">▦</span> Channels</a>
+    <a class="nav-item" href="#"><span class="icon">◇</span> Patterns</a>
+    <div class="nav-section-label">Saved views</div>
+    <a class="nav-item saved-view" href="#"><span class="star">★</span> LDS Apostles</a>
+    <a class="nav-item saved-view" href="#"><span class="star">★</span> Faith — All</a>
+    <a class="nav-item saved-view" href="#"><span class="star">★</span> Finance — Top 10</a>
+    <a class="nav-item" href="#"><span class="icon">🧪</span> Content Lab</a>
+    <a class="nav-item" href="#"><span class="icon">◈</span> Strategy</a>
+    <div class="system-block">
+      <div class="nav-section-label">System</div>
+      <div class="sync-pill">
+        <span class="dot"></span>
+        <span class="label">Synced</span>
+        <span class="time">2m ago</span>
+      </div>
+      <a class="nav-item" href="#"><span class="icon">⚙</span> Manage</a>
+    </div>
+  </aside>
+
+  <!-- Faded table behind -->
+  <main class="main behind">
+    <div class="page-header">
+      <h1>Channels</h1>
+    </div>
+    <div style="height:120px;background:#131316;border:1px solid #1f1f24;border-radius:8px;margin-bottom:16px;"></div>
+    <div style="height:400px;background:#131316;border:1px solid #1f1f24;border-radius:8px;"></div>
+  </main>
+
+  <!-- Drawer backdrop -->
+  <div class="drawer-backdrop"></div>
+
+  <!-- DRAWER -->
+  <aside class="drawer">
+    <div class="drawer-head">
+      <div class="drawer-head-top">
+        <span class="drawer-back">◀ Back to Channels</span>
+        <span class="drawer-close">×</span>
+      </div>
+
+      <div class="ch-hero">
+        <div class="avatar s6">DB</div>
+        <div>
+          <div class="ch-hero-name">Elder David A. Bednar</div>
+          <div class="ch-hero-handle">@DavidABednar</div>
+        </div>
+      </div>
+
+      <div class="meta-row">
+        <span class="badge priority">⭐ PRIORITY</span>
+        <span class="cat-tag faith" style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(139,92,246,0.1);color:#c4b5fd;border:1px solid rgba(139,92,246,0.2);">LDS Apostles</span>
+        <span class="pill" style="font-size:11px;">creator-led <span class="x">+</span></span>
+        <span class="pill" style="font-size:11px;">long-form-heavy <span class="x">+</span></span>
+        <span class="pill" style="font-size:11px;">+ Add tag</span>
+      </div>
+
+      <div class="drawer-tabs">
+        <a class="active">Overview</a>
+        <a>Content</a>
+        <a>Schedule</a>
+        <a>Audience</a>
+        <a>Patterns</a>
+      </div>
+    </div>
+
+    <div class="drawer-body">
+      <!-- Stats -->
+      <div class="ch-stats">
+        <div class="stat-block">
+          <div class="stat-label">Subs</div>
+          <div class="stat-value">28,000</div>
+          <div class="stat-delta">+89 (30d)</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Views 30d</div>
+          <div class="stat-value">52.4K</div>
+          <div class="stat-delta">+22%</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-label">Last upload</div>
+          <div class="stat-value" style="font-size:14px;">3 days ago</div>
+          <div class="stat-delta" style="color:#888;">avg 1.6/wk</div>
+        </div>
+      </div>
+
+      <!-- Last 30 days metrics -->
+      <div class="section-title">Last 30 days</div>
+
+      <div class="metric-row">
+        <span class="metric-label">Views</span>
+        <span class="metric-value"><span class="spark"></span>52,400</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Watch hours</span>
+        <span class="metric-value">2,140</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Avg CTR</span>
+        <span class="metric-value">5.8%</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Avg retention</span>
+        <span class="metric-value">63.8%</span>
+      </div>
+      <div class="metric-row">
+        <span class="metric-label">Uploads</span>
+        <span class="metric-value">7 (5 long · 2 short)</span>
+      </div>
+
+      <!-- Top videos -->
+      <div class="section-title">Top videos (30d)</div>
+      <div class="video-row">
+        <div class="video-thumb"></div>
+        <div class="video-title-line">When Faith and Science Meet</div>
+        <div class="video-meta">27K · 5.8% CTR</div>
+      </div>
+      <div class="video-row">
+        <div class="video-thumb v2"></div>
+        <div class="video-title-line">The Glorious Resurrection of Jesus Christ</div>
+        <div class="video-meta">24K · 6.0% CTR</div>
+      </div>
+      <div class="video-row">
+        <div class="video-thumb v3"></div>
+        <div class="video-title-line">Three Scriptures That Can Bring Us Hope</div>
+        <div class="video-meta">19K · 5.3% CTR</div>
+      </div>
+
+      <!-- Alerts -->
+      <div class="section-title">Recent alerts</div>
+      <div class="alert-line">
+        <span class="alert-icon">🔥</span> <b>Breakout today</b> — "When Faith and Science Meet" hit 3.2× channel baseline
+      </div>
+      <div class="alert-line shift">
+        <span class="alert-icon">◇</span> Long-form CTR up <b>+18%</b> over last 28 days
+      </div>
+
+      <!-- Actions -->
+      <div class="drawer-footer-actions">
+        <button class="btn">Open in Patterns →</button>
+        <button class="btn secondary">+ Add to compare</button>
+      </div>
+    </div>
+  </aside>
+</body>
+</html>

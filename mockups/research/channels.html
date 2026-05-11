@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Channels — Research</title>
+  <link rel="stylesheet" href="_shared.css">
+  <style>
+    .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    .search-box {
+      flex: 1; max-width: 360px; background: #131316; border: 1px solid #1f1f24;
+      border-radius: 6px; padding: 8px 12px; color: #fff; font-size: 13px;
+      font-family: inherit;
+    }
+    .search-box::placeholder { color: #555; }
+    .search-box:focus { outline: none; border-color: #3b82f6; }
+
+    .filter-row {
+      display: flex; gap: 8px; align-items: center; padding: 12px 0 16px;
+      border-bottom: 1px solid #1f1f24; margin-bottom: 0; flex-wrap: wrap;
+    }
+    .filter-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.6px; color: #555;
+      text-transform: uppercase; margin-right: 4px;
+    }
+
+    /* === TABLE === */
+    .channel-table {
+      width: 100%; border-collapse: collapse; font-size: 13px;
+      table-layout: fixed;
+    }
+    .channel-table thead {
+      background: #131316; border-top: 1px solid #1f1f24; border-bottom: 1px solid #1f1f24;
+    }
+    .channel-table th {
+      text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600;
+      color: #777; letter-spacing: 0.5px; text-transform: uppercase;
+    }
+    .channel-table th.num { text-align: right; }
+    .channel-table tbody tr {
+      border-bottom: 1px solid #1c1c20; cursor: pointer;
+    }
+    .channel-table tbody tr:hover { background: #131316; }
+    .channel-table td { padding: 12px 14px; vertical-align: middle; color: #d4d4d4; }
+    .channel-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .checkbox-cell { width: 36px; padding-right: 0; }
+
+    .ch-name {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .ch-name-text { font-weight: 600; color: #fff; }
+    .ch-handle { font-size: 11px; color: #666; }
+
+    .cat-tag {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 11px; background: rgba(59,130,246,0.1); color: #93c5fd;
+      border: 1px solid rgba(59,130,246,0.2);
+    }
+    .cat-tag.finance { background: rgba(16,185,129,0.1); color: #6ee7b7; border-color: rgba(16,185,129,0.2); }
+    .cat-tag.faith { background: rgba(139,92,246,0.1); color: #c4b5fd; border-color: rgba(139,92,246,0.2); }
+
+    .delta-up { color: #34d399; font-weight: 600; }
+    .delta-down { color: #f87171; font-weight: 600; }
+    .delta-flat { color: #888; }
+
+    .last-up { color: #888; font-size: 12px; }
+
+    /* Sparkline placeholder */
+    .spark {
+      display: inline-block; width: 60px; height: 18px; vertical-align: middle;
+      background: linear-gradient(to top, transparent 0%, transparent 30%, #2a2a30 30%, #2a2a30 35%, transparent 35%);
+    }
+
+    .footer-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; background: #131316; border: 1px solid #1f1f24;
+      border-radius: 8px; margin-top: 16px;
+    }
+    .footer-bar .left { color: #888; font-size: 12px; }
+    .footer-bar .right { display: flex; gap: 6px; }
+
+    /* Bulk action bar (appears when rows selected) */
+    .bulk-bar {
+      display: none; align-items: center; gap: 10px;
+      padding: 10px 16px; background: #1e3a5f; border: 1px solid #3b82f6;
+      border-radius: 8px; margin: 16px 0 0;
+    }
+    .bulk-bar.visible { display: flex; }
+    .bulk-bar .count { font-size: 13px; color: #fff; font-weight: 600; }
+    .bulk-bar .actions { margin-left: auto; display: flex; gap: 6px; }
+
+    /* Visualize selection: pre-check first 4 rows for the screenshot */
+    .pre-checked { background: rgba(59,130,246,0.05); }
+
+    /* small dropdowns */
+    .select-pill {
+      background: #131316; border: 1px solid #1f1f24; padding: 6px 10px;
+      border-radius: 6px; color: #d4d4d4; font-size: 12px; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .select-pill:hover { background: #1c1c20; }
+    .select-pill .caret { color: #666; }
+
+    .saved-view-pill {
+      background: #1e1b4b; border: 1px solid #4338ca; padding: 6px 12px;
+      border-radius: 6px; color: #c7d2fe; font-size: 12px; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px; font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo"><span class="logo-mark"></span> FULL VIEW</div>
+    <a class="nav-item" href="#"><span class="icon">▦</span> Performance</a>
+    <div class="nav-section-label">Research</div>
+    <a class="nav-item" href="pulse.html"><span class="icon">⌘</span> Pulse</a>
+    <a class="nav-item active" href="channels.html"><span class="icon">▦</span> Channels</a>
+    <a class="nav-item" href="#"><span class="icon">◇</span> Patterns</a>
+    <div class="nav-section-label">Saved views</div>
+    <a class="nav-item saved-view" href="#"><span class="star">★</span> LDS Apostles</a>
+    <a class="nav-item saved-view" href="#"><span class="star">★</span> Faith — All</a>
+    <a class="nav-item saved-view" href="#"><span class="star">★</span> Finance — Top 10</a>
+    <a class="nav-item" href="#"><span class="icon">🧪</span> Content Lab</a>
+    <a class="nav-item" href="#"><span class="icon">◈</span> Strategy</a>
+    <div class="system-block">
+      <div class="nav-section-label">System</div>
+      <div class="sync-pill">
+        <span class="dot"></span>
+        <span class="label">Synced</span>
+        <span class="time">2m ago</span>
+      </div>
+      <a class="nav-item" href="#"><span class="icon">⚙</span> Manage</a>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="page-header">
+      <h1>Channels <span class="muted" style="font-size:15px;font-weight:500;margin-left:8px;">168 total · 13 in view</span></h1>
+      <div class="controls">
+        <button class="btn secondary">⚙ Columns</button>
+        <button class="btn">+ Add channel</button>
+      </div>
+    </div>
+
+    <!-- Top toolbar -->
+    <div class="toolbar">
+      <input class="search-box" placeholder="⌕ Search channels by name, handle, or category…" />
+      <span class="saved-view-pill">★ LDS Apostles <span style="color:#7c84d6;">▾</span></span>
+      <button class="btn secondary small">Save current view</button>
+    </div>
+
+    <!-- Filter chips -->
+    <div class="filter-row">
+      <span class="filter-label">Filters</span>
+      <span class="pill active">Category: LDS Apostles <span class="x">✕</span></span>
+      <span class="pill active">Tier: priority <span class="x">✕</span></span>
+      <span class="pill">+ Add filter</span>
+      <span style="margin-left:auto;"></span>
+      <span class="filter-label">Group</span>
+      <span class="select-pill">None <span class="caret">▾</span></span>
+      <span class="filter-label" style="margin-left:8px;">Sort</span>
+      <span class="select-pill">30d view velocity <span class="caret">↓</span></span>
+    </div>
+
+    <!-- TABLE -->
+    <table class="channel-table">
+      <thead>
+        <tr>
+          <th class="checkbox-cell"><input type="checkbox" /></th>
+          <th style="width: 240px;">Channel</th>
+          <th style="width: 130px;">Category</th>
+          <th class="num" style="width: 80px;">Subs</th>
+          <th class="num" style="width: 90px;">Δ Subs (30d)</th>
+          <th class="num" style="width: 100px;">30d veloc.</th>
+          <th class="num" style="width: 80px;">Avg CTR</th>
+          <th style="width: 90px;">Last upload</th>
+          <th style="width: 100px;">Tier</th>
+          <th style="width: 60px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="pre-checked">
+          <td class="checkbox-cell"><input type="checkbox" checked /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar">DO</div>
+              <div>
+                <div class="ch-name-text">Dallin H. Oaks</div>
+                <div class="ch-handle">@DallinHOaks</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag faith">LDS Apostles</span></td>
+          <td class="num">17,250</td>
+          <td class="num"><span class="delta-up">+428 ↑</span></td>
+          <td class="num"><span class="spark"></span> 2.1K</td>
+          <td class="num">5.2%</td>
+          <td><span class="last-up">2d ago</span></td>
+          <td><span class="badge priority">⭐ PRIORITY</span></td>
+          <td style="text-align:right;color:#555;">›</td>
+        </tr>
+        <tr class="pre-checked">
+          <td class="checkbox-cell"><input type="checkbox" checked /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar s2">DU</div>
+              <div>
+                <div class="ch-name-text">Dieter F. Uchtdorf</div>
+                <div class="ch-handle">@DieterFUchtdorf</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag faith">LDS Apostles</span></td>
+          <td class="num">7,420</td>
+          <td class="num"><span class="delta-up">+224 ↑</span></td>
+          <td class="num"><span class="spark"></span> 1.8K</td>
+          <td class="num">6.0%</td>
+          <td><span class="last-up">1d ago</span></td>
+          <td><span class="badge priority">⭐ PRIORITY</span></td>
+          <td style="text-align:right;color:#555;">›</td>
+        </tr>
+        <tr class="pre-checked">
+          <td class="checkbox-cell"><input type="checkbox" checked /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar s3">PK</div>
+              <div>
+                <div class="ch-name-text">Patrick Kearon</div>
+                <div class="ch-handle">@PatrickKearon</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag faith">LDS Apostles</span></td>
+          <td class="num">7,270</td>
+          <td class="num"><span class="delta-up">+100 ↑</span></td>
+          <td class="num"><span class="spark"></span> 1.5K</td>
+          <td class="num">4.7%</td>
+          <td><span class="last-up">4d ago</span></td>
+          <td><span class="badge priority">⭐ PRIORITY</span></td>
+          <td style="text-align:right;color:#555;">›</td>
+        </tr>
+        <tr class="pre-checked">
+          <td class="checkbox-cell"><input type="checkbox" checked /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar s4">RR</div>
+              <div>
+                <div class="ch-name-text">Ronald A. Rasband</div>
+                <div class="ch-handle">@RonaldARasband</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag faith">LDS Apostles</span></td>
+          <td class="num">2,650</td>
+          <td class="num"><span class="delta-up">+122 ↑</span></td>
+          <td class="num"><span class="spark"></span> 1.1K</td>
+          <td class="num">5.5%</td>
+          <td><span class="last-up">Today</span></td>
+          <td><span class="badge priority">⭐ PRIORITY</span></td>
+          <td style="text-align:right;color:#555;">›</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar s5">GS</div>
+              <div>
+                <div class="ch-name-text">Gary E. Stevenson</div>
+                <div class="ch-handle">@GaryEStevenson</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag faith">LDS Apostles</span></td>
+          <td class="num">3,040</td>
+          <td class="num"><span class="delta-up">+124 ↑</span></td>
+          <td class="num"><span class="spark"></span> 980</td>
+          <td class="num">5.1%</td>
+          <td><span class="last-up">1d ago</span></td>
+          <td><span class="badge priority">⭐ PRIORITY</span></td>
+          <td style="text-align:right;color:#555;">›</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar s6">DB</div>
+              <div>
+                <div class="ch-name-text">David A. Bednar</div>
+                <div class="ch-handle">@DavidABednar</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag faith">LDS Apostles</span></td>
+          <td class="num">28,000</td>
+          <td class="num"><span class="delta-up">+89 ↑</span></td>
+          <td class="num"><span class="spark"></span> 920</td>
+          <td class="num">5.8%</td>
+          <td><span class="last-up">3d ago</span></td>
+          <td><span class="badge priority">⭐ PRIORITY</span></td>
+          <td style="text-align:right;color:#555;">›</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar s7">HE</div>
+              <div>
+                <div class="ch-name-text">Henry B. Eyring</div>
+                <div class="ch-handle">@HenryBEyring</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag faith">LDS Apostles</span></td>
+          <td class="num">5,350</td>
+          <td class="num"><span class="delta-up">+121 ↑</span></td>
+          <td class="num"><span class="spark"></span> 870</td>
+          <td class="num">5.1%</td>
+          <td><span class="last-up">Today</span></td>
+          <td><span class="badge priority">⭐ PRIORITY</span></td>
+          <td style="text-align:right;color:#555;">›</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar s8">DC</div>
+              <div>
+                <div class="ch-name-text">D. Todd Christofferson</div>
+                <div class="ch-handle">@DToddChristofferson</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag faith">LDS Apostles</span></td>
+          <td class="num">7,360</td>
+          <td class="num"><span class="delta-up">+99 ↑</span></td>
+          <td class="num"><span class="spark"></span> 740</td>
+          <td class="num">5.0%</td>
+          <td><span class="last-up">5d ago</span></td>
+          <td><span class="badge priority">⭐ PRIORITY</span></td>
+          <td style="text-align:right;color:#555;">›</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar">QC</div>
+              <div>
+                <div class="ch-name-text">Quentin L. Cook</div>
+                <div class="ch-handle">@QuentinLCook</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag faith">LDS Apostles</span></td>
+          <td class="num">3,230</td>
+          <td class="num"><span class="delta-up">+103 ↑</span></td>
+          <td class="num"><span class="spark"></span> 690</td>
+          <td class="num">4.8%</td>
+          <td><span class="last-up">2d ago</span></td>
+          <td><span class="badge priority">⭐ PRIORITY</span></td>
+          <td style="text-align:right;color:#555;">›</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar s2">GG</div>
+              <div>
+                <div class="ch-name-text">Gerrit W. Gong</div>
+                <div class="ch-handle">@GerritWGong</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag faith">LDS Apostles</span></td>
+          <td class="num">4,110</td>
+          <td class="num"><span class="delta-up">+117 ↑</span></td>
+          <td class="num"><span class="spark"></span> 610</td>
+          <td class="num">5.3%</td>
+          <td><span class="last-up">3d ago</span></td>
+          <td><span class="badge priority">⭐ PRIORITY</span></td>
+          <td style="text-align:right;color:#555;">›</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Bulk action bar (showing because rows are selected) -->
+    <div class="bulk-bar visible">
+      <span class="count">4 selected</span>
+      <div class="actions">
+        <button class="btn small">Compare ▾</button>
+        <button class="btn secondary small">Tag ▾</button>
+        <button class="btn secondary small">Tier ▾</button>
+        <button class="btn secondary small">Archive</button>
+        <button class="btn secondary small" style="margin-left:6px;">Clear</button>
+      </div>
+    </div>
+
+    <div class="footer-bar">
+      <span class="left">Showing 1–10 of 13 channels in this view</span>
+      <div class="right">
+        <button class="btn secondary small">◀ Prev</button>
+        <button class="btn secondary small">Next ▶</button>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

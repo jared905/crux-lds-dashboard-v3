@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Compare Channels — Research</title>
+  <link rel="stylesheet" href="_shared.css">
+  <style>
+    .compare-grid {
+      background: #131316; border: 1px solid #1f1f24; border-radius: 12px; overflow: hidden;
+    }
+    .compare-row {
+      display: grid;
+      grid-template-columns: 200px repeat(4, 1fr);
+      border-bottom: 1px solid #1c1c20;
+    }
+    .compare-row:last-child { border-bottom: none; }
+    .compare-row.header { background: #161619; }
+    .compare-row.section-head {
+      background: #1a1a1f;
+    }
+    .compare-row.section-head .label {
+      color: #888; font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
+      text-transform: uppercase; padding: 10px 16px;
+    }
+    .compare-row.section-head .empty {
+      padding: 10px 16px;
+    }
+
+    .compare-row .label {
+      padding: 12px 16px; font-size: 12px; color: #888;
+      border-right: 1px solid #1c1c20;
+    }
+    .compare-row .cell {
+      padding: 12px 16px; font-size: 13px; color: #fff; font-variant-numeric: tabular-nums;
+      border-right: 1px solid #1c1c20;
+    }
+    .compare-row .cell:last-child { border-right: none; }
+
+    /* Channel header */
+    .ch-header-cell {
+      display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+      border-right: 1px solid #1c1c20;
+    }
+    .ch-header-cell .avatar { width: 32px; height: 32px; font-size: 12px; }
+    .ch-header-name { font-size: 13px; font-weight: 700; color: #fff; line-height: 1.2; }
+    .ch-header-sub { font-size: 11px; color: #888; }
+    .ch-header-cell.add {
+      justify-content: center; color: #555; font-size: 13px; cursor: pointer;
+      border-right: none;
+    }
+    .ch-header-cell.add:hover { background: #1c1c20; color: #aaa; }
+
+    .delta-up { color: #34d399; font-weight: 600; }
+    .delta-down { color: #f87171; font-weight: 600; }
+
+    /* Sparkline rows */
+    .spark-row .label-with-sub {
+      font-size: 12px; color: #888;
+    }
+    .spark-bar {
+      display: flex; align-items: flex-end; gap: 1px; height: 30px;
+    }
+    .spark-bar .bar {
+      flex: 1; background: linear-gradient(to top, #3b82f6, #60a5fa); border-radius: 1px;
+      min-height: 2px; opacity: 0.85;
+    }
+
+    /* Top video card */
+    .top-video {
+      padding: 10px 14px;
+    }
+    .top-video .thumb {
+      width: 100%; height: 64px; border-radius: 5px; margin-bottom: 8px;
+    }
+    .top-video .thumb.v1 { background: linear-gradient(135deg, #1e3a8a, #3b82f6); }
+    .top-video .thumb.v2 { background: linear-gradient(135deg, #831843, #ec4899); }
+    .top-video .thumb.v3 { background: linear-gradient(135deg, #064e3b, #10b981); }
+    .top-video .thumb.v4 { background: linear-gradient(135deg, #4c1d95, #8b5cf6); }
+    .top-video .title { font-size: 12px; color: #fff; line-height: 1.35; margin-bottom: 4px; height: 32px; overflow: hidden; }
+    .top-video .meta { font-size: 11px; color: #888; }
+  </style>
+</head>
+<body>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo"><span class="logo-mark"></span> FULL VIEW</div>
+    <a class="nav-item" href="#"><span class="icon">▦</span> Performance</a>
+    <div class="nav-section-label">Research</div>
+    <a class="nav-item" href="pulse.html"><span class="icon">⌘</span> Pulse</a>
+    <a class="nav-item active" href="channels.html"><span class="icon">▦</span> Channels</a>
+    <a class="nav-item" href="#"><span class="icon">◇</span> Patterns</a>
+    <div class="nav-section-label">Saved views</div>
+    <a class="nav-item saved-view" href="#"><span class="star">★</span> LDS Apostles</a>
+    <a class="nav-item saved-view" href="#"><span class="star">★</span> Faith — All</a>
+    <a class="nav-item saved-view" href="#"><span class="star">★</span> Finance — Top 10</a>
+    <a class="nav-item" href="#"><span class="icon">🧪</span> Content Lab</a>
+    <a class="nav-item" href="#"><span class="icon">◈</span> Strategy</a>
+    <div class="system-block">
+      <div class="nav-section-label">System</div>
+      <div class="sync-pill">
+        <span class="dot"></span>
+        <span class="label">Synced</span>
+        <span class="time">2m ago</span>
+      </div>
+      <a class="nav-item" href="#"><span class="icon">⚙</span> Manage</a>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="page-header">
+      <h1>Compare <span class="muted" style="font-size:15px;font-weight:500;margin-left:8px;">4 channels</span></h1>
+      <div class="controls">
+        <button class="btn secondary small">⇄ Swap order</button>
+        <button class="btn secondary small">★ Save as view</button>
+        <button class="btn secondary small">↗ Export</button>
+        <button class="btn small">✕ Exit compare</button>
+      </div>
+    </div>
+
+    <div class="compare-grid">
+
+      <!-- Channel headers -->
+      <div class="compare-row header">
+        <div class="label" style="padding:14px 16px;font-size:11px;font-weight:600;letter-spacing:0.5px;color:#777;text-transform:uppercase;">Channel</div>
+        <div class="ch-header-cell">
+          <div class="avatar">DO</div>
+          <div>
+            <div class="ch-header-name">Dallin H. Oaks</div>
+            <div class="ch-header-sub">LDS Apostles</div>
+          </div>
+        </div>
+        <div class="ch-header-cell">
+          <div class="avatar s7">HE</div>
+          <div>
+            <div class="ch-header-name">Henry B. Eyring</div>
+            <div class="ch-header-sub">LDS Apostles</div>
+          </div>
+        </div>
+        <div class="ch-header-cell">
+          <div class="avatar s3">PK</div>
+          <div>
+            <div class="ch-header-name">Patrick Kearon</div>
+            <div class="ch-header-sub">LDS Apostles</div>
+          </div>
+        </div>
+        <div class="ch-header-cell">
+          <div class="avatar s2">DU</div>
+          <div>
+            <div class="ch-header-name">Dieter F. Uchtdorf</div>
+            <div class="ch-header-sub">LDS Apostles</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audience section -->
+      <div class="compare-row section-head">
+        <div class="label">Audience</div>
+        <div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div>
+      </div>
+      <div class="compare-row">
+        <div class="label">Subscribers</div>
+        <div class="cell">17,250</div>
+        <div class="cell">5,350</div>
+        <div class="cell">7,270</div>
+        <div class="cell">7,420</div>
+      </div>
+      <div class="compare-row">
+        <div class="label">Δ Subs (30d)</div>
+        <div class="cell"><span class="delta-up">+428 ↑</span></div>
+        <div class="cell"><span class="delta-up">+121 ↑</span></div>
+        <div class="cell"><span class="delta-up">+100 ↑</span></div>
+        <div class="cell"><span class="delta-up">+224 ↑</span></div>
+      </div>
+
+      <!-- Performance section -->
+      <div class="compare-row section-head">
+        <div class="label">Performance · last 30 days</div>
+        <div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div>
+      </div>
+      <div class="compare-row">
+        <div class="label">Views</div>
+        <div class="cell">38,400</div>
+        <div class="cell">11,200</div>
+        <div class="cell">9,100</div>
+        <div class="cell">14,800</div>
+      </div>
+      <div class="compare-row">
+        <div class="label">View velocity</div>
+        <div class="cell">2.1K / wk</div>
+        <div class="cell">980 / wk</div>
+        <div class="cell">1.5K / wk</div>
+        <div class="cell">1.8K / wk</div>
+      </div>
+      <div class="compare-row">
+        <div class="label">Watch hours</div>
+        <div class="cell">2,140</div>
+        <div class="cell">540</div>
+        <div class="cell">630</div>
+        <div class="cell">820</div>
+      </div>
+      <div class="compare-row">
+        <div class="label">Avg CTR</div>
+        <div class="cell">5.2%</div>
+        <div class="cell">5.1%</div>
+        <div class="cell">4.7%</div>
+        <div class="cell" style="color:#34d399;font-weight:600;">6.0%</div>
+      </div>
+      <div class="compare-row">
+        <div class="label">Avg retention</div>
+        <div class="cell" style="color:#34d399;font-weight:600;">63.8%</div>
+        <div class="cell">53.1%</div>
+        <div class="cell">58.1%</div>
+        <div class="cell">56.3%</div>
+      </div>
+
+      <!-- Cadence -->
+      <div class="compare-row section-head">
+        <div class="label">Cadence</div>
+        <div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div>
+      </div>
+      <div class="compare-row">
+        <div class="label">Last upload</div>
+        <div class="cell">2 days ago</div>
+        <div class="cell">Today</div>
+        <div class="cell">4 days ago</div>
+        <div class="cell">1 day ago</div>
+      </div>
+      <div class="compare-row">
+        <div class="label">Uploads / week</div>
+        <div class="cell">1.6</div>
+        <div class="cell">0.9</div>
+        <div class="cell">1.4</div>
+        <div class="cell" style="color:#34d399;font-weight:600;">2.1</div>
+      </div>
+      <div class="compare-row">
+        <div class="label">Long / Short mix</div>
+        <div class="cell">80% / 20%</div>
+        <div class="cell">92% / 8%</div>
+        <div class="cell">75% / 25%</div>
+        <div class="cell">60% / 40%</div>
+      </div>
+      <div class="compare-row">
+        <div class="label">90d cadence</div>
+        <div class="cell">
+          <div class="spark-bar">
+            <div class="bar" style="height:30%"></div><div class="bar" style="height:55%"></div><div class="bar" style="height:40%"></div>
+            <div class="bar" style="height:65%"></div><div class="bar" style="height:25%"></div><div class="bar" style="height:60%"></div>
+            <div class="bar" style="height:50%"></div><div class="bar" style="height:35%"></div><div class="bar" style="height:75%"></div>
+            <div class="bar" style="height:50%"></div><div class="bar" style="height:40%"></div><div class="bar" style="height:65%"></div>
+          </div>
+        </div>
+        <div class="cell">
+          <div class="spark-bar">
+            <div class="bar" style="height:15%"></div><div class="bar" style="height:25%"></div><div class="bar" style="height:15%"></div>
+            <div class="bar" style="height:35%"></div><div class="bar" style="height:15%"></div><div class="bar" style="height:25%"></div>
+            <div class="bar" style="height:25%"></div><div class="bar" style="height:15%"></div><div class="bar" style="height:35%"></div>
+            <div class="bar" style="height:25%"></div><div class="bar" style="height:15%"></div><div class="bar" style="height:30%"></div>
+          </div>
+        </div>
+        <div class="cell">
+          <div class="spark-bar">
+            <div class="bar" style="height:25%"></div><div class="bar" style="height:35%"></div><div class="bar" style="height:35%"></div>
+            <div class="bar" style="height:25%"></div><div class="bar" style="height:40%"></div><div class="bar" style="height:50%"></div>
+            <div class="bar" style="height:25%"></div><div class="bar" style="height:35%"></div><div class="bar" style="height:30%"></div>
+            <div class="bar" style="height:40%"></div><div class="bar" style="height:50%"></div><div class="bar" style="height:30%"></div>
+          </div>
+        </div>
+        <div class="cell">
+          <div class="spark-bar">
+            <div class="bar" style="height:50%"></div><div class="bar" style="height:60%"></div><div class="bar" style="height:50%"></div>
+            <div class="bar" style="height:75%"></div><div class="bar" style="height:55%"></div><div class="bar" style="height:65%"></div>
+            <div class="bar" style="height:75%"></div><div class="bar" style="height:55%"></div><div class="bar" style="height:65%"></div>
+            <div class="bar" style="height:75%"></div><div class="bar" style="height:50%"></div><div class="bar" style="height:75%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top video -->
+      <div class="compare-row section-head">
+        <div class="label">Top video (30d)</div>
+        <div class="empty"></div><div class="empty"></div><div class="empty"></div><div class="empty"></div>
+      </div>
+      <div class="compare-row">
+        <div class="label"></div>
+        <div class="top-video">
+          <div class="thumb v1"></div>
+          <div class="title">When Faith and Science Meet</div>
+          <div class="meta">27K · 5.8% CTR</div>
+        </div>
+        <div class="top-video">
+          <div class="thumb v2"></div>
+          <div class="title">Trust in God's Timing and Promises</div>
+          <div class="meta">18K · 5.3% CTR</div>
+        </div>
+        <div class="top-video">
+          <div class="thumb v3"></div>
+          <div class="title">Be Still and Know That I Am God</div>
+          <div class="meta">9K · 4.7% CTR</div>
+        </div>
+        <div class="top-video">
+          <div class="thumb v4"></div>
+          <div class="title">Trust the Lord and Put Him First</div>
+          <div class="meta">17K · 6.0% CTR</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add channel below table -->
+    <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;">
+      <span class="muted" style="font-size:12px;">Showing 4 of 4 selected channels · max 12</span>
+      <button class="btn secondary small">+ Add another channel</button>
+    </div>
+
+    <!-- Footer takeaway -->
+    <div style="margin-top:24px;padding:16px 20px;background:linear-gradient(135deg,#14132a,#1a1830);border:1px solid #2a2840;border-radius:10px;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:1.2px;color:#a78bfa;text-transform:uppercase;margin-bottom:6px;">Quick read</div>
+      <div style="font-size:13px;color:#d4d4dc;line-height:1.6;">
+        Uchtdorf leads on CTR (6.0%) and upload cadence (2.1/wk) despite the smallest subscriber base of the four.
+        Oaks leads on retention (63.8%) with long-form-heavy mix.
+        Eyring's once-a-week pace is the bottleneck — view velocity tracks cadence almost linearly.
+      </div>
+    </div>
+  </main>
+</body>
+</html>

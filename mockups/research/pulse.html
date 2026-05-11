@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pulse — Research</title>
+  <link rel="stylesheet" href="_shared.css">
+  <style>
+    .pulse-layout { display: grid; grid-template-columns: 1fr 320px; gap: 24px; }
+    .scope-row { display: flex; gap: 8px; align-items: center; margin-bottom: 28px; }
+    .scope-row .label { font-size: 12px; color: #666; letter-spacing: 0.5px; text-transform: uppercase; margin-right: 4px; }
+
+    .day-group { margin-bottom: 32px; }
+    .day-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: #555;
+      text-transform: uppercase; margin-bottom: 12px;
+    }
+
+    .card {
+      background: #131316; border: 1px solid #1f1f24; border-radius: 10px;
+      padding: 16px 18px; margin-bottom: 10px; transition: all 0.15s ease;
+    }
+    .card:hover { border-color: #2a2a30; }
+    .card-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 12px; }
+    .card-thumb { width: 88px; height: 50px; border-radius: 5px; flex-shrink: 0; }
+    .card-thumb.t1 { background: linear-gradient(135deg, #1e3a8a, #3b82f6); }
+    .card-thumb.t2 { background: linear-gradient(135deg, #831843, #ec4899); }
+    .card-thumb.t3 { background: linear-gradient(135deg, #14532d, #16a34a); }
+    .card-thumb.t4 { background: linear-gradient(135deg, #4c1d95, #8b5cf6); }
+    .card-thumb.t5 { background: linear-gradient(135deg, #7c2d12, #f97316); }
+    .card-thumb.t6 { background: linear-gradient(135deg, #064e3b, #10b981); }
+    .card-body { flex: 1; min-width: 0; }
+    .card-channel { font-size: 11px; color: #888; font-weight: 600; letter-spacing: 0.3px; margin-bottom: 3px; }
+    .card-title { font-size: 14px; color: #fff; font-weight: 600; line-height: 1.4; margin-bottom: 6px; }
+    .card-meta { font-size: 12px; color: #909090; }
+    .card-meta b { color: #fff; font-weight: 600; }
+    .card-tag {
+      display: inline-block; padding: 3px 9px; border-radius: 4px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.5px; flex-shrink: 0;
+    }
+    .card-tag.breakout { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .card-tag.format { background: rgba(139,92,246,0.12); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
+    .card-tag.rank { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+    .card-tag.new { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+    .card-actions { display: flex; gap: 6px; padding-top: 10px; border-top: 1px solid #1c1c20; }
+    .card-action { font-size: 12px; color: #888; padding: 4px 10px; border-radius: 5px; cursor: pointer; background: transparent; border: none; font-family: inherit; }
+    .card-action:hover { background: #1c1c20; color: #fff; }
+    .card-action.primary { color: #60a5fa; }
+    .card-action.primary:hover { background: rgba(59,130,246,0.1); }
+
+    .more-link {
+      display: block; text-align: center; padding: 10px; color: #666;
+      font-size: 12px; cursor: pointer; border-radius: 6px;
+    }
+    .more-link:hover { background: #131316; color: #fff; }
+
+    /* Takeaways column */
+    .takeaways {
+      background: linear-gradient(135deg, #14132a 0%, #1a1830 100%);
+      border: 1px solid #2a2840; border-radius: 12px; padding: 20px; position: sticky; top: 24px;
+    }
+    .takeaways h3 {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: #a78bfa;
+      text-transform: uppercase; margin-bottom: 4px;
+    }
+    .takeaways .sub { font-size: 11px; color: #666; margin-bottom: 16px; }
+    .takeaway-item { padding: 12px 0; border-bottom: 1px solid #252338; }
+    .takeaway-item:last-child { border-bottom: none; }
+    .takeaway-num {
+      display: inline-block; width: 20px; height: 20px; border-radius: 50%;
+      background: rgba(139,92,246,0.2); color: #c4b5fd; font-size: 11px; font-weight: 700;
+      text-align: center; line-height: 20px; margin-right: 8px; vertical-align: top;
+    }
+    .takeaway-text { display: inline-block; width: calc(100% - 32px); font-size: 13px; color: #d4d4dc; line-height: 1.55; }
+    .takeaway-foot {
+      margin-top: 14px; padding-top: 12px; border-top: 1px solid #252338;
+      font-size: 11px; color: #888;
+    }
+  </style>
+</head>
+<body>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo"><span class="logo-mark"></span> FULL VIEW</div>
+    <a class="nav-item" href="#"><span class="icon">▦</span> Performance</a>
+    <div class="nav-section-label">Research</div>
+    <a class="nav-item active" href="pulse.html"><span class="icon">⌘</span> Pulse</a>
+    <a class="nav-item" href="channels.html"><span class="icon">▦</span> Channels</a>
+    <a class="nav-item" href="#"><span class="icon">◇</span> Patterns</a>
+    <div class="nav-section-label">Saved views</div>
+    <a class="nav-item saved-view" href="#"><span class="star">★</span> LDS Apostles</a>
+    <a class="nav-item saved-view" href="#"><span class="star">★</span> Faith — All</a>
+    <a class="nav-item saved-view" href="#"><span class="star">★</span> Finance — Top 10</a>
+    <a class="nav-item" href="#"><span class="icon">🧪</span> Content Lab</a>
+    <a class="nav-item" href="#"><span class="icon">◈</span> Strategy</a>
+    <div class="system-block">
+      <div class="nav-section-label">System</div>
+      <div class="sync-pill">
+        <span class="dot"></span>
+        <span class="label">Synced</span>
+        <span class="time">2m ago</span>
+      </div>
+      <a class="nav-item" href="#"><span class="icon">⚙</span> Manage</a>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="page-header">
+      <h1>Pulse</h1>
+      <div class="controls">
+        <button class="btn secondary small">Mark all read</button>
+        <button class="btn secondary small">⚙ Alert rules</button>
+      </div>
+    </div>
+
+    <div class="scope-row">
+      <span class="label">Scope</span>
+      <span class="pill active">★ LDS Apostles <span class="x">▾</span></span>
+      <span class="label" style="margin-left:12px;">Window</span>
+      <span class="pill active">Last 7 days <span class="x">▾</span></span>
+      <span class="label" style="margin-left:12px;">Type</span>
+      <span class="pill">All <span class="x">▾</span></span>
+    </div>
+
+    <div class="pulse-layout">
+      <!-- ALERT FEED -->
+      <div>
+        <div class="day-group">
+          <div class="day-label">Today · May 11</div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-thumb t1"></div>
+              <div class="card-body">
+                <div class="card-channel">Elder David A. Bednar</div>
+                <div class="card-title">"When Faith and Science Meet"</div>
+                <div class="card-meta"><b>27,431</b> views · 18 hrs · <b class="up">3.2×</b> channel baseline · 5.8% CTR</div>
+              </div>
+              <span class="card-tag breakout">🔥 BREAKOUT</span>
+            </div>
+            <div class="card-actions">
+              <button class="card-action primary">Open channel</button>
+              <button class="card-action">Add to watchlist</button>
+              <button class="card-action">Dismiss</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-thumb t2"></div>
+              <div class="card-body">
+                <div class="card-channel">Elder Ronald A. Rasband</div>
+                <div class="card-title">New recurring series: "Daily Devotional Minute"</div>
+                <div class="card-meta"><b>4</b> uploads in 6 days · all Shorts · avg <b>8K</b> views · <b>71%</b> retention</div>
+              </div>
+              <span class="card-tag format">◇ FORMAT SHIFT</span>
+            </div>
+            <div class="card-actions">
+              <button class="card-action primary">Open channel</button>
+              <button class="card-action">Compare to network</button>
+              <button class="card-action">Dismiss</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="day-group">
+          <div class="day-label">Yesterday · May 10</div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-thumb t3"></div>
+              <div class="card-body">
+                <div class="card-channel">210 Financial → Retirement Income Source</div>
+                <div class="card-title">210 Financial overtook RIS in 30-day view velocity</div>
+                <div class="card-meta">210 Fin <b class="up">+18%</b> · RIS <b class="down">−6%</b> · gap closed over 14 days</div>
+              </div>
+              <span class="card-tag rank">↑ RANK CHANGE</span>
+            </div>
+            <div class="card-actions">
+              <button class="card-action primary">Compare these two</button>
+              <button class="card-action">Dismiss</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-thumb t4"></div>
+              <div class="card-body">
+                <div class="card-channel">President Henry B. Eyring</div>
+                <div class="card-title">CTR up <b>+18%</b> across last 28 days</div>
+                <div class="card-meta">5.1% → 6.0% · sustained across 8 uploads · titles trending toward question format</div>
+              </div>
+              <span class="card-tag rank">↑ TREND</span>
+            </div>
+            <div class="card-actions">
+              <button class="card-action primary">Open channel</button>
+              <button class="card-action">View titles</button>
+              <button class="card-action">Dismiss</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="day-group">
+          <div class="day-label">Earlier this week</div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-thumb t5"></div>
+              <div class="card-body">
+                <div class="card-channel">President Dieter F. Uchtdorf</div>
+                <div class="card-title">"Trust the Lord and Put Him First"</div>
+                <div class="card-meta"><b>17,200</b> views · 4 days · <b class="up">2.1×</b> baseline · 6.0% CTR</div>
+              </div>
+              <span class="card-tag breakout">🔥 BREAKOUT</span>
+            </div>
+            <div class="card-actions">
+              <button class="card-action primary">Open channel</button>
+              <button class="card-action">Add to watchlist</button>
+              <button class="card-action">Dismiss</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-thumb t6"></div>
+              <div class="card-body">
+                <div class="card-channel">New channel tracked</div>
+                <div class="card-title">Elder Gérald Caussé joined the database</div>
+                <div class="card-meta">3.2K subs · 14 videos · auto-categorized as <b>LDS Apostles</b></div>
+              </div>
+              <span class="card-tag new">+ NEW</span>
+            </div>
+            <div class="card-actions">
+              <button class="card-action primary">Open profile</button>
+              <button class="card-action">Promote to priority</button>
+              <button class="card-action">Dismiss</button>
+            </div>
+          </div>
+
+          <a class="more-link">Show 12 more from earlier this week</a>
+        </div>
+      </div>
+
+      <!-- TAKEAWAYS -->
+      <aside class="takeaways">
+        <h3>This week's takeaways</h3>
+        <div class="sub">AI synthesis · refreshes daily · last 7 days</div>
+        <div class="takeaway-item">
+          <span class="takeaway-num">1</span>
+          <span class="takeaway-text">Shorts-driven traffic redistributed inside the LDS network this week. Rasband and Stevenson absorbed share from Christofferson's long-form-only cadence.</span>
+        </div>
+        <div class="takeaway-item">
+          <span class="takeaway-num">2</span>
+          <span class="takeaway-text">"Resurrection" titles outperformed network average by 1.8× — both timing-driven (Easter follow-on) and structural (clear topic anchor).</span>
+        </div>
+        <div class="takeaway-item">
+          <span class="takeaway-num">3</span>
+          <span class="takeaway-text">210 Financial's CTR lift on numbered titles (4.9% → 6.1%) suggests a transferable test for the retirement-finance vertical.</span>
+        </div>
+        <div class="takeaway-foot">
+          Updated 2 hours ago<br>
+          <a style="color:#a78bfa;font-weight:600;text-decoration:none;cursor:pointer;">View previous weeks →</a>
+        </div>
+      </aside>
+    </div>
+  </main>
+</body>
+</html>
