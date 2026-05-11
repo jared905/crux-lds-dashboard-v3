@@ -70,7 +70,7 @@ async function detectBreakouts() {
 
   const { data: channels } = await supabase
     .from('channels')
-    .select('id, name, tier')
+    .select('id, name, tier, thumbnail_url')
     .neq('tier', 'archive')
     .eq('is_client', false)
     .limit(500);
@@ -98,7 +98,7 @@ async function detectBreakouts() {
 
     const { data: candidates } = await supabase
       .from('videos')
-      .select('id, title, youtube_video_id, views_at_48h, view_count, published_at')
+      .select('id, title, youtube_video_id, thumbnail_url, views_at_48h, view_count, published_at')
       .eq('channel_id', ch.id)
       .not('views_at_48h', 'is', null)
       .gte('published_at', recentCutoff)
@@ -115,9 +115,11 @@ async function detectBreakouts() {
         channel_name: ch.name,
         channel_id: ch.id,
         channel_tier: ch.tier,
+        channel_thumbnail_url: ch.thumbnail_url,
         video_id: v.id,
         youtube_video_id: v.youtube_video_id,
         video_title: v.title,
+        video_thumbnail_url: v.thumbnail_url,
         views_at_48h: v48,
         channel_median: Math.round(med),
         multiplier,
@@ -144,7 +146,7 @@ async function detectFormatShifts() {
 
   const { data: channels } = await supabase
     .from('channels')
-    .select('id, name, tier')
+    .select('id, name, tier, thumbnail_url')
     .neq('tier', 'archive')
     .eq('is_client', false)
     .limit(500);
@@ -197,6 +199,7 @@ async function detectFormatShifts() {
       channel_name: ch.name,
       channel_id: ch.id,
       channel_tier: ch.tier,
+      channel_thumbnail_url: ch.thumbnail_url,
       prev_format: pDom.bucket,
       prev_pct: +(pDom.pct * 100).toFixed(1),
       curr_format: rDom.bucket,
@@ -224,7 +227,7 @@ async function detectRankChanges() {
 
   const { data: channels } = await supabase
     .from('channels')
-    .select('id, name, tier')
+    .select('id, name, tier, thumbnail_url')
     .neq('tier', 'archive')
     .eq('is_client', false)
     .limit(500);
@@ -264,6 +267,7 @@ async function detectRankChanges() {
       channel_name: ch.name,
       channel_id: ch.id,
       channel_tier: ch.tier,
+      channel_thumbnail_url: ch.thumbnail_url,
       direction: pctChange > 0 ? 'up' : 'down',
       prev_velocity: Math.round(priorAvg),
       curr_velocity: Math.round(recentAvg),
@@ -292,7 +296,7 @@ async function detectNewEntrants() {
 
   const { data: channels } = await supabase
     .from('channels')
-    .select('id, name, tier, created_at, category_id, subscriber_count')
+    .select('id, name, tier, created_at, category_id, subscriber_count, thumbnail_url')
     .neq('tier', 'archive')
     .eq('is_client', false)
     .gte('created_at', cutoff)
@@ -307,6 +311,7 @@ async function detectNewEntrants() {
       channel_name: ch.name,
       channel_id: ch.id,
       channel_tier: ch.tier,
+      channel_thumbnail_url: ch.thumbnail_url,
       category_id: ch.category_id,
       subscriber_count: ch.subscriber_count,
       added_at: ch.created_at,

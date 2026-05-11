@@ -315,6 +315,100 @@ function TakeawayCard({ takeaway, loading, alertCount, scopeLabel }) {
   );
 }
 
+function AlertThumbnail({ alert, Icon, color }) {
+  const p = alert.payload || {};
+  // Breakouts are video-centric → video thumb (16:9 cropped to square)
+  // Everything else is channel-centric → channel avatar
+  const isBreakout = alert.alert_type === 'breakout';
+  const videoThumb = p.video_thumbnail_url || alert._videoThumbnail || null;
+  const channelThumb = p.channel_thumbnail_url || alert._channelThumbnail || null;
+  const primary = isBreakout ? (videoThumb || channelThumb) : (channelThumb || videoThumb);
+  const youtubeVideoId = p.youtube_video_id;
+
+  const containerStyle = {
+    position: 'relative',
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    overflow: 'hidden',
+    background: '#18181c',
+    flexShrink: 0,
+    border: '1px solid #232328',
+  };
+
+  const badgeStyle = {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    background: color,
+    color: '#0a0a0a',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: '2px solid #101014',
+  };
+
+  const inner = primary ? (
+    <img
+      src={primary}
+      alt=""
+      loading="lazy"
+      onError={(e) => {
+        e.currentTarget.style.display = 'none';
+        if (e.currentTarget.nextElementSibling) e.currentTarget.nextElementSibling.style.display = 'flex';
+      }}
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        objectPosition: 'center',
+        display: 'block',
+      }}
+    />
+  ) : null;
+
+  const fallback = (
+    <div style={{
+      display: primary ? 'none' : 'flex',
+      width: '100%',
+      height: '100%',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: `${color}1a`,
+      color,
+    }}>
+      <Icon size={20} />
+    </div>
+  );
+
+  if (isBreakout && youtubeVideoId) {
+    return (
+      <a
+        href={`https://youtube.com/watch?v=${youtubeVideoId}`}
+        target="_blank"
+        rel="noreferrer"
+        style={{ ...containerStyle, display: 'block' }}
+        title="Watch on YouTube"
+      >
+        {inner}
+        {fallback}
+        <div style={badgeStyle}><Icon size={11} /></div>
+      </a>
+    );
+  }
+
+  return (
+    <div style={containerStyle}>
+      {inner}
+      {fallback}
+      <div style={badgeStyle}><Icon size={11} /></div>
+    </div>
+  );
+}
+
 function AlertCard({ alert, onDismiss }) {
   const meta = ALERT_TYPE_META[alert.alert_type] || { label: alert.alert_type, color: '#94a3b8' };
   const Icon = TYPE_ICONS[alert.alert_type] || BarChart3;
@@ -330,19 +424,7 @@ function AlertCard({ alert, onDismiss }) {
       gap: 12,
       alignItems: 'flex-start',
     }}>
-      <div style={{
-        width: 32,
-        height: 32,
-        borderRadius: 8,
-        background: `${meta.color}1a`,
-        color: meta.color,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-      }}>
-        <Icon size={16} />
-      </div>
+      <AlertThumbnail alert={alert} Icon={Icon} color={meta.color} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>

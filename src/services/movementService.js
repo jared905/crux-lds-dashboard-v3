@@ -42,7 +42,43 @@ export async function loadAlerts({ scopeChannelIds, windowDays = 30, includeDism
     console.warn('[movement] loadAlerts error:', error);
     return [];
   }
-  return data || [];
+  return await attachThumbnails(data || []);
+}
+
+// Batch-fetch channel + video thumbnails for the alert set so legacy
+// payloads (generated before we started embedding thumbs) still render with
+// imagery. Mutates and returns the alert list.
+async function attachThumbnails(alerts) {
+  if (!alerts.length) return alerts;
+
+  const channelIds = [...new Set(alerts.map(a => a.channel_id).filter(Boolean))];
+  const videoIds   = [...new Set(alerts.map(a => a.video_id).filter(Boolean))];
+
+  const [chRes, vidRes] = await Promise.all([
+    channelIds.length
+      ? supabase.from('channels').select('id, thumbnail_url').in('id', channelIds)
+      : Promise.resolve({ data: [] }),
+    videoIds.length
+      ? supabase.from('videos').select('id, thumbnail_url, youtube_video_id').in('id', videoIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const chMap = new Map();
+  for (const c of (chRes.data || [])) chMap.set(c.id, c.thumbnail_url);
+  const vidMap = new Map();
+  for (const v of (vidRes.data || [])) vidMap.set(v.id, v);
+
+  for (const a of alerts) {
+    a._channelThumbnail = chMap.get(a.channel_id) || null;
+    if (a.video_id) {
+      const v = vidMap.get(a.video_id);
+      a._videoThumbnail = v?.thumbnail_url || null;
+      if (v?.youtube_video_id && !a.payload?.youtube_video_id) {
+        a.payload = { ...(a.payload || {}), youtube_video_id: v.youtube_video_id };
+      }
+    }
+  }
+  return alerts;
 }
 
 export async function countActiveAlerts({ scopeChannelIds, windowDays = 14 }) {
