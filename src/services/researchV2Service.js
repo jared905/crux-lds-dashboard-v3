@@ -13,6 +13,7 @@
  */
 
 import { supabase } from './supabaseClient';
+import { expandCategoriesWithDescendants } from './patternsService.js';
 
 const SHORTS_DURATION_THRESHOLD = 180; // seconds
 
@@ -68,10 +69,12 @@ export async function fetchLandscapeChannels(opts = {}) {
   // 2. Filter by category junction (if requested)
   let filteredChannels = channels;
   if (categoryIds?.length) {
+    // Parent → descendants so picking "Faith" includes "LDS", "Catholic", etc.
+    const expandedIds = await expandCategoriesWithDescendants(categoryIds);
     const { data: ccRows } = await supabase
       .from('channel_categories')
       .select('channel_id')
-      .in('category_id', categoryIds)
+      .in('category_id', expandedIds)
       .in('channel_id', channels.map(c => c.id));
     const matchedIds = new Set((ccRows || []).map(r => r.channel_id));
     filteredChannels = channels.filter(c => matchedIds.has(c.id));

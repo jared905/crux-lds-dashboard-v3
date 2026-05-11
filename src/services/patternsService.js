@@ -72,6 +72,33 @@ async function fetchVideosForChannels(channelIds, { windowDays = 90 } = {}) {
  * Fetch the channel IDs that match a scope (categoryIds + tags + tiers).
  * Used to resolve "all channels" vs "Faith" vs current saved view to a list of IDs.
  */
+/**
+ * BFS-expand a list of category ids to include every descendant.
+ * Returns the original ids + every category whose ancestor chain reaches one.
+ */
+export async function expandCategoriesWithDescendants(rootIds) {
+  if (!rootIds?.length) return [];
+  const expanded = new Set(rootIds);
+  let frontier = [...rootIds];
+  // Safety cap to avoid runaway loops if the tree contains cycles
+  for (let depth = 0; depth < 8 && frontier.length; depth++) {
+    const { data: children } = await supabase
+      .from('categories')
+      .select('id, parent_id')
+      .in('parent_id', frontier);
+    if (!children?.length) break;
+    const next = [];
+    for (const c of children) {
+      if (!expanded.has(c.id)) {
+        expanded.add(c.id);
+        next.push(c.id);
+      }
+    }
+    frontier = next;
+  }
+  return [...expanded];
+}
+
 export async function resolveScopeToChannelIds(scope = {}) {
   if (!supabase) return [];
   const { categoryIds = null, tags = null, tiers = ['priority', 'tracked'] } = scope;
@@ -84,9 +111,12 @@ export async function resolveScopeToChannelIds(scope = {}) {
   let ids = channels.map(c => c.id);
 
   if (categoryIds?.length) {
+    // Expand each selected category to include all descendants so picking a
+    // parent ("Faith") implicitly covers its sub-categories ("LDS", "Catholic"…).
+    const expandedIds = await expandCategoriesWithDescendants(categoryIds);
     const { data: ccRows } = await supabase
       .from('channel_categories').select('channel_id')
-      .in('category_id', categoryIds).in('channel_id', ids);
+      .in('category_id', expandedIds).in('channel_id', ids);
     const matched = new Set((ccRows || []).map(r => r.channel_id));
     ids = ids.filter(id => matched.has(id));
   }
