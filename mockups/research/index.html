@@ -2,45 +2,80 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Research Section Mockups — Full View</title>
+  <title>Research Section Mockups · v2 — Full View</title>
   <link rel="stylesheet" href="_shared.css">
   <style>
-    body { display: block; padding: 60px; max-width: 900px; margin: 0 auto; }
+    body { display: block; padding: 60px 40px; max-width: 960px; margin: 0 auto; }
     h1 { font-size: 32px; font-weight: 700; color: #fff; margin-bottom: 8px; letter-spacing: -0.5px; }
-    .sub { color: #888; margin-bottom: 48px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .card { background: #131316; border: 1px solid #1f1f24; border-radius: 12px; padding: 28px; text-decoration: none; display: block; transition: all 0.15s ease; }
+    .sub { color: #888; margin-bottom: 8px; font-size: 14px; line-height: 1.6; }
+    .meta { color: #555; font-size: 12px; margin-bottom: 40px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+    .card { background: #131316; border: 1px solid #1f1f24; border-radius: 12px; padding: 24px; text-decoration: none; display: block; transition: all 0.15s ease; }
     .card:hover { border-color: #3b82f6; transform: translateY(-2px); }
-    .card h3 { font-size: 18px; color: #fff; margin-bottom: 6px; }
-    .card p { color: #888; font-size: 13px; }
-    .num { font-size: 11px; font-weight: 700; color: #3b82f6; letter-spacing: 1px; margin-bottom: 12px; display: block; }
+    .card h3 { font-size: 17px; color: #fff; margin-bottom: 6px; }
+    .card p { color: #888; font-size: 13px; line-height: 1.55; }
+    .num { font-size: 10px; font-weight: 700; color: #3b82f6; letter-spacing: 1px; margin-bottom: 10px; display: block; }
+
+    .notes {
+      background: #131316; border: 1px solid #1f1f24; border-radius: 12px;
+      padding: 22px 24px; margin-top: 16px;
+    }
+    .notes h3 { font-size: 14px; color: #fff; margin-bottom: 12px; }
+    .notes ul { padding-left: 18px; color: #aaa; font-size: 13px; line-height: 1.7; }
+    .notes ul li { margin-bottom: 6px; }
+    .notes ul li b { color: #fff; }
+    .notes a { color: #60a5fa; text-decoration: none; }
   </style>
 </head>
 <body>
-  <h1>Research Section Mockups</h1>
-  <p class="sub">High-fidelity reference for the redesigned competitor / research hub.</p>
+  <h1>Research Section · v2</h1>
+  <p class="sub">High-fidelity mockups for the redesigned Competitor / Research hub, scoped to fit inside the existing Full View shell.</p>
+  <p class="meta">One page · scope picker + four lenses · no sidebar additions · public-data-only metric set</p>
 
   <div class="grid">
-    <a href="pulse.html" class="card">
-      <span class="num">01</span>
-      <h3>Pulse</h3>
-      <p>The "what changed in competitor land" feed. Breakouts, format shifts, rank changes, and a weekly AI synthesis.</p>
+    <a href="landscape.html" class="card">
+      <span class="num">LENS 1 · DEFAULT</span>
+      <h3>▦ Landscape</h3>
+      <p>Master channel table with inline category norms next to every metric. Click a row → channel profile drawer. Multi-select → compare. The data hub.</p>
     </a>
-    <a href="channels.html" class="card">
-      <span class="num">02</span>
-      <h3>Channels</h3>
-      <p>Master data hub. Browseable table of every tracked channel with filter chips, saved views, and bulk actions.</p>
+    <a href="patterns.html" class="card">
+      <span class="num">LENS 2</span>
+      <h3>◇ Patterns</h3>
+      <p>Title patterns, thumbnail patterns, format mix, posting time density, and outliers. Cross-vertical comparison toggle for "this category vs platform avg."</p>
     </a>
-    <a href="profile.html" class="card">
-      <span class="num">03</span>
-      <h3>Channel Profile</h3>
-      <p>Slide-out drawer over the Channels table. Overview, content, schedule, audience, and channel-specific patterns.</p>
+    <a href="whitespace.html" class="card">
+      <span class="num">LENS 3</span>
+      <h3>☐ White Space</h3>
+      <p>AI-synthesized opportunity brief + topic coverage map + format gaps + cadence gaps + audience gaps. For client pitches.</p>
     </a>
-    <a href="compare.html" class="card">
-      <span class="num">04</span>
-      <h3>Compare</h3>
-      <p>Side-by-side spec sheet for 2–12 channels. Triggered from row checkboxes in Channels.</p>
+    <a href="movement.html" class="card">
+      <span class="num">LENS 4 · SUPPORTING</span>
+      <h3>⌘ Movement</h3>
+      <p>What changed in this scope. Breakouts, format shifts, rank changes, new entrants. Notification badge on the tab when activity present.</p>
     </a>
+  </div>
+
+  <div class="notes">
+    <h3>What's intentional in this v2</h3>
+    <ul>
+      <li><b>One Research page, not a section replacement.</b> Top nav is the real Full View nav (Performance · Research · Content Lab · Strategy + client picker + Export + Manage).</li>
+      <li><b>Sync indicator in the top nav</b>, not the sidebar — visible from every page, "🟢 Synced 2m ago" next to client picker.</li>
+      <li><b>Scope picker is sticky across all 4 lenses.</b> Pick a category once, cycle lenses without losing place.</li>
+      <li><b>Movement tab has a notification badge</b> when there's activity in the current scope — quiet otherwise.</li>
+      <li><b>Mixed channel set</b> — NBA, CPG, Home Security, Hollywood — to prove the structure is vertical-agnostic.</li>
+      <li><b>Public-data metrics only</b>: engagement rate, view velocity, median views, Δsubs, format mix, cadence. No CTR/retention for competitors (you can't get those from the public Data API).</li>
+      <li><b>Inline category norms</b> next to every numeric metric, with <code>n &lt; 5</code> suppression rule.</li>
+      <li><b>White Space leads with an AI opportunity brief</b> — the artifact that's directly usable in pitches.</li>
+      <li><b>Patterns "Comparing X vs Y" bar</b> at top of that lens — the cross-vertical insight machine.</li>
+    </ul>
+  </div>
+
+  <div class="notes" style="margin-top: 14px;">
+    <h3>v1 (archived) — these mockups were misscoped (replaced the whole app shell)</h3>
+    <ul>
+      <li><a href="pulse.html">pulse.html</a> · <a href="channels.html">channels.html</a> · <a href="profile.html">profile.html</a> · <a href="compare.html">compare.html</a></li>
+      <li>The Profile drawer and Compare full-screen patterns from v1 still apply — they're triggered from inside the Landscape lens in v2.</li>
+    </ul>
   </div>
 </body>
 </html>

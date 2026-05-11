@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Research — White Space</title>
+  <link rel="stylesheet" href="_shared.css">
+  <style>
+    .ws-layout { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; }
+
+    .panel {
+      background: #131316;
+      border: 1px solid #1f1f24;
+      border-radius: 10px;
+      padding: 18px 20px;
+    }
+    .panel.wide { grid-column: span 2; }
+    .panel h3 {
+      font-size: 13px; font-weight: 700; color: #fff;
+      margin-bottom: 4px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .panel .h3-sub {
+      font-size: 11px; color: #707070; margin-bottom: 16px;
+    }
+
+    /* Topic coverage map — bar visualization */
+    .topic-row {
+      display: grid;
+      grid-template-columns: 180px 1fr 70px 80px;
+      gap: 12px;
+      align-items: center;
+      padding: 9px 0;
+      border-bottom: 1px solid #1c1c20;
+      font-size: 13px;
+    }
+    .topic-row:last-child { border-bottom: none; }
+    .topic-row .topic-name { color: #d4d4d4; font-weight: 500; }
+    .topic-row.gap .topic-name { color: #fbbf24; font-weight: 600; }
+    .topic-bar-track {
+      height: 18px; background: #1c1c20; border-radius: 4px; overflow: hidden;
+      position: relative;
+    }
+    .topic-bar-fill {
+      height: 100%;
+      background: linear-gradient(to right, #3b82f6, #60a5fa);
+      border-radius: 4px;
+    }
+    .topic-row.gap .topic-bar-fill {
+      background: linear-gradient(to right, #b45309, #f59e0b);
+    }
+    .topic-coverage { color: #fff; text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; }
+    .topic-channels { color: #888; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
+
+    /* Audience demographic gap */
+    .demo-row {
+      display: grid;
+      grid-template-columns: 100px 1fr 60px;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 0;
+      font-size: 12px;
+    }
+    .demo-label { color: #aaa; }
+    .demo-bar-track {
+      height: 14px; background: #1c1c20; border-radius: 3px; overflow: hidden;
+      position: relative;
+    }
+    .demo-bar-fill { height: 100%; background: linear-gradient(to right, #8b5cf6, #c4b5fd); }
+    .demo-num { color: #fff; text-align: right; font-weight: 600; }
+    .demo-gap-marker {
+      position: absolute; top: 0; bottom: 0; width: 2px; background: #f87171;
+      border-radius: 1px;
+    }
+
+    /* Opportunity brief card */
+    .brief-card {
+      background: linear-gradient(135deg, #14132a 0%, #1a1830 100%);
+      border: 1px solid #2a2840;
+      border-radius: 10px;
+      padding: 18px 20px;
+    }
+    .brief-card h3 {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.2px; color: #a78bfa;
+      text-transform: uppercase; margin-bottom: 8px;
+    }
+    .brief-card .meta { font-size: 11px; color: #707070; margin-bottom: 14px; }
+    .brief-item {
+      padding: 10px 0; border-bottom: 1px solid #252338;
+    }
+    .brief-item:last-child { border-bottom: none; }
+    .brief-num {
+      display: inline-block; width: 22px; height: 22px; border-radius: 50%;
+      background: rgba(139,92,246,0.2); color: #c4b5fd;
+      font-size: 11px; font-weight: 700; text-align: center; line-height: 22px;
+      margin-right: 10px; vertical-align: top;
+    }
+    .brief-text {
+      display: inline-block; width: calc(100% - 36px); font-size: 13px;
+      color: #d4d4dc; line-height: 1.55;
+    }
+    .brief-text b { color: #fff; }
+
+    .gap-tag {
+      display: inline-block; padding: 2px 7px; border-radius: 4px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+      background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3);
+      margin-right: 6px;
+    }
+    .gap-tag.format { background: rgba(139,92,246,0.12); color: #a78bfa; border-color: rgba(139,92,246,0.3); }
+    .gap-tag.cadence { background: rgba(14,165,233,0.12); color: #38bdf8; border-color: rgba(14,165,233,0.3); }
+
+    /* Format gap list */
+    .format-gap-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid #1c1c20;
+      font-size: 13px;
+    }
+    .format-gap-row:last-child { border-bottom: none; }
+    .format-gap-row .name { color: #d4d4d4; flex: 1; }
+    .format-gap-row .count { font-size: 11px; color: #888; }
+
+    /* Cadence gap visualization */
+    .cadence-strip {
+      display: grid;
+      grid-template-columns: 60px repeat(7, 1fr);
+      gap: 2px;
+      align-items: center;
+      font-size: 10px;
+    }
+    .cadence-strip .day-label { color: #888; text-align: center; }
+    .cadence-strip .slot {
+      height: 16px; background: #1c1c20; border-radius: 2px;
+    }
+    .cadence-strip .slot.dense { background: #3b82f6; }
+    .cadence-strip .slot.medium { background: #1e3a5f; }
+    .cadence-strip .slot.sparse { background: #1c1c20; }
+    .cadence-strip .slot.gap {
+      background: rgba(245,158,11,0.20);
+      border: 1px dashed rgba(251,191,36,0.5);
+    }
+  </style>
+</head>
+<body>
+  <!-- ===== Top Nav ===== -->
+  <nav class="topnav">
+    <div class="logo"><span class="logo-mark"></span> FULL VIEW</div>
+    <div class="tabs">
+      <a class="tab" href="#">Performance</a>
+      <a class="tab active" href="landscape.html">Research</a>
+      <a class="tab" href="#">Content Lab</a>
+      <a class="tab" href="#">Strategy</a>
+    </div>
+    <div class="right">
+      <div class="sync-pill">
+        <span class="dot"></span>
+        <span class="label">Synced</span>
+        <span class="time">2m ago</span>
+      </div>
+      <div class="client-picker">
+        Acme Brands · NBA pitch
+        <span class="caret">▾</span>
+      </div>
+      <button class="btn secondary">Export</button>
+      <button class="btn primary">Manage</button>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="page-header">
+      <h1>Research <span class="h1-sub">White Space · 17 channels in scope · last 90 days</span></h1>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn secondary small">★ Save view</button>
+        <button class="btn secondary small">↗ Export brief</button>
+      </div>
+    </div>
+
+    <!-- Scope bar -->
+    <div class="scope-bar">
+      <span class="scope-label">Scope</span>
+      <span class="pill saved-view"><span class="star">★</span> NBA — Top channels <span class="x">▾</span></span>
+      <span class="scope-label" style="margin-left: 8px;">Category</span>
+      <span class="pill active">Sports → NBA <span class="x">✕</span></span>
+      <span class="pill">+ Add filter</span>
+      <span class="scope-summary"><b>17</b> channels · <b>412</b> videos · last 90 days</span>
+    </div>
+
+    <!-- Lens tabs -->
+    <div class="lens-tabs">
+      <a class="lens-tab" href="landscape.html">▦ Landscape</a>
+      <a class="lens-tab" href="patterns.html">◇ Patterns</a>
+      <a class="lens-tab active" href="whitespace.html">☐ White Space</a>
+      <a class="lens-tab" href="movement.html">⌘ Movement <span class="badge-count">3</span></a>
+    </div>
+
+    <!-- Opportunity Brief — top of page, hero -->
+    <div class="brief-card" style="margin-bottom: 16px;">
+      <h3>Opportunity brief · NBA</h3>
+      <div class="meta">AI synthesis · last 90 days · 412 videos analyzed · for client-facing use</div>
+
+      <div class="brief-item">
+        <span class="brief-num">1</span>
+        <span class="brief-text">
+          <b>Player-led story arcs are saturated; rookie-to-veteran mentorship is not.</b>
+          Every team channel publishes player highlights and superstar interviews. Only 2 of 17 NBA channels in scope have produced any content framed around veteran-rookie dynamics in the last 90 days — and both performed at 2.1×+ their channel median. The frame travels: same structure works in CPG (founder-mentor) and Hollywood (director-protégé).
+          <span class="gap-tag">topic gap</span>
+        </span>
+      </div>
+
+      <div class="brief-item">
+        <span class="brief-num">2</span>
+        <span class="brief-text">
+          <b>Morning slots (6am–11am MT) are empty.</b>
+          NBA uploads cluster between 5pm and 11pm MT — predictable around game time. The morning window has &lt;3% of all uploads but tracks 18% of NBA YouTube viewing (per session-time density analysis). Pre-game preview content posted 9am–11am MT could capture a window with effectively zero competition from team accounts.
+          <span class="gap-tag cadence">cadence gap</span>
+        </span>
+      </div>
+
+      <div class="brief-item">
+        <span class="brief-num">3</span>
+        <span class="brief-text">
+          <b>Long-form documentary (15–25 min) is undersupplied.</b>
+          NBA uploads are 62% Shorts, 30% short-form long (3–8 min), 8% mid-length, &lt;1% long-form documentary. A24 and Marvel both win on long-form doc-style content in their categories. A team-produced 15–20 min documentary on a single game, a single play, or a single arc is structurally absent.
+          <span class="gap-tag format">format gap</span>
+        </span>
+      </div>
+
+      <div class="brief-item">
+        <span class="brief-num">4</span>
+        <span class="brief-text">
+          <b>The 35–44 demo is underserved.</b>
+          NBA viewer demographics skew 18–34 (62%) and 13–17 (14%). The 35–44 segment is 12% of audience but receives no targeted content packaging — most uploads are optimized for younger reactions and Shorts loops. Long-form storytelling and analytical content over-index for the older demo and underperform the channel average on Shorts.
+          <span class="gap-tag">audience gap</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Topic coverage map -->
+    <div class="ws-layout" style="grid-template-columns: 1fr;">
+      <div class="panel">
+        <h3>
+          <span>📊 Topic coverage map</span>
+          <span style="font-size: 11px; font-weight: 500; color: #707070;">% of videos touching each topic · last 90 days</span>
+        </h3>
+        <div class="h3-sub">Topics are extracted from titles + descriptions. Highlighted in amber if covered by &lt;15% of videos — candidate gaps.</div>
+
+        <div class="topic-row">
+          <span class="topic-name">Player highlights / clips</span>
+          <div class="topic-bar-track"><div class="topic-bar-fill" style="width: 88%;"></div></div>
+          <span class="topic-coverage">88%</span>
+          <span class="topic-channels">17 / 17 ch</span>
+        </div>
+        <div class="topic-row">
+          <span class="topic-name">Game recaps</span>
+          <div class="topic-bar-track"><div class="topic-bar-fill" style="width: 71%;"></div></div>
+          <span class="topic-coverage">71%</span>
+          <span class="topic-channels">16 / 17 ch</span>
+        </div>
+        <div class="topic-row">
+          <span class="topic-name">Player interviews</span>
+          <div class="topic-bar-track"><div class="topic-bar-fill" style="width: 54%;"></div></div>
+          <span class="topic-coverage">54%</span>
+          <span class="topic-channels">15 / 17 ch</span>
+        </div>
+        <div class="topic-row">
+          <span class="topic-name">Behind-the-scenes / locker room</span>
+          <div class="topic-bar-track"><div class="topic-bar-fill" style="width: 38%;"></div></div>
+          <span class="topic-coverage">38%</span>
+          <span class="topic-channels">12 / 17 ch</span>
+        </div>
+        <div class="topic-row">
+          <span class="topic-name">Coaching / strategy</span>
+          <div class="topic-bar-track"><div class="topic-bar-fill" style="width: 22%;"></div></div>
+          <span class="topic-coverage">22%</span>
+          <span class="topic-channels">8 / 17 ch</span>
+        </div>
+        <div class="topic-row gap">
+          <span class="topic-name">Rookie / mentorship</span>
+          <div class="topic-bar-track"><div class="topic-bar-fill" style="width: 12%;"></div></div>
+          <span class="topic-coverage">12%</span>
+          <span class="topic-channels">2 / 17 ch</span>
+        </div>
+        <div class="topic-row gap">
+          <span class="topic-name">Documentary / long-form story</span>
+          <div class="topic-bar-track"><div class="topic-bar-fill" style="width: 8%;"></div></div>
+          <span class="topic-coverage">8%</span>
+          <span class="topic-channels">3 / 17 ch</span>
+        </div>
+        <div class="topic-row gap">
+          <span class="topic-name">Player off-court life</span>
+          <div class="topic-bar-track"><div class="topic-bar-fill" style="width: 6%;"></div></div>
+          <span class="topic-coverage">6%</span>
+          <span class="topic-channels">4 / 17 ch</span>
+        </div>
+        <div class="topic-row gap">
+          <span class="topic-name">Front office / GM</span>
+          <div class="topic-bar-track"><div class="topic-bar-fill" style="width: 3%;"></div></div>
+          <span class="topic-coverage">3%</span>
+          <span class="topic-channels">1 / 17 ch</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Two-column: format gaps + cadence gaps -->
+    <div class="ws-layout" style="margin-top: 16px;">
+      <div class="panel">
+        <h3>📐 Format gaps</h3>
+        <div class="h3-sub">Format types underused or absent in this category.</div>
+
+        <div class="format-gap-row">
+          <span class="name">15–25 min documentary</span>
+          <span class="count">3 of 412 videos · &lt;1%</span>
+          <span class="gap-tag format">absent</span>
+        </div>
+        <div class="format-gap-row">
+          <span class="name">Vlog / unscripted personality piece</span>
+          <span class="count">14 of 412 · 3%</span>
+          <span class="gap-tag format">low</span>
+        </div>
+        <div class="format-gap-row">
+          <span class="name">Tutorial / breakdown ("how this works")</span>
+          <span class="count">22 of 412 · 5%</span>
+          <span class="gap-tag format">low</span>
+        </div>
+        <div class="format-gap-row">
+          <span class="name">Live event recording (full)</span>
+          <span class="count">31 of 412 · 8%</span>
+        </div>
+        <div class="format-gap-row">
+          <span class="name">Compilation / "best of"</span>
+          <span class="count">66 of 412 · 16%</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>⏰ Cadence gaps</h3>
+        <div class="h3-sub">When the category posts vs when it could.</div>
+
+        <div style="margin-top: 6px;">
+          <div class="cadence-strip">
+            <span class="day-label"></span>
+            <span class="day-label">M</span><span class="day-label">T</span><span class="day-label">W</span><span class="day-label">T</span><span class="day-label">F</span><span class="day-label">S</span><span class="day-label">S</span>
+
+            <span class="day-label" style="text-align:right; padding-right:4px;">6am</span>
+            <div class="slot gap"></div><div class="slot gap"></div><div class="slot gap"></div><div class="slot gap"></div><div class="slot gap"></div><div class="slot sparse"></div><div class="slot sparse"></div>
+
+            <span class="day-label" style="text-align:right; padding-right:4px;">10am</span>
+            <div class="slot gap"></div><div class="slot sparse"></div><div class="slot sparse"></div><div class="slot sparse"></div><div class="slot sparse"></div><div class="slot sparse"></div><div class="slot sparse"></div>
+
+            <span class="day-label" style="text-align:right; padding-right:4px;">2pm</span>
+            <div class="slot medium"></div><div class="slot medium"></div><div class="slot medium"></div><div class="slot medium"></div><div class="slot dense"></div><div class="slot medium"></div><div class="slot sparse"></div>
+
+            <span class="day-label" style="text-align:right; padding-right:4px;">6pm</span>
+            <div class="slot dense"></div><div class="slot dense"></div><div class="slot dense"></div><div class="slot dense"></div><div class="slot dense"></div><div class="slot medium"></div><div class="slot medium"></div>
+
+            <span class="day-label" style="text-align:right; padding-right:4px;">10pm</span>
+            <div class="slot dense"></div><div class="slot dense"></div><div class="slot dense"></div><div class="slot dense"></div><div class="slot dense"></div><div class="slot dense"></div><div class="slot medium"></div>
+          </div>
+          <div style="font-size: 11px; color: #888; margin-top: 12px; line-height: 1.6;">
+            <span style="display:inline-block;width:10px;height:10px;background:rgba(245,158,11,0.20);border:1px dashed rgba(251,191,36,0.5);border-radius:2px;margin-right:5px;vertical-align:middle;"></span> Empty slot with non-trivial viewer demand<br>
+            <span style="display:inline-block;width:10px;height:10px;background:#3b82f6;border-radius:2px;margin-right:5px;vertical-align:middle;"></span> Dense competition · 12+ uploads per slot
+          </div>
+        </div>
+
+        <div style="margin-top: 16px; padding: 10px 12px; background: rgba(245,158,11,0.05); border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 12px; color: #fde2a3; line-height: 1.55;">
+          Weekday mornings 6am–11am MT are nearly empty across all 17 channels. Pre-game preview or "morning huddle" formats could own this window.
+        </div>
+      </div>
+    </div>
+
+    <!-- Audience gaps -->
+    <div class="panel" style="margin-top: 16px;">
+      <h3>👥 Audience gaps</h3>
+      <div class="h3-sub">Audience segments tracked in scope's analytics vs reach.</div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 28px;">
+        <div>
+          <div style="font-size: 11px; color: #707070; letter-spacing: 0.7px; text-transform: uppercase; margin-bottom: 10px;">Age distribution served</div>
+          <div class="demo-row">
+            <span class="demo-label">13–17</span>
+            <div class="demo-bar-track"><div class="demo-bar-fill" style="width: 14%;"></div></div>
+            <span class="demo-num">14%</span>
+          </div>
+          <div class="demo-row">
+            <span class="demo-label">18–24</span>
+            <div class="demo-bar-track"><div class="demo-bar-fill" style="width: 30%;"></div></div>
+            <span class="demo-num">30%</span>
+          </div>
+          <div class="demo-row">
+            <span class="demo-label">25–34</span>
+            <div class="demo-bar-track"><div class="demo-bar-fill" style="width: 32%;"></div></div>
+            <span class="demo-num">32%</span>
+          </div>
+          <div class="demo-row" style="background: rgba(245,158,11,0.04); padding: 8px 6px; margin: 0 -6px; border-radius: 4px;">
+            <span class="demo-label" style="color: #fbbf24;">35–44</span>
+            <div class="demo-bar-track"><div class="demo-bar-fill" style="width: 12%; background: linear-gradient(to right, #b45309, #f59e0b);"></div></div>
+            <span class="demo-num" style="color: #fbbf24;">12%</span>
+          </div>
+          <div class="demo-row">
+            <span class="demo-label">45+</span>
+            <div class="demo-bar-track"><div class="demo-bar-fill" style="width: 12%;"></div></div>
+            <span class="demo-num">12%</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size: 11px; color: #707070; letter-spacing: 0.7px; text-transform: uppercase; margin-bottom: 10px;">Geography served (top 5)</div>
+          <div class="demo-row">
+            <span class="demo-label">US</span>
+            <div class="demo-bar-track"><div class="demo-bar-fill" style="width: 64%;"></div></div>
+            <span class="demo-num">64%</span>
+          </div>
+          <div class="demo-row">
+            <span class="demo-label">Canada</span>
+            <div class="demo-bar-track"><div class="demo-bar-fill" style="width: 8%;"></div></div>
+            <span class="demo-num">8%</span>
+          </div>
+          <div class="demo-row">
+            <span class="demo-label">Philippines</span>
+            <div class="demo-bar-track"><div class="demo-bar-fill" style="width: 6%;"></div></div>
+            <span class="demo-num">6%</span>
+          </div>
+          <div class="demo-row">
+            <span class="demo-label">UK</span>
+            <div class="demo-bar-track"><div class="demo-bar-fill" style="width: 4%;"></div></div>
+            <span class="demo-num">4%</span>
+          </div>
+          <div class="demo-row" style="background: rgba(245,158,11,0.04); padding: 8px 6px; margin: 0 -6px; border-radius: 4px;">
+            <span class="demo-label" style="color: #fbbf24;">Mexico</span>
+            <div class="demo-bar-track"><div class="demo-bar-fill" style="width: 3%; background: linear-gradient(to right, #b45309, #f59e0b);"></div></div>
+            <span class="demo-num" style="color: #fbbf24;">3%</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 18px; padding: 10px 12px; background: rgba(245,158,11,0.05); border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 12px; color: #fde2a3; line-height: 1.55;">
+        <b>35–44</b> is the largest underserved age band — they watch but no NBA channel packages content for them. <b>Mexico</b> ranks 5th in viewership but no NBA channel produces Spanish-language content; the next-tier opportunity is multilingual packaging.
+      </div>
+    </div>
+
+    <div style="margin-top: 20px; font-size: 11px; color: #555; font-style: italic; text-align: center;">
+      White space is a probabilistic call. Use it as a hypothesis generator — validate with the client's actual audience before pitching as a strategy.
+    </div>
+  </div>
+</body>
+</html>

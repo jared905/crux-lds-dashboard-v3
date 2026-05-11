@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Research — Landscape</title>
+  <link rel="stylesheet" href="_shared.css">
+  <style>
+    /* TABLE */
+    .channel-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      background: #131316;
+      border: 1px solid #1f1f24;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .channel-table thead { background: #16161a; }
+    .channel-table th {
+      text-align: left;
+      padding: 11px 14px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #707070;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      border-bottom: 1px solid #1f1f24;
+      white-space: nowrap;
+    }
+    .channel-table th.num { text-align: right; }
+    .channel-table tbody tr {
+      border-bottom: 1px solid #1c1c20;
+      cursor: pointer;
+    }
+    .channel-table tbody tr:last-child { border-bottom: none; }
+    .channel-table tbody tr:hover { background: #16161a; }
+    .channel-table td {
+      padding: 13px 14px;
+      vertical-align: middle;
+      color: #d4d4d4;
+    }
+    .channel-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .ch-name { display: flex; align-items: center; gap: 10px; }
+    .ch-name-text { font-weight: 600; color: #fff; line-height: 1.25; }
+    .ch-handle { font-size: 11px; color: #666; }
+
+    .checkbox-cell { width: 32px; padding-right: 0; }
+
+    .metric-with-norm { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+    .metric-value { color: #fff; font-weight: 600; }
+    .metric-norm { font-size: 10px; line-height: 1; }
+    .metric-norm.pos { color: #34d399; font-weight: 600; }
+    .metric-norm.neg { color: #f87171; font-weight: 600; }
+    .metric-norm.flat { color: #707070; }
+    .metric-norm.small { color: #555; font-style: italic; }
+
+    .format-mix {
+      display: inline-flex;
+      gap: 1px;
+      width: 60px;
+      height: 8px;
+      border-radius: 2px;
+      overflow: hidden;
+      background: #1c1c20;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    .format-long  { background: #0ea5e9; }
+    .format-short { background: #f97316; }
+
+    .footer-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; margin-top: 14px;
+      color: #888; font-size: 12px;
+    }
+    .footer-bar .right { display: flex; gap: 6px; }
+  </style>
+</head>
+<body>
+  <!-- ===== Top Nav (matches Full View) ===== -->
+  <nav class="topnav">
+    <div class="logo"><span class="logo-mark"></span> FULL VIEW</div>
+    <div class="tabs">
+      <a class="tab" href="#">Performance</a>
+      <a class="tab active" href="landscape.html">Research</a>
+      <a class="tab" href="#">Content Lab</a>
+      <a class="tab" href="#">Strategy</a>
+    </div>
+    <div class="right">
+      <div class="sync-pill">
+        <span class="dot"></span>
+        <span class="label">Synced</span>
+        <span class="time">2m ago</span>
+      </div>
+      <div class="client-picker">
+        Acme Brands · NBA pitch
+        <span class="caret">▾</span>
+      </div>
+      <button class="btn secondary">Export</button>
+      <button class="btn primary">Manage</button>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="page-header">
+      <h1>Research <span class="h1-sub">17 channels in scope · last 30 days</span></h1>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn secondary small">★ Save view</button>
+        <button class="btn primary small">+ Add channel</button>
+      </div>
+    </div>
+
+    <!-- Scope bar -->
+    <div class="scope-bar">
+      <span class="scope-label">Scope</span>
+      <span class="pill saved-view"><span class="star">★</span> NBA — Top channels <span class="x">▾</span></span>
+      <span class="scope-label" style="margin-left: 8px;">Category</span>
+      <span class="pill active">Sports → NBA <span class="x">✕</span></span>
+      <span class="scope-label" style="margin-left: 8px;">Tags</span>
+      <span class="pill active">brand-owned <span class="x">✕</span></span>
+      <span class="pill">+ Add filter</span>
+      <span class="scope-summary"><b>17</b> channels · <b>412</b> videos · last 30 days</span>
+    </div>
+
+    <!-- Lens tabs -->
+    <div class="lens-tabs">
+      <a class="lens-tab active" href="landscape.html">▦ Landscape</a>
+      <a class="lens-tab" href="patterns.html">◇ Patterns</a>
+      <a class="lens-tab" href="whitespace.html">☐ White Space</a>
+      <a class="lens-tab" href="movement.html">⌘ Movement <span class="badge-count">3</span></a>
+    </div>
+
+    <!-- Table toolbar -->
+    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+      <input style="flex: 1; max-width: 320px; background: #131316; border: 1px solid #1f1f24; border-radius: 6px; padding: 8px 12px; color: #fff; font-size: 13px; font-family: inherit;" placeholder="⌕ Search channels…" />
+      <span class="scope-label" style="margin-left: 4px;">Sort</span>
+      <span class="select-pill">View velocity <span class="caret">↓</span></span>
+      <span class="scope-label" style="margin-left: 6px;">Group</span>
+      <span class="select-pill">None <span class="caret">▾</span></span>
+      <span style="flex: 1;"></span>
+      <button class="btn secondary small">⚙ Columns</button>
+    </div>
+
+    <!-- TABLE -->
+    <table class="channel-table">
+      <thead>
+        <tr>
+          <th class="checkbox-cell"><input type="checkbox" /></th>
+          <th style="width: 230px;">Channel</th>
+          <th>Category</th>
+          <th class="num">Subs</th>
+          <th class="num">Δ Subs (30d)</th>
+          <th class="num">View velocity</th>
+          <th class="num">Median views</th>
+          <th class="num">Engagement</th>
+          <th>Format mix</th>
+          <th>Cadence</th>
+          <th>Last↑</th>
+          <th style="width: 24px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- NBA -->
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" checked /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar nba">LA</div>
+              <div>
+                <div class="ch-name-text">Lakers</div>
+                <div class="ch-handle">@Lakers</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag nba">NBA</span></td>
+          <td class="num">24.2M</td>
+          <td class="num"><span class="up">+89K ↑</span></td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">480K /day</span>
+              <span class="metric-norm pos">▲ +14% vs NBA</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">1.2M</span>
+              <span class="metric-norm pos">▲ +22% vs NBA</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">4.1%</span>
+              <span class="metric-norm pos">▲ +3% vs NBA</span>
+            </div>
+          </td>
+          <td>
+            <div class="format-mix">
+              <div class="format-long" style="width: 35%;"></div>
+              <div class="format-short" style="width: 65%;"></div>
+            </div>
+            <span style="font-size: 11px; color: #888;">35% / 65%</span>
+          </td>
+          <td><span class="muted">2.4 /day</span></td>
+          <td><span class="muted">Today</span></td>
+          <td style="text-align: right; color: #555;">›</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar nba">NB</div>
+              <div>
+                <div class="ch-name-text">NBA</div>
+                <div class="ch-handle">@NBA</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag nba">NBA</span></td>
+          <td class="num">22.8M</td>
+          <td class="num"><span class="up">+62K ↑</span></td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">410K /day</span>
+              <span class="metric-norm flat">— at NBA avg</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">980K</span>
+              <span class="metric-norm flat">— at NBA avg</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">3.8%</span>
+              <span class="metric-norm neg">▼ -5% vs NBA</span>
+            </div>
+          </td>
+          <td>
+            <div class="format-mix">
+              <div class="format-long" style="width: 20%;"></div>
+              <div class="format-short" style="width: 80%;"></div>
+            </div>
+            <span style="font-size: 11px; color: #888;">20% / 80%</span>
+          </td>
+          <td><span class="muted">3.1 /day</span></td>
+          <td><span class="muted">Today</span></td>
+          <td style="text-align: right; color: #555;">›</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar nba">GS</div>
+              <div>
+                <div class="ch-name-text">Golden State Warriors</div>
+                <div class="ch-handle">@warriors</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag nba">NBA</span></td>
+          <td class="num">5.1M</td>
+          <td class="num"><span class="up">+18K ↑</span></td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">88K /day</span>
+              <span class="metric-norm neg">▼ -78% vs NBA</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">220K</span>
+              <span class="metric-norm neg">▼ -77% vs NBA</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">5.2%</span>
+              <span class="metric-norm pos">▲ +30% vs NBA</span>
+            </div>
+          </td>
+          <td>
+            <div class="format-mix">
+              <div class="format-long" style="width: 55%;"></div>
+              <div class="format-short" style="width: 45%;"></div>
+            </div>
+            <span style="font-size: 11px; color: #888;">55% / 45%</span>
+          </td>
+          <td><span class="muted">1.8 /day</span></td>
+          <td><span class="muted">1d ago</span></td>
+          <td style="text-align: right; color: #555;">›</td>
+        </tr>
+
+        <!-- HOLLYWOOD -->
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar hollywood">MA</div>
+              <div>
+                <div class="ch-name-text">Marvel Entertainment</div>
+                <div class="ch-handle">@marvel</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag hollywood">Hollywood</span></td>
+          <td class="num">24.6M</td>
+          <td class="num"><span class="up">+34K ↑</span></td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">312K /day</span>
+              <span class="metric-norm pos">▲ +18% vs Hollywood</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">820K</span>
+              <span class="metric-norm pos">▲ +12% vs Hollywood</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">6.4%</span>
+              <span class="metric-norm pos">▲ +8% vs Hollywood</span>
+            </div>
+          </td>
+          <td>
+            <div class="format-mix">
+              <div class="format-long" style="width: 70%;"></div>
+              <div class="format-short" style="width: 30%;"></div>
+            </div>
+            <span style="font-size: 11px; color: #888;">70% / 30%</span>
+          </td>
+          <td><span class="muted">1.2 /day</span></td>
+          <td><span class="muted">Today</span></td>
+          <td style="text-align: right; color: #555;">›</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar hollywood">A2</div>
+              <div>
+                <div class="ch-name-text">A24</div>
+                <div class="ch-handle">@A24</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag hollywood">Hollywood</span></td>
+          <td class="num">1.4M</td>
+          <td class="num"><span class="up">+11K ↑</span></td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">42K /day</span>
+              <span class="metric-norm neg">▼ -41% vs Hollywood</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">160K</span>
+              <span class="metric-norm neg">▼ -45% vs Hollywood</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">9.8%</span>
+              <span class="metric-norm pos">▲ +66% vs Hollywood</span>
+            </div>
+          </td>
+          <td>
+            <div class="format-mix">
+              <div class="format-long" style="width: 90%;"></div>
+              <div class="format-short" style="width: 10%;"></div>
+            </div>
+            <span style="font-size: 11px; color: #888;">90% / 10%</span>
+          </td>
+          <td><span class="muted">0.6 /day</span></td>
+          <td><span class="muted">2d ago</span></td>
+          <td style="text-align: right; color: #555;">›</td>
+        </tr>
+
+        <!-- CPG -->
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar cpg">CH</div>
+              <div>
+                <div class="ch-name-text">Cheetos</div>
+                <div class="ch-handle">@cheetos</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag cpg">CPG → Snacks</span></td>
+          <td class="num">892K</td>
+          <td class="num"><span class="up">+2.1K ↑</span></td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">8.4K /day</span>
+              <span class="metric-norm pos">▲ +24% vs CPG</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">18K</span>
+              <span class="metric-norm flat">— at CPG avg</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">6.3%</span>
+              <span class="metric-norm neg">▼ -7% vs CPG</span>
+            </div>
+          </td>
+          <td>
+            <div class="format-mix">
+              <div class="format-long" style="width: 45%;"></div>
+              <div class="format-short" style="width: 55%;"></div>
+            </div>
+            <span style="font-size: 11px; color: #888;">45% / 55%</span>
+          </td>
+          <td><span class="muted">0.8 /wk</span></td>
+          <td><span class="muted">3d ago</span></td>
+          <td style="text-align: right; color: #555;">›</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar cpg">OS</div>
+              <div>
+                <div class="ch-name-text">Old Spice</div>
+                <div class="ch-handle">@OldSpice</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag cpg">CPG → Personal Care</span></td>
+          <td class="num">1.8M</td>
+          <td class="num"><span class="flat">+200</span></td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">3.2K /day</span>
+              <span class="metric-norm neg">▼ -52% vs CPG</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">7.4K</span>
+              <span class="metric-norm neg">▼ -59% vs CPG</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">5.1%</span>
+              <span class="metric-norm neg">▼ -25% vs CPG</span>
+            </div>
+          </td>
+          <td>
+            <div class="format-mix">
+              <div class="format-long" style="width: 85%;"></div>
+              <div class="format-short" style="width: 15%;"></div>
+            </div>
+            <span style="font-size: 11px; color: #888;">85% / 15%</span>
+          </td>
+          <td><span class="muted">0.3 /wk</span></td>
+          <td><span class="muted">11d ago</span></td>
+          <td style="text-align: right; color: #555;">›</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar cpg">DO</div>
+              <div>
+                <div class="ch-name-text">Doritos</div>
+                <div class="ch-handle">@Doritos</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag cpg">CPG → Snacks</span></td>
+          <td class="num">1.1M</td>
+          <td class="num"><span class="up">+3.8K ↑</span></td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">11.2K /day</span>
+              <span class="metric-norm pos">▲ +65% vs CPG</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">26K</span>
+              <span class="metric-norm pos">▲ +44% vs CPG</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">8.1%</span>
+              <span class="metric-norm pos">▲ +19% vs CPG</span>
+            </div>
+          </td>
+          <td>
+            <div class="format-mix">
+              <div class="format-long" style="width: 30%;"></div>
+              <div class="format-short" style="width: 70%;"></div>
+            </div>
+            <span style="font-size: 11px; color: #888;">30% / 70%</span>
+          </td>
+          <td><span class="muted">1.2 /wk</span></td>
+          <td><span class="muted">Today</span></td>
+          <td style="text-align: right; color: #555;">›</td>
+        </tr>
+
+        <!-- HOME SECURITY -->
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar security">SS</div>
+              <div>
+                <div class="ch-name-text">SimpliSafe</div>
+                <div class="ch-handle">@simplisafe</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag security">Home → Security</span></td>
+          <td class="num">340K</td>
+          <td class="num"><span class="up">+890 ↑</span></td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">1.2K /day</span>
+              <span class="metric-norm pos">▲ +33% vs Security</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">9.4K</span>
+              <span class="metric-norm flat">— at Security avg</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">3.2%</span>
+              <span class="metric-norm pos">▲ +14% vs Security</span>
+            </div>
+          </td>
+          <td>
+            <div class="format-mix">
+              <div class="format-long" style="width: 80%;"></div>
+              <div class="format-short" style="width: 20%;"></div>
+            </div>
+            <span style="font-size: 11px; color: #888;">80% / 20%</span>
+          </td>
+          <td><span class="muted">1.1 /wk</span></td>
+          <td><span class="muted">1d ago</span></td>
+          <td style="text-align: right; color: #555;">›</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td>
+            <div class="ch-name">
+              <div class="avatar security">RI</div>
+              <div>
+                <div class="ch-name-text">Ring</div>
+                <div class="ch-handle">@Ring</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="cat-tag security">Home → Security</span></td>
+          <td class="num">520K</td>
+          <td class="num"><span class="up">+1.4K ↑</span></td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">2.1K /day</span>
+              <span class="metric-norm pos">▲ +133% vs Security</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">14.8K</span>
+              <span class="metric-norm pos">▲ +57% vs Security</span>
+            </div>
+          </td>
+          <td class="num">
+            <div class="metric-with-norm">
+              <span class="metric-value">2.4%</span>
+              <span class="metric-norm neg">▼ -14% vs Security</span>
+            </div>
+          </td>
+          <td>
+            <div class="format-mix">
+              <div class="format-long" style="width: 70%;"></div>
+              <div class="format-short" style="width: 30%;"></div>
+            </div>
+            <span style="font-size: 11px; color: #888;">70% / 30%</span>
+          </td>
+          <td><span class="muted">2.3 /wk</span></td>
+          <td><span class="muted">Today</span></td>
+          <td style="text-align: right; color: #555;">›</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Selection bar -->
+    <div style="display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #1e3a5f; border: 1px solid #3b82f6; border-radius: 8px; margin-top: 14px;">
+      <span style="color: #fff; font-weight: 600; font-size: 13px;">1 selected</span>
+      <div style="margin-left: auto; display: flex; gap: 6px;">
+        <button class="btn small">Compare ▾</button>
+        <button class="btn secondary small">Tag ▾</button>
+        <button class="btn secondary small">Tier ▾</button>
+        <button class="btn secondary small">Archive</button>
+        <button class="btn secondary small">Clear</button>
+      </div>
+    </div>
+
+    <div class="footer-bar">
+      <span>Showing 1–10 of 17 channels in scope</span>
+      <div class="right">
+        <button class="btn secondary small">◀ Prev</button>
+        <button class="btn secondary small">Next ▶</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

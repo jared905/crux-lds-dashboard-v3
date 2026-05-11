@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Research — Patterns</title>
+  <link rel="stylesheet" href="_shared.css">
+  <style>
+    .pattern-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .panel {
+      background: #131316;
+      border: 1px solid #1f1f24;
+      border-radius: 10px;
+      padding: 18px 20px;
+    }
+    .panel.wide { grid-column: span 2; }
+    .panel h3 {
+      font-size: 13px; font-weight: 700; color: #fff;
+      margin-bottom: 4px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .panel .h3-sub {
+      font-size: 11px; color: #707070; margin-bottom: 16px;
+    }
+
+    /* Compare scope */
+    .compare-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px; background: #131316; border: 1px solid #1f1f24;
+      border-radius: 8px; margin-bottom: 16px;
+    }
+    .compare-bar .vs {
+      color: #888; font-weight: 600; font-size: 12px; padding: 0 6px;
+    }
+
+    /* Pattern rows */
+    .pattern-row {
+      display: grid;
+      grid-template-columns: 1.5fr 0.7fr 0.7fr 0.7fr 0.7fr;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid #1c1c20;
+      font-size: 13px;
+    }
+    .pattern-row:last-child { border-bottom: none; }
+    .pattern-row.header {
+      font-size: 10px; font-weight: 700; color: #707070;
+      letter-spacing: 0.7px; text-transform: uppercase;
+      border-bottom: 1px solid #1f1f24; padding-bottom: 8px; margin-bottom: 4px;
+    }
+    .pattern-row .label { color: #d4d4d4; }
+    .pattern-row .num { color: #fff; text-align: right; font-variant-numeric: tabular-nums; }
+    .pattern-row .lift-pos { color: #34d399; font-weight: 600; text-align: right; }
+    .pattern-row .lift-neg { color: #f87171; font-weight: 600; text-align: right; }
+    .pattern-row .lift-flat { color: #888; text-align: right; }
+
+    /* Outlier card */
+    .outlier-card {
+      display: grid;
+      grid-template-columns: 90px 1fr auto;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #1c1c20;
+      align-items: center;
+    }
+    .outlier-card:last-child { border-bottom: none; }
+    .outlier-thumb {
+      width: 90px; height: 50px; border-radius: 5px;
+      background: linear-gradient(135deg, #2a2a30, #1c1c20);
+    }
+    .outlier-thumb.v1 { background: linear-gradient(135deg, #1e3a8a, #3b82f6); }
+    .outlier-thumb.v2 { background: linear-gradient(135deg, #831843, #ec4899); }
+    .outlier-thumb.v3 { background: linear-gradient(135deg, #14532d, #16a34a); }
+    .outlier-thumb.v4 { background: linear-gradient(135deg, #7c2d12, #f97316); }
+    .outlier-thumb.v5 { background: linear-gradient(135deg, #4c1d95, #8b5cf6); }
+    .outlier-title { font-size: 13px; color: #fff; font-weight: 600; line-height: 1.35; margin-bottom: 3px; }
+    .outlier-meta { font-size: 11px; color: #888; }
+    .outlier-meta b { color: #d4d4d4; font-weight: 600; }
+    .outlier-multi {
+      font-size: 14px; font-weight: 700; color: #34d399;
+      background: rgba(16,185,129,0.10); padding: 4px 10px; border-radius: 6px;
+      border: 1px solid rgba(16,185,129,0.25);
+    }
+
+    /* Thumb cluster preview */
+    .thumb-cluster {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+      margin-top: 12px;
+    }
+    .thumb-cluster .thumb {
+      width: 100%; height: 56px; border-radius: 4px;
+    }
+    .thumb-cluster .thumb.t1 { background: linear-gradient(135deg, #f97316, #fbbf24); }
+    .thumb-cluster .thumb.t2 { background: linear-gradient(135deg, #1e40af, #3b82f6); }
+    .thumb-cluster .thumb.t3 { background: linear-gradient(135deg, #be185d, #ec4899); }
+    .thumb-cluster .thumb.t4 { background: linear-gradient(135deg, #166534, #22c55e); }
+
+    .format-bar {
+      display: flex; height: 10px; border-radius: 3px; overflow: hidden;
+      background: #1c1c20; margin: 6px 0;
+    }
+    .format-bar div { height: 100%; }
+
+    .insight-callout {
+      margin-top: 14px;
+      padding: 10px 12px;
+      background: rgba(59,130,246,0.06);
+      border-left: 3px solid #3b82f6;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #c4d4ec;
+      line-height: 1.55;
+    }
+  </style>
+</head>
+<body>
+  <!-- ===== Top Nav ===== -->
+  <nav class="topnav">
+    <div class="logo"><span class="logo-mark"></span> FULL VIEW</div>
+    <div class="tabs">
+      <a class="tab" href="#">Performance</a>
+      <a class="tab active" href="landscape.html">Research</a>
+      <a class="tab" href="#">Content Lab</a>
+      <a class="tab" href="#">Strategy</a>
+    </div>
+    <div class="right">
+      <div class="sync-pill">
+        <span class="dot"></span>
+        <span class="label">Synced</span>
+        <span class="time">2m ago</span>
+      </div>
+      <div class="client-picker">
+        Acme Brands · NBA pitch
+        <span class="caret">▾</span>
+      </div>
+      <button class="btn secondary">Export</button>
+      <button class="btn primary">Manage</button>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="page-header">
+      <h1>Research <span class="h1-sub">Patterns · 17 channels in scope · last 90 days</span></h1>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn secondary small">★ Save view</button>
+        <button class="btn secondary small">↗ Export insights</button>
+      </div>
+    </div>
+
+    <!-- Scope bar -->
+    <div class="scope-bar">
+      <span class="scope-label">Scope</span>
+      <span class="pill saved-view"><span class="star">★</span> NBA — Top channels <span class="x">▾</span></span>
+      <span class="scope-label" style="margin-left: 8px;">Category</span>
+      <span class="pill active">Sports → NBA <span class="x">✕</span></span>
+      <span class="pill">+ Add filter</span>
+      <span class="scope-summary"><b>17</b> channels · <b>412</b> videos · last 90 days</span>
+    </div>
+
+    <!-- Lens tabs -->
+    <div class="lens-tabs">
+      <a class="lens-tab" href="landscape.html">▦ Landscape</a>
+      <a class="lens-tab active" href="patterns.html">◇ Patterns</a>
+      <a class="lens-tab" href="whitespace.html">☐ White Space</a>
+      <a class="lens-tab" href="movement.html">⌘ Movement <span class="badge-count">3</span></a>
+    </div>
+
+    <!-- Compare scope bar -->
+    <div class="compare-bar">
+      <span class="scope-label">Comparing</span>
+      <span class="pill active">Sports → NBA</span>
+      <span class="vs">vs</span>
+      <span class="select-pill">All channels (platform avg) <span class="caret">▾</span></span>
+      <span style="margin-left: auto; font-size: 11px; color: #707070;">412 videos in NBA · 8,420 videos in baseline</span>
+    </div>
+
+    <!-- TITLE PATTERNS (full width) -->
+    <div class="panel wide" style="margin-bottom: 16px;">
+      <h3>◇ Title patterns</h3>
+      <div class="h3-sub">Engagement rate is (likes + comments) / views. Lift shown vs comparison scope.</div>
+
+      <div class="pattern-row header">
+        <span class="label">Pattern</span>
+        <span class="num">Freq in NBA</span>
+        <span class="num">Engagement (NBA)</span>
+        <span class="num">vs platform</span>
+        <span class="num">Median views</span>
+      </div>
+
+      <div class="pattern-row">
+        <span class="label">Contains question mark</span>
+        <span class="num">8%</span>
+        <span class="num">6.2%</span>
+        <span class="lift-pos">▲ +24% vs platform</span>
+        <span class="num">1.8M</span>
+      </div>
+      <div class="pattern-row">
+        <span class="label">Contains numbers (Top 5, etc.)</span>
+        <span class="num">14%</span>
+        <span class="num">5.9%</span>
+        <span class="lift-pos">▲ +18% vs platform</span>
+        <span class="num">1.4M</span>
+      </div>
+      <div class="pattern-row">
+        <span class="label">Player name in title (proper noun)</span>
+        <span class="num">62%</span>
+        <span class="num">4.1%</span>
+        <span class="lift-flat">— at platform avg</span>
+        <span class="num">980K</span>
+      </div>
+      <div class="pattern-row">
+        <span class="label">Game outcome phrase ("vs," "defeats")</span>
+        <span class="num">28%</span>
+        <span class="num">3.4%</span>
+        <span class="lift-neg">▼ -18% vs platform</span>
+        <span class="num">720K</span>
+      </div>
+      <div class="pattern-row">
+        <span class="label">All caps word</span>
+        <span class="num">11%</span>
+        <span class="num">5.1%</span>
+        <span class="lift-pos">▲ +9% vs platform</span>
+        <span class="num">1.1M</span>
+      </div>
+      <div class="pattern-row">
+        <span class="label">Emoji in title</span>
+        <span class="num">22%</span>
+        <span class="num">5.8%</span>
+        <span class="lift-pos">▲ +14% vs platform</span>
+        <span class="num">1.3M</span>
+      </div>
+
+      <div class="insight-callout">
+        <b>What this says:</b> In NBA, question-mark titles outperform platform-wide by 24% — about double the platform-wide lift (12%). Numbered lists and emojis also outperform. Game-outcome phrasing underperforms, likely because the result is in the thumbnail anyway, so the title carries no surprise.
+      </div>
+    </div>
+
+    <!-- THUMBNAIL + FORMAT side by side -->
+    <div class="pattern-grid">
+      <div class="panel">
+        <h3>▢ Thumbnail patterns</h3>
+        <div class="h3-sub">Visual treatments and what they correlate with.</div>
+
+        <div class="pattern-row header" style="grid-template-columns: 1.5fr 0.7fr 0.7fr;">
+          <span class="label">Treatment</span>
+          <span class="num">Freq</span>
+          <span class="num">vs platform</span>
+        </div>
+        <div class="pattern-row" style="grid-template-columns: 1.5fr 0.7fr 0.7fr;">
+          <span class="label">Player face close-up</span>
+          <span class="num">48%</span>
+          <span class="lift-pos">▲ +21%</span>
+        </div>
+        <div class="pattern-row" style="grid-template-columns: 1.5fr 0.7fr 0.7fr;">
+          <span class="label">Bold text overlay</span>
+          <span class="num">61%</span>
+          <span class="lift-pos">▲ +12%</span>
+        </div>
+        <div class="pattern-row" style="grid-template-columns: 1.5fr 0.7fr 0.7fr;">
+          <span class="label">Score / numbers visible</span>
+          <span class="num">23%</span>
+          <span class="lift-neg">▼ -8%</span>
+        </div>
+        <div class="pattern-row" style="grid-template-columns: 1.5fr 0.7fr 0.7fr;">
+          <span class="label">High-contrast color (red/yellow)</span>
+          <span class="num">31%</span>
+          <span class="lift-pos">▲ +6%</span>
+        </div>
+        <div class="pattern-row" style="grid-template-columns: 1.5fr 0.7fr 0.7fr;">
+          <span class="label">Game footage still (no overlay)</span>
+          <span class="num">17%</span>
+          <span class="lift-neg">▼ -15%</span>
+        </div>
+
+        <div class="thumb-cluster">
+          <div class="thumb t1"></div>
+          <div class="thumb t2"></div>
+          <div class="thumb t3"></div>
+          <div class="thumb t4"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>▥ Format mix &amp; cadence</h3>
+        <div class="h3-sub">Where uploads concentrate across the category.</div>
+
+        <div style="margin-top: 14px;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; color: #aaa; margin-bottom: 4px;">
+            <span>NBA format split</span>
+            <span><b style="color: #fff;">38%</b> long-form / <b style="color: #fff;">62%</b> Shorts</span>
+          </div>
+          <div class="format-bar">
+            <div style="background: #0ea5e9; width: 38%;"></div>
+            <div style="background: #f97316; width: 62%;"></div>
+          </div>
+          <div style="font-size: 11px; color: #888; margin-top: 4px;">Platform avg: 64% long / 36% Shorts — NBA leans Shorts-heavy</div>
+        </div>
+
+        <div style="margin-top: 22px;">
+          <div style="font-size: 11px; color: #707070; letter-spacing: 0.7px; text-transform: uppercase; margin-bottom: 10px;">Posting time density (Mountain Time)</div>
+          <div style="display: grid; grid-template-columns: 60px repeat(7, 1fr); gap: 3px; font-size: 10px;">
+            <span></span>
+            <span style="text-align:center;color:#666;">M</span><span style="text-align:center;color:#666;">T</span><span style="text-align:center;color:#666;">W</span><span style="text-align:center;color:#666;">T</span><span style="text-align:center;color:#666;">F</span><span style="text-align:center;color:#666;">S</span><span style="text-align:center;color:#666;">S</span>
+            <span style="color:#666;">9am</span>
+            <div style="background:#1c1c20;height:14px;border-radius:2px;"></div>
+            <div style="background:#1e3a5f;height:14px;border-radius:2px;"></div>
+            <div style="background:#1c1c20;height:14px;border-radius:2px;"></div>
+            <div style="background:#1c1c20;height:14px;border-radius:2px;"></div>
+            <div style="background:#1e3a5f;height:14px;border-radius:2px;"></div>
+            <div style="background:#1c1c20;height:14px;border-radius:2px;"></div>
+            <div style="background:#1c1c20;height:14px;border-radius:2px;"></div>
+            <span style="color:#666;">3pm</span>
+            <div style="background:#1e3a5f;height:14px;border-radius:2px;"></div>
+            <div style="background:#3b82f6;height:14px;border-radius:2px;"></div>
+            <div style="background:#3b82f6;height:14px;border-radius:2px;"></div>
+            <div style="background:#3b82f6;height:14px;border-radius:2px;"></div>
+            <div style="background:#60a5fa;height:14px;border-radius:2px;"></div>
+            <div style="background:#1e3a5f;height:14px;border-radius:2px;"></div>
+            <div style="background:#1c1c20;height:14px;border-radius:2px;"></div>
+            <span style="color:#666;">9pm</span>
+            <div style="background:#3b82f6;height:14px;border-radius:2px;"></div>
+            <div style="background:#60a5fa;height:14px;border-radius:2px;"></div>
+            <div style="background:#bfdbfe;height:14px;border-radius:2px;"></div>
+            <div style="background:#bfdbfe;height:14px;border-radius:2px;"></div>
+            <div style="background:#3b82f6;height:14px;border-radius:2px;"></div>
+            <div style="background:#60a5fa;height:14px;border-radius:2px;"></div>
+            <div style="background:#1e3a5f;height:14px;border-radius:2px;"></div>
+            <span style="color:#666;">3am</span>
+            <div style="background:#1c1c20;height:14px;border-radius:2px;"></div>
+            <div style="background:#1c1c20;height:14px;border-radius:2px;"></div>
+            <div style="background:#1c1c20;height:14px;border-radius:2px;"></div>
+            <div style="background:#1c1c20;height:14px;border-radius:2px;"></div>
+            <div style="background:#1c1c20;height:14px;border-radius:2px;"></div>
+            <div style="background:#1c1c20;height:14px;border-radius:2px;"></div>
+            <div style="background:#1c1c20;height:14px;border-radius:2px;"></div>
+          </div>
+          <div style="font-size: 11px; color: #888; margin-top: 8px;">NBA uploads cluster 6pm–11pm MT on game days (Wed–Fri). Mornings are empty.</div>
+        </div>
+
+        <div class="insight-callout">
+          NBA is Shorts-dominant but heaviest hitters (Lakers, Marvel-tier accounts) still publish 1–2 long-form weekly. The 9–11pm slot is the densest — and the most competitive.
+        </div>
+      </div>
+    </div>
+
+    <!-- OUTLIERS (full width) -->
+    <div class="panel wide" style="margin-top: 16px;">
+      <h3>↗ Outliers <span style="font-weight: 500; color: #707070; font-size: 11px; margin-left: 6px;">videos &gt; 2× channel median</span></h3>
+      <div class="h3-sub">Proof points for pitch decks. Sorted by multiplier.</div>
+
+      <div class="outlier-card">
+        <div class="outlier-thumb v1"></div>
+        <div>
+          <div class="outlier-title">LeBron's last play of the season — the moment everyone missed</div>
+          <div class="outlier-meta"><b>Lakers</b> · 4.2M views · 6 days · <b>5.8%</b> engagement</div>
+        </div>
+        <div class="outlier-multi">3.5× median</div>
+      </div>
+      <div class="outlier-card">
+        <div class="outlier-thumb v2"></div>
+        <div>
+          <div class="outlier-title">Doritos: We rebuilt our crunch sound from scratch</div>
+          <div class="outlier-meta"><b>Doritos</b> · 280K views · 11 days · <b>11.4%</b> engagement</div>
+        </div>
+        <div class="outlier-multi">3.1× median</div>
+      </div>
+      <div class="outlier-card">
+        <div class="outlier-thumb v3"></div>
+        <div>
+          <div class="outlier-title">The 14-second Warriors play that broke X all weekend</div>
+          <div class="outlier-meta"><b>Golden State Warriors</b> · 1.8M views · 3 days · <b>9.2%</b> engagement</div>
+        </div>
+        <div class="outlier-multi">2.8× median</div>
+      </div>
+      <div class="outlier-card">
+        <div class="outlier-thumb v4"></div>
+        <div>
+          <div class="outlier-title">Inside the A24 art department for "Beau is Afraid"</div>
+          <div class="outlier-meta"><b>A24</b> · 540K views · 18 days · <b>13.1%</b> engagement</div>
+        </div>
+        <div class="outlier-multi">2.4× median</div>
+      </div>
+      <div class="outlier-card">
+        <div class="outlier-thumb v5"></div>
+        <div>
+          <div class="outlier-title">Ring catches porch pirate in the act — slow motion replay</div>
+          <div class="outlier-meta"><b>Ring</b> · 89K views · 9 days · <b>5.8%</b> engagement</div>
+        </div>
+        <div class="outlier-multi">2.2× median</div>
+      </div>
+
+      <div class="insight-callout">
+        <b>Cross-vertical pattern:</b> Four of the top five outliers above use a "moment-of-surprise" frame ("the moment everyone missed," "the play that broke X," "in the act"). The CPG entry (Doritos) is the outlier-of-outliers — a making-of narrative on something audiences thought of as trivial. That structure may be transferable.
+      </div>
+    </div>
+  </div>
+</body>
+</html>

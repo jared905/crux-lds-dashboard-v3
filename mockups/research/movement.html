@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Research — Movement</title>
+  <link rel="stylesheet" href="_shared.css">
+  <style>
+    .movement-layout { display: grid; grid-template-columns: 1fr 320px; gap: 24px; }
+
+    .day-group { margin-bottom: 28px; }
+    .day-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 1.4px; color: #555;
+      text-transform: uppercase; margin-bottom: 12px;
+    }
+
+    .card {
+      background: #131316; border: 1px solid #1f1f24; border-radius: 10px;
+      padding: 14px 16px; margin-bottom: 8px;
+      transition: all 0.15s ease;
+    }
+    .card:hover { border-color: #2a2a30; }
+    .card-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+    .card-thumb {
+      width: 82px; height: 46px; border-radius: 5px; flex-shrink: 0;
+      background: linear-gradient(135deg, #2a2a30, #1c1c20);
+    }
+    .card-thumb.t1 { background: linear-gradient(135deg, #c2410c, #f97316); }
+    .card-thumb.t2 { background: linear-gradient(135deg, #831843, #ec4899); }
+    .card-thumb.t3 { background: linear-gradient(135deg, #166534, #22c55e); }
+    .card-thumb.t4 { background: linear-gradient(135deg, #4c1d95, #8b5cf6); }
+    .card-thumb.t5 { background: linear-gradient(135deg, #0c4a6e, #0ea5e9); }
+    .card-thumb.t6 { background: linear-gradient(135deg, #7c2d12, #ea580c); }
+    .card-body { flex: 1; min-width: 0; }
+    .card-channel { font-size: 11px; color: #707070; font-weight: 600; letter-spacing: 0.3px; margin-bottom: 3px; }
+    .card-title { font-size: 14px; color: #fff; font-weight: 600; line-height: 1.4; margin-bottom: 4px; }
+    .card-meta { font-size: 12px; color: #909090; }
+    .card-meta b { color: #fff; font-weight: 600; }
+    .card-tag {
+      display: inline-block; padding: 3px 9px; border-radius: 4px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.5px; flex-shrink: 0;
+    }
+    .card-tag.breakout { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .card-tag.format { background: rgba(139,92,246,0.12); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
+    .card-tag.rank { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+    .card-tag.new { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+    .card-tag.trend { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+    .card-actions { display: flex; gap: 6px; padding-top: 10px; border-top: 1px solid #1c1c20; }
+    .card-action {
+      font-size: 12px; color: #888; padding: 4px 10px; border-radius: 5px; cursor: pointer;
+      background: transparent; border: none; font-family: inherit;
+    }
+    .card-action:hover { background: #1c1c20; color: #fff; }
+    .card-action.primary { color: #60a5fa; }
+    .card-action.primary:hover { background: rgba(59,130,246,0.1); }
+
+    .more-link {
+      display: block; text-align: center; padding: 10px; color: #666;
+      font-size: 12px; cursor: pointer; border-radius: 6px;
+    }
+    .more-link:hover { background: #131316; color: #fff; }
+
+    /* Takeaways column */
+    .takeaways {
+      background: linear-gradient(135deg, #14132a 0%, #1a1830 100%);
+      border: 1px solid #2a2840; border-radius: 10px; padding: 18px;
+      position: sticky; top: 90px;
+    }
+    .takeaways h3 {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.4px; color: #a78bfa;
+      text-transform: uppercase; margin-bottom: 4px;
+    }
+    .takeaways .sub { font-size: 11px; color: #666; margin-bottom: 14px; }
+    .takeaway-item { padding: 11px 0; border-bottom: 1px solid #252338; }
+    .takeaway-item:last-child { border-bottom: none; }
+    .takeaway-num {
+      display: inline-block; width: 20px; height: 20px; border-radius: 50%;
+      background: rgba(139,92,246,0.2); color: #c4b5fd; font-size: 11px; font-weight: 700;
+      text-align: center; line-height: 20px; margin-right: 8px; vertical-align: top;
+    }
+    .takeaway-text {
+      display: inline-block; width: calc(100% - 32px); font-size: 12px;
+      color: #d4d4dc; line-height: 1.55;
+    }
+    .takeaway-foot {
+      margin-top: 14px; padding-top: 12px; border-top: 1px solid #252338;
+      font-size: 11px; color: #888;
+    }
+
+    /* Filter chips for movement type */
+    .move-filters { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <!-- ===== Top Nav ===== -->
+  <nav class="topnav">
+    <div class="logo"><span class="logo-mark"></span> FULL VIEW</div>
+    <div class="tabs">
+      <a class="tab" href="#">Performance</a>
+      <a class="tab active" href="landscape.html">Research</a>
+      <a class="tab" href="#">Content Lab</a>
+      <a class="tab" href="#">Strategy</a>
+    </div>
+    <div class="right">
+      <div class="sync-pill">
+        <span class="dot"></span>
+        <span class="label">Synced</span>
+        <span class="time">2m ago</span>
+      </div>
+      <div class="client-picker">
+        Acme Brands · NBA pitch
+        <span class="caret">▾</span>
+      </div>
+      <button class="btn secondary">Export</button>
+      <button class="btn primary">Manage</button>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="page-header">
+      <h1>Research <span class="h1-sub">Movement · 17 channels in scope · last 30 days</span></h1>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn secondary small">Mark all read</button>
+        <button class="btn secondary small">⚙ Alert rules</button>
+      </div>
+    </div>
+
+    <!-- Scope bar -->
+    <div class="scope-bar">
+      <span class="scope-label">Scope</span>
+      <span class="pill saved-view"><span class="star">★</span> NBA — Top channels <span class="x">▾</span></span>
+      <span class="scope-label" style="margin-left: 8px;">Category</span>
+      <span class="pill active">Sports → NBA <span class="x">✕</span></span>
+      <span class="pill">+ Add filter</span>
+      <span class="scope-summary"><b>17</b> channels · <b>23</b> events · last 30 days</span>
+    </div>
+
+    <!-- Lens tabs -->
+    <div class="lens-tabs">
+      <a class="lens-tab" href="landscape.html">▦ Landscape</a>
+      <a class="lens-tab" href="patterns.html">◇ Patterns</a>
+      <a class="lens-tab" href="whitespace.html">☐ White Space</a>
+      <a class="lens-tab active" href="movement.html">⌘ Movement <span class="badge-count">3</span></a>
+    </div>
+
+    <!-- Type filters -->
+    <div class="move-filters">
+      <span class="scope-label">Type</span>
+      <span class="pill active">All</span>
+      <span class="pill">🔥 Breakouts (8)</span>
+      <span class="pill">◇ Format shifts (4)</span>
+      <span class="pill">↑ Rank changes (3)</span>
+      <span class="pill">📈 Trends (5)</span>
+      <span class="pill">+ New entrants (3)</span>
+    </div>
+
+    <div class="movement-layout">
+      <!-- Movement feed -->
+      <div>
+        <div class="day-group">
+          <div class="day-label">Today · May 11</div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-thumb t1"></div>
+              <div class="card-body">
+                <div class="card-channel">Lakers</div>
+                <div class="card-title">"LeBron's last play of the season — the moment everyone missed"</div>
+                <div class="card-meta"><b>4.2M</b> views · 6 days · <b class="up">3.5×</b> channel median · <b>5.8%</b> engagement</div>
+              </div>
+              <span class="card-tag breakout">🔥 BREAKOUT</span>
+            </div>
+            <div class="card-actions">
+              <button class="card-action primary">Open channel</button>
+              <button class="card-action">Pin to brief</button>
+              <button class="card-action">Dismiss</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-thumb t3"></div>
+              <div class="card-body">
+                <div class="card-channel">Doritos</div>
+                <div class="card-title">New recurring series: "We Built This From Scratch"</div>
+                <div class="card-meta"><b>3</b> uploads in 9 days · long-form (8–12 min) · avg <b>120K</b> views</div>
+              </div>
+              <span class="card-tag format">◇ FORMAT SHIFT</span>
+            </div>
+            <div class="card-actions">
+              <button class="card-action primary">Open channel</button>
+              <button class="card-action">Compare to CPG norm</button>
+              <button class="card-action">Dismiss</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="day-group">
+          <div class="day-label">Yesterday · May 10</div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-thumb t4"></div>
+              <div class="card-body">
+                <div class="card-channel">Marvel Entertainment</div>
+                <div class="card-title">CTR-proxy (engagement) up <b>+22%</b> across last 14 days</div>
+                <div class="card-meta">5.2% → 6.4% engagement · sustained across 6 uploads · titles trending toward question format</div>
+              </div>
+              <span class="card-tag trend">📈 TREND</span>
+            </div>
+            <div class="card-actions">
+              <button class="card-action primary">Open channel</button>
+              <button class="card-action">View titles</button>
+              <button class="card-action">Dismiss</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-thumb t5"></div>
+              <div class="card-body">
+                <div class="card-channel">Ring &nbsp;→&nbsp; SimpliSafe</div>
+                <div class="card-title">Ring overtook SimpliSafe in 30-day view velocity</div>
+                <div class="card-meta">Ring <b class="up">+18%</b> · SimpliSafe <b class="down">−6%</b> · gap closed over 14 days</div>
+              </div>
+              <span class="card-tag rank">↑ RANK CHANGE</span>
+            </div>
+            <div class="card-actions">
+              <button class="card-action primary">Compare these two</button>
+              <button class="card-action">Dismiss</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="day-group">
+          <div class="day-label">Earlier this week</div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-thumb t2"></div>
+              <div class="card-body">
+                <div class="card-channel">Golden State Warriors</div>
+                <div class="card-title">"The 14-second Warriors play that broke X all weekend"</div>
+                <div class="card-meta"><b>1.8M</b> views · 3 days · <b class="up">2.8×</b> channel median · <b>9.2%</b> engagement</div>
+              </div>
+              <span class="card-tag breakout">🔥 BREAKOUT</span>
+            </div>
+            <div class="card-actions">
+              <button class="card-action primary">Open channel</button>
+              <button class="card-action">Pin to brief</button>
+              <button class="card-action">Dismiss</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-thumb t6"></div>
+              <div class="card-body">
+                <div class="card-channel">New channel tracked</div>
+                <div class="card-title">A24 added to scope</div>
+                <div class="card-meta">1.4M subs · 247 videos · auto-categorized as <b>Hollywood</b> · tagged <b>creator-led</b></div>
+              </div>
+              <span class="card-tag new">+ NEW</span>
+            </div>
+            <div class="card-actions">
+              <button class="card-action primary">Open profile</button>
+              <button class="card-action">Promote to priority</button>
+              <button class="card-action">Dismiss</button>
+            </div>
+          </div>
+
+          <a class="more-link">Show 17 more events from earlier this week</a>
+        </div>
+      </div>
+
+      <!-- AI takeaways -->
+      <aside class="takeaways">
+        <h3>This week's takeaways</h3>
+        <div class="sub">AI synthesis · refreshes daily · last 7 days</div>
+
+        <div class="takeaway-item">
+          <span class="takeaway-num">1</span>
+          <span class="takeaway-text">"Moment of surprise" framing is the strongest cross-vertical breakout pattern this week. 4 of the top 5 outliers across NBA, CPG, and Hollywood use this structure. Worth proposing as a transferable frame to any client this week.</span>
+        </div>
+
+        <div class="takeaway-item">
+          <span class="takeaway-num">2</span>
+          <span class="takeaway-text">CPG is starting to use long-form storytelling. Doritos's "We Built This From Scratch" is the second CPG channel in 30 days to launch a long-form series with documentary structure. If a CPG client is publishing only Shorts, this is the strongest counter-example to flag.</span>
+        </div>
+
+        <div class="takeaway-item">
+          <span class="takeaway-num">3</span>
+          <span class="takeaway-text">Home security is consolidating around Ring. Ring overtook SimpliSafe this week on view velocity and is widening the gap on uploads-per-week. SimpliSafe is publishing less and slower. Window of opportunity for a new entrant.</span>
+        </div>
+
+        <div class="takeaway-foot">
+          Updated 2 hours ago<br>
+          <a style="color:#a78bfa;font-weight:600;text-decoration:none;cursor:pointer;">View previous weeks →</a>
+        </div>
+      </aside>
+    </div>
+  </div>
+</body>
+</html>
