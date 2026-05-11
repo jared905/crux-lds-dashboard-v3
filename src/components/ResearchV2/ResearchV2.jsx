@@ -5,7 +5,7 @@
  * White Space / Movement). See mockups/research/ for the spec.
  */
 import React, { useState } from 'react';
-import { Globe, BarChart3, Square, Inbox } from 'lucide-react';
+import { Globe, BarChart3, Square, Inbox, RefreshCw, Loader } from 'lucide-react';
 import ScopeBar from './ScopeBar.jsx';
 import LandscapeLens from './LandscapeLens.jsx';
 
@@ -26,6 +26,30 @@ export default function ResearchV2() {
     windowDays: 30,
   });
   const [alertCount, setAlertCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleRefresh = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const resp = await fetch('/api/sync-competitors?manual=true', { method: 'POST' });
+      const data = await resp.json();
+      if (data.success || resp.ok) {
+        setSyncResult({ ok: true, message: `Synced ${data.channels_synced || 0} channels` });
+        setRefreshKey(k => k + 1); // force lens reload
+      } else {
+        setSyncResult({ ok: false, message: data.error || 'Sync failed' });
+      }
+    } catch (err) {
+      setSyncResult({ ok: false, message: err.message });
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncResult(null), 6000);
+    }
+  };
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: '1500px', margin: '0 auto' }}>
@@ -35,6 +59,36 @@ export default function ResearchV2() {
             Competitor intelligence hub
           </span>
         </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {syncResult && (
+            <span style={{
+              fontSize: '12px',
+              color: syncResult.ok ? '#34d399' : '#f87171',
+              fontWeight: 500,
+            }}>
+              {syncResult.ok ? '✓ ' : '✕ '}{syncResult.message}
+            </span>
+          )}
+          <button
+            onClick={handleRefresh}
+            disabled={syncing}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '7px 14px', borderRadius: '6px',
+              background: syncing ? '#1c1c20' : '#18181c',
+              border: '1px solid #232328',
+              color: syncing ? '#666' : '#d4d4d8',
+              fontSize: '13px', fontWeight: 600,
+              cursor: syncing ? 'wait' : 'pointer',
+              fontFamily: 'inherit',
+            }}
+            title="Pull latest data for all tracked competitor channels (last 90 days)"
+          >
+            {syncing
+              ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Syncing competitors…</>
+              : <><RefreshCw size={13} /> Refresh data</>}
+          </button>
+        </div>
       </div>
 
       <ScopeBar scope={scope} onChange={setScope} />
@@ -95,7 +149,7 @@ export default function ResearchV2() {
       </div>
 
       {/* Active lens content */}
-      {activeLens === 'landscape' && <LandscapeLens scope={scope} />}
+      {activeLens === 'landscape' && <LandscapeLens scope={scope} refreshKey={refreshKey} />}
     </div>
   );
 }

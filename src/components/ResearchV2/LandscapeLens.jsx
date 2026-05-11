@@ -21,7 +21,7 @@ const SORTS = {
   lastUpload: { label: 'Last upload', get: c => c.lastUpload ? new Date(c.lastUpload).getTime() : 0 },
 };
 
-export default function LandscapeLens({ scope }) {
+export default function LandscapeLens({ scope, refreshKey = 0 }) {
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState('velocity');
@@ -42,6 +42,7 @@ export default function LandscapeLens({ scope }) {
     scope.tiers?.join(','),
     scope.search,
     scope.windowDays,
+    refreshKey,
   ]);
 
   const norms = useMemo(() => computeCategoryNorms(channels), [channels]);

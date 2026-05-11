@@ -421,9 +421,10 @@ async function syncChannel(channel, apiKey) {
  * Main handler
  */
 export default async function handler(req, res) {
-  // Verify cron secret (optional but recommended)
+  // Verify auth: cron secret OR ?manual=true (mirrors daily-sync pattern)
   const cronSecret = req.headers['x-vercel-cron-secret'];
-  if (process.env.CRON_SECRET && cronSecret !== process.env.CRON_SECRET) {
+  const manualTrigger = req.query?.manual === 'true';
+  if (!manualTrigger && process.env.CRON_SECRET && cronSecret !== process.env.CRON_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
