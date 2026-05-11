@@ -29,7 +29,6 @@ import TopNav from "./components/Shared/TopNav.jsx";
 import DashboardPage from "./components/Performance/DashboardPage.jsx";
 import DataStandardizer from "./components/Settings/DataStandardizer.jsx";
 import PerformanceFeedback from "./components/Strategy/PerformanceFeedback.jsx";
-import CompetitorAnalysis from "./components/Research/CompetitorAnalysis.jsx";
 import ResearchV2 from "./components/ResearchV2/ResearchV2.jsx";
 import CommentAnalysis from "./components/Research/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContentIntelligence.jsx";
@@ -1307,10 +1306,6 @@ export default function App() {
                 channelSubscriberMap={allChannelStats}
                 selectedChannel={selectedChannel}
               />
-            )}
-
-            {tab === "competitors" && (
-              <CompetitorAnalysis rows={filtered} activeClient={activeClient} />
             )}
 
             {tab === "research-v2" && (

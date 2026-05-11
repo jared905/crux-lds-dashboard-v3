@@ -34,8 +34,7 @@ export const MAIN_SECTIONS = [
     label: "Research",
     icon: Search,
     tabs: [
-      { id: "research-v2", label: "Competitors (v2)", icon: Users },
-      { id: "competitors", label: "Competitors (legacy)", icon: Users },
+      { id: "research-v2", label: "Competitors", icon: Users },
       { id: "gap-detection", label: "Gap Detection", icon: Crosshair },
       { id: "comments", label: "Comments", icon: MessageSquare },
     ],
