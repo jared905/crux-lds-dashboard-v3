@@ -246,16 +246,35 @@ export default async function handler(req, res) {
         .in('id', body.channel_ids);
       channels = data || [];
     } else if (body.all_uncategorized) {
-      // Find channels with NO category assignments (left join via NOT IN)
-      const { data: assigned } = await supabase.from('channel_categories').select('channel_id');
+      // Find channels with no category assignments. Order by
+      // last_classified_at NULLS FIRST so never-classified rows always
+      // surface to the top — regardless of how big the channel set is.
+      // Page through results to handle channel sets larger than Supabase's
+      // 1000-row default cap.
+      const { data: assigned } = await supabase
+        .from('channel_categories')
+        .select('channel_id')
+        .range(0, 9999);
       const assignedIds = new Set((assigned || []).map(r => r.channel_id));
-      const { data: all } = await supabase
-        .from('channels')
-        .select('id, name, custom_url, description, subscriber_count, youtube_channel_id, last_classified_at, classification_locked')
-        .eq('is_competitor', true)
-        .neq('tier', 'archive')
-        .limit(500);
-      channels = (all || []).filter(c => !assignedIds.has(c.id)).slice(0, limit);
+
+      channels = [];
+      const PAGE = 500;
+      for (let offset = 0; offset < 5000 && channels.length < limit; offset += PAGE) {
+        const { data: page } = await supabase
+          .from('channels')
+          .select('id, name, custom_url, description, subscriber_count, youtube_channel_id, last_classified_at, classification_locked')
+          .eq('is_competitor', true)
+          .neq('tier', 'archive')
+          .order('last_classified_at', { ascending: true, nullsFirst: true })
+          .range(offset, offset + PAGE - 1);
+        if (!page?.length) break;
+        for (const ch of page) {
+          if (assignedIds.has(ch.id)) continue;
+          channels.push(ch);
+          if (channels.length >= limit) break;
+        }
+        if (page.length < PAGE) break; // last page
+      }
     } else {
       return res.status(400).json({ error: 'Provide channel_ids[] or all_uncategorized=true' });
     }
@@ -331,8 +350,17 @@ Return ONLY this JSON shape (no markdown):
     // UI accurately chain calls until the whole queue is drained.
     let globalRemaining = Math.max(0, queue.length - i);
     if (body.all_uncategorized) {
-      const { data: stillAssigned } = await supabase.from('channel_categories').select('channel_id');
-      const stillAssignedIds = new Set((stillAssigned || []).map(r => r.channel_id));
+      // Page the channel_categories query so the assigned-set count isn't
+      // truncated at Supabase's 1000-row default.
+      const stillAssignedIds = new Set();
+      for (let offset = 0; offset < 50000; offset += 1000) {
+        const { data: page } = await supabase.from('channel_categories')
+          .select('channel_id')
+          .range(offset, offset + 999);
+        if (!page?.length) break;
+        for (const r of page) stillAssignedIds.add(r.channel_id);
+        if (page.length < 1000) break;
+      }
       const { count: totalChannels } = await supabase
         .from('channels')
         .select('id', { count: 'exact', head: true })
