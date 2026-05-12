@@ -9,6 +9,7 @@ import { supabase } from '../../services/supabaseClient';
 import { computeNormDelta } from '../../services/researchV2Service.js';
 
 export default function ChannelDrawer({ channel, norms, onClose }) {
+  const [topVideos, setTopVideos] = useState([]);
   const [recentVideos, setRecentVideos] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -17,13 +18,16 @@ export default function ChannelDrawer({ channel, norms, onClose }) {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      const { data } = await supabase
-        .from('videos')
-        .select('id, youtube_video_id, title, thumbnail_url, view_count, like_count, comment_count, published_at, duration_seconds')
-        .eq('channel_id', channel.id)
-        .order('view_count', { ascending: false })
-        .limit(5);
-      if (!cancelled) { setRecentVideos(data || []); setLoading(false); }
+      const cols = 'id, youtube_video_id, title, thumbnail_url, view_count, like_count, comment_count, published_at, duration_seconds';
+      const [topRes, recentRes] = await Promise.all([
+        supabase.from('videos').select(cols).eq('channel_id', channel.id).order('view_count',   { ascending: false }).limit(5),
+        supabase.from('videos').select(cols).eq('channel_id', channel.id).order('published_at', { ascending: false }).limit(5),
+      ]);
+      if (!cancelled) {
+        setTopVideos(topRes.data || []);
+        setRecentVideos(recentRes.data || []);
+        setLoading(false);
+      }
     };
     load();
     return () => { cancelled = true; };
@@ -116,15 +120,27 @@ export default function ChannelDrawer({ channel, norms, onClose }) {
               : '—'} />
           <MetricRow label="Last upload" value={formatLastUpload(channel.lastUpload)} />
 
-          {/* Top videos */}
-          <SectionTitle style={{ marginTop: '22px' }}>Top videos (window)</SectionTitle>
+          {/* Top videos by view count */}
+          <SectionTitle style={{ marginTop: '22px' }}>Top videos (all time)</SectionTitle>
+          {loading ? (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+              <Loader size={16} />
+            </div>
+          ) : topVideos.length === 0 ? (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#666', fontSize: '12px' }}>
+              No videos
+            </div>
+          ) : topVideos.map(v => <VideoRow key={v.id} video={v} />)}
+
+          {/* Most recent uploads */}
+          <SectionTitle style={{ marginTop: '22px' }}>Most recent uploads</SectionTitle>
           {loading ? (
             <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
               <Loader size={16} />
             </div>
           ) : recentVideos.length === 0 ? (
             <div style={{ padding: '20px', textAlign: 'center', color: '#666', fontSize: '12px' }}>
-              No videos in window
+              No uploads yet
             </div>
           ) : recentVideos.map(v => <VideoRow key={v.id} video={v} />)}
 
@@ -207,6 +223,7 @@ function VideoRow({ video }) {
         </div>
         <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
           {formatNumber(video.view_count)} views · {video.like_count?.toLocaleString() || 0} likes
+          {video.published_at && <> · {formatLastUpload(video.published_at)}</>}
         </div>
       </div>
     </a>

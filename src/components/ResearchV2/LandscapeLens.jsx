@@ -191,8 +191,16 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
         </div>
       </Td>
       <Td>
-        {channel.categories[0] && (
-          <CategoryTag category={channel.categories[0]} />
+        {channel.categories.length === 0 ? (
+          <span style={{
+            fontSize: '11px', color: '#555', fontStyle: 'italic',
+          }}>Uncategorized</span>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+            {channel.categories.map(c => (
+              <CategoryTag key={c.id} category={c} />
+            ))}
+          </div>
         )}
       </Td>
       <Td align="right">{formatNumber(channel.subscriberCount)}</Td>
