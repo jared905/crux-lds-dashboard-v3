@@ -217,10 +217,25 @@ function detectContentFormat(title) {
  * Sync a single channel
  */
 async function syncChannel(channel, apiKey) {
-  // Fetch fresh data from YouTube
-  const channelDetails = await fetchChannelDetails(channel.youtube_channel_id, apiKey);
+  const attemptAt = new Date().toISOString();
 
-  // Update channel record
+  // Fetch fresh data from YouTube. On failure, persist the error so the row
+  // doesn't look "merely stale" — caller catches and re-throws.
+  let channelDetails;
+  try {
+    channelDetails = await fetchChannelDetails(channel.youtube_channel_id, apiKey);
+  } catch (err) {
+    await supabase
+      .from('channels')
+      .update({
+        last_sync_attempt_at: attemptAt,
+        last_sync_error: (err.message || String(err)).slice(0, 500),
+      })
+      .eq('id', channel.id);
+    throw err;
+  }
+
+  // Update channel record (success path clears any prior error)
   await supabase
     .from('channels')
     .update({
@@ -229,6 +244,8 @@ async function syncChannel(channel, apiKey) {
       total_view_count: channelDetails.total_view_count,
       video_count: channelDetails.video_count,
       last_synced_at: new Date().toISOString(),
+      last_sync_attempt_at: attemptAt,
+      last_sync_error: null,
     })
     .eq('id', channel.id);
 

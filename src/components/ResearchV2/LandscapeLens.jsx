@@ -3,12 +3,13 @@
  * Inline category norms, sortable columns, click-row → drawer.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronUp, ChevronDown, Loader, Sparkles } from 'lucide-react';
+import { ChevronUp, ChevronDown, Loader, Sparkles, Wand2, AlertTriangle } from 'lucide-react';
 import {
   fetchLandscapeChannels,
   computeCategoryNorms,
   computeNormDelta,
 } from '../../services/researchV2Service.js';
+import { supabase } from '../../services/supabaseClient';
 import ChannelDrawer from './ChannelDrawer.jsx';
 
 const SORTS = {
@@ -30,6 +31,9 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
   const [openChannel, setOpenChannel] = useState(null);
   const [classifying, setClassifying] = useState(false);
   const [classifyStatus, setClassifyStatus] = useState(null);
+  const [healthCounts, setHealthCounts] = useState({ handles: 0, errors: 0 });
+  const [resolving, setResolving] = useState(false);
+  const [resolveStatus, setResolveStatus] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +79,53 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
     () => channels.filter(c => !c.categories?.length).length,
     [channels]
   );
+
+  // Pull pipeline-health counts (unresolved handles + sync errors)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!supabase) return;
+      const [handlesRes, errorsRes] = await Promise.all([
+        supabase.from('channels')
+          .select('id', { count: 'exact', head: true })
+          .like('youtube_channel_id', 'handle_%'),
+        supabase.from('channels')
+          .select('id', { count: 'exact', head: true })
+          .not('last_sync_error', 'is', null),
+      ]);
+      if (!cancelled) {
+        setHealthCounts({
+          handles: handlesRes.count || 0,
+          errors: errorsRes.count || 0,
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [refreshKey, channels.length]);
+
+  const handleResolveHandles = async () => {
+    if (resolving) return;
+    setResolving(true);
+    setResolveStatus({ ok: true, message: 'Resolving handles…' });
+    try {
+      const resp = await fetch('/api/resolve-handles?manual=true', { method: 'POST' });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+      setResolveStatus({
+        ok: true,
+        message: `Resolved ${data.resolved}/${data.total}${data.failed ? ` · ${data.failed} failed` : ''}`,
+      });
+      // Refresh table data so resolved channels can show next sync
+      const fresh = await fetchLandscapeChannels(scope);
+      setChannels(fresh);
+      setHealthCounts(c => ({ ...c, handles: Math.max(0, c.handles - data.resolved) }));
+    } catch (err) {
+      setResolveStatus({ ok: false, message: err.message });
+    } finally {
+      setResolving(false);
+      setTimeout(() => setResolveStatus(null), 10000);
+    }
+  };
 
   const handleClassifyUncategorized = async () => {
     if (classifying) return;
@@ -143,22 +194,53 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         marginBottom: 10, gap: 10, flexWrap: 'wrap',
       }}>
-        <div style={{ fontSize: 12, color: '#888' }}>
-          {channels.length} channel{channels.length === 1 ? '' : 's'}
+        <div style={{ fontSize: 12, color: '#888', display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span>{channels.length} channel{channels.length === 1 ? '' : 's'}</span>
           {uncategorizedCount > 0 && (
-            <span style={{ color: '#a1a1aa', marginLeft: 8 }}>
-              · <span style={{ color: '#f59e0b', fontWeight: 600 }}>{uncategorizedCount}</span> uncategorized
+            <span>· <span style={{ color: '#f59e0b', fontWeight: 600 }}>{uncategorizedCount}</span> uncategorized</span>
+          )}
+          {healthCounts.handles > 0 && (
+            <span title="Channels imported by @handle but never resolved to a YouTube channel ID. They're skipped on every sync.">
+              · <span style={{ color: '#fbbf24', fontWeight: 600 }}>{healthCounts.handles}</span> unresolved handle{healthCounts.handles === 1 ? '' : 's'}
+            </span>
+          )}
+          {healthCounts.errors > 0 && (
+            <span title="Channels failing to sync. Query channels.last_sync_error in Supabase to see what's wrong (deleted, renamed, bad ID, etc.).">
+              · <span style={{ color: '#f87171', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                <AlertTriangle size={11} />{healthCounts.errors}
+              </span> failing sync
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {classifyStatus && (
-            <span style={{
-              fontSize: 12, fontWeight: 500,
-              color: classifyStatus.ok ? '#34d399' : '#f87171',
-            }}>
+            <span style={{ fontSize: 12, fontWeight: 500, color: classifyStatus.ok ? '#34d399' : '#f87171' }}>
               {classifyStatus.ok ? '✓ ' : '✕ '}{classifyStatus.message}
             </span>
+          )}
+          {resolveStatus && (
+            <span style={{ fontSize: 12, fontWeight: 500, color: resolveStatus.ok ? '#34d399' : '#f87171' }}>
+              {resolveStatus.ok ? '✓ ' : '✕ '}{resolveStatus.message}
+            </span>
+          )}
+          {healthCounts.handles > 0 && (
+            <button
+              onClick={handleResolveHandles}
+              disabled={resolving}
+              title="Look up each @handle on YouTube and replace the placeholder with the real channel ID"
+              style={{
+                padding: '6px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                background: resolving ? '#1c1c20' : '#18181c',
+                color: resolving ? '#666' : '#d4d4d8',
+                border: '1px solid #232328', borderRadius: 6,
+                cursor: resolving ? 'wait' : 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              {resolving
+                ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Resolving…</>
+                : <><Wand2 size={12} /> Resolve handles ({healthCounts.handles})</>}
+            </button>
           )}
           {uncategorizedCount > 0 && (
             <button
