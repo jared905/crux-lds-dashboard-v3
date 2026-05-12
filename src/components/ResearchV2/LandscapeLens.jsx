@@ -14,13 +14,16 @@ import ChannelDrawer from './ChannelDrawer.jsx';
 import LandscapeBulkSheet from './LandscapeBulkSheet.jsx';
 
 const SORTS = {
-  velocity: { label: 'View velocity', get: c => c.viewVelocity ?? -1 },
-  medianViews: { label: 'Median views', get: c => c.medianViews ?? -1 },
-  subs: { label: 'Subscribers', get: c => c.subscriberCount ?? -1 },
-  deltaSubs: { label: 'Δ Subs', get: c => c.deltaSubs ?? -Infinity },
-  engagement: { label: 'Engagement', get: c => c.engagementRate ?? -1 },
-  cadence: { label: 'Cadence', get: c => c.uploadsPerWeek ?? -1 },
-  lastUpload: { label: 'Last upload', get: c => c.lastUpload ? new Date(c.lastUpload).getTime() : 0 },
+  name:        { label: 'Channel',       get: c => (c.name || '').toLowerCase() },
+  category:    { label: 'Category',      get: c => (c.categories?.[0]?.name || '~').toLowerCase() },
+  subs:        { label: 'Subscribers',   get: c => c.subscriberCount ?? -1 },
+  deltaSubs:   { label: 'Δ Subs',        get: c => c.deltaSubs ?? -Infinity },
+  velocity:    { label: 'View velocity', get: c => c.viewVelocity ?? -1 },
+  medianViews: { label: 'Median views',  get: c => c.medianViews ?? -1 },
+  engagement:  { label: 'Engagement',    get: c => c.engagementRate ?? -1 },
+  formatMix:   { label: 'Format mix',    get: c => c.formatMix?.long ?? -1 },
+  cadence:     { label: 'Cadence',       get: c => c.uploadsPerWeek ?? -1 },
+  lastUpload:  { label: 'Last upload',   get: c => c.lastUpload ? new Date(c.lastUpload).getTime() : 0 },
 };
 
 export default function LandscapeLens({ scope, refreshKey = 0 }) {
@@ -60,6 +63,10 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
     const arr = [...channels].sort((a, b) => {
       const av = get(a), bv = get(b);
       if (av === bv) return 0;
+      // String compare for text columns, numeric for everything else
+      if (typeof av === 'string' && typeof bv === 'string') {
+        return sortDir === 'desc' ? bv.localeCompare(av) : av.localeCompare(bv);
+      }
       return sortDir === 'desc' ? (bv - av) : (av - bv);
     });
     return arr;
@@ -276,25 +283,32 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
           )}
         </div>
       </div>
+      {/* Outer keeps the rounded corners; inner is the scroll container
+          that anchors position:sticky on the thead cells. Sticky inside a
+          dedicated scroll container is bulletproof in every modern browser. */}
       <div style={{
         background: '#131316',
         border: '1px solid #1f1f24',
         borderRadius: '10px',
-        // overflow:hidden on a sticky's containing block can clip the
-        // pinned thead; we don't need clipping here so leave it visible.
+        overflow: 'hidden',
       }}>
+        <div style={{
+          maxHeight: 'calc(100vh - 360px)',
+          minHeight: 420,
+          overflowY: 'auto',
+        }}>
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '13px', tableLayout: 'fixed' }}>
           <thead>
             <tr>
               <Th width="32px" />
-              <Th width="240px">Channel</Th>
-              <Th width="130px">Category</Th>
-              <Th align="right" width="80px">Subs</Th>
+              <Th width="240px" sortKey="name" current={sortKey} dir={sortDir} onSort={handleSort}>Channel</Th>
+              <Th width="130px" sortKey="category" current={sortKey} dir={sortDir} onSort={handleSort}>Category</Th>
+              <Th align="right" width="80px" sortKey="subs" current={sortKey} dir={sortDir} onSort={handleSort}>Subs</Th>
               <Th align="right" width="100px" sortKey="deltaSubs" current={sortKey} dir={sortDir} onSort={handleSort}>Δ Subs</Th>
               <Th align="right" width="110px" sortKey="velocity" current={sortKey} dir={sortDir} onSort={handleSort}>View velocity</Th>
               <Th align="right" width="110px" sortKey="medianViews" current={sortKey} dir={sortDir} onSort={handleSort}>Median views</Th>
               <Th align="right" width="90px" sortKey="engagement" current={sortKey} dir={sortDir} onSort={handleSort}>Engagement</Th>
-              <Th width="110px">Format mix</Th>
+              <Th width="110px" sortKey="formatMix" current={sortKey} dir={sortDir} onSort={handleSort}>Format mix</Th>
               <Th width="80px" sortKey="cadence" current={sortKey} dir={sortDir} onSort={handleSort}>Cadence</Th>
               <Th width="80px" sortKey="lastUpload" current={sortKey} dir={sortDir} onSort={handleSort}>Last↑</Th>
               <Th width="24px" />
@@ -313,6 +327,7 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {selected.size > 0 && (
