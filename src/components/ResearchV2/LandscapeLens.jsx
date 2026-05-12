@@ -279,10 +279,11 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
         background: '#131316',
         border: '1px solid #1f1f24',
         borderRadius: '10px',
-        overflow: 'hidden',
+        // overflow:hidden on a sticky's containing block can clip the
+        // pinned thead; we don't need clipping here so leave it visible.
       }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', tableLayout: 'fixed' }}>
-          <thead style={{ background: '#16161a' }}>
+        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '13px', tableLayout: 'fixed' }}>
+          <thead>
             <tr>
               <Th width="32px" />
               <Th width="240px">Channel</Th>
@@ -355,7 +356,6 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
     <tr
       onClick={onOpen}
       style={{
-        borderBottom: '1px solid #1c1c20',
         cursor: 'pointer',
         background: selected ? 'rgba(59,130,246,0.05)' : 'transparent',
       }}
@@ -448,7 +448,12 @@ function Th({ children, width, align = 'left', sortKey, current, dir, onSort }) 
         padding: '11px 14px',
         fontSize: '10px', fontWeight: 700, color: isActive ? '#fff' : '#707070',
         letterSpacing: '0.7px', textTransform: 'uppercase',
-        borderBottom: '1px solid #1f1f24',
+        // sticky on each th (more reliable than sticky <thead> in some browsers)
+        position: 'sticky', top: 0, zIndex: 5,
+        background: '#16161a',
+        // bottom border replaces the row's borderBottom so the stuck cells
+        // keep their divider as content scrolls underneath
+        boxShadow: 'inset 0 -1px 0 #1f1f24',
         cursor: sortable ? 'pointer' : 'default',
         whiteSpace: 'nowrap',
         userSelect: 'none',
@@ -470,6 +475,8 @@ function Td({ children, align = 'left' }) {
       verticalAlign: 'middle',
       color: '#d4d4d4',
       fontVariantNumeric: 'tabular-nums',
+      // border-collapse: separate means we put the row divider on cells
+      borderBottom: '1px solid #1c1c20',
     }}>{children}</td>
   );
 }
