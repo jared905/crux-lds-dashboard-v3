@@ -14,25 +14,31 @@ import { supabase } from '../../services/supabaseClient';
  */
 export default function ScopeBar({ scope, onChange }) {
   const [allCategories, setAllCategories] = useState([]);
-  const [allTags, setAllTags] = useState([]);
+  const [tagOptions, setTagOptions] = useState([]); // [{ facet, value, description }]
   const [showParentMenu, setShowParentMenu] = useState(false);
   const [showSubMenu, setShowSubMenu] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
 
-  // Load categories + distinct tags once
+  // Load categories + tag vocabulary + any custom tags actually in use
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       if (!supabase) return;
-      const { data: cats } = await supabase
-        .from('categories')
-        .select('id, name, slug, parent_id')
-        .order('name', { ascending: true });
-      const { data: tagRows } = await supabase.from('channel_tags').select('tag');
+      const [catsRes, vocabRes, usedRes] = await Promise.all([
+        supabase.from('categories').select('id, name, slug, parent_id').order('name', { ascending: true }),
+        supabase.from('tag_vocabulary').select('facet, value, description').order('facet').order('sort_order'),
+        supabase.from('channel_tags').select('tag'),
+      ]);
       if (cancelled) return;
-      setAllCategories(cats || []);
-      const distinct = Array.from(new Set((tagRows || []).map(r => r.tag))).sort();
-      setAllTags(distinct);
+      setAllCategories(catsRes.data || []);
+
+      const vocab = vocabRes.data || [];
+      const known = new Set(vocab.map(v => v.value));
+      const extras = Array.from(new Set((usedRes.data || []).map(r => r.tag)))
+        .filter(t => !known.has(t))
+        .sort()
+        .map(t => ({ facet: 'custom', value: t, description: null }));
+      setTagOptions([...vocab, ...extras]);
     };
     load();
     return () => { cancelled = true; };
@@ -97,9 +103,11 @@ export default function ScopeBar({ scope, onChange }) {
 
   const removeTag = (t) => onChange({ ...scope, tags: scope.tags.filter(x => x !== t) });
   const addTag = (t) => {
-    if (scope.tags.includes(t)) return;
-    onChange({ ...scope, tags: [...scope.tags, t] });
-    setShowTagPicker(false);
+    // Toggle, multi-select. Keep the menu open so user can stack tags.
+    const next = scope.tags.includes(t)
+      ? scope.tags.filter(x => x !== t)
+      : [...scope.tags, t];
+    onChange({ ...scope, tags: next });
   };
 
   // ── Render ──
@@ -199,10 +207,38 @@ export default function ScopeBar({ scope, onChange }) {
         <Pill onClick={() => setShowTagPicker(v => !v)} dashed><Plus size={12} /> Tag</Pill>
         {showTagPicker && (
           <PickerMenu onClose={() => setShowTagPicker(false)}>
-            {allTags.map(t => (
-              <PickerItem key={t} onClick={() => addTag(t)}>{t}</PickerItem>
-            ))}
-            {allTags.length === 0 && <PickerItem disabled>No tags yet</PickerItem>}
+            {tagOptions.length === 0 && <PickerItem disabled>No tags yet</PickerItem>}
+            {(() => {
+              // Group tag options by facet, with a small header per facet
+              const groups = {};
+              for (const t of tagOptions) (groups[t.facet] ||= []).push(t);
+              const facetOrder = ['identity', 'format', 'cadence', 'style', 'custom'];
+              return facetOrder
+                .filter(f => groups[f]?.length)
+                .map(facet => (
+                  <React.Fragment key={facet}>
+                    <div style={{
+                      fontSize: 9, fontWeight: 700, color: '#555',
+                      textTransform: 'uppercase', letterSpacing: '0.6px',
+                      padding: '6px 10px 2px',
+                    }}>{facet}</div>
+                    {groups[facet].map(t => (
+                      <PickerItem
+                        key={t.value}
+                        onClick={() => addTag(t.value)}
+                        checked={scope.tags.includes(t.value)}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span>{t.value}</span>
+                          {t.description && (
+                            <span style={{ fontSize: 10, color: '#666', marginTop: 1 }}>{t.description}</span>
+                          )}
+                        </div>
+                      </PickerItem>
+                    ))}
+                  </React.Fragment>
+                ));
+            })()}
           </PickerMenu>
         )}
       </div>

@@ -7,6 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { Globe, BarChart3, Square, Inbox, RefreshCw, Loader } from 'lucide-react';
 import ScopeBar from './ScopeBar.jsx';
+import RecipesBar from './RecipesBar.jsx';
 import LandscapeLens from './LandscapeLens.jsx';
 import PatternsLens from './PatternsLens.jsx';
 import WhiteSpaceLens from './WhiteSpaceLens.jsx';
@@ -153,6 +154,10 @@ export default function ResearchV2() {
         </div>
       </div>
 
+      <RecipesBar onApply={({ lens, scope: newScope }) => {
+        setScope(newScope);
+        if (lens) setActiveLens(lens);
+      }} />
       <ScopeBar scope={scope} onChange={setScope} />
 
       {/* Lens tabs */}

@@ -3,7 +3,7 @@
  * Inline category norms, sortable columns, click-row → drawer.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronUp, ChevronDown, Loader } from 'lucide-react';
+import { ChevronUp, ChevronDown, Loader, Sparkles } from 'lucide-react';
 import {
   fetchLandscapeChannels,
   computeCategoryNorms,
@@ -28,6 +28,8 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
   const [sortDir, setSortDir] = useState('desc');
   const [selected, setSelected] = useState(new Set());
   const [openChannel, setOpenChannel] = useState(null);
+  const [classifying, setClassifying] = useState(false);
+  const [classifyStatus, setClassifyStatus] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +71,56 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
     else { setSortKey(key); setSortDir('desc'); }
   };
 
+  const uncategorizedCount = useMemo(
+    () => channels.filter(c => !c.categories?.length).length,
+    [channels]
+  );
+
+  const handleClassifyUncategorized = async () => {
+    if (classifying) return;
+    const apiKey = localStorage.getItem('claude_api_key');
+    if (!apiKey) {
+      alert('Set your Anthropic API key in Settings → API Keys first.');
+      return;
+    }
+    setClassifying(true);
+    setClassifyStatus({ ok: true, message: 'Classifying…' });
+
+    let totalProcessed = 0;
+    let totalErrors = 0;
+    const MAX_PASSES = 20;
+    let pass = 0;
+    try {
+      while (pass < MAX_PASSES) {
+        pass++;
+        setClassifyStatus({ ok: true, message: `Classifying… pass ${pass} (${totalProcessed} done)` });
+        const resp = await fetch('/api/classify-channel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey, all_uncategorized: true, limit: 25 }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+        totalProcessed += data.processed || 0;
+        totalErrors += (data.errors || []).length;
+        if ((data.remaining || 0) === 0 && (data.processed || 0) === 0) break;
+        if ((data.remaining || 0) === 0) break;
+      }
+      setClassifyStatus({
+        ok: true,
+        message: `Classified ${totalProcessed} channel${totalProcessed === 1 ? '' : 's'}${totalErrors ? ` · ${totalErrors} errors` : ''}`,
+      });
+      // Refresh table
+      const data = await fetchLandscapeChannels(scope);
+      setChannels(data);
+    } catch (err) {
+      setClassifyStatus({ ok: false, message: err.message });
+    } finally {
+      setClassifying(false);
+      setTimeout(() => setClassifyStatus(null), 10000);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ padding: '60px', textAlign: 'center', color: '#666' }}>
@@ -86,6 +138,49 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
 
   return (
     <>
+      {/* Bulk action header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 10, gap: 10, flexWrap: 'wrap',
+      }}>
+        <div style={{ fontSize: 12, color: '#888' }}>
+          {channels.length} channel{channels.length === 1 ? '' : 's'}
+          {uncategorizedCount > 0 && (
+            <span style={{ color: '#a1a1aa', marginLeft: 8 }}>
+              · <span style={{ color: '#f59e0b', fontWeight: 600 }}>{uncategorizedCount}</span> uncategorized
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {classifyStatus && (
+            <span style={{
+              fontSize: 12, fontWeight: 500,
+              color: classifyStatus.ok ? '#34d399' : '#f87171',
+            }}>
+              {classifyStatus.ok ? '✓ ' : '✕ '}{classifyStatus.message}
+            </span>
+          )}
+          {uncategorizedCount > 0 && (
+            <button
+              onClick={handleClassifyUncategorized}
+              disabled={classifying}
+              title="Use Claude to assign categories + tags to channels that don't have any"
+              style={{
+                padding: '6px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                background: classifying ? '#1c1c20' : '#18181c',
+                color: classifying ? '#666' : '#d4d4d8',
+                border: '1px solid #232328', borderRadius: 6,
+                cursor: classifying ? 'wait' : 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              {classifying
+                ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Classifying…</>
+                : <><Sparkles size={12} /> Classify uncategorized ({uncategorizedCount})</>}
+            </button>
+          )}
+        </div>
+      </div>
       <div style={{
         background: '#131316',
         border: '1px solid #1f1f24',
