@@ -265,44 +265,83 @@ function OutlierList({ outliers }) {
       No outliers in this window. Channels need ≥5 videos for outlier detection.
     </div>;
   }
-  return outliers.map(o => (
-    <a
-      key={o.id}
-      href={`https://youtu.be/${o.channel.youtubeChannelId ? '' : ''}`}
-      target="_blank" rel="noopener noreferrer"
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr auto',
-        gap: '12px',
-        padding: '12px 0',
-        borderBottom: '1px solid #1c1c20',
-        textDecoration: 'none',
-        alignItems: 'center',
-      }}
-    >
-      <div style={{ overflow: 'hidden' }}>
+  return outliers.map(o => {
+    const videoHref = o.youtubeVideoId ? `https://youtu.be/${o.youtubeVideoId}` : '#';
+    return (
+      <a
+        key={o.id}
+        href={videoHref}
+        target="_blank" rel="noopener noreferrer"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'auto 1fr auto',
+          gap: '12px',
+          padding: '12px 0',
+          borderBottom: '1px solid #1c1c20',
+          textDecoration: 'none',
+          alignItems: 'center',
+        }}
+      >
+        <OutlierThumb video={o} />
+        <div style={{ overflow: 'hidden' }}>
+          <div style={{
+            fontSize: '13px', color: '#fff', fontWeight: 600, lineHeight: 1.4,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {o.title}
+          </div>
+          <div style={{ fontSize: '11px', color: '#888', marginTop: '3px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {o.channel.thumbnailUrl && (
+              <img
+                src={o.channel.thumbnailUrl}
+                alt=""
+                loading="lazy"
+                onError={e => { e.currentTarget.style.display = 'none'; }}
+                style={{ width: 14, height: 14, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+              />
+            )}
+            <span><b style={{ color: '#d4d4d4' }}>{o.channel.name}</b> · {formatNumber(o.views)} views
+            {o.engagement != null && ` · ${(o.engagement * 100).toFixed(1)}% engagement`}
+            {' · '}{formatRelative(o.publishedAt)}</span>
+          </div>
+        </div>
         <div style={{
-          fontSize: '13px', color: '#fff', fontWeight: 600, lineHeight: 1.4,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          fontSize: '14px', fontWeight: 700, color: '#34d399',
+          background: 'rgba(16,185,129,0.10)', padding: '4px 10px', borderRadius: '6px',
+          border: '1px solid rgba(16,185,129,0.25)',
+          whiteSpace: 'nowrap',
         }}>
-          {o.title}
+          {o.multiplier.toFixed(1)}× median
         </div>
-        <div style={{ fontSize: '11px', color: '#888', marginTop: '3px' }}>
-          <b style={{ color: '#d4d4d4' }}>{o.channel.name}</b> · {formatNumber(o.views)} views
-          {o.engagement != null && ` · ${(o.engagement * 100).toFixed(1)}% engagement`}
-          {' · '}{formatRelative(o.publishedAt)}
-        </div>
-      </div>
+      </a>
+    );
+  });
+}
+
+function OutlierThumb({ video }) {
+  const w = 96, h = 54;
+  if (!video.thumbnailUrl) {
+    return (
       <div style={{
-        fontSize: '14px', fontWeight: 700, color: '#34d399',
-        background: 'rgba(16,185,129,0.10)', padding: '4px 10px', borderRadius: '6px',
-        border: '1px solid rgba(16,185,129,0.25)',
-        whiteSpace: 'nowrap',
-      }}>
-        {o.multiplier.toFixed(1)}× median
-      </div>
-    </a>
-  ));
+        width: w, height: h, borderRadius: 6,
+        background: '#18181c', border: '1px solid #232328', flexShrink: 0,
+      }} />
+    );
+  }
+  return (
+    <div style={{
+      width: w, height: h, borderRadius: 6, overflow: 'hidden',
+      background: '#18181c', border: '1px solid #232328', flexShrink: 0,
+    }}>
+      <img
+        src={video.thumbnailUrl}
+        alt=""
+        loading="lazy"
+        onError={e => { e.currentTarget.style.display = 'none'; }}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
+    </div>
+  );
 }
 
 // ───────────────────────────────────────────

@@ -55,7 +55,7 @@ async function fetchVideosForChannels(channelIds, { windowDays = 90 } = {}) {
 
   const { data, error } = await supabase
     .from('videos')
-    .select('id, channel_id, title, duration_seconds, view_count, like_count, comment_count, published_at')
+    .select('id, channel_id, title, duration_seconds, view_count, like_count, comment_count, published_at, youtube_video_id, thumbnail_url')
     .in('channel_id', channelIds)
     .gte('published_at', cutoff)
     .gt('view_count', 0)
@@ -225,7 +225,16 @@ function computeOutliers(videos, channels, { minMultiplier = 2.0, limit = 12 } =
           views: v.view_count,
           multiplier,
           publishedAt: v.published_at,
-          channel: { id: channelId, name: ch?.name, youtubeChannelId: ch?.youtube_channel_id },
+          youtubeVideoId: v.youtube_video_id,
+          thumbnailUrl: v.thumbnail_url || (v.youtube_video_id
+            ? `https://i.ytimg.com/vi/${v.youtube_video_id}/mqdefault.jpg`
+            : null),
+          channel: {
+            id: channelId,
+            name: ch?.name,
+            youtubeChannelId: ch?.youtube_channel_id,
+            thumbnailUrl: ch?.thumbnail_url || null,
+          },
           engagement,
         });
       }
@@ -283,7 +292,7 @@ export async function analyzePatterns({ scopeChannelIds, baselineChannelIds = nu
   if (allChannelIds.length) {
     const { data } = await supabase
       .from('channels')
-      .select('id, name, youtube_channel_id')
+      .select('id, name, youtube_channel_id, thumbnail_url')
       .in('id', allChannelIds);
     channels = data || [];
   }
