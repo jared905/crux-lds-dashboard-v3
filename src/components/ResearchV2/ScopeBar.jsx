@@ -27,8 +27,7 @@ export default function ScopeBar({ scope, onChange }) {
       const { data: cats } = await supabase
         .from('categories')
         .select('id, name, slug, parent_id')
-        .order('parent_id', { nullsFirst: true })
-        .order('sort_order', { ascending: true });
+        .order('name', { ascending: true });
       const { data: tagRows } = await supabase.from('channel_tags').select('tag');
       if (cancelled) return;
       setAllCategories(cats || []);
