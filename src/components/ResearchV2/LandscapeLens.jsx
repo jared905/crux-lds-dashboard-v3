@@ -139,12 +139,13 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
 
     let totalProcessed = 0;
     let totalErrors = 0;
-    const MAX_PASSES = 20;
+    let consecutiveZeroProgress = 0;
+    const MAX_PASSES = 30;
     let pass = 0;
     try {
       while (pass < MAX_PASSES) {
         pass++;
-        setClassifyStatus({ ok: true, message: `Classifying… pass ${pass} (${totalProcessed} done)` });
+        setClassifyStatus({ ok: true, message: `Classifying… pass ${pass} (${totalProcessed} done${totalErrors ? `, ${totalErrors} errors` : ''})` });
         const resp = await fetch('/api/classify-channel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -154,15 +155,23 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
         if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
         totalProcessed += data.processed || 0;
         totalErrors += (data.errors || []).length;
-        // Stop only when nothing was processed this pass AND nothing left
-        // globally. Otherwise we'd bail after the first batch of 25 even
-        // though hundreds remain uncategorized.
-        if ((data.processed || 0) === 0 && (data.remaining || 0) === 0) break;
-        if ((data.processed || 0) === 0) break; // no forward progress
+        // Authoritative "done" signal: the filtered queue for this pass is
+        // empty. The endpoint now error-marks failing channels so they exit
+        // the queue and the chain doesn't re-poke the same failures forever.
+        if ((data.total_queue || 0) === 0) break;
+        // Safety: if three passes in a row make no forward progress (every
+        // channel in the queue errored AND somehow wasn't error-marked),
+        // give up rather than spin.
+        if ((data.processed || 0) === 0) {
+          consecutiveZeroProgress++;
+          if (consecutiveZeroProgress >= 3) break;
+        } else {
+          consecutiveZeroProgress = 0;
+        }
       }
       setClassifyStatus({
         ok: true,
-        message: `Classified ${totalProcessed} channel${totalProcessed === 1 ? '' : 's'}${totalErrors ? ` · ${totalErrors} errors` : ''}`,
+        message: `Classified ${totalProcessed} channel${totalProcessed === 1 ? '' : 's'}${totalErrors ? ` · ${totalErrors} errors (see classification_reasoning)` : ''}`,
       });
       // Refresh table
       const data = await fetchLandscapeChannels(scope);

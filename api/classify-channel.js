@@ -311,6 +311,17 @@ Return ONLY this JSON shape (no markdown):
           tags: result.tags || [],
         });
       } catch (err) {
+        // Persist the failure so the channel exits the queue. Without this
+        // a persistently-failing channel re-enters every pass and blocks
+        // forward progress for the whole chain.
+        try {
+          await supabase.from('channels')
+            .update({
+              last_classified_at: new Date().toISOString(),
+              classification_reasoning: `CLASSIFIER_ERROR: ${(err.message || String(err)).slice(0, 400)}`,
+            })
+            .eq('id', ch.id);
+        } catch {}
         errors.push({ channel_id: ch.id, name: ch.name, error: err.message });
       }
     }
