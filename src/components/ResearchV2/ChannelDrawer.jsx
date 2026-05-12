@@ -67,7 +67,15 @@ export default function ChannelDrawer({ channel, norms, onClose }) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '14px' }}>
-            <BigAvatar name={channel.name} />
+            <a
+              href={channel.youtubeChannelId ? `https://youtube.com/channel/${channel.youtubeChannelId}` : '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open channel on YouTube"
+              style={{ display: 'inline-flex', textDecoration: 'none' }}
+            >
+              <BigAvatar name={channel.name} thumbnail={channel.thumbnail} />
+            </a>
             <div>
               <div style={{ fontSize: '20px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px', lineHeight: 1.2 }}>
                 {channel.name}
@@ -205,17 +213,29 @@ function VideoRow({ video }) {
   );
 }
 
-function BigAvatar({ name }) {
+function BigAvatar({ name, thumbnail }) {
   const initials = (name || '?').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
   const h = hash(name) % 360;
-  return (
-    <div style={{
-      width: 52, height: 52, borderRadius: '12px',
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 18, fontWeight: 700, color: '#fff',
-      background: `linear-gradient(135deg, hsl(${h},65%,45%), hsl(${(h + 40) % 360},65%,55%))`,
-    }}>{initials}</div>
-  );
+  const base = {
+    width: 52, height: 52, borderRadius: '12px',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 18, fontWeight: 700, color: '#fff', overflow: 'hidden',
+    background: `linear-gradient(135deg, hsl(${h},65%,45%), hsl(${(h + 40) % 360},65%,55%))`,
+  };
+  if (thumbnail) {
+    return (
+      <div style={base}>
+        <img
+          src={thumbnail}
+          alt=""
+          loading="lazy"
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        />
+      </div>
+    );
+  }
+  return <div style={base}>{initials}</div>;
 }
 
 function CategoryChip({ category }) {

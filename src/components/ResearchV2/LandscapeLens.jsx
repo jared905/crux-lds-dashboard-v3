@@ -183,7 +183,7 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
       </Td>
       <Td>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Avatar name={channel.name} />
+          <Avatar name={channel.name} thumbnail={channel.thumbnail} />
           <div>
             <div style={{ fontWeight: 600, color: '#fff' }}>{channel.name}</div>
             {channel.handle && <div style={{ fontSize: '11px', color: '#666' }}>{channel.handle}</div>}
@@ -315,17 +315,30 @@ function FormatBar({ mix }) {
   );
 }
 
-function Avatar({ name }) {
+function Avatar({ name, thumbnail, size = 28 }) {
   const initials = (name || '?').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
   const hue = Math.abs(hash(name)) % 360;
-  return (
-    <div style={{
-      width: 28, height: 28, borderRadius: '50%',
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0,
-      background: `linear-gradient(135deg, hsl(${hue},65%,45%), hsl(${(hue + 40) % 360},65%,55%))`,
-    }}>{initials}</div>
-  );
+  const base = {
+    width: size, height: size, borderRadius: '50%',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: Math.max(10, Math.floor(size * 0.4)),
+    fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden',
+    background: `linear-gradient(135deg, hsl(${hue},65%,45%), hsl(${(hue + 40) % 360},65%,55%))`,
+  };
+  if (thumbnail) {
+    return (
+      <div style={base}>
+        <img
+          src={thumbnail}
+          alt=""
+          loading="lazy"
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        />
+      </div>
+    );
+  }
+  return <div style={base}>{initials}</div>;
 }
 
 function CategoryTag({ category }) {
