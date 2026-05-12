@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, X, ChevronDown, Settings2 } from 'lucide-react';
+import { Plus, X, ChevronDown, Settings2, Search } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 import TaxonomyManager from './TaxonomyManager.jsx';
 
@@ -253,7 +253,32 @@ export default function ScopeBar({ scope, onChange }) {
         )}
       </div>
 
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '4px 10px', borderRadius: 6,
+          background: '#18181c', border: '1px solid #232328',
+        }}>
+          <Search size={11} style={{ color: '#666' }} />
+          <input
+            value={scope.search || ''}
+            onChange={e => onChange({ ...scope, search: e.target.value })}
+            placeholder="Search channels…"
+            style={{
+              background: 'transparent', border: 'none', outline: 'none',
+              color: '#d4d4d8', fontSize: 12, width: 160, fontFamily: 'inherit',
+            }}
+          />
+          {scope.search && (
+            <button
+              onClick={() => onChange({ ...scope, search: '' })}
+              style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'inline-flex' }}
+              title="Clear search"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
         <Label>Window</Label>
         <select
           value={scope.windowDays}

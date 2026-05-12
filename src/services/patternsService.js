@@ -101,10 +101,11 @@ export async function expandCategoriesWithDescendants(rootIds) {
 
 export async function resolveScopeToChannelIds(scope = {}) {
   if (!supabase) return [];
-  const { categoryIds = null, tags = null, tiers = ['priority', 'tracked'] } = scope;
+  const { categoryIds = null, tags = null, tiers = ['priority', 'tracked'], search = '' } = scope;
 
   let q = supabase.from('channels').select('id').eq('is_competitor', true);
   if (tiers?.length) q = q.in('tier', tiers);
+  if (search?.trim()) q = q.ilike('name', `%${search.trim()}%`);
   const { data: channels } = await q;
   if (!channels?.length) return [];
 
