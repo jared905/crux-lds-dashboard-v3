@@ -323,7 +323,7 @@ function AlertThumbnail({ alert, Icon, color }) {
   const videoThumb = p.video_thumbnail_url || alert._videoThumbnail || null;
   const channelThumb = p.channel_thumbnail_url || alert._channelThumbnail || null;
   const primary = isBreakout ? (videoThumb || channelThumb) : (channelThumb || videoThumb);
-  const youtubeVideoId = p.youtube_video_id;
+  const channelYoutubeId = p.channel_youtube_id || alert._channelYoutubeId || null;
 
   const containerStyle = {
     position: 'relative',
@@ -384,14 +384,14 @@ function AlertThumbnail({ alert, Icon, color }) {
     </div>
   );
 
-  if (isBreakout && youtubeVideoId) {
+  if (channelYoutubeId) {
     return (
       <a
-        href={`https://youtube.com/watch?v=${youtubeVideoId}`}
+        href={`https://youtube.com/channel/${channelYoutubeId}`}
         target="_blank"
         rel="noreferrer"
-        style={{ ...containerStyle, display: 'block' }}
-        title="Watch on YouTube"
+        style={{ ...containerStyle, display: 'block', textDecoration: 'none' }}
+        title="Open channel on YouTube"
       >
         {inner}
         {fallback}

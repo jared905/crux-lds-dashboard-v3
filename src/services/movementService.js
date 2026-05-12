@@ -56,7 +56,7 @@ async function attachThumbnails(alerts) {
 
   const [chRes, vidRes] = await Promise.all([
     channelIds.length
-      ? supabase.from('channels').select('id, thumbnail_url').in('id', channelIds)
+      ? supabase.from('channels').select('id, thumbnail_url, youtube_channel_id').in('id', channelIds)
       : Promise.resolve({ data: [] }),
     videoIds.length
       ? supabase.from('videos').select('id, thumbnail_url, youtube_video_id').in('id', videoIds)
@@ -64,12 +64,14 @@ async function attachThumbnails(alerts) {
   ]);
 
   const chMap = new Map();
-  for (const c of (chRes.data || [])) chMap.set(c.id, c.thumbnail_url);
+  for (const c of (chRes.data || [])) chMap.set(c.id, c);
   const vidMap = new Map();
   for (const v of (vidRes.data || [])) vidMap.set(v.id, v);
 
   for (const a of alerts) {
-    a._channelThumbnail = chMap.get(a.channel_id) || null;
+    const ch = chMap.get(a.channel_id);
+    a._channelThumbnail = ch?.thumbnail_url || null;
+    a._channelYoutubeId = ch?.youtube_channel_id || null;
     if (a.video_id) {
       const v = vidMap.get(a.video_id);
       a._videoThumbnail = v?.thumbnail_url || null;

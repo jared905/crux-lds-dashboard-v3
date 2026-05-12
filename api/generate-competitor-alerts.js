@@ -70,7 +70,7 @@ async function detectBreakouts() {
 
   const { data: channels } = await supabase
     .from('channels')
-    .select('id, name, tier, thumbnail_url')
+    .select('id, name, tier, thumbnail_url, youtube_channel_id')
     .neq('tier', 'archive')
     .eq('is_client', false)
     .limit(500);
@@ -116,6 +116,8 @@ async function detectBreakouts() {
         channel_id: ch.id,
         channel_tier: ch.tier,
         channel_thumbnail_url: ch.thumbnail_url,
+      channel_youtube_id: ch.youtube_channel_id,
+        channel_youtube_id: ch.youtube_channel_id,
         video_id: v.id,
         youtube_video_id: v.youtube_video_id,
         video_title: v.title,
@@ -146,7 +148,7 @@ async function detectFormatShifts() {
 
   const { data: channels } = await supabase
     .from('channels')
-    .select('id, name, tier, thumbnail_url')
+    .select('id, name, tier, thumbnail_url, youtube_channel_id')
     .neq('tier', 'archive')
     .eq('is_client', false)
     .limit(500);
@@ -200,6 +202,7 @@ async function detectFormatShifts() {
       channel_id: ch.id,
       channel_tier: ch.tier,
       channel_thumbnail_url: ch.thumbnail_url,
+      channel_youtube_id: ch.youtube_channel_id,
       prev_format: pDom.bucket,
       prev_pct: +(pDom.pct * 100).toFixed(1),
       curr_format: rDom.bucket,
@@ -227,7 +230,7 @@ async function detectRankChanges() {
 
   const { data: channels } = await supabase
     .from('channels')
-    .select('id, name, tier, thumbnail_url')
+    .select('id, name, tier, thumbnail_url, youtube_channel_id')
     .neq('tier', 'archive')
     .eq('is_client', false)
     .limit(500);
@@ -268,6 +271,7 @@ async function detectRankChanges() {
       channel_id: ch.id,
       channel_tier: ch.tier,
       channel_thumbnail_url: ch.thumbnail_url,
+      channel_youtube_id: ch.youtube_channel_id,
       direction: pctChange > 0 ? 'up' : 'down',
       prev_velocity: Math.round(priorAvg),
       curr_velocity: Math.round(recentAvg),
@@ -296,7 +300,7 @@ async function detectNewEntrants() {
 
   const { data: channels } = await supabase
     .from('channels')
-    .select('id, name, tier, created_at, category_id, subscriber_count, thumbnail_url')
+    .select('id, name, tier, created_at, category_id, subscriber_count, thumbnail_url, youtube_channel_id')
     .neq('tier', 'archive')
     .eq('is_client', false)
     .gte('created_at', cutoff)
@@ -312,6 +316,7 @@ async function detectNewEntrants() {
       channel_id: ch.id,
       channel_tier: ch.tier,
       channel_thumbnail_url: ch.thumbnail_url,
+      channel_youtube_id: ch.youtube_channel_id,
       category_id: ch.category_id,
       subscriber_count: ch.subscriber_count,
       added_at: ch.created_at,
