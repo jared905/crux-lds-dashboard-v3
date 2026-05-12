@@ -315,11 +315,28 @@ Return ONLY this JSON shape (no markdown):
       }
     }
 
+    // Global remaining = uncategorized channels in the entire DB,
+    // not just the slice we processed in this invocation. This lets the
+    // UI accurately chain calls until the whole queue is drained.
+    let globalRemaining = Math.max(0, queue.length - i);
+    if (body.all_uncategorized) {
+      const { data: stillAssigned } = await supabase.from('channel_categories').select('channel_id');
+      const stillAssignedIds = new Set((stillAssigned || []).map(r => r.channel_id));
+      const { count: totalChannels } = await supabase
+        .from('channels')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_competitor', true)
+        .neq('tier', 'archive');
+      // approximation: all - assigned. Doesn't subtract locked/recent — fine for the UI badge.
+      globalRemaining = Math.max(0, (totalChannels || 0) - stillAssignedIds.size);
+    }
+
     return res.status(200).json({
       success: true,
       processed: processed.length,
       total_queue: queue.length,
-      remaining: Math.max(0, queue.length - i),
+      remaining: globalRemaining,
+      batch_remaining: Math.max(0, queue.length - i),
       timed_out: i < queue.length,
       duration_ms: Date.now() - startTime,
       results: processed,

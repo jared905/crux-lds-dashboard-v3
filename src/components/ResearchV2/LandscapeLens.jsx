@@ -154,8 +154,11 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
         if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
         totalProcessed += data.processed || 0;
         totalErrors += (data.errors || []).length;
-        if ((data.remaining || 0) === 0 && (data.processed || 0) === 0) break;
-        if ((data.remaining || 0) === 0) break;
+        // Stop only when nothing was processed this pass AND nothing left
+        // globally. Otherwise we'd bail after the first batch of 25 even
+        // though hundreds remain uncategorized.
+        if ((data.processed || 0) === 0 && (data.remaining || 0) === 0) break;
+        if ((data.processed || 0) === 0) break; // no forward progress
       }
       setClassifyStatus({
         ok: true,
