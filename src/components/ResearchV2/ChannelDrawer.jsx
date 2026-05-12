@@ -2,9 +2,9 @@
  * Channel profile drawer — slides over the Landscape table.
  * 480px wide, portaled to body to escape parent stacking contexts.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ExternalLink, Loader } from 'lucide-react';
+import { X, ExternalLink, Loader, Lock, Unlock, Plus, ChevronDown } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 import { computeNormDelta } from '../../services/researchV2Service.js';
 
@@ -90,13 +90,9 @@ export default function ChannelDrawer({ channel, norms, onClose }) {
 
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             <TierBadge tier={channel.tier} />
-            {channel.categories.map(c => (
-              <CategoryChip key={c.id} category={c} />
-            ))}
-            {channel.tags.map(t => (
-              <span key={t} style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: '#1c1c20', border: '1px solid #2a2a30', color: '#aaa' }}>{t}</span>
-            ))}
           </div>
+
+          <ChannelEditor channel={channel} />
         </div>
 
         {/* Body */}
@@ -170,6 +166,303 @@ export default function ChannelDrawer({ channel, norms, onClose }) {
 // ───────────────────────────────────────────
 // Subcomponents
 // ───────────────────────────────────────────
+// ───────────────────────────────────────────────────────────
+// ChannelEditor — inline edit of categories + tags
+// Auto-locks the channel on any manual change so the Claude
+// classifier won't overwrite next sweep.
+// ───────────────────────────────────────────────────────────
+function ChannelEditor({ channel }) {
+  const [categories, setCategories] = useState(channel.categories || []);
+  const [tags, setTags] = useState(channel.tags || []);
+  const [locked, setLocked] = useState(null); // null until first DB read
+  const [allCategories, setAllCategories] = useState([]);
+  const [tagVocab, setTagVocab] = useState([]);
+  const [showCatMenu, setShowCatMenu] = useState(false);
+  const [showTagMenu, setShowTagMenu] = useState(false);
+  const [pickerParent, setPickerParent] = useState(null);
+
+  // Read locked + load taxonomy once
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [chRes, catsRes, vocabRes] = await Promise.all([
+        supabase.from('channels').select('classification_locked').eq('id', channel.id).maybeSingle(),
+        supabase.from('categories').select('id, name, slug, parent_id').order('name'),
+        supabase.from('tag_vocabulary').select('facet, value, description').order('facet').order('sort_order'),
+      ]);
+      if (cancelled) return;
+      setLocked(chRes.data?.classification_locked || false);
+      setAllCategories(catsRes.data || []);
+      setTagVocab(vocabRes.data || []);
+    })();
+    return () => { cancelled = true; };
+  }, [channel.id]);
+
+  const lockChannel = async () => {
+    await supabase.from('channels').update({ classification_locked: true }).eq('id', channel.id);
+    setLocked(true);
+  };
+  const unlockChannel = async () => {
+    await supabase.from('channels').update({ classification_locked: false }).eq('id', channel.id);
+    setLocked(false);
+  };
+
+  const addCategory = async (cat) => {
+    if (categories.find(c => c.id === cat.id)) return;
+    await supabase.from('channel_categories').upsert(
+      { channel_id: channel.id, category_id: cat.id, assigned_by_classifier: false },
+      { onConflict: 'channel_id,category_id' }
+    );
+    setCategories(prev => [...prev, cat]);
+    setShowCatMenu(false);
+    setPickerParent(null);
+    if (!locked) lockChannel();
+  };
+
+  const removeCategory = async (cat) => {
+    await supabase.from('channel_categories').delete()
+      .eq('channel_id', channel.id).eq('category_id', cat.id);
+    setCategories(prev => prev.filter(c => c.id !== cat.id));
+    if (!locked) lockChannel();
+  };
+
+  const addTag = async (value) => {
+    if (tags.includes(value)) return;
+    await supabase.from('channel_tags').upsert(
+      { channel_id: channel.id, tag: value, assigned_by_classifier: false },
+      { onConflict: 'channel_id,tag' }
+    );
+    setTags(prev => [...prev, value]);
+    if (!locked) lockChannel();
+  };
+
+  const removeTag = async (value) => {
+    await supabase.from('channel_tags').delete().eq('channel_id', channel.id).eq('tag', value);
+    setTags(prev => prev.filter(t => t !== value));
+    if (!locked) lockChannel();
+  };
+
+  const parents = useMemo(() => allCategories.filter(c => !c.parent_id), [allCategories]);
+  const subsOf = (parentId) => allCategories.filter(c => c.parent_id === parentId);
+
+  const facetGroups = useMemo(() => {
+    const g = {};
+    for (const t of tagVocab) (g[t.facet] ||= []).push(t);
+    return g;
+  }, [tagVocab]);
+  const facetOrder = ['identity', 'format', 'cadence', 'style'];
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      {/* Categories */}
+      <div style={{ marginBottom: 8 }}>
+        <SectionLabel>Categories</SectionLabel>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+          {categories.length === 0 && (
+            <span style={{ fontSize: 11, color: '#555', fontStyle: 'italic' }}>None assigned</span>
+          )}
+          {categories.map(c => (
+            <EditChip key={c.id} onRemove={() => removeCategory(c)}>{c.name}</EditChip>
+          ))}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => { setShowCatMenu(v => !v); setPickerParent(null); }}
+              style={dashedBtn}
+            >
+              <Plus size={11} /> Category
+            </button>
+            {showCatMenu && (
+              <PickerPanel onClose={() => { setShowCatMenu(false); setPickerParent(null); }}>
+                {!pickerParent ? (
+                  <>
+                    <PickerHeader>Pick a parent</PickerHeader>
+                    {parents.map(p => (
+                      <PickerRow key={p.id} onClick={() => setPickerParent(p)}>
+                        <span>{p.name}</span>
+                        <ChevronDown size={11} style={{ transform: 'rotate(-90deg)', opacity: 0.6 }} />
+                      </PickerRow>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <PickerHeader>
+                      <button
+                        onClick={() => setPickerParent(null)}
+                        style={{ background: 'transparent', border: 'none', color: '#aaa', fontSize: 11, cursor: 'pointer', padding: 0, marginRight: 6 }}
+                      >← Back</button>
+                      {pickerParent.name}
+                    </PickerHeader>
+                    <PickerRow onClick={() => addCategory(pickerParent)}>
+                      <span style={{ color: '#a78bfa' }}>+ Parent only ({pickerParent.name})</span>
+                    </PickerRow>
+                    {subsOf(pickerParent.id).length === 0 && (
+                      <PickerRow disabled>No sub-categories under {pickerParent.name}</PickerRow>
+                    )}
+                    {subsOf(pickerParent.id).map(s => (
+                      <PickerRow key={s.id} onClick={() => addCategory(s)}>
+                        {s.name}
+                      </PickerRow>
+                    ))}
+                  </>
+                )}
+              </PickerPanel>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Tags */}
+      <div style={{ marginBottom: 8 }}>
+        <SectionLabel>Tags</SectionLabel>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+          {tags.length === 0 && (
+            <span style={{ fontSize: 11, color: '#555', fontStyle: 'italic' }}>None assigned</span>
+          )}
+          {tags.map(t => (
+            <EditChip key={t} onRemove={() => removeTag(t)}>{t}</EditChip>
+          ))}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowTagMenu(v => !v)} style={dashedBtn}>
+              <Plus size={11} /> Tag
+            </button>
+            {showTagMenu && (
+              <PickerPanel onClose={() => setShowTagMenu(false)}>
+                {facetOrder.filter(f => facetGroups[f]?.length).map(facet => (
+                  <React.Fragment key={facet}>
+                    <PickerHeader>{facet}</PickerHeader>
+                    {facetGroups[facet].map(t => (
+                      <PickerRow
+                        key={t.value}
+                        onClick={() => addTag(t.value)}
+                        disabled={tags.includes(t.value)}
+                      >
+                        <div>
+                          <div>{t.value}{tags.includes(t.value) && ' ✓'}</div>
+                          {t.description && (
+                            <div style={{ fontSize: 10, color: '#666', marginTop: 1 }}>{t.description}</div>
+                          )}
+                        </div>
+                      </PickerRow>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </PickerPanel>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Lock state */}
+      {locked !== null && (
+        <div style={{
+          marginTop: 10,
+          fontSize: 11,
+          color: locked ? '#fbbf24' : '#666',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+        }}>
+          {locked ? (
+            <>
+              <Lock size={11} /> Manual edits locked — auto-classifier will skip this channel
+              <button onClick={unlockChannel} style={linkBtn}>Unlock</button>
+            </>
+          ) : (
+            <>
+              <Unlock size={11} /> Open to auto-classification
+              <button onClick={lockChannel} style={linkBtn}>Lock</button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SectionLabel({ children }) {
+  return (
+    <div style={{
+      fontSize: 9, fontWeight: 700, color: '#666',
+      textTransform: 'uppercase', letterSpacing: '0.6px',
+      marginBottom: 5,
+    }}>{children}</div>
+  );
+}
+
+function EditChip({ children, onRemove }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      padding: '2px 4px 2px 8px', borderRadius: 4,
+      fontSize: 11, fontWeight: 500,
+      background: '#1c1c20', border: '1px solid #2a2a30', color: '#d4d4d8',
+    }}>
+      {children}
+      <button onClick={onRemove} style={{
+        background: 'transparent', border: 'none', color: '#666',
+        cursor: 'pointer', padding: '0 2px', display: 'inline-flex',
+        borderRadius: 3,
+      }} onMouseEnter={e => { e.currentTarget.style.color = '#f87171'; }}
+         onMouseLeave={e => { e.currentTarget.style.color = '#666'; }}>
+        <X size={10} />
+      </button>
+    </span>
+  );
+}
+
+function PickerPanel({ children, onClose }) {
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9999 }} />
+      <div style={{
+        position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 10000,
+        background: '#1c1c20', border: '1px solid #2a2a30', borderRadius: 7,
+        padding: 4, minWidth: 220, maxHeight: 320, overflowY: 'auto',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+      }}>{children}</div>
+    </>
+  );
+}
+
+function PickerHeader({ children }) {
+  return (
+    <div style={{
+      fontSize: 9, fontWeight: 700, color: '#666',
+      textTransform: 'uppercase', letterSpacing: '0.6px',
+      padding: '6px 10px 3px',
+    }}>{children}</div>
+  );
+}
+
+function PickerRow({ children, onClick, disabled }) {
+  return (
+    <button
+      onClick={onClick} disabled={disabled}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        width: '100%', textAlign: 'left',
+        padding: '7px 10px', background: 'transparent', border: 'none',
+        color: disabled ? '#555' : '#d4d4d8', fontSize: 12,
+        borderRadius: 5, cursor: disabled ? 'default' : 'pointer',
+        fontFamily: 'inherit', gap: 8,
+      }}
+      onMouseEnter={e => !disabled && (e.currentTarget.style.background = '#252528')}
+      onMouseLeave={e => !disabled && (e.currentTarget.style.background = 'transparent')}
+    >{children}</button>
+  );
+}
+
+const dashedBtn = {
+  display: 'inline-flex', alignItems: 'center', gap: 4,
+  padding: '3px 8px', borderRadius: 4,
+  background: 'transparent', border: '1px dashed #2a2a30',
+  color: '#888', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+};
+
+const linkBtn = {
+  background: 'transparent', border: 'none', color: '#60a5fa',
+  cursor: 'pointer', fontSize: 11, padding: 0, marginLeft: 4,
+  textDecoration: 'underline', fontFamily: 'inherit',
+};
+
 function SectionTitle({ children, style }) {
   return (
     <div style={{

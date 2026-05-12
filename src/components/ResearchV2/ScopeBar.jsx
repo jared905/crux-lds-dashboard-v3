@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, X, ChevronDown } from 'lucide-react';
+import { Plus, X, ChevronDown, Settings2 } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
+import TaxonomyManager from './TaxonomyManager.jsx';
 
 /**
  * Sticky scope picker — controls all four lenses.
@@ -18,6 +19,8 @@ export default function ScopeBar({ scope, onChange }) {
   const [showParentMenu, setShowParentMenu] = useState(false);
   const [showSubMenu, setShowSubMenu] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [showTaxonomyManager, setShowTaxonomyManager] = useState(false);
+  const [taxonomyVersion, setTaxonomyVersion] = useState(0);
 
   // Load categories + tag vocabulary + any custom tags actually in use
   useEffect(() => {
@@ -42,7 +45,7 @@ export default function ScopeBar({ scope, onChange }) {
     };
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [taxonomyVersion]);
 
   const parentCategories = useMemo(
     () => allCategories.filter(c => !c.parent_id),
@@ -158,6 +161,13 @@ export default function ScopeBar({ scope, onChange }) {
                 {p.name}
               </PickerItem>
             ))}
+            <div style={{ borderTop: '1px solid #232328', marginTop: 4, paddingTop: 4 }}>
+              <PickerItem onClick={() => { setShowParentMenu(false); setShowTaxonomyManager(true); }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#60a5fa' }}>
+                  <Settings2 size={11} /> Manage categories…
+                </span>
+              </PickerItem>
+            </div>
           </PickerMenu>
         )}
       </div>
@@ -259,6 +269,13 @@ export default function ScopeBar({ scope, onChange }) {
           <option value={90}>Last 90 days</option>
         </select>
       </div>
+
+      {showTaxonomyManager && (
+        <TaxonomyManager
+          onClose={() => setShowTaxonomyManager(false)}
+          onChanged={() => setTaxonomyVersion(v => v + 1)}
+        />
+      )}
     </div>
   );
 }
