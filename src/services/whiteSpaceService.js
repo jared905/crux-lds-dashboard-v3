@@ -118,7 +118,7 @@ function computeCadenceGaps(videos) {
     grid,
     labels: {
       days:   ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-      blocks: ['Night (12-6am MT)', 'Morning (6am-12pm MT)', 'Afternoon (12pm-6pm MT)', 'Evening (6pm-12am MT)'],
+      blocks: ['12am–6am', '6am–12pm', '12pm–6pm', '6pm–12am'],
     },
     total: videos.length,
   };
