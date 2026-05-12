@@ -196,6 +196,12 @@ function computeFormatBreakdown(videos) {
  * Outliers: videos that significantly outperformed their own channel's median.
  * Drops videos where channel has <5 in-window videos (no reliable baseline).
  */
+// An outlier with engagement well below the channel's own engagement floor
+// is much more likely to be inflated views (bought, sub4sub, embed farms)
+// than a genuine resonant breakout. We flag and demote — but never hide —
+// so it's still visible for inspection.
+const SUSPECT_ENGAGEMENT_RATIO = 0.4; // <40% of channel-normal engagement
+
 function computeOutliers(videos, channels, { minMultiplier = 2.0, limit = 12 } = {}) {
   const channelById = {};
   for (const c of channels) channelById[c.id] = c;
@@ -212,35 +218,59 @@ function computeOutliers(videos, channels, { minMultiplier = 2.0, limit = 12 } =
     if (vids.length < 5) continue;
     const m = median(vids.map(v => v.view_count));
     if (!m) continue;
+
+    // Channel's own engagement baseline — used to spot inflated-view candidates
+    const engSamples = vids
+      .map(v => (v.view_count > 0
+        ? ((v.like_count || 0) + (v.comment_count || 0)) / v.view_count
+        : null))
+      .filter(e => e != null && e >= 0);
+    const channelMedianEngagement = engSamples.length >= 5 ? median(engSamples) : null;
+
     for (const v of vids) {
       const multiplier = v.view_count / m;
-      if (multiplier >= minMultiplier) {
-        const ch = channelById[channelId];
-        const engagement = v.view_count > 0
-          ? ((v.like_count || 0) + (v.comment_count || 0)) / v.view_count
-          : null;
-        out.push({
-          id: v.id,
-          title: v.title,
-          views: v.view_count,
-          multiplier,
-          publishedAt: v.published_at,
-          youtubeVideoId: v.youtube_video_id,
-          thumbnailUrl: v.thumbnail_url || (v.youtube_video_id
-            ? `https://i.ytimg.com/vi/${v.youtube_video_id}/mqdefault.jpg`
-            : null),
-          channel: {
-            id: channelId,
-            name: ch?.name,
-            youtubeChannelId: ch?.youtube_channel_id,
-            thumbnailUrl: ch?.thumbnail_url || null,
-          },
-          engagement,
-        });
-      }
+      if (multiplier < minMultiplier) continue;
+
+      const ch = channelById[channelId];
+      const engagement = v.view_count > 0
+        ? ((v.like_count || 0) + (v.comment_count || 0)) / v.view_count
+        : null;
+      const engagementRatio = (engagement != null && channelMedianEngagement)
+        ? engagement / channelMedianEngagement
+        : null;
+      const isSuspect = engagementRatio != null && engagementRatio < SUSPECT_ENGAGEMENT_RATIO;
+
+      out.push({
+        id: v.id,
+        title: v.title,
+        views: v.view_count,
+        multiplier,
+        publishedAt: v.published_at,
+        youtubeVideoId: v.youtube_video_id,
+        thumbnailUrl: v.thumbnail_url || (v.youtube_video_id
+          ? `https://i.ytimg.com/vi/${v.youtube_video_id}/mqdefault.jpg`
+          : null),
+        channel: {
+          id: channelId,
+          name: ch?.name,
+          youtubeChannelId: ch?.youtube_channel_id,
+          thumbnailUrl: ch?.thumbnail_url || null,
+          medianEngagement: channelMedianEngagement,
+        },
+        engagement,
+        engagementRatio,
+        isSuspect,
+      });
     }
   }
-  return out.sort((a, b) => b.multiplier - a.multiplier).slice(0, limit);
+
+  // Healthy outliers ranked above suspect ones; within each tier, by multiplier.
+  return out
+    .sort((a, b) => {
+      if (a.isSuspect !== b.isSuspect) return a.isSuspect ? 1 : -1;
+      return b.multiplier - a.multiplier;
+    })
+    .slice(0, limit);
 }
 
 /**

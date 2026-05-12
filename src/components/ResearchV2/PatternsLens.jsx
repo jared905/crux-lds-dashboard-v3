@@ -267,11 +267,15 @@ function OutlierList({ outliers }) {
   }
   return outliers.map(o => {
     const videoHref = o.youtubeVideoId ? `https://youtu.be/${o.youtubeVideoId}` : '#';
+    const suspect = o.isSuspect;
     return (
       <a
         key={o.id}
         href={videoHref}
         target="_blank" rel="noopener noreferrer"
+        title={suspect
+          ? 'Engagement is well below this channel’s norm — likely inflated views'
+          : ''}
         style={{
           display: 'grid',
           gridTemplateColumns: 'auto 1fr auto',
@@ -280,15 +284,18 @@ function OutlierList({ outliers }) {
           borderBottom: '1px solid #1c1c20',
           textDecoration: 'none',
           alignItems: 'center',
+          opacity: suspect ? 0.7 : 1,
         }}
       >
-        <OutlierThumb video={o} />
+        <OutlierThumb video={o} suspect={suspect} />
         <div style={{ overflow: 'hidden' }}>
           <div style={{
             fontSize: '13px', color: '#fff', fontWeight: 600, lineHeight: 1.4,
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            display: 'flex', alignItems: 'center', gap: 6,
           }}>
-            {o.title}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.title}</span>
+            {suspect && <SuspectBadge ratio={o.engagementRatio} />}
           </div>
           <div style={{ fontSize: '11px', color: '#888', marginTop: '3px', display: 'flex', alignItems: 'center', gap: 6 }}>
             {o.channel.thumbnailUrl && (
@@ -301,14 +308,18 @@ function OutlierList({ outliers }) {
               />
             )}
             <span><b style={{ color: '#d4d4d4' }}>{o.channel.name}</b> · {formatNumber(o.views)} views
-            {o.engagement != null && ` · ${(o.engagement * 100).toFixed(1)}% engagement`}
+            {o.engagement != null && (
+              <> · <span style={{ color: suspect ? '#f87171' : '#888' }}>{(o.engagement * 100).toFixed(1)}% engagement</span></>
+            )}
             {' · '}{formatRelative(o.publishedAt)}</span>
           </div>
         </div>
         <div style={{
-          fontSize: '14px', fontWeight: 700, color: '#34d399',
-          background: 'rgba(16,185,129,0.10)', padding: '4px 10px', borderRadius: '6px',
-          border: '1px solid rgba(16,185,129,0.25)',
+          fontSize: '14px', fontWeight: 700,
+          color: suspect ? '#9ca3af' : '#34d399',
+          background: suspect ? 'rgba(156,163,175,0.08)' : 'rgba(16,185,129,0.10)',
+          padding: '4px 10px', borderRadius: '6px',
+          border: `1px solid ${suspect ? 'rgba(156,163,175,0.2)' : 'rgba(16,185,129,0.25)'}`,
           whiteSpace: 'nowrap',
         }}>
           {o.multiplier.toFixed(1)}× median
@@ -318,27 +329,38 @@ function OutlierList({ outliers }) {
   });
 }
 
-function OutlierThumb({ video }) {
-  const w = 96, h = 54;
-  if (!video.thumbnailUrl) {
-    return (
-      <div style={{
-        width: w, height: h, borderRadius: 6,
-        background: '#18181c', border: '1px solid #232328', flexShrink: 0,
-      }} />
-    );
-  }
+function SuspectBadge({ ratio }) {
   return (
-    <div style={{
-      width: w, height: h, borderRadius: 6, overflow: 'hidden',
-      background: '#18181c', border: '1px solid #232328', flexShrink: 0,
+    <span style={{
+      fontSize: 9, fontWeight: 700,
+      color: '#fbbf24', background: 'rgba(251,191,36,0.10)',
+      border: '1px solid rgba(251,191,36,0.30)',
+      padding: '2px 6px', borderRadius: 3,
+      textTransform: 'uppercase', letterSpacing: '0.4px',
+      whiteSpace: 'nowrap', flexShrink: 0,
     }}>
+      Low eng{ratio != null ? ` · ${Math.round(ratio * 100)}% of norm` : ''}
+    </span>
+  );
+}
+
+function OutlierThumb({ video, suspect }) {
+  const w = 96, h = 54;
+  const wrapStyle = {
+    width: w, height: h, borderRadius: 6, overflow: 'hidden',
+    background: '#18181c',
+    border: `1px solid ${suspect ? 'rgba(251,191,36,0.35)' : '#232328'}`,
+    flexShrink: 0,
+  };
+  if (!video.thumbnailUrl) return <div style={wrapStyle} />;
+  return (
+    <div style={wrapStyle}>
       <img
         src={video.thumbnailUrl}
         alt=""
         loading="lazy"
         onError={e => { e.currentTarget.style.display = 'none'; }}
-        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', filter: suspect ? 'saturate(0.5)' : 'none' }}
       />
     </div>
   );
