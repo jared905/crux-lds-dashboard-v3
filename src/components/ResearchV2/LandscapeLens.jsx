@@ -11,6 +11,7 @@ import {
 } from '../../services/researchV2Service.js';
 import { supabase } from '../../services/supabaseClient';
 import ChannelDrawer from './ChannelDrawer.jsx';
+import LandscapeBulkSheet from './LandscapeBulkSheet.jsx';
 
 const SORTS = {
   velocity: { label: 'View velocity', get: c => c.viewVelocity ?? -1 },
@@ -340,6 +341,21 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
       {openChannel && (
         <ChannelDrawer channel={openChannel} norms={norms} onClose={() => setOpenChannel(null)} />
       )}
+
+      <LandscapeBulkSheet
+        selectedIds={selected}
+        channels={channels}
+        onClear={() => setSelected(new Set())}
+        onChanged={async () => {
+          const fresh = await fetchLandscapeChannels(scope);
+          setChannels(fresh);
+          // Filter selection to channels that still exist (delete may have removed some)
+          setSelected(prev => {
+            const stillThere = new Set(fresh.map(c => c.id));
+            return new Set([...prev].filter(id => stillThere.has(id)));
+          });
+        }}
+      />
     </>
   );
 }
