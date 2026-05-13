@@ -35,7 +35,10 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
   const [openChannel, setOpenChannel] = useState(null);
   const [classifying, setClassifying] = useState(false);
   const [classifyStatus, setClassifyStatus] = useState(null);
-  const [healthCounts, setHealthCounts] = useState({ handles: 0, errors: 0 });
+  const [healthCounts, setHealthCounts] = useState({
+    handles: 0, errors: 0, total: 0, fresh24h: 0, latestSync: null, oldestSync: null,
+  });
+  const [showHealthDetail, setShowHealthDetail] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [resolveStatus, setResolveStatus] = useState(null);
 
@@ -88,28 +91,61 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
     [channels]
   );
 
-  // Pull pipeline-health counts (unresolved handles + sync errors)
+  // Pull pipeline-health counts: total, fresh, latest/oldest sync, handles, errors.
+  // One round-trip; the table is small enough that COUNT queries are negligible.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!supabase) return;
-      const [handlesRes, errorsRes] = await Promise.all([
+      const dayAgo = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const [handlesRes, errorsRes, totalRes, freshRes, syncsRes] = await Promise.all([
         supabase.from('channels')
           .select('id', { count: 'exact', head: true })
           .like('youtube_channel_id', 'handle_%'),
         supabase.from('channels')
           .select('id', { count: 'exact', head: true })
           .not('last_sync_error', 'is', null),
+        supabase.from('channels')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_competitor', true)
+          .neq('tier', 'archive'),
+        supabase.from('channels')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_competitor', true)
+          .neq('tier', 'archive')
+          .gte('last_synced_at', dayAgo),
+        supabase.from('channels')
+          .select('last_synced_at')
+          .eq('is_competitor', true)
+          .neq('tier', 'archive')
+          .not('last_synced_at', 'is', null)
+          .order('last_synced_at', { ascending: false })
+          .limit(1),
       ]);
+      const oldestRes = await supabase.from('channels')
+        .select('last_synced_at')
+        .eq('is_competitor', true)
+        .neq('tier', 'archive')
+        .not('last_synced_at', 'is', null)
+        .order('last_synced_at', { ascending: true })
+        .limit(1);
       if (!cancelled) {
         setHealthCounts({
           handles: handlesRes.count || 0,
           errors: errorsRes.count || 0,
+          total: totalRes.count || 0,
+          fresh24h: freshRes.count || 0,
+          latestSync: syncsRes.data?.[0]?.last_synced_at || null,
+          oldestSync: oldestRes.data?.[0]?.last_synced_at || null,
         });
       }
     })();
     return () => { cancelled = true; };
   }, [refreshKey, channels.length]);
+
+  const freshnessPct = healthCounts.total > 0
+    ? Math.round((healthCounts.fresh24h / healthCounts.total) * 100)
+    : 0;
 
   const handleResolveHandles = async () => {
     if (resolving) return;
@@ -209,6 +245,14 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
 
   return (
     <>
+      {/* Pipeline health */}
+      <PipelineHealth
+        counts={healthCounts}
+        freshnessPct={freshnessPct}
+        expanded={showHealthDetail}
+        onToggle={() => setShowHealthDetail(v => !v)}
+      />
+
       {/* Bulk action header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -468,6 +512,89 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
 // ───────────────────────────────────────────
 // Subcomponents
 // ───────────────────────────────────────────
+function PipelineHealth({ counts, freshnessPct, expanded, onToggle }) {
+  const { total, fresh24h, latestSync, oldestSync, handles, errors } = counts;
+  if (total === 0) return null;
+
+  const pctColor = freshnessPct >= 90 ? '#10b981' : freshnessPct >= 70 ? '#f59e0b' : '#ef4444';
+  const overallOk = freshnessPct >= 90 && errors === 0 && handles === 0;
+
+  return (
+    <div style={{
+      padding: '11px 16px', marginBottom: 12,
+      background: overallOk ? 'rgba(16,185,129,0.06)' : '#15151a',
+      border: `1px solid ${overallOk ? 'rgba(16,185,129,0.25)' : '#232328'}`,
+      borderRadius: 10,
+    }}>
+      <button
+        onClick={onToggle}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          width: '100%', background: 'transparent', border: 'none', padding: 0,
+          cursor: 'pointer', fontFamily: 'inherit', color: '#d4d4d8',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 700, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            Pipeline health
+          </span>
+          <Bar pct={freshnessPct} color={pctColor} />
+          <span><strong style={{ color: pctColor }}>{freshnessPct}%</strong> synced &lt; 24h ({fresh24h}/{total})</span>
+          {latestSync && <span style={{ color: '#888' }}>· Last sync {formatRelative(latestSync)}</span>}
+          {errors > 0 && <span style={{ color: '#f87171', fontWeight: 600 }}>· {errors} failing</span>}
+          {handles > 0 && <span style={{ color: '#fbbf24', fontWeight: 600 }}>· {handles} unresolved handle{handles === 1 ? '' : 's'}</span>}
+        </div>
+        <span style={{ color: '#666', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          {expanded ? 'Hide details' : 'Show details'}
+          <ChevronDown size={11} style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+        </span>
+      </button>
+
+      {expanded && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #232328', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+          <DetailStat label="Tracked channels"    value={total.toLocaleString()} />
+          <DetailStat label="Synced under 24h"    value={`${fresh24h.toLocaleString()} (${freshnessPct}%)`} valueColor={pctColor} />
+          <DetailStat label="Most recent sync"    value={latestSync ? formatRelative(latestSync) : '—'} />
+          <DetailStat label="Oldest channel sync" value={oldestSync ? formatRelative(oldestSync) : '—'} valueColor={oldestSync && (Date.now() - new Date(oldestSync).getTime()) > 7 * 86400000 ? '#fbbf24' : undefined} />
+          <DetailStat label="Failing sync"        value={errors.toLocaleString()} valueColor={errors > 0 ? '#f87171' : undefined} />
+          <DetailStat label="Unresolved handles"  value={handles.toLocaleString()} valueColor={handles > 0 ? '#fbbf24' : undefined} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Bar({ pct, color }) {
+  return (
+    <div style={{ width: 70, height: 6, borderRadius: 3, background: '#232328', overflow: 'hidden' }}>
+      <div style={{ width: `${Math.min(100, Math.max(0, pct))}%`, height: '100%', background: color, transition: 'width 200ms' }} />
+    </div>
+  );
+}
+
+function DetailStat({ label, value, valueColor }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: valueColor || '#f4f4f5' }}>{value}</div>
+    </div>
+  );
+}
+
+function formatRelative(iso) {
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
 function Th({ children, width, align = 'left', sortKey, current, dir, onSort }) {
   const sortable = !!sortKey;
   const isActive = sortKey === current;

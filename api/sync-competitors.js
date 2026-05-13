@@ -63,7 +63,7 @@ async function fetchChannelDetails(channelId, apiKey) {
  * with a hard ceiling so very high-cadence channels don't blow quota.
  */
 async function fetchChannelVideos(uploadsPlaylistId, apiKey, options = {}) {
-  const { windowDays = 90, hardCap = 200 } = options;
+  const { windowDays = 90, hardCap = 500 } = options;
   const cutoff = new Date(Date.now() - windowDays * 86400000);
 
   const collected = [];
@@ -547,9 +547,32 @@ export default async function handler(req, res) {
     })
     .eq('id', syncLog.id);
 
+  // ── Cron self-chain ──
+  // When called by the Vercel cron (not manual), if the queue still has
+  // channels to process, fire-and-forget a follow-up invocation. This
+  // makes the daily cron drain the whole queue overnight without the
+  // user having to babysit the Refresh button. Bounded by chainDepth to
+  // prevent runaway loops.
+  const chainDepth = Number(req.query?.chainDepth || 0);
+  const CHAIN_MAX = 20;
+  if (!manualTrigger && results.channels_remaining > 0 && chainDepth < CHAIN_MAX) {
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    const proto = req.headers['x-forwarded-proto'] || 'https';
+    if (host && process.env.CRON_SECRET) {
+      // Fire-and-forget. Use a short timeout so we don't block the response.
+      const url = `${proto}://${host}/api/sync-competitors?chainDepth=${chainDepth + 1}`;
+      fetch(url, {
+        method: 'POST',
+        headers: { 'x-vercel-cron-secret': process.env.CRON_SECRET },
+      }).catch(err => console.warn('[sync chain] follow-up failed:', err.message));
+    }
+  }
+
   return res.status(200).json({
     success: true,
     handles_skipped: results.handles_skipped,
+    chain_depth: chainDepth,
+    chain_continued: !manualTrigger && results.channels_remaining > 0 && chainDepth < CHAIN_MAX,
     ...results,
   });
 }

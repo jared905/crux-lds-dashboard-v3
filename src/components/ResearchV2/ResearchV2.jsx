@@ -74,7 +74,7 @@ export default function ResearchV2() {
         pass++;
         setSyncResult({ ok: true, message: `Syncing… pass ${pass} (${totalSynced} done)` });
         const resp = await fetch(
-          '/api/sync-competitors?manual=true&limit=10&concurrency=2&skipIfFreshHours=12',
+          '/api/sync-competitors?manual=true&limit=25&concurrency=3&skipIfFreshHours=12',
           { method: 'POST' }
         );
         const data = await resp.json();
