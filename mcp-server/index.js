@@ -4,7 +4,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import {
   listClients,
-  getClientChannels,
   getChannelVideos,
   getChannelMetrics,
   getCompetitorLandscape,
@@ -43,14 +42,10 @@ server.tool(
     days: z.number().default(90).describe('Lookback period in days (default 90)'),
   },
   async ({ client_id, days }) => {
-    const channels = await getClientChannels(client_id);
-    if (!channels.length) {
-      // Might be a single channel ID
-      const metrics = await getChannelMetrics([client_id], days);
-      return { content: [{ type: 'text', text: JSON.stringify(metrics, null, 2) }] };
-    }
-    const ids = channels.map(c => c.id);
-    const metrics = await getChannelMetrics(ids, days);
+    // client_id IS the channel UUID for the client's own row. Don't route
+    // through getClientChannels — that helper queries the competitor
+    // assignment junction and contaminates the result with non-client data.
+    const metrics = await getChannelMetrics([client_id], days);
     return { content: [{ type: 'text', text: JSON.stringify(metrics, null, 2) }] };
   }
 );
@@ -67,19 +62,16 @@ server.tool(
     days: z.number().optional().describe('Only include videos published within this many days'),
   },
   async ({ client_id, limit, sort, type, days }) => {
-    const channels = await getClientChannels(client_id);
-    const ids = channels.length ? channels.map(c => c.id) : [client_id];
-
-    let allVideos = [];
-    for (const id of ids) {
-      const videos = await getChannelVideos(id, {
-        limit,
-        sort,
-        type: type === 'all' ? undefined : type,
-        days,
-      });
-      allVideos = allVideos.concat(videos);
-    }
+    // client_id IS the channel UUID. Query the client's own videos
+    // directly — don't go through getClientChannels (it routes through
+    // the competitor-assignment junction and returns the wrong videos).
+    const videos = await getChannelVideos(client_id, {
+      limit,
+      sort,
+      type: type === 'all' ? undefined : type,
+      days,
+    });
+    let allVideos = videos;
 
     // Re-sort combined results
     const sortKey = sort === 'engagement' ? 'engagement_rate'
@@ -112,9 +104,10 @@ server.tool(
     limit: z.number().default(20).describe('Max results (default 20)'),
   },
   async ({ client_id, query, limit }) => {
-    const channels = await getClientChannels(client_id);
-    const ids = channels.length ? channels.map(c => c.id) : [client_id];
-    const results = await searchVideos(ids, query, { limit });
+    // Query the client's own videos directly. getClientChannels would
+    // return competitor channels (assigned via the client_channels
+    // junction) and contaminate the search results.
+    const results = await searchVideos([client_id], query, { limit });
 
     if (!results.length) return { content: [{ type: 'text', text: `No videos matching "${query}".` }] };
 
@@ -135,9 +128,10 @@ server.tool(
     quarter: z.number().min(1).max(4).describe('Quarter number (1-4)'),
   },
   async ({ client_id, year, quarter }) => {
-    const channels = await getClientChannels(client_id);
-    const ids = channels.length ? channels.map(c => c.id) : [client_id];
-    const report = await getQuarterlyData(ids, year, quarter);
+    // Query the client's own channel directly. Routing through
+    // getClientChannels would pull in competitor assignments and produce
+    // a quarterly report against the wrong data.
+    const report = await getQuarterlyData([client_id], year, quarter);
 
     const c = report.currentQuarter;
     const p = report.previousQuarter;
