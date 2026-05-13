@@ -31,13 +31,16 @@ export async function analyzeWhiteSpace({ scopeChannelIds, windowDays = 90, scop
   }
 
   const cutoff = new Date(Date.now() - windowDays * 86400000).toISOString();
+  const nowIso = new Date().toISOString();
 
-  // Pull videos for the scope
+  // Pull videos for the scope. Cap by current time to exclude scheduled
+  // / upcoming videos that would skew cadence + topic clustering.
   const { data: videos } = await supabase
     .from('videos')
     .select('id, channel_id, title, description, duration_seconds, view_count, published_at')
     .in('channel_id', scopeChannelIds)
     .gte('published_at', cutoff)
+    .lte('published_at', nowIso)
     .gt('view_count', 0)
     .limit(2000);
 

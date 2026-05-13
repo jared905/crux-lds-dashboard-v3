@@ -116,13 +116,27 @@ export async function fetchLandscapeChannels(opts = {}) {
 
   const channelIds = filteredChannels.map(c => c.id);
 
-  // 4. Pull videos in the window (one query for all channels)
-  const windowStart = new Date(Date.now() - windowDays * 86400000).toISOString();
+  // 4. Pull videos in the window (one query for all channels). Cap by
+  // current time to exclude scheduled/upcoming videos with future
+  // published_at — those would inflate cadence and view stats.
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - windowDays * 86400000).toISOString();
+  const nowIso = now.toISOString();
   const { data: videos } = await supabase
     .from('videos')
     .select('id, channel_id, view_count, like_count, comment_count, duration_seconds, published_at')
     .in('channel_id', channelIds)
-    .gte('published_at', windowStart);
+    .gte('published_at', windowStart)
+    .lte('published_at', nowIso);
+
+  // 4b. Earliest published_at per channel — used to clip the cadence
+  // divisor when a channel hasn't been publishing for the full window.
+  const { data: earliestRows } = await supabase
+    .rpc('channel_earliest_video', { ids: channelIds });
+  const earliestByChannel = {};
+  for (const r of (earliestRows || [])) {
+    if (r.earliest) earliestByChannel[r.channel_id] = new Date(r.earliest).getTime();
+  }
 
   // 5. Pull channel_snapshots delta for subs over window
   const dateStart = windowStart.split('T')[0];
@@ -204,7 +218,18 @@ export async function fetchLandscapeChannels(opts = {}) {
       ? { short: shortCount / vids.length, long: longCount / vids.length }
       : null;
 
-    const uploadsPerWeek = vids.length > 0 ? (vids.length / (windowDays / 7)) : 0;
+    // Cadence divisor: full window if the channel has been publishing for
+    // at least windowDays, otherwise clip to the observed publishing span
+    // (min 7 days so brand-new channels don't divide by ~0).
+    const earliestMs = earliestByChannel[ch.id];
+    const channelAgeDays = earliestMs != null
+      ? (now.getTime() - earliestMs) / 86400000
+      : windowDays;
+    const effectiveWindowDays = Math.max(7, Math.min(windowDays, channelAgeDays));
+
+    const uploadsPerWeek      = vids.length > 0 ? (vids.length  / (effectiveWindowDays / 7)) : 0;
+    const uploadsPerWeekShort = vids.length > 0 ? (shortCount   / (effectiveWindowDays / 7)) : 0;
+    const uploadsPerWeekLong  = vids.length > 0 ? (longCount    / (effectiveWindowDays / 7)) : 0;
     const lastUpload = vids.length > 0
       ? vids.reduce((latest, v) => (!latest || new Date(v.published_at) > new Date(latest)) ? v.published_at : latest, null)
       : null;
@@ -226,6 +251,9 @@ export async function fetchLandscapeChannels(opts = {}) {
       deltaSubs,
       formatMix,
       uploadsPerWeek,
+      uploadsPerWeekShort,
+      uploadsPerWeekLong,
+      effectiveWindowDays,
       lastUpload,
     };
   });

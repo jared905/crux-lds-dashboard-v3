@@ -492,11 +492,22 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
         )}
       </Td>
       <Td>
-        <span style={{ color: '#888' }}>
+        <span
+          style={{ color: '#888' }}
+          title={
+            channel.uploadsPerWeekLong != null || channel.uploadsPerWeekShort != null
+              ? `${(channel.uploadsPerWeekLong ?? 0).toFixed(1)} long-form/wk · ${(channel.uploadsPerWeekShort ?? 0).toFixed(1)} Shorts/wk${
+                  channel.effectiveWindowDays && channel.effectiveWindowDays < 30
+                    ? `\nChannel observed for ${Math.round(channel.effectiveWindowDays)}d — divisor scaled.`
+                    : ''
+                }`
+              : ''
+          }
+        >
           {channel.uploadsPerWeek > 1
             ? `${channel.uploadsPerWeek.toFixed(1)}/wk`
             : channel.uploadsPerWeek > 0
-              ? `${(channel.uploadsPerWeek * 7 / 30).toFixed(1)}/mo`
+              ? `${(channel.uploadsPerWeek * 30 / 7).toFixed(1)}/mo`
               : '—'}
         </span>
       </Td>
