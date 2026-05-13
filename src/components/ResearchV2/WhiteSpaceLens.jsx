@@ -44,6 +44,7 @@ export default function WhiteSpaceLens({ scope, refreshKey = 0 }) {
     scope.categoryIds?.join(','),
     scope.tags?.join(','),
     scope.tiers?.join(','),
+    scope.clientId,
     scope.windowDays,
     refreshKey,
   ]);

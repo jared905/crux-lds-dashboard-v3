@@ -36,6 +36,7 @@ export async function fetchLandscapeChannels(opts = {}) {
     tiers = ['priority', 'tracked'],
     search = '',
     windowDays = 30,
+    clientId = null,
   } = opts;
 
   // 1. Base channel query
@@ -59,12 +60,24 @@ export async function fetchLandscapeChannels(opts = {}) {
   if (tiers?.length) query = query.in('tier', tiers);
   if (search) query = query.ilike('name', `%${search}%`);
 
-  const { data: channels, error } = await query;
+  let { data: channels, error } = await query;
   if (error) {
     console.error('[researchV2] channel fetch failed:', error);
     return [];
   }
   if (!channels?.length) return [];
+
+  // 1.5. Filter by client membership (client_channels junction)
+  if (clientId) {
+    const { data: cc } = await supabase
+      .from('client_channels')
+      .select('channel_id')
+      .eq('client_id', clientId)
+      .in('channel_id', channels.map(c => c.id));
+    const allowed = new Set((cc || []).map(r => r.channel_id));
+    channels = channels.filter(c => allowed.has(c.id));
+    if (!channels.length) return [];
+  }
 
   // 2. Filter by category junction (if requested)
   let filteredChannels = channels;

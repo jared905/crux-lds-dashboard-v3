@@ -67,6 +67,7 @@ export default function MovementLens({ scope, refreshKey = 0 }) {
     scope.categoryIds?.join(','),
     scope.tags?.join(','),
     scope.tiers?.join(','),
+    scope.clientId,
     refreshKey,
   ]);
 

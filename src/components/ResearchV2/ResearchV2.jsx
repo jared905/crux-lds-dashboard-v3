@@ -53,6 +53,7 @@ export default function ResearchV2() {
     scope.categoryIds?.join(','),
     scope.tags?.join(','),
     scope.tiers?.join(','),
+    scope.clientId,
     refreshKey,
   ]);
 
@@ -66,7 +67,10 @@ export default function ResearchV2() {
     let totalSynced = 0;
     let totalVideos = 0;
     let totalErrors = 0;
-    const MAX_PASSES = 12;
+    // 30 passes × 25 channels = 750 — comfortable headroom past 319 channels.
+    // The auto-chaining cron picks up anything we miss overnight, but this
+    // gives the manual click enough budget to drain in one go.
+    const MAX_PASSES = 30;
     let pass = 0;
 
     try {

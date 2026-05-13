@@ -60,6 +60,7 @@ export default function PatternsLens({ scope, refreshKey = 0 }) {
     scope.categoryIds?.join(','),
     scope.tags?.join(','),
     scope.tiers?.join(','),
+    scope.clientId,
     scope.windowDays,
     compareMode,
     refreshKey,

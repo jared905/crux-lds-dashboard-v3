@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, X, ChevronDown, Settings2, Search } from 'lucide-react';
+import { Plus, X, ChevronDown, Settings2, Search, Briefcase } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 import TaxonomyManager from './TaxonomyManager.jsx';
 
@@ -16,9 +16,11 @@ import TaxonomyManager from './TaxonomyManager.jsx';
 export default function ScopeBar({ scope, onChange }) {
   const [allCategories, setAllCategories] = useState([]);
   const [tagOptions, setTagOptions] = useState([]); // [{ facet, value, description }]
+  const [allClients, setAllClients] = useState([]);
   const [showParentMenu, setShowParentMenu] = useState(false);
   const [showSubMenu, setShowSubMenu] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [showClientMenu, setShowClientMenu] = useState(false);
   const [showTaxonomyManager, setShowTaxonomyManager] = useState(false);
   const [taxonomyVersion, setTaxonomyVersion] = useState(0);
 
@@ -27,13 +29,15 @@ export default function ScopeBar({ scope, onChange }) {
     let cancelled = false;
     const load = async () => {
       if (!supabase) return;
-      const [catsRes, vocabRes, usedRes] = await Promise.all([
+      const [catsRes, vocabRes, usedRes, clientsRes] = await Promise.all([
         supabase.from('categories').select('id, name, slug, parent_id').order('name', { ascending: true }),
         supabase.from('tag_vocabulary').select('facet, value, description').order('facet').order('sort_order'),
         supabase.from('channel_tags').select('tag'),
+        supabase.from('channels').select('id, name, thumbnail_url').eq('is_client', true).order('name'),
       ]);
       if (cancelled) return;
       setAllCategories(catsRes.data || []);
+      setAllClients(clientsRes.data || []);
 
       const vocab = vocabRes.data || [];
       const known = new Set(vocab.map(v => v.value));
@@ -113,6 +117,12 @@ export default function ScopeBar({ scope, onChange }) {
     onChange({ ...scope, tags: next });
   };
 
+  const setClient = (clientId) => {
+    onChange({ ...scope, clientId });
+    setShowClientMenu(false);
+  };
+  const selectedClient = scope.clientId ? allClients.find(c => c.id === scope.clientId) : null;
+
   // ── Render ──
   const parentLabel = selectedParent?.name || 'All categories';
   const subSummary = selectedSubIds.length === 0
@@ -133,6 +143,38 @@ export default function ScopeBar({ scope, onChange }) {
       flexWrap: 'wrap',
     }}>
       <Label>Scope</Label>
+
+      {/* Client picker — scopes lenses to channels in client_channels for this client */}
+      <Label className="left-margin">Client</Label>
+      <div style={{ position: 'relative' }}>
+        <Select
+          active={!!selectedClient}
+          onClick={() => setShowClientMenu(v => !v)}
+        >
+          <Briefcase size={11} style={{ opacity: 0.7, marginRight: 2 }} />
+          {selectedClient?.name || 'All clients'}
+          <ChevronDown size={12} style={{ marginLeft: 2, opacity: 0.7 }} />
+        </Select>
+        {showClientMenu && (
+          <PickerMenu onClose={() => setShowClientMenu(false)}>
+            <PickerItem onClick={() => setClient(null)} active={!selectedClient}>
+              All clients
+            </PickerItem>
+            {allClients.length === 0 && (
+              <PickerItem disabled>No clients yet</PickerItem>
+            )}
+            {allClients.map(c => (
+              <PickerItem
+                key={c.id}
+                onClick={() => setClient(c.id)}
+                active={selectedClient?.id === c.id}
+              >
+                {c.name}
+              </PickerItem>
+            ))}
+          </PickerMenu>
+        )}
+      </div>
 
       {/* Parent dropdown */}
       <Label className="left-margin">Category</Label>

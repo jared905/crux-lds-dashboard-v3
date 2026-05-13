@@ -53,6 +53,7 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
     scope.categoryIds?.join(','),
     scope.tags?.join(','),
     scope.tiers?.join(','),
+    scope.clientId,
     scope.search,
     scope.windowDays,
     refreshKey,

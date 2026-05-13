@@ -101,7 +101,7 @@ export async function expandCategoriesWithDescendants(rootIds) {
 
 export async function resolveScopeToChannelIds(scope = {}) {
   if (!supabase) return [];
-  const { categoryIds = null, tags = null, tiers = ['priority', 'tracked'], search = '' } = scope;
+  const { categoryIds = null, tags = null, tiers = ['priority', 'tracked'], search = '', clientId = null } = scope;
 
   let q = supabase.from('channels').select('id').eq('is_competitor', true);
   if (tiers?.length) q = q.in('tier', tiers);
@@ -110,6 +110,17 @@ export async function resolveScopeToChannelIds(scope = {}) {
   if (!channels?.length) return [];
 
   let ids = channels.map(c => c.id);
+
+  // Client membership via the client_channels junction (migration 052).
+  // When a client is selected, only keep competitors assigned to them.
+  if (clientId) {
+    const { data: cc } = await supabase
+      .from('client_channels').select('channel_id')
+      .eq('client_id', clientId).in('channel_id', ids);
+    const allowed = new Set((cc || []).map(r => r.channel_id));
+    ids = ids.filter(id => allowed.has(id));
+    if (!ids.length) return [];
+  }
 
   if (categoryIds?.length) {
     // Expand each selected category to include all descendants so picking a
