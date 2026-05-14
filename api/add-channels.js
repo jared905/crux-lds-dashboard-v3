@@ -129,13 +129,16 @@ export default async function handler(req, res) {
         continue;
       }
 
+      // Only columns that actually exist on the channels table. Earlier
+      // version tried to write `country` which is captured from YouTube
+      // but not in the schema — every insert errored out with a schema
+      // cache miss. Drop it.
       const row = {
         youtube_channel_id: resolved.youtube_channel_id,
         name: resolved.name,
         description: resolved.description,
         custom_url: resolved.custom_url,
         thumbnail_url: resolved.thumbnail_url,
-        country: resolved.country,
         subscriber_count: resolved.subscriber_count,
         total_view_count: resolved.total_view_count,
         video_count: resolved.video_count,
