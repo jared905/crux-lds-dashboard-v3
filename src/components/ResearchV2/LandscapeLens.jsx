@@ -471,10 +471,13 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
       <Td align="right">{formatNumber(channel.subscriberCount)}</Td>
       <Td align="right">
         {channel.deltaSubs != null
-          ? <span style={{ color: channel.deltaSubs > 0 ? '#34d399' : channel.deltaSubs < 0 ? '#f87171' : '#888', fontWeight: 600 }}>
+          ? <span
+              title={channel.deltaSubsBasisDate ? `Since snapshot on ${channel.deltaSubsBasisDate}` : ''}
+              style={{ color: channel.deltaSubs > 0 ? '#34d399' : channel.deltaSubs < 0 ? '#f87171' : '#888', fontWeight: 600 }}
+            >
               {channel.deltaSubs > 0 ? '+' : ''}{formatNumber(channel.deltaSubs)}
             </span>
-          : <span style={{ color: '#555' }}>—</span>
+          : <span style={{ color: '#555' }} title="Need at least one channel_snapshot in window">—</span>
         }
       </Td>
       <Td align="right">

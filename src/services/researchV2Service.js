@@ -205,11 +205,18 @@ export async function fetchLandscapeChannels(opts = {}) {
     const totalVelocity = vids.reduce((s, v) => s + (velocityByVideo[v.id] || 0), 0);
     const viewVelocity = vids.length > 0 ? totalVelocity / windowDays : null; // views/day across window
 
+    // Δ Subs: current subscriber_count (from the latest sync) minus the
+    // OLDEST snapshot in window. Using current-vs-oldest instead of
+    // first-vs-last in snapshots means we don't need 2 distinct snapshot
+    // dates to produce a number — one historical snapshot is enough.
     let deltaSubs = null;
-    if (snaps.length >= 2) {
-      const first = snaps[0].subscriber_count;
-      const last = snaps[snaps.length - 1].subscriber_count;
-      if (first != null && last != null) deltaSubs = last - first;
+    let deltaSubsBasisDate = null;
+    if (snaps.length >= 1 && ch.subscriber_count != null) {
+      const oldest = snaps[0];
+      if (oldest.subscriber_count != null) {
+        deltaSubs = ch.subscriber_count - oldest.subscriber_count;
+        deltaSubsBasisDate = oldest.snapshot_date;
+      }
     }
 
     const shortCount = vids.filter(v => (v.duration_seconds || 0) <= SHORTS_DURATION_THRESHOLD).length;
@@ -254,6 +261,7 @@ export async function fetchLandscapeChannels(opts = {}) {
       uploadsPerWeekShort,
       uploadsPerWeekLong,
       effectiveWindowDays,
+      deltaSubsBasisDate,
       lastUpload,
     };
   });
