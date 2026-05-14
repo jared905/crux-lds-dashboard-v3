@@ -438,10 +438,13 @@ async function syncChannel(channel, apiKey) {
  * Main handler
  */
 export default async function handler(req, res) {
-  // Verify auth: cron secret OR ?manual=true (mirrors daily-sync pattern)
-  const cronSecret = req.headers['x-vercel-cron-secret'];
+  // Verify auth: cron secret OR ?manual=true. Vercel cron sends
+  // "Authorization: Bearer <CRON_SECRET>" — NOT a custom header. The
+  // previous x-vercel-cron-secret check was rejecting every cron firing,
+  // which is why the queue went 3 months stale.
+  const authHeader = req.headers.authorization;
   const manualTrigger = req.query?.manual === 'true';
-  if (!manualTrigger && process.env.CRON_SECRET && cronSecret !== process.env.CRON_SECRET) {
+  if (!manualTrigger && process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -492,8 +495,13 @@ export default async function handler(req, res) {
 
     if (channelsError) throw channelsError;
 
-    // Filter out handles and recently-synced
-    const queue = [];
+    // Filter out handles, recently-synced, and recently-failed channels.
+    // Recent failures get a 2h backoff so they don't permanently squat at
+    // the head of the queue (failures don't bump last_synced_at, so
+    // without backoff they'd be retried every single pass forever).
+    const FAIL_BACKOFF_MS = 2 * 3600_000;
+    const failBackoffCutoff = Date.now() - FAIL_BACKOFF_MS;
+    const eligible = [];
     for (const ch of channels || []) {
       if (ch.youtube_channel_id?.startsWith('handle_')) {
         results.handles_skipped++;
@@ -503,10 +511,17 @@ export default async function handler(req, res) {
         results.channels_skipped_fresh++;
         continue;
       }
-      queue.push(ch);
+      if (ch.last_sync_error && ch.last_sync_attempt_at &&
+          new Date(ch.last_sync_attempt_at).getTime() > failBackoffCutoff) {
+        results.channels_skipped_fresh++;
+        continue;
+      }
+      eligible.push(ch);
     }
-    if (channelLimit) queue.splice(channelLimit);
-    results.channels_remaining = queue.length;
+    // Slice to the per-invocation limit but track TRUE remaining (eligible
+    // - this slice) so the caller chain knows when work is actually done.
+    const queue = channelLimit ? eligible.slice(0, channelLimit) : eligible;
+    const globalRemaining = Math.max(0, eligible.length - queue.length);
 
     // Process in parallel batches with a time guard
     let index = 0;
@@ -522,13 +537,18 @@ export default async function handler(req, res) {
           results.channels_synced++;
           results.videos_synced += videosCount;
           results.youtube_api_calls += 3;
-          results.channels_remaining = Math.max(0, queue.length - index);
         } catch (err) {
           results.errors.push({ channel: channel.name, error: err.message });
         }
       }
     });
     await Promise.all(workers);
+
+    // True global remaining: channels still in the eligible pool that
+    // weren't part of this invocation's sliced queue. Plus anything we
+    // didn't get to inside this invocation's queue (time budget).
+    const thisSliceRemaining = Math.max(0, queue.length - index);
+    results.channels_remaining = globalRemaining + thisSliceRemaining;
 
   } catch (err) {
     results.errors.push({ error: err.message });
@@ -563,7 +583,7 @@ export default async function handler(req, res) {
       const url = `${proto}://${host}/api/sync-competitors?chainDepth=${chainDepth + 1}`;
       fetch(url, {
         method: 'POST',
-        headers: { 'x-vercel-cron-secret': process.env.CRON_SECRET },
+        headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
       }).catch(err => console.warn('[sync chain] follow-up failed:', err.message));
     }
   }
