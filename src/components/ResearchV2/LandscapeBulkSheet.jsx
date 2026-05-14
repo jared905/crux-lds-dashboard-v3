@@ -9,7 +9,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  X, Folder, Trash2, Tag as TagIcon, Layers, ChevronDown, Loader,
+  X, Folder, Trash2, Tag as TagIcon, Layers, ChevronDown, Loader, Briefcase,
 } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 
@@ -25,18 +25,21 @@ export default function LandscapeBulkSheet({ selectedIds, channels, onClear, onC
   const [status, setStatus] = useState(null);
   const [categories, setCategories] = useState([]);
   const [tagVocab, setTagVocab] = useState([]);
+  const [clients, setClients] = useState([]);
   const [pickerParent, setPickerParent] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [c, t] = await Promise.all([
+      const [c, t, cl] = await Promise.all([
         supabase.from('categories').select('id, name, slug, parent_id').order('name'),
         supabase.from('tag_vocabulary').select('facet, value, description').order('facet').order('sort_order'),
+        supabase.from('channels').select('id, name').eq('is_client', true).order('name'),
       ]);
       if (!cancelled) {
         setCategories(c.data || []);
         setTagVocab(t.data || []);
+        setClients(cl.data || []);
       }
     })();
     return () => { cancelled = true; };
@@ -104,6 +107,25 @@ export default function LandscapeBulkSheet({ selectedIds, channels, onClear, onC
       if (error) throw error;
       await supabase.from('channels').update({ classification_locked: true }).in('id', ids);
       flash(true, `Tagged ${count} channel${count === 1 ? '' : 's'} · ${tagValue}`);
+      setOpenMenu(null);
+      onChanged?.();
+    } catch (err) {
+      flash(false, err.message);
+    } finally { setBusy(false); }
+  };
+
+  const pinToClient = async (client) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const rows = ids.map(channel_id => ({
+        client_id: client.id, channel_id,
+      }));
+      const { error } = await supabase
+        .from('client_channels')
+        .upsert(rows, { onConflict: 'client_id,channel_id' });
+      if (error) throw error;
+      flash(true, `${count} channel${count === 1 ? '' : 's'} pinned to ${client.name}`);
       setOpenMenu(null);
       onChanged?.();
     } catch (err) {
@@ -236,6 +258,24 @@ export default function LandscapeBulkSheet({ selectedIds, channels, onClear, onC
                     </React.Fragment>
                   );
                 })}
+              </Popover>
+            )}
+          </div>
+
+          {/* Pin to client */}
+          <div style={{ position: 'relative' }}>
+            <ActionButton onClick={() => setOpenMenu(openMenu === 'client' ? null : 'client')} active={openMenu === 'client'}>
+              <Briefcase size={13} /> Pin to client <ChevronDown size={11} style={{ opacity: 0.7 }} />
+            </ActionButton>
+            {openMenu === 'client' && (
+              <Popover onClose={() => setOpenMenu(null)}>
+                <PopHeader>Pin {count} channel{count === 1 ? '' : 's'} to…</PopHeader>
+                {clients.length === 0 && (
+                  <PopRow disabled>No clients yet (add one via + Add channels)</PopRow>
+                )}
+                {clients.map(cl => (
+                  <PopRow key={cl.id} onClick={() => pinToClient(cl)}>{cl.name}</PopRow>
+                ))}
               </Popover>
             )}
           </div>

@@ -3,7 +3,7 @@
  * Inline category norms, sortable columns, click-row → drawer.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronUp, ChevronDown, Loader, Sparkles, Wand2, AlertTriangle } from 'lucide-react';
+import { ChevronUp, ChevronDown, Loader, Sparkles, Wand2, AlertTriangle, Plus } from 'lucide-react';
 import {
   fetchLandscapeChannels,
   computeCategoryNorms,
@@ -12,6 +12,7 @@ import {
 import { supabase } from '../../services/supabaseClient';
 import ChannelDrawer from './ChannelDrawer.jsx';
 import LandscapeBulkSheet from './LandscapeBulkSheet.jsx';
+import AddChannelsModal from './AddChannelsModal.jsx';
 
 const SORTS = {
   name:        { label: 'Channel',       get: c => (c.name || '').toLowerCase() },
@@ -41,6 +42,7 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
   const [showHealthDetail, setShowHealthDetail] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [resolveStatus, setResolveStatus] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -307,6 +309,18 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
                 : <><Wand2 size={12} /> Resolve handles ({healthCounts.handles})</>}
             </button>
           )}
+          <button
+            onClick={() => setShowAddModal(true)}
+            title="Add competitor channels or a non-OAuth client by URL/@handle/ID"
+            style={{
+              padding: '6px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+              background: '#18181c', color: '#d4d4d8',
+              border: '1px solid #232328', borderRadius: 6, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <Plus size={12} /> Add channels
+          </button>
           {uncategorizedCount > 0 && (
             <button
               onClick={handleClassifyUncategorized}
@@ -416,6 +430,16 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
           });
         }}
       />
+
+      {showAddModal && (
+        <AddChannelsModal
+          onClose={() => setShowAddModal(false)}
+          onAdded={async () => {
+            const fresh = await fetchLandscapeChannels(scope);
+            setChannels(fresh);
+          }}
+        />
+      )}
     </>
   );
 }
