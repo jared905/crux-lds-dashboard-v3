@@ -13,6 +13,7 @@ import { supabase } from '../../services/supabaseClient';
 import ChannelDrawer from './ChannelDrawer.jsx';
 import LandscapeBulkSheet from './LandscapeBulkSheet.jsx';
 import AddChannelsModal from './AddChannelsModal.jsx';
+import ChannelIssuesModal from './ChannelIssuesModal.jsx';
 
 const SORTS = {
   name:        { label: 'Channel',       get: c => (c.name || '').toLowerCase() },
@@ -40,6 +41,7 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
     handles: 0, errors: 0, total: 0, fresh24h: 0, latestSync: null, oldestSync: null,
   });
   const [showHealthDetail, setShowHealthDetail] = useState(false);
+  const [issueView, setIssueView] = useState(null); // 'failing' | 'handles' | null
   const [resolving, setResolving] = useState(false);
   const [resolveStatus, setResolveStatus] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -254,6 +256,7 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
         freshnessPct={freshnessPct}
         expanded={showHealthDetail}
         onToggle={() => setShowHealthDetail(v => !v)}
+        onOpenIssues={(view) => setIssueView(view)}
       />
 
       {/* Bulk action header */}
@@ -440,6 +443,18 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
           }}
         />
       )}
+
+      {issueView && (
+        <ChannelIssuesModal
+          view={issueView}
+          onClose={() => setIssueView(null)}
+          onChanged={async () => {
+            // Archiving a channel: re-pull both the table data and the health counts
+            const fresh = await fetchLandscapeChannels(scope);
+            setChannels(fresh);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -553,12 +568,18 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
 // ───────────────────────────────────────────
 // Subcomponents
 // ───────────────────────────────────────────
-function PipelineHealth({ counts, freshnessPct, expanded, onToggle }) {
+function PipelineHealth({ counts, freshnessPct, expanded, onToggle, onOpenIssues }) {
   const { total, fresh24h, latestSync, oldestSync, handles, errors } = counts;
   if (total === 0) return null;
 
   const pctColor = freshnessPct >= 90 ? '#10b981' : freshnessPct >= 70 ? '#f59e0b' : '#ef4444';
   const overallOk = freshnessPct >= 90 && errors === 0 && handles === 0;
+  const linkBtn = (color) => ({
+    background: 'transparent', border: 'none', padding: 0,
+    color, fontWeight: 600, fontSize: 12, cursor: 'pointer',
+    textDecoration: 'underline', textUnderlineOffset: 2,
+    fontFamily: 'inherit',
+  });
 
   return (
     <div style={{
@@ -567,14 +588,10 @@ function PipelineHealth({ counts, freshnessPct, expanded, onToggle }) {
       border: `1px solid ${overallOk ? 'rgba(16,185,129,0.25)' : '#232328'}`,
       borderRadius: 10,
     }}>
-      <button
-        onClick={onToggle}
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          width: '100%', background: 'transparent', border: 'none', padding: 0,
-          cursor: 'pointer', fontFamily: 'inherit', color: '#d4d4d8',
-        }}
-      >
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        fontFamily: 'inherit', color: '#d4d4d8',
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 700, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             Pipeline health
@@ -582,14 +599,21 @@ function PipelineHealth({ counts, freshnessPct, expanded, onToggle }) {
           <Bar pct={freshnessPct} color={pctColor} />
           <span><strong style={{ color: pctColor }}>{freshnessPct}%</strong> synced &lt; 24h ({fresh24h}/{total})</span>
           {latestSync && <span style={{ color: '#888' }}>· Last sync {formatRelative(latestSync)}</span>}
-          {errors > 0 && <span style={{ color: '#f87171', fontWeight: 600 }}>· {errors} failing</span>}
-          {handles > 0 && <span style={{ color: '#fbbf24', fontWeight: 600 }}>· {handles} unresolved handle{handles === 1 ? '' : 's'}</span>}
+          {errors > 0 && (
+            <span>· <button onClick={() => onOpenIssues('failing')} style={linkBtn('#f87171')} title="See which channels are failing and why">{errors} failing</button></span>
+          )}
+          {handles > 0 && (
+            <span>· <button onClick={() => onOpenIssues('handles')} style={linkBtn('#fbbf24')} title="See which @handles couldn't be resolved to a YouTube channel ID">{handles} unresolved handle{handles === 1 ? '' : 's'}</button></span>
+          )}
         </div>
-        <span style={{ color: '#666', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <button onClick={onToggle} style={{
+          background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+          color: '#666', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4,
+        }}>
           {expanded ? 'Hide details' : 'Show details'}
           <ChevronDown size={11} style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
-        </span>
-      </button>
+        </button>
+      </div>
 
       {expanded && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #232328', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
@@ -597,8 +621,16 @@ function PipelineHealth({ counts, freshnessPct, expanded, onToggle }) {
           <DetailStat label="Synced under 24h"    value={`${fresh24h.toLocaleString()} (${freshnessPct}%)`} valueColor={pctColor} />
           <DetailStat label="Most recent sync"    value={latestSync ? formatRelative(latestSync) : '—'} />
           <DetailStat label="Oldest channel sync" value={oldestSync ? formatRelative(oldestSync) : '—'} valueColor={oldestSync && (Date.now() - new Date(oldestSync).getTime()) > 7 * 86400000 ? '#fbbf24' : undefined} />
-          <DetailStat label="Failing sync"        value={errors.toLocaleString()} valueColor={errors > 0 ? '#f87171' : undefined} />
-          <DetailStat label="Unresolved handles"  value={handles.toLocaleString()} valueColor={handles > 0 ? '#fbbf24' : undefined} />
+          <DetailStat
+            label="Failing sync"
+            value={errors > 0 ? <button onClick={() => onOpenIssues('failing')} style={linkBtn('#f87171')}>{errors} — view</button> : '0'}
+            valueColor={errors > 0 ? '#f87171' : undefined}
+          />
+          <DetailStat
+            label="Unresolved handles"
+            value={handles > 0 ? <button onClick={() => onOpenIssues('handles')} style={linkBtn('#fbbf24')}>{handles} — view</button> : '0'}
+            valueColor={handles > 0 ? '#fbbf24' : undefined}
+          />
         </div>
       )}
     </div>
