@@ -481,7 +481,9 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
         }
       </Td>
       <Td align="right">
-        <MetricCell value={channel.viewVelocity} norm={norm?.viewVelocity} normName={primaryCategory?.name} suffix=" /day" />
+        <span title={channel.viewVelocityBasisDate ? `Since snapshot on ${channel.viewVelocityBasisDate}` : ''}>
+          <MetricCell value={channel.viewVelocity} norm={norm?.viewVelocity} normName={primaryCategory?.name} suffix=" /day" />
+        </span>
       </Td>
       <Td align="right">
         <MetricCell value={channel.medianViews} norm={norm?.medianViews} normName={primaryCategory?.name} />

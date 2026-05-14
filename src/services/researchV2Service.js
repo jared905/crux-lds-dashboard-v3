@@ -138,26 +138,14 @@ export async function fetchLandscapeChannels(opts = {}) {
     if (r.earliest) earliestByChannel[r.channel_id] = new Date(r.earliest).getTime();
   }
 
-  // 5. Pull channel_snapshots delta for subs over window
+  // 5. Pull channel_snapshots for sub + view deltas over window
   const dateStart = windowStart.split('T')[0];
   const { data: snapshots } = await supabase
     .from('channel_snapshots')
-    .select('channel_id, snapshot_date, subscriber_count')
+    .select('channel_id, snapshot_date, subscriber_count, total_view_count')
     .in('channel_id', channelIds)
     .gte('snapshot_date', dateStart)
     .order('snapshot_date', { ascending: true });
-
-  // 6. Pull video_snapshots in window for view velocity
-  const videoIdsInWindow = (videos || []).map(v => v.id);
-  let videoSnaps = [];
-  if (videoIdsInWindow.length > 0) {
-    const { data: vs } = await supabase
-      .from('video_snapshots')
-      .select('video_id, view_velocity, snapshot_date')
-      .in('video_id', videoIdsInWindow)
-      .gte('snapshot_date', dateStart);
-    videoSnaps = vs || [];
-  }
 
   // 7. Pull category + tag joins
   const { data: catJoins } = await supabase
@@ -172,12 +160,6 @@ export async function fetchLandscapeChannels(opts = {}) {
   // 8. Compute derived metrics per channel
   const videosByChannel = groupBy(videos || [], 'channel_id');
   const snapsByChannel = groupBy(snapshots || [], 'channel_id');
-  const velocityByVideo = {};
-  for (const vs of videoSnaps) {
-    if (vs.view_velocity != null) {
-      velocityByVideo[vs.video_id] = (velocityByVideo[vs.video_id] || 0) + Number(vs.view_velocity);
-    }
-  }
   const tagsByChannel = {};
   for (const t of tagJoins || []) {
     if (!tagsByChannel[t.channel_id]) tagsByChannel[t.channel_id] = [];
@@ -202,8 +184,24 @@ export async function fetchLandscapeChannels(opts = {}) {
     const totalVw = vids.reduce((s, v) => s + (v.view_count || 0), 0);
     const engagementRate = totalVw > 0 ? totalEng / totalVw : null;
 
-    const totalVelocity = vids.reduce((s, v) => s + (velocityByVideo[v.id] || 0), 0);
-    const viewVelocity = vids.length > 0 ? totalVelocity / windowDays : null; // views/day across window
+    // View velocity: total views/day for the channel, computed from the
+    // delta between the latest channel state (ch.total_view_count) and
+    // the OLDEST snapshot's total_view_count in window. Same one-snapshot
+    // pattern as deltaSubs — the prior per-video aggregate needed paired
+    // video_snapshots which most channels don't have yet, so almost
+    // every cell read 0/day.
+    let viewVelocity = null;
+    let viewVelocityBasisDate = null;
+    if (snaps.length >= 1 && ch.total_view_count != null) {
+      const oldest = snaps[0];
+      if (oldest.total_view_count != null) {
+        const daysBetween = Math.max(1,
+          (now.getTime() - new Date(oldest.snapshot_date).getTime()) / 86400000
+        );
+        viewVelocity = (ch.total_view_count - oldest.total_view_count) / daysBetween;
+        viewVelocityBasisDate = oldest.snapshot_date;
+      }
+    }
 
     // Δ Subs: current subscriber_count (from the latest sync) minus the
     // OLDEST snapshot in window. Using current-vs-oldest instead of
@@ -262,6 +260,7 @@ export async function fetchLandscapeChannels(opts = {}) {
       uploadsPerWeekLong,
       effectiveWindowDays,
       deltaSubsBasisDate,
+      viewVelocityBasisDate,
       lastUpload,
     };
   });
