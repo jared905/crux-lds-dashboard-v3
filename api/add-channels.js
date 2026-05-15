@@ -90,9 +90,44 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'YOUTUBE_API_KEY not configured' });
 
   const body = req.body || {};
-  const inputs = Array.isArray(body.inputs) ? body.inputs : [];
+  const inputs = Array.isArray(body.inputs) ? body.inputs.filter(s => s && s.trim()) : [];
   const kind = body.kind === 'client' ? 'client' : 'competitor';
   const tier = ['priority', 'tracked', 'archive'].includes(body.tier) ? body.tier : 'tracked';
+  const stubName = (body.name || '').trim();
+
+  // Label-only client: no YouTube URL provided, just a name. Create one
+  // channels row with a synthetic id so the rest of the app (Client picker,
+  // client_channels junction, etc.) can reference it without breaking the
+  // NOT NULL UNIQUE constraint on youtube_channel_id.
+  if (kind === 'client' && !inputs.length) {
+    if (!stubName) return res.status(400).json({ error: 'Either inputs[] or name is required' });
+    const synthId = `stub_${stubName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)}_${Math.random().toString(36).slice(2, 8)}`;
+    const { data: existing } = await supabase
+      .from('channels').select('id, name')
+      .eq('name', stubName).eq('is_client', true).maybeSingle();
+    if (existing) {
+      return res.status(200).json({
+        success: true, kind, counts: { added: 0, skipped: 1, errors: 0 },
+        added: [], errors: [],
+        skipped: [{ input: stubName, reason: `Client "${stubName}" already exists`, channel_id: existing.id }],
+      });
+    }
+    const { data: inserted, error: insErr } = await supabase.from('channels').insert({
+      youtube_channel_id: synthId,
+      name: stubName,
+      is_competitor: false,
+      is_client: true,
+      sync_enabled: false, // no YouTube id to sync against
+      tier: 'priority',
+      tracked_since: new Date().toISOString(),
+    }).select('id, name').single();
+    if (insErr) return res.status(500).json({ error: insErr.message });
+    return res.status(200).json({
+      success: true, kind, counts: { added: 1, skipped: 0, errors: 0 },
+      added: [{ input: stubName, id: inserted.id, name: inserted.name, youtube_channel_id: synthId }],
+      skipped: [], errors: [],
+    });
+  }
 
   if (!inputs.length) return res.status(400).json({ error: 'inputs[] is required' });
 

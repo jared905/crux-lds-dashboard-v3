@@ -11,20 +11,29 @@ export default function AddChannelsModal({ onClose, onAdded }) {
   const [kind, setKind] = useState('competitor'); // 'competitor' | 'client'
   const [tier, setTier] = useState('tracked');
   const [text, setText] = useState('');
+  const [clientName, setClientName] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
 
   const inputs = text.split('\n').map(s => s.trim()).filter(Boolean);
+  const canSubmit = kind === 'competitor'
+    ? inputs.length > 0
+    : (clientName.trim().length > 0 || inputs.length > 0);
 
   const submit = async () => {
-    if (!inputs.length || busy) return;
+    if (!canSubmit || busy) return;
     setBusy(true); setError(null); setResult(null);
     try {
       const resp = await fetch('/api/add-channels', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inputs, kind, tier }),
+        body: JSON.stringify({
+          inputs,
+          kind,
+          tier,
+          ...(kind === 'client' ? { name: clientName.trim() } : {}),
+        }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
@@ -110,15 +119,38 @@ export default function AddChannelsModal({ onClose, onAdded }) {
             </>
           )}
 
+          {/* Client name (client only) */}
+          {kind === 'client' && (
+            <>
+              <SectionLabel>Client name</SectionLabel>
+              <input
+                value={clientName}
+                onChange={e => setClientName(e.target.value)}
+                placeholder="Acme Corp"
+                style={{
+                  width: '100%', padding: '10px 12px', borderRadius: 6,
+                  background: '#0e0e12', border: '1px solid #2a2a30', color: '#fff',
+                  fontSize: 13, fontFamily: 'inherit',
+                  outline: 'none', boxSizing: 'border-box', marginBottom: 4,
+                }}
+              />
+              <div style={{ fontSize: 11, color: '#666', marginBottom: 14 }}>
+                Used as the label in the Client picker and the "Pin to client" action.
+              </div>
+            </>
+          )}
+
           {/* Inputs */}
-          <SectionLabel>{kind === 'client' ? 'Client channel' : 'Competitor channels'}</SectionLabel>
+          <SectionLabel>
+            {kind === 'client' ? "Client's YouTube channel (optional)" : 'Competitor channels'}
+          </SectionLabel>
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}
             placeholder={kind === 'client'
-              ? 'https://youtube.com/@AcmeCorp\n(client-side: just one line, but bulk works too)'
+              ? 'Optional — leave blank for a label-only client.\nOr paste:\nhttps://youtube.com/@AcmeCorp'
               : 'https://youtube.com/@channel1\n@channel2\nUCxxxxxxxxxxxxxxxxxxxxx'}
-            rows={6}
+            rows={kind === 'client' ? 3 : 6}
             style={{
               width: '100%', padding: '10px 12px', borderRadius: 6,
               background: '#0e0e12', border: '1px solid #2a2a30', color: '#fff',
@@ -127,9 +159,15 @@ export default function AddChannelsModal({ onClose, onAdded }) {
             }}
           />
           <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
-            {inputs.length} input{inputs.length === 1 ? '' : 's'} parsed.
-            {kind === 'competitor' && ' Channels are queued for the next sync immediately after add.'}
-            {kind === 'client' && ' No OAuth required; public data only (no CTR / retention / watch hours).'}
+            {kind === 'competitor' && (
+              <>{inputs.length} input{inputs.length === 1 ? '' : 's'} parsed. Channels are queued for the next sync immediately after add.</>
+            )}
+            {kind === 'client' && inputs.length === 0 && (
+              <>Label-only client — no YouTube data attached. Use the "Pin to client" action in Landscape to assign competitors to it.</>
+            )}
+            {kind === 'client' && inputs.length > 0 && (
+              <>YouTube channel will be fetched and stored alongside the client label. No OAuth required — public data only.</>
+            )}
           </div>
 
           {error && (
@@ -156,10 +194,12 @@ export default function AddChannelsModal({ onClose, onAdded }) {
           {/* Footer actions */}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 }}>
             <button onClick={onClose} style={secondaryBtn}>Close</button>
-            <button onClick={submit} disabled={busy || !inputs.length} style={primaryBtn(busy || !inputs.length)}>
+            <button onClick={submit} disabled={busy || !canSubmit} style={primaryBtn(busy || !canSubmit)}>
               {busy
                 ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite', marginRight: 6, verticalAlign: '-1px' }} />Adding…</>
-                : `Add ${inputs.length || ''}`}
+                : kind === 'client' && inputs.length === 0
+                  ? 'Add client'
+                  : `Add ${inputs.length || ''}`}
             </button>
           </div>
         </div>
