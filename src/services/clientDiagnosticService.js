@@ -8,6 +8,7 @@
 
 import { supabase } from './supabaseClient';
 import { trimmedMedian, liftConfidence } from './statsHelpers.js';
+import { fetchVideosForChannels } from './patternsService.js';
 
 const SHORTS_THRESHOLD = 180;
 
@@ -164,18 +165,14 @@ export async function computeClientDiagnostic({ clientId, scopeChannelIds, windo
   const cutoff = new Date(Date.now() - windowDays * 86400000).toISOString();
   const nowIso = new Date().toISOString();
 
-  // 2. Cohort videos (the client's pinned competitors)
+  // 2. Cohort videos (the client's pinned competitors). Use the same
+  // paginated fetcher patternsService uses so the briefing's pattern
+  // counts match the Patterns lens table exactly. Previously each
+  // service had its own fetch with different limits, which produced
+  // mismatched n= values across the audit.
   let cohortVideos = [];
   if (scopeChannelIds?.length) {
-    const { data } = await supabase
-      .from('videos')
-      .select('title, view_count, duration_seconds, published_at')
-      .in('channel_id', scopeChannelIds)
-      .gte('published_at', cutoff)
-      .lte('published_at', nowIso)
-      .gt('view_count', 0)
-      .limit(2000);
-    cohortVideos = data || [];
+    cohortVideos = await fetchVideosForChannels(scopeChannelIds, { windowDays });
   }
 
   // 3. Client's own videos (only if real YouTube channel)
@@ -273,7 +270,7 @@ const BRIEFING_CACHE_HOURS = 24 * 3; // re-synthesize every 3 days
 
 // Bump when the prompt structure or hedging rules change — invalidates
 // every cached briefing so stale pre-hedging output stops being served.
-const BRIEFING_PROMPT_VERSION = 'v4-lift-not-frequency';
+const BRIEFING_PROMPT_VERSION = 'v5-harmonized-fetch';
 
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;

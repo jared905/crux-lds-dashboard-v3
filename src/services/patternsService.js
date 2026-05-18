@@ -50,23 +50,38 @@ const LENGTH_BUCKETS = [
  * Fetch videos for a set of channels in a window.
  * Drops 0-view rows (private/unlisted).
  */
-async function fetchVideosForChannels(channelIds, { windowDays = 90 } = {}) {
+export async function fetchVideosForChannels(channelIds, { windowDays = 90 } = {}) {
   if (!supabase || !channelIds?.length) return [];
   const cutoff = new Date(Date.now() - windowDays * 86400000).toISOString();
+  const nowIso = new Date().toISOString();
 
-  const { data, error } = await supabase
-    .from('videos')
-    .select('id, channel_id, title, duration_seconds, view_count, like_count, comment_count, published_at, youtube_video_id, thumbnail_url')
-    .in('channel_id', channelIds)
-    .gte('published_at', cutoff)
-    .gt('view_count', 0)
-    .order('view_count', { ascending: false });
-
-  if (error) {
-    console.error('[patternsService] video fetch failed:', error);
-    return [];
+  // Page through results in 1000-row chunks (Supabase default cap) so
+  // large cohorts don't get silently truncated. Without this, patternsService
+  // saw the first 1000 view_count-desc and clientDiagnosticService saw a
+  // different 2000-row slice — same cohort, different sample, different
+  // pattern counts and lifts in the audit. Symptom: "All-caps n=52" in the
+  // briefing didn't match "All-caps n=123" in the patterns table.
+  const PAGE = 1000;
+  const out = [];
+  for (let offset = 0; offset < 10000; offset += PAGE) {
+    const { data, error } = await supabase
+      .from('videos')
+      .select('id, channel_id, title, duration_seconds, view_count, like_count, comment_count, published_at, youtube_video_id, thumbnail_url')
+      .in('channel_id', channelIds)
+      .gte('published_at', cutoff)
+      .lte('published_at', nowIso)
+      .gt('view_count', 0)
+      .order('published_at', { ascending: false })
+      .range(offset, offset + PAGE - 1);
+    if (error) {
+      console.error('[patternsService] video fetch failed:', error);
+      break;
+    }
+    if (!data?.length) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
   }
-  return data || [];
+  return out;
 }
 
 /**

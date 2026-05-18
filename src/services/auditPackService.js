@@ -321,12 +321,111 @@ function sectionOpportunityBrief(brief) {
   return lines.join('\n');
 }
 
+// ──────────────────────────────────────────────────
+// Active competitive plays — channels stacking ≥3 breakouts using a
+// shared title formula in the window. The editorial layer that separates
+// a category audit from a stats dump.
+// ──────────────────────────────────────────────────
+function detectActivePlays(alerts) {
+  const breakouts = (alerts || []).filter(a => a.alert_type === 'breakout');
+  if (!breakouts.length) return [];
+
+  // Group breakouts by channel
+  const byChannel = {};
+  for (const a of breakouts) {
+    const name = a.payload?.channel_name || 'Unknown';
+    if (!byChannel[name]) byChannel[name] = [];
+    byChannel[name].push(a);
+  }
+
+  // Only channels with ≥3 breakouts are candidates for "stacking a play"
+  const candidates = Object.entries(byChannel)
+    .filter(([, arr]) => arr.length >= 3)
+    .map(([name, arr]) => ({ name, breakouts: arr }));
+
+  // For each candidate, find the longest contiguous phrase that appears
+  // in ≥2 of their breakout titles. That's the "formula."
+  return candidates.map(c => {
+    const titles = c.breakouts.map(b => (b.payload?.video_title || '').toLowerCase());
+    const formula = longestCommonPhrase(titles, /*minHits=*/Math.max(2, Math.ceil(titles.length / 2)));
+    return {
+      channel: c.name,
+      hitCount: c.breakouts.length,
+      formula,
+      examples: c.breakouts.slice(0, 4).map(b => ({
+        title: b.payload?.video_title || '(no title)',
+        multiplier: b.payload?.multiplier,
+        views: b.payload?.views_at_48h,
+        youtube_video_id: b.payload?.youtube_video_id,
+      })),
+    };
+  })
+  .filter(p => p.formula) // only surface when a shared phrase is found
+  .sort((a, b) => b.hitCount - a.hitCount);
+}
+
+// Find the longest contiguous word-phrase that appears in at least minHits
+// of the given titles. Returns the phrase string or null.
+function longestCommonPhrase(titles, minHits = 2) {
+  if (!titles?.length) return null;
+  const tokenize = (s) => (s || '')
+    .replace(/[^\w\s'-]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+  const tokenized = titles.map(tokenize);
+
+  // Stop words that aren't interesting on their own. We don't reject
+  // phrases CONTAINING them — "caught on camera" is fine — but we
+  // require the phrase to include at least one non-stopword.
+  const STOP = new Set(['the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'on', 'for', 'with', 'is', 'it', 'this', 'that']);
+
+  // Collect every n-gram (n=4 down to 2) from the first title, find the
+  // longest that appears in ≥minHits titles overall.
+  let best = null;
+  for (let n = 5; n >= 2; n--) {
+    for (const tokens of tokenized) {
+      for (let i = 0; i + n <= tokens.length; i++) {
+        const phrase = tokens.slice(i, i + n).join(' ');
+        // Skip purely-stopword phrases
+        if (tokens.slice(i, i + n).every(t => STOP.has(t))) continue;
+        const hits = tokenized.filter(toks => toks.join(' ').includes(phrase)).length;
+        if (hits >= minHits && (!best || best.n < n)) {
+          best = { phrase, n, hits };
+        }
+      }
+    }
+    if (best && best.n === n) return best.phrase; // longest wins
+  }
+  return best?.phrase || null;
+}
+
+function sectionActivePlays(alerts) {
+  const plays = detectActivePlays(alerts);
+  if (!plays.length) return null;
+  const lines = [
+    '## 9. Active competitive plays',
+    '',
+    "_Channels stacking 3+ breakouts inside 30 days using a shared title framing. These are direct competitors cracking a formula in real time — the most actionable competitive intel in the audit. Window to react before saturation is short._",
+    '',
+  ];
+  plays.forEach((p, i) => {
+    lines.push(`### ${i + 1}. ${escapeMd(p.channel)} — "${escapeMd(p.formula)}" formula (${p.hitCount} breakouts)`, '');
+    lines.push('| Video | Multiplier | Views | Link |', '|---|---:|---:|---|');
+    for (const ex of p.examples) {
+      const link = ex.youtube_video_id ? `[Watch](https://youtu.be/${ex.youtube_video_id})` : '—';
+      lines.push(`| ${escapeMd(ex.title)} | ${ex.multiplier ? ex.multiplier.toFixed(1) + '×' : '—'} | ${fmtNum(ex.views)} | ${link} |`);
+    }
+    lines.push('');
+  });
+  return lines.join('\n');
+}
+
 function sectionMovement(alerts) {
   if (!alerts?.length) return null;
   const byType = {};
   for (const a of alerts) (byType[a.alert_type] ||= []).push(a);
   const lines = [
-    '## 9. Recent movement (last 30 days)',
+    '## 10. Recent movement (last 30 days)',
     '',
     '_Volatility filter applied: single-video spikes don\'t count as trends. Rank-change events require ≥5 videos per side with the change holding across the trimmed mean._',
     '',
@@ -424,6 +523,7 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
     sectionCadence(whiteSpaceResult?.cadenceGaps),
     sectionOutliers(patternsResult?.scope?.outliers),
     sectionTopics(whiteSpaceResult?.topicCoverage),
+    sectionActivePlays(alerts),
     sectionMovement(alerts),
   ].filter(Boolean);
 
