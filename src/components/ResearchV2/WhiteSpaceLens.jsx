@@ -255,20 +255,62 @@ function FormatGapsTable({ buckets }) {
 // ───────────────────────────────────────────
 function CadenceHeatmap({ data }) {
   if (!data?.grid) return null;
-  // Find max for normalization
-  let max = 0;
-  for (const row of data.grid) for (const cell of row) if (cell > max) max = cell;
-  const shade = (count) => {
-    if (max === 0) return '#1c1c20';
-    const intensity = count / max;
+  const [mode, setMode] = React.useState('performance'); // 'performance' | 'density'
+
+  // Density max for shading the count view
+  let maxCount = 0;
+  for (const row of data.grid) for (const cell of row) if (cell > maxCount) maxCount = cell;
+
+  const shadeDensity = (count) => {
+    if (maxCount === 0) return '#1c1c20';
+    const intensity = count / maxCount;
     if (intensity === 0) return 'rgba(245,158,11,0.10)';
     if (intensity < 0.25) return '#1e3a5f';
     if (intensity < 0.5) return '#2563eb';
     if (intensity < 0.75) return '#3b82f6';
     return '#60a5fa';
   };
+
+  // Performance shading: green for >1× scope median, red for <1×, gray for n/a
+  const shadePerf = (lift, count) => {
+    if (count === 0) return 'rgba(245,158,11,0.10)';
+    if (lift == null) return '#1f1f25'; // not enough sample
+    if (lift >= 1.5) return '#065f46'; // strong over
+    if (lift >= 1.15) return '#10b981';
+    if (lift >= 0.85) return '#374151'; // ~flat
+    if (lift >= 0.5) return '#7f1d1d';
+    return '#5b0d0d';
+  };
+
+  const cellText = (dayIdx, blockIdx) => {
+    const count = data.grid[dayIdx][blockIdx];
+    if (count === 0) return '';
+    if (mode === 'density') return String(count);
+    const lift = data.liftGrid?.[dayIdx]?.[blockIdx];
+    if (lift == null) return `${count}`;
+    const pct = Math.round((lift - 1) * 100);
+    if (Math.abs(pct) < 5) return '—';
+    return `${pct > 0 ? '+' : ''}${pct}%`;
+  };
+
+  const cellTitle = (dayIdx, blockIdx) => {
+    const count = data.grid[dayIdx][blockIdx];
+    const med = data.medianGrid?.[dayIdx]?.[blockIdx];
+    const lift = data.liftGrid?.[dayIdx]?.[blockIdx];
+    const parts = [`${count} upload${count === 1 ? '' : 's'}`];
+    if (med != null) parts.push(`median ${med >= 1000 ? (med / 1000).toFixed(1) + 'K' : Math.round(med)} views`);
+    if (lift != null) parts.push(`${lift.toFixed(2)}× scope median`);
+    return parts.join(' · ');
+  };
+
   return (
     <div>
+      {/* Mode toggle */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        <ToggleBtn active={mode === 'performance'} onClick={() => setMode('performance')}>Performance</ToggleBtn>
+        <ToggleBtn active={mode === 'density'} onClick={() => setMode('density')}>Density</ToggleBtn>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: '110px repeat(7, 1fr)', gap: '3px', fontSize: '10px' }}>
         <span />
         {data.labels.days.map(d => (
@@ -279,40 +321,65 @@ function CadenceHeatmap({ data }) {
             <span style={{ color: '#888', textAlign: 'right', paddingRight: '6px', alignSelf: 'center' }}>
               {blockLabel.split(' ')[0]}
             </span>
-            {data.grid.map((dayRow, dayIdx) => (
-              <div
-                key={dayIdx}
-                style={{
-                  height: '24px',
-                  background: shade(dayRow[blockIdx]),
-                  borderRadius: '2px',
-                  border: dayRow[blockIdx] === 0 ? '1px dashed rgba(251,191,36,0.5)' : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '9px',
-                  color: dayRow[blockIdx] === 0 ? '#fbbf24' : '#fff',
-                  fontWeight: 600,
-                }}
-              >{dayRow[blockIdx] || ''}</div>
-            ))}
+            {data.grid.map((dayRow, dayIdx) => {
+              const count = dayRow[blockIdx];
+              const bg = mode === 'density'
+                ? shadeDensity(count)
+                : shadePerf(data.liftGrid?.[dayIdx]?.[blockIdx], count);
+              return (
+                <div
+                  key={dayIdx}
+                  title={cellTitle(dayIdx, blockIdx)}
+                  style={{
+                    height: '24px', background: bg, borderRadius: '2px',
+                    border: count === 0 ? '1px dashed rgba(251,191,36,0.5)' : 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '9px', color: count === 0 ? '#fbbf24' : '#fff', fontWeight: 700,
+                  }}
+                >{cellText(dayIdx, blockIdx)}</div>
+              );
+            })}
           </React.Fragment>
         ))}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666', marginTop: '10px', alignItems: 'center' }}>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666', marginTop: '10px', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <span>
           <span style={{ display: 'inline-block', width: '10px', height: '10px', background: 'rgba(245,158,11,0.10)', border: '1px dashed rgba(251,191,36,0.5)', borderRadius: '2px', marginRight: '4px', verticalAlign: 'middle' }} />
           Empty window
         </span>
-        <span>
-          <span style={{ color: '#aaa' }}>Density:</span>
-          <span style={{ display: 'inline-block', width: '12px', height: '8px', background: '#1e3a5f', marginLeft: '4px', borderRadius: '2px' }} />
-          <span style={{ display: 'inline-block', width: '12px', height: '8px', background: '#2563eb', marginLeft: '2px', borderRadius: '2px' }} />
-          <span style={{ display: 'inline-block', width: '12px', height: '8px', background: '#3b82f6', marginLeft: '2px', borderRadius: '2px' }} />
-          <span style={{ display: 'inline-block', width: '12px', height: '8px', background: '#60a5fa', marginLeft: '2px', borderRadius: '2px' }} />
-        </span>
+        {mode === 'performance' ? (
+          <span>
+            <span style={{ color: '#aaa' }}>Views vs scope median:</span>
+            <span title="≤ 50%" style={{ display: 'inline-block', width: '14px', height: '8px', background: '#5b0d0d', marginLeft: '4px', borderRadius: '2px' }} />
+            <span title="50–85%" style={{ display: 'inline-block', width: '14px', height: '8px', background: '#7f1d1d', marginLeft: '2px', borderRadius: '2px' }} />
+            <span title="85–115% (flat)" style={{ display: 'inline-block', width: '14px', height: '8px', background: '#374151', marginLeft: '2px', borderRadius: '2px' }} />
+            <span title="115–150%" style={{ display: 'inline-block', width: '14px', height: '8px', background: '#10b981', marginLeft: '2px', borderRadius: '2px' }} />
+            <span title="≥ 150%" style={{ display: 'inline-block', width: '14px', height: '8px', background: '#065f46', marginLeft: '2px', borderRadius: '2px' }} />
+          </span>
+        ) : (
+          <span>
+            <span style={{ color: '#aaa' }}>Density:</span>
+            <span style={{ display: 'inline-block', width: '12px', height: '8px', background: '#1e3a5f', marginLeft: '4px', borderRadius: '2px' }} />
+            <span style={{ display: 'inline-block', width: '12px', height: '8px', background: '#2563eb', marginLeft: '2px', borderRadius: '2px' }} />
+            <span style={{ display: 'inline-block', width: '12px', height: '8px', background: '#3b82f6', marginLeft: '2px', borderRadius: '2px' }} />
+            <span style={{ display: 'inline-block', width: '12px', height: '8px', background: '#60a5fa', marginLeft: '2px', borderRadius: '2px' }} />
+          </span>
+        )}
       </div>
     </div>
+  );
+}
+
+function ToggleBtn({ active, onClick, children }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: '4px 10px', borderRadius: 4,
+      background: active ? '#2563eb' : '#18181c',
+      color: active ? '#fff' : '#a1a1aa',
+      border: `1px solid ${active ? '#2563eb' : '#232328'}`,
+      fontSize: 11, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+    }}>{children}</button>
   );
 }
 

@@ -138,8 +138,14 @@ export default function PatternsLens({ scope, refreshKey = 0 }) {
 // Subcomponents
 // ───────────────────────────────────────────
 function TitlePatternsTable({ patterns, compare }) {
-  // Order: significant + present patterns first, by freq desc
-  const sorted = [...patterns].sort((a, b) => b.freq - a.freq);
+  // Sort by views lift descending — what WORKS bubbles up first. Patterns
+  // with no lift signal (small sample) sort by frequency.
+  const sorted = [...patterns].sort((a, b) => {
+    const aLift = a.viewsLift ?? -Infinity;
+    const bLift = b.viewsLift ?? -Infinity;
+    if (aLift !== bLift) return bLift - aLift;
+    return b.freq - a.freq;
+  });
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
       <thead>
@@ -147,6 +153,7 @@ function TitlePatternsTable({ patterns, compare }) {
           <Th>Pattern</Th>
           <Th align="right">Freq</Th>
           <Th align="right">Median views</Th>
+          <Th align="right" title="Median views for videos using this pattern, compared to the scope median across all videos">Views lift</Th>
           <Th align="right">Engagement</Th>
           {compare && <Th align="right">vs baseline</Th>}
         </tr>
@@ -159,6 +166,7 @@ function TitlePatternsTable({ patterns, compare }) {
               <Td>{p.label}</Td>
               <Td align="right">{(p.freq * 100).toFixed(0)}%</Td>
               <Td align="right">{p.medianViews != null ? formatNumber(p.medianViews) : '—'}</Td>
+              <Td align="right"><ViewsLiftBadge lift={p.viewsLift} count={p.count} /></Td>
               <Td align="right">
                 {p.avgEngagement != null ? `${(p.avgEngagement * 100).toFixed(1)}%` : '—'}
               </Td>
@@ -172,6 +180,25 @@ function TitlePatternsTable({ patterns, compare }) {
         })}
       </tbody>
     </table>
+  );
+}
+
+function ViewsLiftBadge({ lift, count }) {
+  if (lift == null) {
+    return <span style={{ fontSize: 10, color: '#555' }} title={`n=${count} — too small for lift signal`}>n/a</span>;
+  }
+  const pct = Math.round((lift - 1) * 100);
+  const positive = pct > 0;
+  const flat = Math.abs(pct) < 5;
+  const color = flat ? '#888' : positive ? '#34d399' : '#f87171';
+  const label = flat ? '— flat' : positive ? `+${pct}%` : `${pct}%`;
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 700, color,
+      fontVariantNumeric: 'tabular-nums',
+    }} title={`${lift.toFixed(2)}× the scope median (n=${count})`}>
+      {!flat && (positive ? '▲ ' : '▼ ')}{label}
+    </span>
   );
 }
 

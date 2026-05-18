@@ -97,12 +97,15 @@ function computeFormatGaps(videos) {
 // Cadence gaps — day-of-week × time-of-day density (Mountain Time)
 // ──────────────────────────────────────────────────
 function computeCadenceGaps(videos) {
-  // 7 days × 4 time blocks (Night/Morning/Afternoon/Evening, MT)
-  const grid = Array.from({ length: 7 }, () => [0, 0, 0, 0]); // [day][block]
+  // 7 days × 4 time blocks (Night/Morning/Afternoon/Evening, MT).
+  // grid       = upload counts per cell
+  // viewsGrid  = arrays of view_counts per cell — we'll reduce to medians + lift
+  const grid       = Array.from({ length: 7 }, () => [0, 0, 0, 0]);
+  const viewsGrid  = Array.from({ length: 7 }, () => [[], [], [], []]);
+  const allViews   = [];
 
   for (const v of videos) {
     if (!v.published_at) continue;
-    // Convert to Mountain Time
     const d = new Date(v.published_at);
     const mtFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/Denver',
@@ -115,16 +118,48 @@ function computeCadenceGaps(videos) {
     if (dayIdx < 0) continue;
     const block = hr < 6 ? 0 : hr < 12 ? 1 : hr < 18 ? 2 : 3;
     grid[dayIdx][block]++;
+    if (v.view_count > 0) {
+      viewsGrid[dayIdx][block].push(v.view_count);
+      allViews.push(v.view_count);
+    }
+  }
+
+  // Scope-wide median (the baseline a slot is compared against)
+  const scopeMedian = allViews.length > 0 ? median(allViews) : null;
+
+  // Reduce per-cell arrays to {medianViews, viewsLift, sampleSize}
+  const medianGrid = Array.from({ length: 7 }, () => [null, null, null, null]);
+  const liftGrid   = Array.from({ length: 7 }, () => [null, null, null, null]);
+  const minSample = 3; // need at least 3 videos in a slot to trust the median
+  for (let d = 0; d < 7; d++) {
+    for (let b = 0; b < 4; b++) {
+      const arr = viewsGrid[d][b];
+      if (arr.length >= minSample) {
+        const m = median(arr);
+        medianGrid[d][b] = m;
+        liftGrid[d][b] = scopeMedian && scopeMedian > 0 ? m / scopeMedian : null;
+      }
+    }
   }
 
   return {
     grid,
+    medianGrid,
+    liftGrid,
+    scopeMedian,
     labels: {
       days:   ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
       blocks: ['12am–6am', '6am–12pm', '12pm–6pm', '6pm–12am'],
     },
     total: videos.length,
   };
+}
+
+function median(nums) {
+  if (!nums?.length) return null;
+  const sorted = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
 // ──────────────────────────────────────────────────

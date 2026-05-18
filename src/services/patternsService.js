@@ -153,22 +153,37 @@ export async function resolveScopeToChannelIds(scope = {}) {
 function computeTitlePatterns(videos) {
   if (!videos.length) return [];
 
+  // Scope-level baseline: median views across ALL videos in scope.
+  // Used to compute the per-pattern views-lift ratio — that's what turns
+  // "Question titles are used 22% of the time" into the prescriptive
+  // "Question titles get +1.8× the cohort median."
+  const scopeViewsSample = videos.map(v => v.view_count || 0).filter(n => n > 0);
+  const scopeMedianViews = scopeViewsSample.length > 0 ? median(scopeViewsSample) : null;
+
   return TITLE_PATTERNS.map(p => {
     const matched = videos.filter(v => p.test(v.title || ''));
     const count = matched.length;
     const freq = count / videos.length;
 
-    const matchedViews = matched.map(v => v.view_count);
+    const matchedViews = matched.map(v => v.view_count || 0).filter(n => n > 0);
+    const matchedMedianViews = matchedViews.length > 0 ? median(matchedViews) : null;
     const matchedEng = matched
       .filter(v => v.view_count > 0)
       .map(v => ((v.like_count || 0) + (v.comment_count || 0)) / v.view_count);
+
+    // Views lift: how does this pattern perform vs. the scope baseline?
+    // null when sample is too small (n<5) to trust the median.
+    const viewsLift = (matchedMedianViews != null && scopeMedianViews && scopeMedianViews > 0 && matched.length >= 5)
+      ? matchedMedianViews / scopeMedianViews
+      : null;
 
     return {
       id: p.id,
       label: p.label,
       count,
       freq,
-      medianViews: count > 0 ? median(matchedViews) : null,
+      medianViews: matchedMedianViews,
+      viewsLift,
       avgEngagement: matchedEng.length > 0
         ? matchedEng.reduce((s, e) => s + e, 0) / matchedEng.length
         : null,
