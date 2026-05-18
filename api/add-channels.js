@@ -164,6 +164,23 @@ export default async function handler(req, res) {
         continue;
       }
 
+      // Sanity check: implausibly tiny resolved channel. YouTube's
+      // handle/username resolver sometimes returns a near-empty channel
+      // when an old/dead account squatted the handle. Reolink was being
+      // resolved to a 3-subscriber dead channel; the real one wasn't
+      // found. Block these and ask the user to verify.
+      const looksLikeBadResolve =
+        (resolved.video_count || 0) < 5 &&
+        (resolved.subscriber_count || 0) < 100;
+      if (looksLikeBadResolve) {
+        skipped.push({
+          input: raw,
+          reason: `Resolved to a near-empty channel (${resolved.video_count} videos, ${resolved.subscriber_count} subs) — likely the wrong account. Paste the UC… id directly to override.`,
+          channel_id: null,
+        });
+        continue;
+      }
+
       // Only columns that actually exist on the channels table. Earlier
       // version tried to write `country` which is captured from YouTube
       // but not in the schema — every insert errored out with a schema

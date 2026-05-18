@@ -271,15 +271,18 @@ function CadenceHeatmap({ data }) {
     return '#60a5fa';
   };
 
-  // Performance shading: green for >1× scope median, red for <1×, gray for n/a
-  const shadePerf = (lift, count) => {
+  // Performance shading: green for >1× scope median, red for <1×, gray for n/a.
+  // Directional (small-sample) cells are rendered at half intensity so the
+  // viewer reads them as "early signal, not statistical."
+  const shadePerf = (lift, count, conf) => {
     if (count === 0) return 'rgba(245,158,11,0.10)';
     if (lift == null) return '#1f1f25'; // not enough sample
-    if (lift >= 1.5) return '#065f46'; // strong over
-    if (lift >= 1.15) return '#10b981';
+    const directional = conf === 'directional';
+    if (lift >= 1.5) return directional ? '#064e3b' : '#065f46';
+    if (lift >= 1.15) return directional ? '#047857' : '#10b981';
     if (lift >= 0.85) return '#374151'; // ~flat
-    if (lift >= 0.5) return '#7f1d1d';
-    return '#5b0d0d';
+    if (lift >= 0.5) return directional ? '#5b0d0d' : '#7f1d1d';
+    return '#3f0a0a';
   };
 
   const cellText = (dayIdx, blockIdx) => {
@@ -297,9 +300,11 @@ function CadenceHeatmap({ data }) {
     const count = data.grid[dayIdx][blockIdx];
     const med = data.medianGrid?.[dayIdx]?.[blockIdx];
     const lift = data.liftGrid?.[dayIdx]?.[blockIdx];
+    const conf = data.confidenceGrid?.[dayIdx]?.[blockIdx];
     const parts = [`${count} upload${count === 1 ? '' : 's'}`];
     if (med != null) parts.push(`median ${med >= 1000 ? (med / 1000).toFixed(1) + 'K' : Math.round(med)} views`);
     if (lift != null) parts.push(`${lift.toFixed(2)}× scope median`);
+    if (conf === 'directional') parts.push('directional — small sample');
     return parts.join(' · ');
   };
 
@@ -323,9 +328,10 @@ function CadenceHeatmap({ data }) {
             </span>
             {data.grid.map((dayRow, dayIdx) => {
               const count = dayRow[blockIdx];
+              const conf = data.confidenceGrid?.[dayIdx]?.[blockIdx];
               const bg = mode === 'density'
                 ? shadeDensity(count)
-                : shadePerf(data.liftGrid?.[dayIdx]?.[blockIdx], count);
+                : shadePerf(data.liftGrid?.[dayIdx]?.[blockIdx], count, conf);
               return (
                 <div
                   key={dayIdx}

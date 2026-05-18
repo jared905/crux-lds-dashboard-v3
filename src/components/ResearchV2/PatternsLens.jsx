@@ -166,7 +166,7 @@ function TitlePatternsTable({ patterns, compare }) {
               <Td>{p.label}</Td>
               <Td align="right">{(p.freq * 100).toFixed(0)}%</Td>
               <Td align="right">{p.medianViews != null ? formatNumber(p.medianViews) : '—'}</Td>
-              <Td align="right"><ViewsLiftBadge lift={p.viewsLift} count={p.count} /></Td>
+              <Td align="right"><ViewsLiftBadge lift={p.viewsLift} count={p.count} confidence={p.confidence} /></Td>
               <Td align="right">
                 {p.avgEngagement != null ? `${(p.avgEngagement * 100).toFixed(1)}%` : '—'}
               </Td>
@@ -183,21 +183,34 @@ function TitlePatternsTable({ patterns, compare }) {
   );
 }
 
-function ViewsLiftBadge({ lift, count }) {
+function ViewsLiftBadge({ lift, count, confidence }) {
   if (lift == null) {
     return <span style={{ fontSize: 10, color: '#555' }} title={`n=${count} — too small for lift signal`}>n/a</span>;
   }
   const pct = Math.round((lift - 1) * 100);
   const positive = pct > 0;
   const flat = Math.abs(pct) < 5;
-  const color = flat ? '#888' : positive ? '#34d399' : '#f87171';
+  const isDirectional = confidence === 'directional';
+  const baseColor = flat ? '#888' : positive ? '#34d399' : '#f87171';
+  // Dim directional badges so they read as "real, but treat with caution"
+  const color = isDirectional ? (positive ? '#a78bfa' : '#fbbf24') : baseColor;
   const label = flat ? '— flat' : positive ? `+${pct}%` : `${pct}%`;
+  const tooltip = isDirectional
+    ? `${lift.toFixed(2)}× scope median (n=${count}, directional — small sample)`
+    : `${lift.toFixed(2)}× scope median (n=${count})`;
   return (
-    <span style={{
-      fontSize: 11, fontWeight: 700, color,
-      fontVariantNumeric: 'tabular-nums',
-    }} title={`${lift.toFixed(2)}× the scope median (n=${count})`}>
-      {!flat && (positive ? '▲ ' : '▼ ')}{label}
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontVariantNumeric: 'tabular-nums' }} title={tooltip}>
+      <span style={{ fontSize: 11, fontWeight: 700, color }}>
+        {!flat && (positive ? '▲ ' : '▼ ')}{label}
+      </span>
+      {isDirectional && (
+        <span style={{
+          fontSize: 8, fontWeight: 700, letterSpacing: '0.5px',
+          color: '#a78bfa', background: 'rgba(167,139,250,0.10)',
+          border: '1px solid rgba(167,139,250,0.30)',
+          padding: '0 4px', borderRadius: 3, textTransform: 'uppercase',
+        }}>dir</span>
+      )}
     </span>
   );
 }

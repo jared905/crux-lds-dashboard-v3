@@ -13,6 +13,7 @@
 
 import { supabase } from './supabaseClient';
 import { resolveScopeToChannelIds } from './patternsService.js';
+import { trimmedMedian, labelConfidence } from './statsHelpers.js';
 
 const SHORTS_DURATION_THRESHOLD = 180;
 const BRIEF_CACHE_HOURS = 24 * 7; // refresh weekly
@@ -124,20 +125,22 @@ function computeCadenceGaps(videos) {
     }
   }
 
-  // Scope-wide median (the baseline a slot is compared against)
-  const scopeMedian = allViews.length > 0 ? median(allViews) : null;
+  // Scope-wide trimmed baseline so one bought-views outlier can't anchor it.
+  const scopeMedian = allViews.length > 0 ? trimmedMedian(allViews) : null;
 
-  // Reduce per-cell arrays to {medianViews, viewsLift, sampleSize}
-  const medianGrid = Array.from({ length: 7 }, () => [null, null, null, null]);
-  const liftGrid   = Array.from({ length: 7 }, () => [null, null, null, null]);
-  const minSample = 3; // need at least 3 videos in a slot to trust the median
+  // Reduce per-cell arrays to {medianViews, viewsLift, confidence}
+  const medianGrid     = Array.from({ length: 7 }, () => [null, null, null, null]);
+  const liftGrid       = Array.from({ length: 7 }, () => [null, null, null, null]);
+  const confidenceGrid = Array.from({ length: 7 }, () => ['insufficient', 'insufficient', 'insufficient', 'insufficient']);
   for (let d = 0; d < 7; d++) {
     for (let b = 0; b < 4; b++) {
       const arr = viewsGrid[d][b];
-      if (arr.length >= minSample) {
-        const m = median(arr);
+      const conf = labelConfidence(arr.length, 'cadenceCell');
+      confidenceGrid[d][b] = conf;
+      if (conf !== 'insufficient' && scopeMedian && scopeMedian > 0) {
+        const m = trimmedMedian(arr);
         medianGrid[d][b] = m;
-        liftGrid[d][b] = scopeMedian && scopeMedian > 0 ? m / scopeMedian : null;
+        liftGrid[d][b] = m / scopeMedian;
       }
     }
   }
@@ -146,6 +149,7 @@ function computeCadenceGaps(videos) {
     grid,
     medianGrid,
     liftGrid,
+    confidenceGrid,
     scopeMedian,
     labels: {
       days:   ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
@@ -153,13 +157,6 @@ function computeCadenceGaps(videos) {
     },
     total: videos.length,
   };
-}
-
-function median(nums) {
-  if (!nums?.length) return null;
-  const sorted = [...nums].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
 // ──────────────────────────────────────────────────

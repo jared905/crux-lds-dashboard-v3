@@ -31,11 +31,13 @@ function fmtPct(v, digits = 0) {
   if (v == null) return '—';
   return `${(v * 100).toFixed(digits)}%`;
 }
-function fmtLift(lift) {
+function fmtLift(lift, confidence) {
   if (lift == null) return 'n/a';
   const pct = Math.round((lift - 1) * 100);
-  if (Math.abs(pct) < 5) return '— flat';
-  return pct > 0 ? `+${pct}%` : `${pct}%`;
+  const base = Math.abs(pct) < 5 ? '— flat' : (pct > 0 ? `+${pct}%` : `${pct}%`);
+  // Append "(directional)" so small-sample rows never read as confident
+  // headline numbers in the deliverable.
+  return confidence === 'directional' ? `${base} _(directional)_` : base;
 }
 function fmtAge(iso) {
   if (!iso) return '—';
@@ -77,6 +79,10 @@ async function buildScopeLabel(scope) {
 function sectionExecutive(briefing, diagnostic) {
   if (!briefing && !diagnostic) return null;
   const lines = ['## 1. Executive briefing'];
+
+  // Confidence preamble — sets reader expectations about what's
+  // statistical vs. directional before they read the rest of the deck.
+  // (Inserted before the briefing prose at compose time, below.)
   if (briefing) {
     lines.push('', `**${briefing.headline}**`, '', briefing.body);
   } else if (diagnostic) {
@@ -88,7 +94,7 @@ function sectionExecutive(briefing, diagnostic) {
 function sectionCohort(channels) {
   if (!channels?.length) return null;
   const lines = [
-    '## 2. Cohort overview',
+    '## 3. Cohort overview',
     '',
     `**${channels.length} channels analyzed.**`,
     '',
@@ -117,7 +123,7 @@ function sectionTitlePatterns(patterns) {
   // Sort by views lift desc — what works comes first
   const sorted = [...patterns].sort((a, b) => (b.viewsLift ?? -Infinity) - (a.viewsLift ?? -Infinity));
   const lines = [
-    '## 3. Title patterns',
+    '## 4. Title patterns',
     '',
     '_Patterns sorted by views lift — videos using each pattern vs. the cohort median._',
     '',
@@ -125,7 +131,7 @@ function sectionTitlePatterns(patterns) {
     '|---|---:|---:|---:|---:|',
   ];
   for (const p of sorted) {
-    lines.push(`| ${p.label} | ${fmtPct(p.freq)} | ${fmtNum(p.medianViews)} | ${fmtLift(p.viewsLift)} | ${p.avgEngagement == null ? '—' : fmtPct(p.avgEngagement, 1)} |`);
+    lines.push(`| ${p.label} | ${fmtPct(p.freq)} (n=${p.count}) | ${fmtNum(p.medianViews)} | ${fmtLift(p.viewsLift, p.confidence)} | ${p.avgEngagement == null ? '—' : fmtPct(p.avgEngagement, 1)} |`);
   }
   return lines.join('\n');
 }
@@ -135,7 +141,7 @@ function sectionFormatMix(formatBreakdown) {
   // patternsService returns { shortsFreq, longsFreq, shortsMedianViews,
   // longsMedianViews, buckets, ... } — match that exact shape.
   const lines = [
-    '## 4. Format mix and length sweet spots',
+    '## 5. Format mix and length sweet spots',
     '',
     `**Format split:** ${fmtPct(formatBreakdown.shortsFreq)} Shorts (${fmtNum(formatBreakdown.shortsMedianViews)} median views) · ${fmtPct(formatBreakdown.longsFreq)} long-form (${fmtNum(formatBreakdown.longsMedianViews)} median views)`,
     '',
@@ -150,9 +156,9 @@ function sectionFormatMix(formatBreakdown) {
 
 function sectionCadence(cadenceGaps) {
   if (!cadenceGaps?.grid) return null;
-  const { grid, liftGrid, medianGrid, labels } = cadenceGaps;
+  const { grid, liftGrid, medianGrid, confidenceGrid, labels } = cadenceGaps;
   const lines = [
-    '## 5. Posting cadence and time-of-day performance',
+    '## 6. Posting cadence and time-of-day performance',
     '',
     `_Total uploads in window: ${cadenceGaps.total}. Cells show **upload count → median views → lift vs scope median**. Mountain Time._`,
     '',
@@ -168,7 +174,8 @@ function sectionCadence(cadenceGaps) {
       if (count === 0) {
         cells.push('_empty_');
       } else if (lift != null) {
-        cells.push(`${count} · ${fmtNum(med)} · ${fmtLift(lift)}`);
+        const conf = confidenceGrid?.[d]?.[b];
+        cells.push(`${count} · ${fmtNum(med)} · ${fmtLift(lift, conf)}`);
       } else {
         cells.push(`${count} uploads`);
       }
@@ -176,39 +183,68 @@ function sectionCadence(cadenceGaps) {
     lines.push(`| ${labels.blocks[b]} | ${cells.join(' | ')} |`);
   }
 
-  // Surface top performing slots above the table
+  // Surface top performing slots above the table — split statistical
+  // (lead) from directional (mentioned but flagged).
   const winners = [];
   for (let d = 0; d < 7; d++) {
     for (let b = 0; b < labels.blocks.length; b++) {
       const lift = liftGrid?.[d]?.[b];
       if (lift != null && lift >= 1.15) {
-        winners.push({ slot: `${labels.days[d]} ${labels.blocks[b]}`, lift, count: grid[d][b] });
+        winners.push({
+          slot: `${labels.days[d]} ${labels.blocks[b]}`,
+          lift, count: grid[d][b],
+          confidence: confidenceGrid?.[d]?.[b],
+        });
       }
     }
   }
   if (winners.length) {
-    const top = winners.sort((a, b) => b.lift - a.lift).slice(0, 5);
-    lines.splice(2, 0, '**Top performing slots (≥+15% lift):**', '', ...top.map(w => `- ${w.slot} — ${fmtLift(w.lift)} (${w.count} uploads)`), '');
+    winners.sort((a, b) => {
+      const aStat = a.confidence === 'statistical' ? 1 : 0;
+      const bStat = b.confidence === 'statistical' ? 1 : 0;
+      if (aStat !== bStat) return bStat - aStat;
+      return b.lift - a.lift;
+    });
+    const top = winners.slice(0, 5);
+    lines.splice(2, 0, '**Top performing slots (≥+15% lift):**', '', ...top.map(w => `- ${w.slot} — ${fmtLift(w.lift, w.confidence)} (${w.count} uploads, ${w.confidence})`), '');
   }
   return lines.join('\n');
 }
 
 function sectionOutliers(outliers) {
   if (!outliers?.length) return null;
+  const healthy = outliers.filter(o => !o.isSuspect);
+  const suspect = outliers.filter(o => o.isSuspect);
+
   const lines = [
-    '## 6. Top outliers',
+    '## 7. Top outliers (reference videos)',
     '',
-    '_Videos that significantly out-performed their channel\'s median. Suspect rows (likely inflated views) demoted below the healthy ones._',
+    '_Videos that significantly out-performed their channel\'s median. The healthy list is what to anchor "this works in the category" claims on. Suspect videos (likely inflated views) are isolated below and **should not be used as reference examples in the deliverable**._',
     '',
-    '| Channel | Title | Multiplier | Views | Engagement | Link |',
-    '|---|---|---:|---:|---:|---|',
   ];
-  for (const o of outliers) {
-    const suspect = o.isSuspect ? ' ⚠️' : '';
-    const link = o.youtubeVideoId ? `[Watch](https://youtu.be/${o.youtubeVideoId})` : '—';
-    lines.push(
-      `| ${escapeMd(o.channel.name)} | ${escapeMd(o.title)}${suspect} | ${o.multiplier.toFixed(1)}× | ${fmtNum(o.views)} | ${o.engagement == null ? '—' : fmtPct(o.engagement, 1)} | ${link} |`
-    );
+
+  if (healthy.length) {
+    lines.push('### Healthy outliers', '');
+    lines.push('| Channel | Title | Multiplier | Views | Engagement | Link |', '|---|---|---:|---:|---:|---|');
+    for (const o of healthy) {
+      const link = o.youtubeVideoId ? `[Watch](https://youtu.be/${o.youtubeVideoId})` : '—';
+      lines.push(
+        `| ${escapeMd(o.channel.name)} | ${escapeMd(o.title)} | ${o.multiplier.toFixed(1)}× | ${fmtNum(o.views)} | ${o.engagement == null ? '—' : fmtPct(o.engagement, 1)} | ${link} |`
+      );
+    }
+  }
+  if (suspect.length) {
+    lines.push('', '### ⚠️ Suspect — do not cite as reference', '');
+    lines.push('_Engagement is well below the channel\'s norm. Likely inflated views (paid amplification, bot traffic, or algorithmic anomaly). Listed for transparency only._', '');
+    lines.push('| Channel | Title | Multiplier | Views | Engagement | Why suspect |', '|---|---|---:|---:|---:|---|');
+    for (const o of suspect) {
+      const reason = o.engagement != null && o.engagement < 0.005
+        ? 'eng below 0.5% absolute floor'
+        : 'eng below 25% of channel norm';
+      lines.push(
+        `| ${escapeMd(o.channel.name)} | ${escapeMd(o.title)} | ${o.multiplier.toFixed(1)}× | ${fmtNum(o.views)} | ${o.engagement == null ? '—' : fmtPct(o.engagement, 2)} | ${reason} |`
+      );
+    }
   }
   return lines.join('\n');
 }
@@ -216,7 +252,7 @@ function sectionOutliers(outliers) {
 function sectionTopics(topicCoverage) {
   if (!topicCoverage?.length) return null;
   const lines = [
-    '## 7. Topic landscape',
+    '## 8. Topic landscape',
     '',
     '_Themes the cohort covers, labeled by saturation. Gap themes are unclaimed flags._',
     '',
@@ -245,7 +281,7 @@ function sectionTopics(topicCoverage) {
 function sectionOpportunityBrief(brief) {
   if (!brief?.opportunities?.length) return null;
   const lines = [
-    '## 8. Opportunity brief',
+    '## 2. Opportunity brief',
     '',
     '_AI-synthesized opportunities for a new entrant (or current channel to expand into)._',
     '',
@@ -263,6 +299,8 @@ function sectionMovement(alerts) {
   for (const a of alerts) (byType[a.alert_type] ||= []).push(a);
   const lines = [
     '## 9. Recent movement (last 30 days)',
+    '',
+    '_Volatility filter applied: single-video spikes don\'t count as trends. Rank-change events require ≥5 videos per side with the change holding across the trimmed mean._',
     '',
     `_${alerts.length} alerts detected across the cohort._`,
     '',
@@ -340,15 +378,24 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
     '---',
   ].join('\n');
 
+  // Confidence preamble appears once at the top so every downstream
+  // table's "directional" badges are interpretable.
+  const preamble = [
+    '> **Reading this audit:** Every lift number is tagged with a sample size. Tables show `(directional)` next to lifts computed from small samples (<20 videos for patterns, <8 uploads for time slots) — treat those as early signal, not as evidence for a decision. Trimmed medians (top/bottom 10% dropped) are used throughout so a single inflated-view outlier can\'t skew the headline.',
+  ].join('\n');
+
+  // Order chosen for the deck workflow: lead with the briefing → opportunity
+  // brief (the recommendation) → cohort context → supporting analysis →
+  // examples → movement. Critique-driven reorder; brief was buried at #8.
   const sections = [
     sectionExecutive(briefing, diagnostic),
+    sectionOpportunityBrief(whiteSpaceResult?.brief),
     sectionCohort(channels),
     sectionTitlePatterns(patternsResult?.scope?.titlePatterns),
     sectionFormatMix(patternsResult?.scope?.formatBreakdown),
     sectionCadence(whiteSpaceResult?.cadenceGaps),
     sectionOutliers(patternsResult?.scope?.outliers),
     sectionTopics(whiteSpaceResult?.topicCoverage),
-    sectionOpportunityBrief(whiteSpaceResult?.brief),
     sectionMovement(alerts),
   ].filter(Boolean);
 
@@ -359,7 +406,7 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
     `_Generated by Full View · ${new Date().toISOString()}_`,
   ].join('\n');
 
-  return [header, ...sections, footer].join('\n\n');
+  return [header, preamble, ...sections, footer].join('\n\n');
 }
 
 // Browser download helper

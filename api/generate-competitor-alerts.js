@@ -256,15 +256,43 @@ async function detectRankChanges() {
 
     const recent = vids.filter(v => v.published_at >= recentStart);
     const prior  = vids.filter(v => v.published_at >= priorStart && v.published_at < priorEnd);
-    if (recent.length < 3 || prior.length < 3) continue;
+    // Volatility filter: require ≥5 videos on each side. With <5 a single
+    // breakout video creates a phantom "+2893%" rank-change that's
+    // actually one outlier, not a trend.
+    if (recent.length < 5 || prior.length < 5) continue;
 
-    const sum = list => list.reduce((s, v) => s + (Number(v.view_count) || 0), 0);
-    const recentAvg = sum(recent) / recent.length;
-    const priorAvg  = sum(prior)  / prior.length;
+    // Trimmed average: drop top + bottom video on each side before
+    // averaging so a single inflated-views or bought-views video can't
+    // dominate the result.
+    const trimmedAvg = (arr) => {
+      const sorted = [...arr].map(v => Number(v.view_count) || 0).sort((a, b) => a - b);
+      const trimmed = sorted.slice(1, sorted.length - 1);
+      if (!trimmed.length) return 0;
+      return trimmed.reduce((s, n) => s + n, 0) / trimmed.length;
+    };
+    const recentAvg = trimmedAvg(recent);
+    const priorAvg  = trimmedAvg(prior);
     if (priorAvg < 100) continue;
 
     const pctChange = (recentAvg - priorAvg) / priorAvg;
     if (Math.abs(pctChange) < 0.5) continue;
+
+    // Secondary volatility check: the change has to also hold on the
+    // medians (trimming caught the headline; median catches "the bulk
+    // is unchanged but the long tail moved").
+    const median = (arr) => {
+      const s = [...arr].map(v => Number(v.view_count) || 0).sort((a, b) => a - b);
+      const m = Math.floor(s.length / 2);
+      return s.length % 2 === 0 ? (s[m - 1] + s[m]) / 2 : s[m];
+    };
+    const recentMed = median(recent);
+    const priorMed  = median(prior);
+    if (priorMed > 0) {
+      const medChange = (recentMed - priorMed) / priorMed;
+      // Require directional agreement: if trimmed mean says +X% but
+      // median is flat, the move was driven by one or two videos. Skip.
+      if (Math.sign(medChange) !== Math.sign(pctChange) || Math.abs(medChange) < 0.2) continue;
+    }
 
     const payload = {
       channel_name: ch.name,

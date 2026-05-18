@@ -7,6 +7,7 @@
  */
 
 import { supabase } from './supabaseClient';
+import { trimmedMedian, labelConfidence } from './statsHelpers.js';
 
 const SHORTS_THRESHOLD = 180;
 
@@ -25,6 +26,8 @@ const TITLE_PATTERNS = [
   { id: 'parenthet',  label: 'Parenthetical',        test: t => /\(.+\)/.test(t) },
 ];
 
+// Local median kept for engagement comparisons; trimmedMedian from
+// statsHelpers used for view-count medians where outlier resistance matters.
 function median(nums) {
   if (!nums?.length) return null;
   const s = [...nums].sort((a, b) => a - b);
@@ -58,15 +61,17 @@ const BLOCK_LABELS = ['12am–6am', '6am–12pm', '12pm–6pm', '6pm–12am'];
 function patternStats(videos) {
   if (!videos?.length) return { patterns: [], scopeMedian: null };
   const all = videos.map(v => v.view_count || 0).filter(n => n > 0);
-  const scopeMedian = all.length > 0 ? median(all) : null;
+  const scopeMedian = all.length > 0 ? trimmedMedian(all) : null;
   const patterns = TITLE_PATTERNS.map(p => {
     const matched = videos.filter(v => p.test(v.title || ''));
     const matchedViews = matched.map(v => v.view_count || 0).filter(n => n > 0);
-    const m = matchedViews.length > 0 ? median(matchedViews) : null;
-    const lift = (m != null && scopeMedian && scopeMedian > 0 && matched.length >= 5) ? m / scopeMedian : null;
+    const m = matchedViews.length > 0 ? trimmedMedian(matchedViews) : null;
+    const conf = labelConfidence(matched.length, 'pattern');
+    const lift = (m != null && scopeMedian && scopeMedian > 0 && conf !== 'insufficient') ? m / scopeMedian : null;
     return {
       id: p.id,
       label: p.label,
+      confidence: conf,
       count: matched.length,
       freq: matched.length / videos.length,
       medianViews: m,
@@ -79,7 +84,7 @@ function patternStats(videos) {
 function bucketStats(videos) {
   if (!videos?.length) return [];
   const all = videos.map(v => v.view_count || 0).filter(n => n > 0);
-  const scopeMedian = all.length > 0 ? median(all) : null;
+  const scopeMedian = all.length > 0 ? trimmedMedian(all) : null;
   const counts = {};
   const viewsByBucket = {};
   for (const v of videos) {
@@ -89,14 +94,16 @@ function bucketStats(videos) {
   }
   return Object.keys(BUCKET_LABELS).map(id => {
     const count = counts[id] || 0;
-    const m = viewsByBucket[id]?.length ? median(viewsByBucket[id]) : null;
+    const m = viewsByBucket[id]?.length ? trimmedMedian(viewsByBucket[id]) : null;
+    const conf = labelConfidence(count, 'formatBucket');
     return {
       id,
       label: BUCKET_LABELS[id],
       count,
+      confidence: conf,
       freq: videos.length > 0 ? count / videos.length : 0,
       medianViews: m,
-      lift: (m != null && scopeMedian && scopeMedian > 0 && count >= 3) ? m / scopeMedian : null,
+      lift: (m != null && scopeMedian && scopeMedian > 0 && conf !== 'insufficient') ? m / scopeMedian : null,
     };
   });
 }
@@ -104,7 +111,7 @@ function bucketStats(videos) {
 function cadenceStats(videos) {
   if (!videos?.length) return [];
   const all = videos.map(v => v.view_count || 0).filter(n => n > 0);
-  const scopeMedian = all.length > 0 ? median(all) : null;
+  const scopeMedian = all.length > 0 ? trimmedMedian(all) : null;
   const slots = {}; // key "day-block" → { count, views: [] }
   for (const v of videos) {
     if (!v.published_at) continue;
@@ -123,14 +130,16 @@ function cadenceStats(videos) {
     if (v.view_count > 0) slots[key].views.push(v.view_count);
   }
   return Object.values(slots).map(s => {
-    const m = s.views.length > 0 ? median(s.views) : null;
+    const m = s.views.length > 0 ? trimmedMedian(s.views) : null;
+    const conf = labelConfidence(s.count, 'cadenceCell');
     return {
       day: DAY_LABELS[s.dayIdx],
       block: BLOCK_LABELS[s.block],
       slot: `${DAY_LABELS[s.dayIdx]} ${BLOCK_LABELS[s.block]}`,
       count: s.count,
+      confidence: conf,
       medianViews: m,
-      lift: (m != null && scopeMedian && scopeMedian > 0 && s.count >= 3) ? m / scopeMedian : null,
+      lift: (m != null && scopeMedian && scopeMedian > 0 && conf !== 'insufficient') ? m / scopeMedian : null,
     };
   });
 }
@@ -197,23 +206,21 @@ export async function computeClientDiagnostic({ clientId, scopeChannelIds, windo
     cadence: cadenceStats(clientVideos),
   } : null;
 
-  // 4. Top working patterns (cohort) — sorted by lift desc, filtered for real lift
-  const workingPatterns = cohort.patterns
-    .filter(p => p.lift != null && p.lift >= 1.15 && p.freq >= 0.05)
-    .sort((a, b) => (b.lift ?? 0) - (a.lift ?? 0))
-    .slice(0, 5);
+  // 4. Top working patterns / buckets / slots — sort statistical (n above
+  // the per-kind threshold) first so they get the headline, with directional
+  // (small-but-non-trivial sample) appearing below with a badge.
+  const sortLift = (arr) => arr
+    .filter(x => x.lift != null && x.lift >= 1.15)
+    .sort((a, b) => {
+      const aStat = a.confidence === 'statistical' ? 1 : 0;
+      const bStat = b.confidence === 'statistical' ? 1 : 0;
+      if (aStat !== bStat) return bStat - aStat;
+      return (b.lift ?? 0) - (a.lift ?? 0);
+    });
 
-  // 5. Top working format buckets
-  const workingBuckets = cohort.buckets
-    .filter(b => b.lift != null && b.lift >= 1.15)
-    .sort((a, b) => (b.lift ?? 0) - (a.lift ?? 0))
-    .slice(0, 3);
-
-  // 6. Top working time slots
-  const workingSlots = cohort.cadence
-    .filter(s => s.lift != null && s.lift >= 1.15)
-    .sort((a, b) => (b.lift ?? 0) - (a.lift ?? 0))
-    .slice(0, 5);
+  const workingPatterns = sortLift(cohort.patterns.filter(p => p.freq >= 0.05)).slice(0, 5);
+  const workingBuckets  = sortLift(cohort.buckets).slice(0, 3);
+  const workingSlots    = sortLift(cohort.cadence).slice(0, 5);
 
   // 7. Gaps (comparison mode only): cohort patterns where client lags by 2× freq
   let gaps = [];
@@ -286,17 +293,16 @@ export async function loadOrGenerateBriefing(diagnostic) {
   try {
     const claudeAPI = (await import('./claudeAPI')).default;
 
-    const patternLines = workingPatterns.map(p =>
-      `- ${p.label}: cohort uses on ${(p.freq * 100).toFixed(0)}% of videos, lift ${((p.lift - 1) * 100).toFixed(0)}%`
-    ).join('\n') || '(none with significant lift)';
-
-    const bucketLines = workingBuckets.map(b =>
-      `- ${b.label}: cohort uses on ${(b.freq * 100).toFixed(0)}% of videos, lift ${((b.lift - 1) * 100).toFixed(0)}%`
-    ).join('\n') || '(none with significant lift)';
-
-    const slotLines = workingSlots.slice(0, 5).map(s =>
-      `- ${s.slot} (MT): ${s.count} cohort uploads, lift ${((s.lift - 1) * 100).toFixed(0)}%`
-    ).join('\n') || '(none with significant lift)';
+    // Tag every line with sample size + confidence so the model knows what
+    // to lean on and what to hedge. The system prompt enforces hedging on
+    // directional items.
+    const fmtLine = (label, freq, lift, n, conf) => {
+      const tag = conf === 'statistical' ? '[STATISTICAL]' : '[DIRECTIONAL — small sample]';
+      return `- ${label}: cohort uses on ${(freq * 100).toFixed(0)}% of videos, lift ${((lift - 1) * 100).toFixed(0)}% · n=${n} ${tag}`;
+    };
+    const patternLines = workingPatterns.map(p => fmtLine(p.label, p.freq, p.lift, p.count, p.confidence)).join('\n') || '(none with significant lift)';
+    const bucketLines  = workingBuckets.map(b  => fmtLine(b.label, b.freq, b.lift, b.count, b.confidence)).join('\n') || '(none with significant lift)';
+    const slotLines    = workingSlots.slice(0, 5).map(s => `- ${s.slot} (MT): ${s.count} cohort uploads, lift ${((s.lift - 1) * 100).toFixed(0)}% · n=${s.count} ${s.confidence === 'statistical' ? '[STATISTICAL]' : '[DIRECTIONAL — small sample]'}`).join('\n') || '(none with significant lift)';
 
     const gapLines = gaps.length > 0 ? gaps.map(g =>
       `- ${g.label}: cohort uses ${(g.cohortFreq * 100).toFixed(0)}%, ${client.name} uses ${(g.clientFreq * 100).toFixed(0)}% (${g.freqRatio.toFixed(1)}× ratio)`
@@ -315,12 +321,18 @@ Posting time sweet spots (Mountain Time):
 ${slotLines}
 ${gapLines ? `\nGAPS (where ${client.name} uses these patterns less than the cohort):\n${gapLines}` : ''}
 
-Write a 3-5 sentence briefing for ${client.name}. Lead with the single highest-leverage move they should make this week. Be specific — name the pattern, the lift, and what to do. Cite concrete numbers. Avoid platitudes. ${gapLines ? 'Anchor at least one recommendation against an explicit gap from the GAPS section.' : 'Frame recommendations prescriptively since you do not have their own channel data.'}
+CRITICAL: Each finding is tagged [STATISTICAL] (sample large enough for confident claim) or [DIRECTIONAL — small sample] (worth noting but NOT confident).
+- If you cite a [STATISTICAL] finding you may state it directly with a number.
+- If you cite a [DIRECTIONAL] finding you MUST hedge: "early signal that…", "worth testing whether…", "small sample suggests…" — and never quote the lift percentage without "(small sample)" appended.
+- Lead with a [STATISTICAL] finding when one exists. Only fall back to [DIRECTIONAL] when nothing statistical is available.
+- Never round 1121% lifts off a 15-video bucket into a confident recommendation.
+
+Write a 3-5 sentence briefing for ${client.name}. Lead with the single highest-leverage move. Be specific — name the pattern, the lift, what to do. Cite concrete numbers. Avoid platitudes. ${gapLines ? 'Anchor at least one recommendation against an explicit gap.' : 'Frame recommendations prescriptively since you do not have their own channel data.'}
 
 Return ONLY valid JSON:
 { "headline": "8-12 word punchy title", "body": "3-5 sentences" }`;
 
-    const systemPrompt = `You write punchy, prescriptive briefings for YouTube channel operators. One paragraph, one clear next move. Cite numbers. No fluff. Return ONLY valid JSON.`;
+    const systemPrompt = `You write punchy, prescriptive briefings for YouTube channel operators. CRITICAL: respect the [STATISTICAL] / [DIRECTIONAL] tags — hedge directional findings, never claim them as confident insights. A confidently-wrong recommendation is worse than no recommendation. Return ONLY valid JSON.`;
 
     const result = await claudeAPI.call(prompt, systemPrompt, 'client_briefing', 600);
     const { parseClaudeJSON } = await import('../lib/parseClaudeJSON');

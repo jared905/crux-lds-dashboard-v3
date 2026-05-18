@@ -9,6 +9,7 @@
  */
 
 import { supabase } from './supabaseClient';
+import { trimmedMedian, labelConfidence, isSuspectEngagement } from './statsHelpers.js';
 
 const SHORTS_DURATION_THRESHOLD = 180;
 
@@ -153,12 +154,10 @@ export async function resolveScopeToChannelIds(scope = {}) {
 function computeTitlePatterns(videos) {
   if (!videos.length) return [];
 
-  // Scope-level baseline: median views across ALL videos in scope.
-  // Used to compute the per-pattern views-lift ratio — that's what turns
-  // "Question titles are used 22% of the time" into the prescriptive
-  // "Question titles get +1.8× the cohort median."
+  // Trimmed median across all videos — drops top/bottom 10% to defuse
+  // bought-views outliers before they anchor the baseline.
   const scopeViewsSample = videos.map(v => v.view_count || 0).filter(n => n > 0);
-  const scopeMedianViews = scopeViewsSample.length > 0 ? median(scopeViewsSample) : null;
+  const scopeMedianViews = scopeViewsSample.length > 0 ? trimmedMedian(scopeViewsSample) : null;
 
   return TITLE_PATTERNS.map(p => {
     const matched = videos.filter(v => p.test(v.title || ''));
@@ -166,14 +165,16 @@ function computeTitlePatterns(videos) {
     const freq = count / videos.length;
 
     const matchedViews = matched.map(v => v.view_count || 0).filter(n => n > 0);
-    const matchedMedianViews = matchedViews.length > 0 ? median(matchedViews) : null;
+    const matchedMedianViews = matchedViews.length > 0 ? trimmedMedian(matchedViews) : null;
     const matchedEng = matched
       .filter(v => v.view_count > 0)
       .map(v => ((v.like_count || 0) + (v.comment_count || 0)) / v.view_count);
 
     // Views lift: how does this pattern perform vs. the scope baseline?
-    // null when sample is too small (n<5) to trust the median.
-    const viewsLift = (matchedMedianViews != null && scopeMedianViews && scopeMedianViews > 0 && matched.length >= 5)
+    // We compute the lift but tag it with a confidence label; consumers
+    // decide whether to display, hide, or badge as "directional."
+    const confidence = labelConfidence(matched.length, 'pattern');
+    const viewsLift = (matchedMedianViews != null && scopeMedianViews && scopeMedianViews > 0 && confidence !== 'insufficient')
       ? matchedMedianViews / scopeMedianViews
       : null;
 
@@ -184,6 +185,7 @@ function computeTitlePatterns(videos) {
       freq,
       medianViews: matchedMedianViews,
       viewsLift,
+      confidence,
       avgEngagement: matchedEng.length > 0
         ? matchedEng.reduce((s, e) => s + e, 0) / matchedEng.length
         : null,
@@ -203,7 +205,10 @@ function computeFormatBreakdown(videos) {
       label: b.label,
       count: matched.length,
       freq: matched.length / total,
-      medianViews: matched.length > 0 ? median(matched.map(v => v.view_count)) : null,
+      // Trimmed median so a single inflated-view video doesn't define the
+      // bucket's "typical" performance.
+      medianViews: matched.length > 0 ? trimmedMedian(matched.map(v => v.view_count)) : null,
+      confidence: labelConfidence(matched.length, 'formatBucket'),
     };
   });
 
@@ -213,8 +218,8 @@ function computeFormatBreakdown(videos) {
     longsCount: longs.length,
     shortsFreq: shorts.length / total,
     longsFreq: longs.length / total,
-    shortsMedianViews: shorts.length > 0 ? median(shorts.map(v => v.view_count)) : null,
-    longsMedianViews: longs.length > 0 ? median(longs.map(v => v.view_count)) : null,
+    shortsMedianViews: shorts.length > 0 ? trimmedMedian(shorts.map(v => v.view_count)) : null,
+    longsMedianViews: longs.length > 0 ? trimmedMedian(longs.map(v => v.view_count)) : null,
     buckets,
   };
 }
@@ -227,7 +232,10 @@ function computeFormatBreakdown(videos) {
 // is much more likely to be inflated views (bought, sub4sub, embed farms)
 // than a genuine resonant breakout. We flag and demote — but never hide —
 // so it's still visible for inspection.
-const SUSPECT_ENGAGEMENT_RATIO = 0.4; // <40% of channel-normal engagement
+// Local constant retired in favor of isSuspectEngagement() in
+// statsHelpers — tightened from 0.40 to 0.25 with an absolute 0.5%
+// engagement floor after the audit critique surfaced bought-views
+// false negatives on the original threshold.
 
 function computeOutliers(videos, channels, { minMultiplier = 2.0, limit = 12 } = {}) {
   const channelById = {};
@@ -243,7 +251,9 @@ function computeOutliers(videos, channels, { minMultiplier = 2.0, limit = 12 } =
   const out = [];
   for (const [channelId, vids] of Object.entries(byChannel)) {
     if (vids.length < 5) continue;
-    const m = median(vids.map(v => v.view_count));
+    // Trimmed median for the channel baseline so a single huge spike
+    // doesn't artificially raise the bar and hide real outliers.
+    const m = trimmedMedian(vids.map(v => v.view_count));
     if (!m) continue;
 
     // Channel's own engagement baseline — used to spot inflated-view candidates
@@ -265,7 +275,10 @@ function computeOutliers(videos, channels, { minMultiplier = 2.0, limit = 12 } =
       const engagementRatio = (engagement != null && channelMedianEngagement)
         ? engagement / channelMedianEngagement
         : null;
-      const isSuspect = engagementRatio != null && engagementRatio < SUSPECT_ENGAGEMENT_RATIO;
+      // Two-rail suspect detection: tightened channel-relative threshold
+      // PLUS an absolute engagement floor (anything under 0.5% is suspect
+      // regardless of channel median).
+      const isSuspect = isSuspectEngagement(engagement, channelMedianEngagement);
 
       out.push({
         id: v.id,

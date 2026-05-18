@@ -155,7 +155,7 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
                     <Row key={p.id}>
                       <span>{p.label}</span>
                       <RowMeta>
-                        <Lift value={p.lift} />
+                        <Lift value={p.lift} confidence={p.confidence} sampleSize={p.count} />
                         <Freq label="Cohort" value={p.freq} />
                         {mode === 'comparison' && (
                           <Freq label="You" value={clientFreq ?? 0} highlight={clientFreq != null && p.freq > clientFreq * 2} />
@@ -175,7 +175,7 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
                     <Row key={b.id}>
                       <span style={{ fontSize: 12 }}>{b.label}</span>
                       <RowMeta>
-                        <Lift value={b.lift} />
+                        <Lift value={b.lift} confidence={b.confidence} sampleSize={b.count} />
                         <Freq label="Cohort" value={b.freq} />
                         {mode === 'comparison' && (
                           <Freq label="You" value={clientFreq ?? 0} highlight={clientFreq != null && b.freq > clientFreq * 2} />
@@ -193,7 +193,7 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
                   <Row key={`${s.day}-${s.block}-${i}`}>
                     <span style={{ fontSize: 12 }}>{s.slot}</span>
                     <RowMeta>
-                      <Lift value={s.lift} />
+                      <Lift value={s.lift} confidence={s.confidence} sampleSize={s.count} />
                       <span style={{ fontSize: 10, color: '#666' }}>{s.count} uploads</span>
                     </RowMeta>
                   </Row>
@@ -212,7 +212,7 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
                         </span>
                       </span>
                       <RowMeta>
-                        <Lift value={g.cohortLift} />
+                        <Lift value={g.cohortLift} sampleSize={g.cohortFreq != null ? Math.round(g.cohortFreq * cohort.videoCount) : null} />
                         <Freq label="Cohort" value={g.cohortFreq} />
                         <Freq label="You" value={g.clientFreq} highlight />
                       </RowMeta>
@@ -266,13 +266,30 @@ function RowMeta({ children }) {
   );
 }
 
-function Lift({ value }) {
-  if (value == null) return <span style={{ fontSize: 10, color: '#555' }}>n/a</span>;
+function Lift({ value, confidence, sampleSize }) {
+  if (value == null) {
+    return <span style={{ fontSize: 10, color: '#555' }} title={sampleSize != null ? `n=${sampleSize} — too small` : ''}>n/a</span>;
+  }
   const pct = Math.round((value - 1) * 100);
-  const color = pct >= 15 ? '#34d399' : pct <= -15 ? '#f87171' : '#888';
+  const directional = confidence === 'directional';
+  const baseColor = pct >= 15 ? '#34d399' : pct <= -15 ? '#f87171' : '#888';
+  const color = directional ? (pct >= 15 ? '#a78bfa' : '#fbbf24') : baseColor;
   return (
-    <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 38, textAlign: 'right' }}>
-      {pct > 0 ? '+' : ''}{pct}%
+    <span
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 38, justifyContent: 'flex-end' }}
+      title={sampleSize != null ? `n=${sampleSize}${directional ? ' · directional, small sample' : ''}` : ''}
+    >
+      <span style={{ fontSize: 11, fontWeight: 700, color }}>
+        {pct > 0 ? '+' : ''}{pct}%
+      </span>
+      {directional && (
+        <span style={{
+          fontSize: 7, fontWeight: 700, letterSpacing: '0.4px',
+          color: '#a78bfa', background: 'rgba(167,139,250,0.10)',
+          border: '1px solid rgba(167,139,250,0.30)',
+          padding: '0 3px', borderRadius: 2, textTransform: 'uppercase',
+        }}>dir</span>
+      )}
     </span>
   );
 }
