@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { Globe, BarChart3, Square, Inbox, RefreshCw, Loader } from 'lucide-react';
 import ScopeBar from './ScopeBar.jsx';
 import RecipesBar from './RecipesBar.jsx';
+import ClientDiagnostic from './ClientDiagnostic.jsx';
 import LandscapeLens from './LandscapeLens.jsx';
 import PatternsLens from './PatternsLens.jsx';
 import WhiteSpaceLens from './WhiteSpaceLens.jsx';
@@ -163,6 +164,9 @@ export default function ResearchV2() {
         if (lens) setActiveLens(lens);
       }} />
       <ScopeBar scope={scope} onChange={setScope} />
+
+      {/* Client diagnostic — only renders when a client is pinned */}
+      <ClientDiagnostic scope={scope} refreshKey={refreshKey} />
 
       {/* Lens tabs */}
       <div style={{
