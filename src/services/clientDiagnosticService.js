@@ -7,7 +7,7 @@
  */
 
 import { supabase } from './supabaseClient';
-import { trimmedMedian, labelConfidence } from './statsHelpers.js';
+import { trimmedMedian, liftConfidence } from './statsHelpers.js';
 
 const SHORTS_THRESHOLD = 180;
 
@@ -66,7 +66,7 @@ function patternStats(videos) {
     const matched = videos.filter(v => p.test(v.title || ''));
     const matchedViews = matched.map(v => v.view_count || 0).filter(n => n > 0);
     const m = matchedViews.length > 0 ? trimmedMedian(matchedViews) : null;
-    const conf = labelConfidence(matched.length, 'pattern');
+    const conf = liftConfidence({ sampleValues: matchedViews, currentMedian: m, kind: 'pattern' });
     const lift = (m != null && scopeMedian && scopeMedian > 0 && conf !== 'insufficient') ? m / scopeMedian : null;
     return {
       id: p.id,
@@ -95,7 +95,7 @@ function bucketStats(videos) {
   return Object.keys(BUCKET_LABELS).map(id => {
     const count = counts[id] || 0;
     const m = viewsByBucket[id]?.length ? trimmedMedian(viewsByBucket[id]) : null;
-    const conf = labelConfidence(count, 'formatBucket');
+    const conf = liftConfidence({ sampleValues: viewsByBucket[id] || [], currentMedian: m, kind: 'formatBucket' });
     return {
       id,
       label: BUCKET_LABELS[id],
@@ -131,7 +131,7 @@ function cadenceStats(videos) {
   }
   return Object.values(slots).map(s => {
     const m = s.views.length > 0 ? trimmedMedian(s.views) : null;
-    const conf = labelConfidence(s.count, 'cadenceCell');
+    const conf = liftConfidence({ sampleValues: s.views, currentMedian: m, kind: 'cadenceCell' });
     return {
       day: DAY_LABELS[s.dayIdx],
       block: BLOCK_LABELS[s.block],
@@ -271,16 +271,23 @@ export async function computeClientDiagnostic({ clientId, scopeChannelIds, windo
 // ──────────────────────────────────────────────────
 const BRIEFING_CACHE_HOURS = 24 * 3; // re-synthesize every 3 days
 
+// Bump when the prompt structure or hedging rules change — invalidates
+// every cached briefing so stale pre-hedging output stops being served.
+const BRIEFING_PROMPT_VERSION = 'v3-hedge-gaps-lead';
+
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;
   const { client, mode, workingPatterns, workingBuckets, workingSlots, gaps, cohort } = diagnostic;
 
-  // Cache signature — when the underlying data changes, we re-generate.
+  // Cache signature — when the underlying data OR the prompt version
+  // changes, we re-generate. Now also reflects each finding's confidence
+  // so a directional→statistical promotion regenerates the briefing.
   const sig = [
+    BRIEFING_PROMPT_VERSION,
     client.id, mode,
-    workingPatterns.map(p => `${p.id}:${p.lift?.toFixed(2)}`).join(','),
-    workingBuckets.map(b => `${b.id}:${b.lift?.toFixed(2)}`).join(','),
-    workingSlots.slice(0, 3).map(s => `${s.day}-${s.block}:${s.lift?.toFixed(2)}`).join(','),
+    workingPatterns.map(p => `${p.id}:${p.lift?.toFixed(2)}:${p.confidence}`).join(','),
+    workingBuckets.map(b => `${b.id}:${b.lift?.toFixed(2)}:${b.confidence}`).join(','),
+    workingSlots.slice(0, 3).map(s => `${s.day}-${s.block}:${s.lift?.toFixed(2)}:${s.confidence}`).join(','),
     gaps.map(g => `${g.id}:${g.freqRatio.toFixed(1)}`).join(','),
   ].join('|');
   const cacheKey = `client_briefing:${client.id}:${sig.slice(0, 200)}`;
@@ -308,31 +315,49 @@ export async function loadOrGenerateBriefing(diagnostic) {
       `- ${g.label}: cohort uses ${(g.cohortFreq * 100).toFixed(0)}%, ${client.name} uses ${(g.clientFreq * 100).toFixed(0)}% (${g.freqRatio.toFixed(1)}× ratio)`
     ).join('\n') : null;
 
-    const prompt = `You are writing a weekly action briefing for the YouTube channel "${client.name}" based on what's working in their competitive cohort.
+    // Count statistical vs directional findings so the prompt can tell
+    // Claude what kind of briefing this is.
+    const statCount =
+      workingPatterns.filter(p => p.confidence === 'statistical').length +
+      workingBuckets.filter(b => b.confidence === 'statistical').length +
+      workingSlots.filter(s => s.confidence === 'statistical').length;
+    const dirCount =
+      workingPatterns.filter(p => p.confidence === 'directional').length +
+      workingBuckets.filter(b => b.confidence === 'directional').length +
+      workingSlots.filter(s => s.confidence === 'directional').length;
 
-COHORT SIGNAL (${cohort.videoCount} videos)
-Title patterns with lift:
+    const evidenceState = statCount > 0
+      ? `statistical-evidence available (${statCount} robust findings, ${dirCount} directional)`
+      : `${dirCount > 0 ? 'directional-only' : 'no'} evidence — no finding passes the sample-size + outlier-resistance test`;
+
+    const prompt = `You are writing the executive briefing for a YouTube category audit of "${client.name}'s" competitive cohort.
+
+EVIDENCE STATE: ${evidenceState}
+
+${gapLines ? `STRUCTURAL GAPS (most reliable signal — survives small-sample variance because it's a frequency comparison, not a view-count lift):\n${gapLines}\n` : ''}
+COHORT SIGNAL — Title patterns:
 ${patternLines}
 
-Length sweet spots:
+Length buckets:
 ${bucketLines}
 
-Posting time sweet spots (Mountain Time):
+Time-of-day slots:
 ${slotLines}
-${gapLines ? `\nGAPS (where ${client.name} uses these patterns less than the cohort):\n${gapLines}` : ''}
 
-CRITICAL: Each finding is tagged [STATISTICAL] (sample large enough for confident claim) or [DIRECTIONAL — small sample] (worth noting but NOT confident).
-- If you cite a [STATISTICAL] finding you may state it directly with a number.
-- If you cite a [DIRECTIONAL] finding you MUST hedge: "early signal that…", "worth testing whether…", "small sample suggests…" — and never quote the lift percentage without "(small sample)" appended.
-- Lead with a [STATISTICAL] finding when one exists. Only fall back to [DIRECTIONAL] when nothing statistical is available.
-- Never round 1121% lifts off a 15-video bucket into a confident recommendation.
+CRITICAL RULES — read carefully:
+1. **Lead with the structural gap section if it exists.** Gaps are the most reliable evidence in this dataset — they're frequency-of-use comparisons that don't depend on small-sample medians.
+2. **Each lift is tagged [STATISTICAL] or [DIRECTIONAL — small sample].** STATISTICAL means sample is large enough AND removing the top outlier doesn't collapse the lift. DIRECTIONAL means the lift exists but may be one-video-dominated.
+3. **You may state a [STATISTICAL] finding with conviction and a number.**
+4. **For [DIRECTIONAL] findings you MUST hedge** ("early signal", "worth testing whether", "small sample suggests"). NEVER quote a directional lift percentage without "(directional, n=X)" appended.
+5. **If evidence state is "directional-only" or "no evidence"**, the briefing's job is to say so plainly — "the cohort doesn't show statistically reliable patterns yet; here's where to test" — NOT to manufacture conviction. A briefing that admits the data is thin is more credible than one that fakes signal.
+6. **Don't invent insights** beyond what the data says. If there's no clear winner, lead with "the strongest signal here is structural — your usage of X is N× below cohort norm — start there."
 
-Write a 3-5 sentence briefing for ${client.name}. Lead with the single highest-leverage move. Be specific — name the pattern, the lift, what to do. Cite concrete numbers. Avoid platitudes. ${gapLines ? 'Anchor at least one recommendation against an explicit gap.' : 'Frame recommendations prescriptively since you do not have their own channel data.'}
+Output: 3-5 sentence briefing. First sentence = the single highest-leverage move (gap-led if a gap exists, otherwise the strongest statistical finding, otherwise an honest "data is too thin for confident recommendations"). Cite concrete numbers from the lines above. No platitudes.
 
 Return ONLY valid JSON:
 { "headline": "8-12 word punchy title", "body": "3-5 sentences" }`;
 
-    const systemPrompt = `You write punchy, prescriptive briefings for YouTube channel operators. CRITICAL: respect the [STATISTICAL] / [DIRECTIONAL] tags — hedge directional findings, never claim them as confident insights. A confidently-wrong recommendation is worse than no recommendation. Return ONLY valid JSON.`;
+    const systemPrompt = `You write executive briefings for YouTube channel operators. Your reputation depends on never claiming a confidently-wrong number. The audit data tags every finding as [STATISTICAL] or [DIRECTIONAL]; respect those tags rigorously — directional findings get hedged, statistical findings get cited with numbers. Gap analysis (frequency comparisons) is more reliable than view-count lifts and should lead when present. If the evidence is thin, say so plainly rather than fake conviction. Return ONLY valid JSON.`;
 
     const result = await claudeAPI.call(prompt, systemPrompt, 'client_briefing', 600);
     const { parseClaudeJSON } = await import('../lib/parseClaudeJSON');

@@ -9,7 +9,7 @@
  */
 
 import { supabase } from './supabaseClient';
-import { trimmedMedian, labelConfidence, isSuspectEngagement } from './statsHelpers.js';
+import { trimmedMedian, labelConfidence, liftConfidence, isSuspectEngagement, isBrandPushSuspect } from './statsHelpers.js';
 
 const SHORTS_DURATION_THRESHOLD = 180;
 
@@ -171,9 +171,15 @@ function computeTitlePatterns(videos) {
       .map(v => ((v.like_count || 0) + (v.comment_count || 0)) / v.view_count);
 
     // Views lift: how does this pattern perform vs. the scope baseline?
-    // We compute the lift but tag it with a confidence label; consumers
-    // decide whether to display, hide, or badge as "directional."
-    const confidence = labelConfidence(matched.length, 'pattern');
+    // liftConfidence combines sample-size threshold with a drop-top
+    // sensitivity check — if removing the single biggest video drops
+    // the pattern median by >25%, the lift is outlier-dominated and
+    // gets downgraded to 'directional' regardless of n.
+    const confidence = liftConfidence({
+      sampleValues: matchedViews,
+      currentMedian: matchedMedianViews,
+      kind: 'pattern',
+    });
     const viewsLift = (matchedMedianViews != null && scopeMedianViews && scopeMedianViews > 0 && confidence !== 'insufficient')
       ? matchedMedianViews / scopeMedianViews
       : null;
@@ -275,10 +281,15 @@ function computeOutliers(videos, channels, { minMultiplier = 2.0, limit = 12 } =
       const engagementRatio = (engagement != null && channelMedianEngagement)
         ? engagement / channelMedianEngagement
         : null;
-      // Two-rail suspect detection: tightened channel-relative threshold
-      // PLUS an absolute engagement floor (anything under 0.5% is suspect
-      // regardless of channel median).
-      const isSuspect = isSuspectEngagement(engagement, channelMedianEngagement);
+      // Three-rail suspect detection:
+      //  (a) engagement < 25% of channel-median (relative)
+      //  (b) engagement < 0.5% absolute floor
+      //  (c) brand-push signature: multiplier > 20× AND engagement < 1%
+      //      — catches paid-amplification on manufacturer-brand channels
+      //      where the channel-relative check fails because the WHOLE
+      //      channel has low engagement (Blink, Ring, eufy).
+      const isSuspect = isSuspectEngagement(engagement, channelMedianEngagement)
+        || isBrandPushSuspect(multiplier, engagement);
 
       out.push({
         id: v.id,

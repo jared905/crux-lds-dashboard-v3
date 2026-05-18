@@ -13,7 +13,7 @@
 
 import { supabase } from './supabaseClient';
 import { resolveScopeToChannelIds } from './patternsService.js';
-import { trimmedMedian, labelConfidence } from './statsHelpers.js';
+import { trimmedMedian, liftConfidence } from './statsHelpers.js';
 
 const SHORTS_DURATION_THRESHOLD = 180;
 const BRIEF_CACHE_HOURS = 24 * 7; // refresh weekly
@@ -135,10 +135,13 @@ function computeCadenceGaps(videos) {
   for (let d = 0; d < 7; d++) {
     for (let b = 0; b < 4; b++) {
       const arr = viewsGrid[d][b];
-      const conf = labelConfidence(arr.length, 'cadenceCell');
+      const m = arr.length > 0 ? trimmedMedian(arr) : null;
+      // liftConfidence applies the drop-top sensitivity test on top of
+      // the sample-size threshold — a slot dominated by one outlier
+      // video gets downgraded to 'directional' even at n≥30.
+      const conf = liftConfidence({ sampleValues: arr, currentMedian: m, kind: 'cadenceCell' });
       confidenceGrid[d][b] = conf;
-      if (conf !== 'insufficient' && scopeMedian && scopeMedian > 0) {
-        const m = trimmedMedian(arr);
+      if (conf !== 'insufficient' && m != null && scopeMedian && scopeMedian > 0) {
         medianGrid[d][b] = m;
         liftGrid[d][b] = m / scopeMedian;
       }

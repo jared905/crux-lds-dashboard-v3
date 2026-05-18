@@ -12,12 +12,16 @@
 // we hide the number; between `direction` and `statistical` we display
 // it with a "directional, not statistical" badge.
 export const CONFIDENCE = {
-  // Title patterns: per-pattern matched videos
-  pattern: { hide: 5, direction: 5, statistical: 20 },
-  // Cadence cells: per-slot uploads
-  cadenceCell: { hide: 3, direction: 3, statistical: 8 },
-  // Length buckets: per-bucket videos
-  formatBucket: { hide: 3, direction: 3, statistical: 8 },
+  // Title patterns: per-pattern matched videos. Patterns are
+  // structurally repeated so variance is lower than per-slot signals;
+  // still raised from 20 to 40 after the audit feedback that "barely
+  // past noise floor" was getting a 'statistical' label.
+  pattern: { hide: 5, direction: 5, statistical: 40 },
+  // Cadence cells: per-slot uploads. High variance — individual videos
+  // dominate each cell. Raised 8→30 directly per reviewer guidance.
+  cadenceCell: { hide: 3, direction: 3, statistical: 30 },
+  // Length buckets: per-bucket videos. Similar variance to cadence.
+  formatBucket: { hide: 3, direction: 3, statistical: 30 },
 };
 
 export function labelConfidence(n, kind = 'pattern') {
@@ -76,4 +80,63 @@ export function isSuspectEngagement(engagement, channelMedianEngagement) {
     return true;
   }
   return false;
+}
+
+/**
+ * Brand-push pattern detection. The bought-views signature on
+ * manufacturer-brand channels is high view-multiplier + low absolute
+ * engagement (Blink "100% Peace of Mind! 🏡✨" — 52× channel median, 0.6%
+ * engagement). This is independent of the channel-relative ratio check
+ * because brand channels have category-wide low engagement.
+ *
+ * Returns true when both rails trip: view-multiplier > 20× AND raw
+ * engagement < 1%.
+ */
+export const BRAND_PUSH_MULTIPLIER_THRESHOLD = 20;
+export const BRAND_PUSH_ENGAGEMENT_CEILING = 0.01; // 1%
+
+export function isBrandPushSuspect(multiplier, engagement) {
+  if (multiplier == null || engagement == null) return false;
+  return multiplier > BRAND_PUSH_MULTIPLIER_THRESHOLD && engagement < BRAND_PUSH_ENGAGEMENT_CEILING;
+}
+
+/**
+ * Outlier-dominance sensitivity check.
+ *
+ * Given a sample of values and a precomputed median (the lift's
+ * numerator), recompute the median with the SINGLE highest-value
+ * observation removed. If the new median is dramatically smaller, the
+ * original median was outlier-dominated and any lift built on it
+ * shouldn't be trusted as statistical.
+ *
+ * Returns true when removing the top observation drops the median by
+ * more than `collapseThreshold` (default 25%). Callers treat that as
+ * a downgrade signal — "your sample of 15 has one Blink video doing
+ * all the work."
+ */
+export function isOutlierDominated(values, currentMedian, collapseThreshold = 0.25) {
+  if (!values?.length || values.length < 4 || currentMedian == null || currentMedian <= 0) return false;
+  const sorted = [...values].sort((a, b) => a - b);
+  const trimmed = sorted.slice(0, sorted.length - 1); // drop top
+  if (!trimmed.length) return false;
+  const mid = Math.floor(trimmed.length / 2);
+  const newMedian = trimmed.length % 2 === 0
+    ? (trimmed[mid - 1] + trimmed[mid]) / 2
+    : trimmed[mid];
+  if (newMedian <= 0) return true;
+  return (currentMedian - newMedian) / currentMedian > collapseThreshold;
+}
+
+/**
+ * Combined confidence for a lift: returns 'statistical' only when both
+ *   - sample size meets the kind threshold
+ *   - removing the top observation doesn't collapse the median
+ * Falls back to 'directional' or 'insufficient' otherwise.
+ */
+export function liftConfidence({ sampleValues, currentMedian, kind = 'pattern' }) {
+  const n = sampleValues?.length || 0;
+  const base = labelConfidence(n, kind);
+  if (base !== 'statistical') return base;
+  if (isOutlierDominated(sampleValues, currentMedian)) return 'directional';
+  return 'statistical';
 }

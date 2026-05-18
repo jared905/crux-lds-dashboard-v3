@@ -31,6 +31,26 @@ function fmtPct(v, digits = 0) {
   if (v == null) return '—';
   return `${(v * 100).toFixed(digits)}%`;
 }
+
+/**
+ * Largest-remainder (Hamilton) rounding. Given an array of fractions
+ * that should sum to a target (default 100%), returns an array of
+ * integer percentages whose sum equals the rounded target. Fixes the
+ * "9+5+4+5=23 but should be 24" rounding leak in the format-mix table.
+ */
+function hamiltonRoundPct(fractions, targetPct = 100) {
+  const raw = fractions.map(f => (f || 0) * 100);
+  const floored = raw.map(v => Math.floor(v));
+  const remainder = targetPct - floored.reduce((s, v) => s + v, 0);
+  // Distribute the remainder to the entries with the largest fractional parts.
+  const withRemainders = raw.map((v, i) => ({ i, frac: v - floored[i] }));
+  withRemainders.sort((a, b) => b.frac - a.frac);
+  const result = floored.slice();
+  for (let k = 0; k < Math.max(0, Math.min(remainder, result.length)); k++) {
+    result[withRemainders[k].i] += 1;
+  }
+  return result;
+}
 function fmtLift(lift, confidence) {
   if (lift == null) return 'n/a';
   const pct = Math.round((lift - 1) * 100);
@@ -138,19 +158,27 @@ function sectionTitlePatterns(patterns) {
 
 function sectionFormatMix(formatBreakdown) {
   if (!formatBreakdown) return null;
-  // patternsService returns { shortsFreq, longsFreq, shortsMedianViews,
-  // longsMedianViews, buckets, ... } — match that exact shape.
+  // Hamilton-round shorts + buckets together so the displayed percentages
+  // sum to exactly 100. Removes the "76 + 9+5+4+5 = 99" leak the audit
+  // critique caught.
+  const buckets = formatBreakdown.buckets || [];
+  const fractions = [formatBreakdown.shortsFreq || 0, ...buckets.map(b => b.freq || 0)];
+  const pcts = hamiltonRoundPct(fractions);
+  const shortsPct = pcts[0];
+  const bucketPcts = pcts.slice(1);
+  const longsPct = bucketPcts.reduce((s, v) => s + v, 0);
+
   const lines = [
     '## 5. Format mix and length sweet spots',
     '',
-    `**Format split:** ${fmtPct(formatBreakdown.shortsFreq)} Shorts (${fmtNum(formatBreakdown.shortsMedianViews)} median views) · ${fmtPct(formatBreakdown.longsFreq)} long-form (${fmtNum(formatBreakdown.longsMedianViews)} median views)`,
+    `**Format split:** ${shortsPct}% Shorts (${fmtNum(formatBreakdown.shortsMedianViews)} median views) · ${longsPct}% long-form (${fmtNum(formatBreakdown.longsMedianViews)} median views)`,
     '',
     '| Length bucket | Frequency | Median views |',
     '|---|---:|---:|',
   ];
-  for (const b of formatBreakdown.buckets || []) {
-    lines.push(`| ${b.label} | ${fmtPct(b.freq)} | ${fmtNum(b.medianViews)} |`);
-  }
+  buckets.forEach((b, i) => {
+    lines.push(`| ${b.label} | ${bucketPcts[i]}% | ${fmtNum(b.medianViews)} |`);
+  });
   return lines.join('\n');
 }
 
