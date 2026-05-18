@@ -132,15 +132,17 @@ function sectionTitlePatterns(patterns) {
 
 function sectionFormatMix(formatBreakdown) {
   if (!formatBreakdown) return null;
+  // patternsService returns { shortsFreq, longsFreq, shortsMedianViews,
+  // longsMedianViews, buckets, ... } — match that exact shape.
   const lines = [
     '## 4. Format mix and length sweet spots',
     '',
-    `**Format split:** ${fmtPct(formatBreakdown.shorts.freq)} Shorts · ${fmtPct(1 - formatBreakdown.shorts.freq)} long-form`,
+    `**Format split:** ${fmtPct(formatBreakdown.shortsFreq)} Shorts (${fmtNum(formatBreakdown.shortsMedianViews)} median views) · ${fmtPct(formatBreakdown.longsFreq)} long-form (${fmtNum(formatBreakdown.longsMedianViews)} median views)`,
     '',
     '| Length bucket | Frequency | Median views |',
     '|---|---:|---:|',
   ];
-  for (const b of formatBreakdown.lengthBuckets || []) {
+  for (const b of formatBreakdown.buckets || []) {
     lines.push(`| ${b.label} | ${fmtPct(b.freq)} | ${fmtNum(b.medianViews)} |`);
   }
   return lines.join('\n');
