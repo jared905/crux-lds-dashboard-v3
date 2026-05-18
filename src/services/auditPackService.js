@@ -409,7 +409,7 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
   // Confidence preamble appears once at the top so every downstream
   // table's "directional" badges are interpretable.
   const preamble = [
-    '> **Reading this audit:** Every lift number is tagged with a sample size. Tables show `(directional)` next to lifts computed from small samples (<20 videos for patterns, <8 uploads for time slots) — treat those as early signal, not as evidence for a decision. Trimmed medians (top/bottom 10% dropped) are used throughout so a single inflated-view outlier can\'t skew the headline.',
+    '> **Reading this audit:** Every lift number is tagged with a sample size. Tables show `(directional)` next to lifts computed from small samples (<40 videos for title patterns, <30 uploads for time slots and length buckets) — treat those as early signal worth testing, not as evidence for committing resources. Trimmed medians (top/bottom 10% dropped) are used throughout, AND a drop-top-observation check runs on every lift — if removing the single highest-view video collapses the lift by >25%, the row gets downgraded to directional regardless of sample size. "Lift" always means views relative to the cohort median, never upload frequency.',
   ].join('\n');
 
   // Order chosen for the deck workflow: lead with the briefing → opportunity

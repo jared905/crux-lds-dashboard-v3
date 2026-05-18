@@ -273,7 +273,7 @@ const BRIEFING_CACHE_HOURS = 24 * 3; // re-synthesize every 3 days
 
 // Bump when the prompt structure or hedging rules change — invalidates
 // every cached briefing so stale pre-hedging output stops being served.
-const BRIEFING_PROMPT_VERSION = 'v3-hedge-gaps-lead';
+const BRIEFING_PROMPT_VERSION = 'v4-lift-not-frequency';
 
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;
@@ -300,16 +300,21 @@ export async function loadOrGenerateBriefing(diagnostic) {
   try {
     const claudeAPI = (await import('./claudeAPI')).default;
 
-    // Tag every line with sample size + confidence so the model knows what
-    // to lean on and what to hedge. The system prompt enforces hedging on
-    // directional items.
+    // Data lines spell out frequency vs views-lift explicitly so the model
+    // cannot conflate them. v3 prompt produced "uploads at 81% higher
+    // frequency than baseline" when the actual claim was "videos posted
+    // here get 81% MORE VIEWS than the cohort median" — different sentence,
+    // different defensibility.
     const fmtLine = (label, freq, lift, n, conf) => {
       const tag = conf === 'statistical' ? '[STATISTICAL]' : '[DIRECTIONAL — small sample]';
-      return `- ${label}: cohort uses on ${(freq * 100).toFixed(0)}% of videos, lift ${((lift - 1) * 100).toFixed(0)}% · n=${n} ${tag}`;
+      return `- ${label}: appears in ${(freq * 100).toFixed(0)}% of cohort videos (n=${n}). Videos using this pattern get ${((lift - 1) * 100).toFixed(0)}% MORE VIEWS than the cohort median. ${tag}`;
     };
     const patternLines = workingPatterns.map(p => fmtLine(p.label, p.freq, p.lift, p.count, p.confidence)).join('\n') || '(none with significant lift)';
     const bucketLines  = workingBuckets.map(b  => fmtLine(b.label, b.freq, b.lift, b.count, b.confidence)).join('\n') || '(none with significant lift)';
-    const slotLines    = workingSlots.slice(0, 5).map(s => `- ${s.slot} (MT): ${s.count} cohort uploads, lift ${((s.lift - 1) * 100).toFixed(0)}% · n=${s.count} ${s.confidence === 'statistical' ? '[STATISTICAL]' : '[DIRECTIONAL — small sample]'}`).join('\n') || '(none with significant lift)';
+    const slotLines    = workingSlots.slice(0, 5).map(s => {
+      const tag = s.confidence === 'statistical' ? '[STATISTICAL]' : '[DIRECTIONAL — small sample]';
+      return `- ${s.slot} (MT) slot: ${s.count} cohort uploads land here. Videos posted in this slot get ${((s.lift - 1) * 100).toFixed(0)}% MORE VIEWS than the cohort median (n=${s.count}). ${tag}`;
+    }).join('\n') || '(none with significant lift)';
 
     const gapLines = gaps.length > 0 ? gaps.map(g =>
       `- ${g.label}: cohort uses ${(g.cohortFreq * 100).toFixed(0)}%, ${client.name} uses ${(g.clientFreq * 100).toFixed(0)}% (${g.freqRatio.toFixed(1)}× ratio)`
@@ -351,6 +356,7 @@ CRITICAL RULES — read carefully:
 4. **For [DIRECTIONAL] findings you MUST hedge** ("early signal", "worth testing whether", "small sample suggests"). NEVER quote a directional lift percentage without "(directional, n=X)" appended.
 5. **If evidence state is "directional-only" or "no evidence"**, the briefing's job is to say so plainly — "the cohort doesn't show statistically reliable patterns yet; here's where to test" — NOT to manufacture conviction. A briefing that admits the data is thin is more credible than one that fakes signal.
 6. **Don't invent insights** beyond what the data says. If there's no clear winner, lead with "the strongest signal here is structural — your usage of X is N× below cohort norm — start there."
+7. **TERMINOLOGY — critical:** A "lift" number is ALWAYS a VIEWS comparison ("videos using this pattern get X% MORE VIEWS than the cohort median"). It is NEVER a frequency claim ("the cohort uploads X% more often"). The data lines spell this out — if you describe a lift, the sentence MUST be about views, never about upload frequency. Misreading lift as frequency invalidates the briefing.
 
 Output: 3-5 sentence briefing. First sentence = the single highest-leverage move (gap-led if a gap exists, otherwise the strongest statistical finding, otherwise an honest "data is too thin for confident recommendations"). Cite concrete numbers from the lines above. No platitudes.
 

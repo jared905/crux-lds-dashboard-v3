@@ -294,6 +294,16 @@ async function detectRankChanges() {
       if (Math.sign(medChange) !== Math.sign(pctChange) || Math.abs(medChange) < 0.2) continue;
     }
 
+    // Hard cap on implausibly extreme moves. Anything claiming >500%
+    // change needs the median to have moved >100% in the same direction;
+    // otherwise it's almost certainly one big video, not a trend. The
+    // Arlo +2893% case was getting through despite the median check
+    // because Arlo has very low baseline views (any new video reads as
+    // a huge percentage change).
+    if (Math.abs(pctChange) > 5.0) {
+      if (priorMed <= 0 || Math.abs((recentMed - priorMed) / priorMed) < 1.0) continue;
+    }
+
     const payload = {
       channel_name: ch.name,
       channel_id: ch.id,

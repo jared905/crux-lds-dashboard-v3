@@ -176,7 +176,10 @@ async function computeTopicCoverage({ videos, scopeChannelIds, scopeLabel }) {
 
   if (titles.length < 5) return [];
 
-  const cacheKey = `whitespace_topics:${hashIds(scopeChannelIds)}:${titles.length}`;
+  // v2 prompt: product-specific categorization (previous prompt drifted
+  // toward emotional/thematic). Bumping the cache key invalidates old
+  // emotional-leaning clusters.
+  const cacheKey = `whitespace_topics:v2-product-specific:${hashIds(scopeChannelIds)}:${titles.length}`;
   const cached = await loadCache(cacheKey);
   if (cached) return cached;
 
@@ -188,6 +191,13 @@ Cluster them into 8-12 topic themes. For each theme:
 - Name it in 2-5 words
 - Count how many titles belong to that theme
 - Decide whether it's "saturated" (covered by many titles), "moderate", or a "gap" (covered by very few)
+- Provide 1-2 example titles
+
+CRITICAL — categorization style:
+- PREFER PRODUCT-SPECIFIC themes when the underlying content is product-focused. Examples in a home security space: "Security Camera Reviews", "Smart Lock Installs", "Doorbell Comparisons", "Robot Vacuum Surveillance", "Alarm System Setup". These are actionable for a strategy deliverable because they map to concrete content the client can produce.
+- AVOID falling back to emotional / thematic categorization ("Heartwarming Family Moments", "Funny Pet Antics", "Customer Stories") UNLESS the videos are genuinely emotion-led and have no underlying product or topic specificity. A doorbell video with a heartwarming family clip is still primarily a doorbell video.
+- When a cluster could be either product-specific or emotional, choose product-specific. The emotional framing belongs in the example titles, not the theme name.
+- Gaps named at the product level ("Smart Lock Reviews — gap") are far more useful than gaps named at the emotional level ("Customer Appreciation — gap"). The former tells the analyst what to build; the latter tells them nothing.
 
 Titles:
 ${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
@@ -195,10 +205,7 @@ ${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 Return ONLY valid JSON in this shape:
 { "topics": [ { "name": "string", "count": N, "coverage": "saturated" | "moderate" | "gap", "exampleTitles": ["..."] } ] }`;
 
-    const systemPrompt = `You are an analyst identifying which content themes a category covers heavily vs. lightly.
-Be honest about gaps: if a topic has only 1-3 titles out of ${titles.length}, it's a gap and a creator could own it.
-Saturated = >15% of titles. Moderate = 5-15%. Gap = <5%.
-Return ONLY valid JSON.`;
+    const systemPrompt = `You are an analyst identifying which content themes a category covers heavily vs. lightly. Prefer product/topic-specific theme names over emotional or thematic ones — a strategy deliverable needs categories the client can act on. Be honest about gaps: if a topic has only 1-3 titles out of ${titles.length}, it's a gap and a creator could own it. Saturated = >15% of titles. Moderate = 5-15%. Gap = <5%. Return ONLY valid JSON.`;
 
     const result = await claudeAPI.call(prompt, systemPrompt, 'whitespace_topics', 1500);
     const { parseClaudeJSON } = await import('../lib/parseClaudeJSON');

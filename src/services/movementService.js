@@ -42,7 +42,20 @@ export async function loadAlerts({ scopeChannelIds, windowDays = 30, includeDism
     console.warn('[movement] loadAlerts error:', error);
     return [];
   }
-  return await attachThumbnails(data || []);
+  // Filter out stale extreme-volatility rank-change alerts that were
+  // generated before the hard-cap volatility filter shipped. Anything
+  // claiming a |pct_change| > 500% without a corresponding median move
+  // is almost certainly one big-video distortion (Arlo +2893% case).
+  const cleaned = (data || []).filter(a => {
+    if (a.alert_type !== 'rank_change') return true;
+    const pct = Math.abs(a.payload?.pct_change ?? 0);
+    if (pct <= 500) return true;
+    // Old alerts didn't include median deltas in payload — surface only
+    // if a freshly-generated alert (post-hard-cap) wins on its own. The
+    // stale ones get filtered.
+    return false;
+  });
+  return await attachThumbnails(cleaned);
 }
 
 // Batch-fetch channel + video thumbnails for the alert set so legacy
