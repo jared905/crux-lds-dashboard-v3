@@ -5,7 +5,8 @@
  * White Space / Movement). See mockups/research/ for the spec.
  */
 import React, { useState, useEffect } from 'react';
-import { Globe, BarChart3, Square, Inbox, RefreshCw, Loader } from 'lucide-react';
+import { Globe, BarChart3, Square, Inbox, RefreshCw, Loader, Download } from 'lucide-react';
+import { generateAuditPack, downloadMarkdown } from '../../services/auditPackService.js';
 import ScopeBar from './ScopeBar.jsx';
 import RecipesBar from './RecipesBar.jsx';
 import ClientDiagnostic from './ClientDiagnostic.jsx';
@@ -35,6 +36,32 @@ export default function ResearchV2() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState(null);
+
+  const handleExportAudit = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setExportStatus({ ok: true, message: 'Generating…' });
+    try {
+      const md = await generateAuditPack(scope, {
+        onProgress: (label) => setExportStatus({ ok: true, message: `${label}…` }),
+      });
+      const datePart = new Date().toISOString().split('T')[0];
+      const scopePart = scope.clientId
+        ? 'client'
+        : scope.categoryIds?.length
+          ? 'category'
+          : 'all';
+      downloadMarkdown(md, `audit-pack-${scopePart}-${datePart}.md`);
+      setExportStatus({ ok: true, message: 'Downloaded' });
+    } catch (err) {
+      setExportStatus({ ok: false, message: err.message });
+    } finally {
+      setExporting(false);
+      setTimeout(() => setExportStatus(null), 6000);
+    }
+  };
 
   // Keep the alert badge in sync with current scope
   useEffect(() => {
@@ -128,6 +155,15 @@ export default function ResearchV2() {
           </span>
         </h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {exportStatus && (
+            <span style={{
+              fontSize: '12px',
+              color: exportStatus.ok ? '#a78bfa' : '#f87171',
+              fontWeight: 500,
+            }}>
+              {exportStatus.ok ? '✓ ' : '✕ '}{exportStatus.message}
+            </span>
+          )}
           {syncResult && (
             <span style={{
               fontSize: '12px',
@@ -137,6 +173,25 @@ export default function ResearchV2() {
               {syncResult.ok ? '✓ ' : '✕ '}{syncResult.message}
             </span>
           )}
+          <button
+            onClick={handleExportAudit}
+            disabled={exporting}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '7px 14px', borderRadius: '6px',
+              background: exporting ? '#1c1c20' : '#18181c',
+              border: '1px solid #232328',
+              color: exporting ? '#666' : '#d4d4d8',
+              fontSize: '13px', fontWeight: 600,
+              cursor: exporting ? 'wait' : 'pointer',
+              fontFamily: 'inherit',
+            }}
+            title="Generate a markdown audit pack for the current scope — copy-paste sections into your presentation deck"
+          >
+            {exporting
+              ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Building audit…</>
+              : <><Download size={13} /> Download audit pack</>}
+          </button>
           <button
             onClick={handleRefresh}
             disabled={syncing}
