@@ -262,7 +262,7 @@ const BRIEFING_CACHE_HOURS = 24 * 3; // re-synthesize every 3 days
 
 // Bump when the prompt structure or hedging rules change — invalidates
 // every cached briefing so stale pre-hedging output stops being served.
-const BRIEFING_PROMPT_VERSION = 'v6-canonical-patterns';
+const BRIEFING_PROMPT_VERSION = 'v7-actionable-closer';
 
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;
@@ -346,6 +346,10 @@ CRITICAL RULES — read carefully:
 5. **If evidence state is "directional-only" or "no evidence"**, the briefing's job is to say so plainly — "the cohort doesn't show statistically reliable patterns yet; here's where to test" — NOT to manufacture conviction. A briefing that admits the data is thin is more credible than one that fakes signal.
 6. **Don't invent insights** beyond what the data says. If there's no clear winner, lead with "the strongest signal here is structural — your usage of X is N× below cohort norm — start there."
 7. **TERMINOLOGY — critical:** A "lift" number is ALWAYS a VIEWS comparison ("videos using this pattern get X% MORE VIEWS than the cohort median"). It is NEVER a frequency claim ("the cohort uploads X% more often"). The data lines spell this out — if you describe a lift, the sentence MUST be about views, never about upload frequency. Misreading lift as frequency invalidates the briefing.
+8. **CLOSE WITH AN ACTIONABLE NEXT STEP.** The final sentence must tell ${client.name} what to do this week, separating "act on" (statistical findings) from "test" (directional findings). Examples of the closing pattern:
+   - "Anchor the next four uploads on emoji titles and Monday afternoon slots; treat Saturday morning and 8–15 minute length as test bets."
+   - "Start with the Why-title gap (statistical, lift +X%); reserve one upload to A/B-test the Saturday slot before committing schedule changes."
+   A briefing that ends on "needs more data to confirm" is advisory, not actionable. Always point at the next move, even when the move is "run these two tests this week."
 
 Output: 3-5 sentence briefing. First sentence = the single highest-leverage move (gap-led if a gap exists, otherwise the strongest statistical finding, otherwise an honest "data is too thin for confident recommendations"). Cite concrete numbers from the lines above. No platitudes.
 
