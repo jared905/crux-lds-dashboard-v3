@@ -36,7 +36,7 @@ import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContent
 import AIExecutiveSummary from "./components/Performance/AIExecutiveSummary.jsx";
 import ContentSeriesAnalysis from "./components/Performance/ContentSeriesAnalysis.jsx";
 import Atomizer from "./components/ContentLab/Atomizer.jsx";
-import VideoIdeaGenerator from "./components/ContentLab/VideoIdeaGenerator.jsx";
+import IdeationView from "./components/ContentLab/IdeationView.jsx";
 import BriefsList from "./components/Strategy/BriefsList.jsx";
 import UnifiedStrategy from "./components/Strategy/UnifiedStrategy.jsx";
 import GapDetection from "./components/Research/GapDetection.jsx";
@@ -1322,7 +1322,7 @@ export default function App() {
             )}
 
             {tab === "ideation" && (
-              <VideoIdeaGenerator data={filtered} activeClient={activeClient} />
+              <IdeationView data={filtered} activeClient={activeClient} />
             )}
 
             {tab === "intelligence" && (
