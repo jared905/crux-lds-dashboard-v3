@@ -174,7 +174,20 @@ async function fetchChannelArchetypes(channelIds) {
   return m;
 }
 
-function analyzeArchetypes(cohortVideos, archetypeByChannel) {
+// Look up channel names so within-archetype outperformers can be
+// labeled (e.g. "Ring 2.8%, ADT 3.0% beating the brand-owned median").
+async function fetchChannelNames(channelIds) {
+  if (!channelIds?.length) return new Map();
+  const { data } = await supabase
+    .from('channels')
+    .select('id, name')
+    .in('id', channelIds);
+  const m = new Map();
+  for (const row of (data || [])) m.set(row.id, row.name);
+  return m;
+}
+
+function analyzeArchetypes(cohortVideos, archetypeByChannel, channelNames = new Map()) {
   // Group videos by archetype
   const grouped = {};
   for (const v of cohortVideos) {
@@ -182,6 +195,13 @@ function analyzeArchetypes(cohortVideos, archetypeByChannel) {
     if (!grouped[arch]) grouped[arch] = [];
     grouped[arch].push(v);
   }
+
+  // Count totals to detect "no classification yet" — used by the audit
+  // pack to render an explicit "needs classifier run" note instead of
+  // a silent missing section.
+  const totalVideos = cohortVideos.length;
+  const unknownVideos = (grouped.unknown || []).length;
+  const unknownRatio = totalVideos > 0 ? unknownVideos / totalVideos : 0;
 
   // Per-archetype norms: engagement, top patterns, top length, top slots
   const breakdown = [];
@@ -195,6 +215,35 @@ function analyzeArchetypes(cohortVideos, archetypeByChannel) {
     const medianViews = viewSamples.length > 0 ? trimmedMedian(viewSamples) : null;
     const channelsInArchetype = new Set(vids.map(v => v.channel_id));
 
+    // Within-archetype engagement outliers: channels beating the segment
+    // median by ≥2×. Reviewer's Ring/ADT-as-brand-owned-but-creator-led-
+    // engagement observation — useful nuance for archetype-aware briefings.
+    let outperformers = [];
+    if (medianEngagement != null && medianEngagement > 0) {
+      const byChannel = {};
+      for (const v of vids) {
+        if (v.view_count > 0) {
+          const e = ((v.like_count || 0) + (v.comment_count || 0)) / v.view_count;
+          (byChannel[v.channel_id] ||= []).push({ e });
+        }
+      }
+      outperformers = Object.entries(byChannel)
+        .map(([id, entries]) => {
+          const engs = entries.map(x => x.e).filter(e => e >= 0);
+          if (engs.length < 3) return null;
+          const med = median(engs);
+          return {
+            channel_id: id,
+            name: channelNames.get(id) || '(unknown)',
+            engagement: med,
+            ratio: med / medianEngagement,
+          };
+        })
+        .filter(x => x != null && x.ratio >= 2)
+        .sort((a, b) => b.ratio - a.ratio)
+        .slice(0, 3);
+    }
+
     breakdown.push({
       archetype: arch,
       label: ARCHETYPE_LABELS[arch] || arch,
@@ -202,6 +251,7 @@ function analyzeArchetypes(cohortVideos, archetypeByChannel) {
       videoCount: vids.length,
       medianViews,
       medianEngagement,
+      outperformers,
       patterns: patternStats(vids).patterns
         .filter(p => p.lift != null && p.lift >= 1.15 && p.confidence !== 'insufficient')
         .sort((a, b) => (b.lift ?? 0) - (a.lift ?? 0))
@@ -213,7 +263,19 @@ function analyzeArchetypes(cohortVideos, archetypeByChannel) {
     });
   }
   // Sort by channel count desc — biggest archetype first
-  return breakdown.sort((a, b) => b.channelCount - a.channelCount);
+  const sortedBreakdown = breakdown.sort((a, b) => b.channelCount - a.channelCount);
+
+  return {
+    segments: sortedBreakdown,
+    coverage: {
+      totalVideos,
+      unknownVideos,
+      unknownRatio,
+      // 'classified' = sufficient identity tagging for segmentation to be
+      // meaningful (>=2 archetypes with ≥10 videos and <50% unclassified).
+      classified: sortedBreakdown.length >= 2 && unknownRatio < 0.5,
+    },
+  };
 }
 
 // ──────────────────────────────────────────────────
@@ -243,10 +305,12 @@ export async function computeClientDiagnostic({ clientId, scopeChannelIds, windo
   // mismatched n= values across the audit.
   let cohortVideos = [];
   let archetypeByChannel = new Map();
+  let channelNames = new Map();
   if (scopeChannelIds?.length) {
-    [cohortVideos, archetypeByChannel] = await Promise.all([
+    [cohortVideos, archetypeByChannel, channelNames] = await Promise.all([
       fetchVideosForChannels(scopeChannelIds, { windowDays }),
       fetchChannelArchetypes(scopeChannelIds),
+      fetchChannelNames(scopeChannelIds),
     ]);
   }
 
@@ -269,7 +333,7 @@ export async function computeClientDiagnostic({ clientId, scopeChannelIds, windo
 
   const mode = (!isStub && clientVideos.length >= 5) ? 'comparison' : 'prescriptive';
 
-  const archetypeBreakdown = analyzeArchetypes(cohortVideos, archetypeByChannel);
+  const archetypeBreakdown = analyzeArchetypes(cohortVideos, archetypeByChannel, channelNames);
 
   // If the client has its own archetype tag, also compute the patterns
   // for ONLY their archetype peers — the most relevant comparison set.
@@ -371,7 +435,7 @@ const BRIEFING_CACHE_HOURS = 24 * 3; // re-synthesize every 3 days
 
 // Bump when the prompt structure or hedging rules change — invalidates
 // every cached briefing so stale pre-hedging output stops being served.
-const BRIEFING_PROMPT_VERSION = 'v8-archetype-aware';
+const BRIEFING_PROMPT_VERSION = 'v9-archetype-outliers';
 
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;
@@ -387,7 +451,7 @@ export async function loadOrGenerateBriefing(diagnostic) {
     workingBuckets.map(b => `${b.id}:${b.lift?.toFixed(2)}:${b.confidence}`).join(','),
     workingSlots.slice(0, 3).map(s => `${s.day}-${s.block}:${s.lift?.toFixed(2)}:${s.confidence}`).join(','),
     gaps.map(g => `${g.id}:${g.freqRatio.toFixed(1)}`).join(','),
-    (archetypeBreakdown || []).map(a => `${a.archetype}:${a.channelCount}`).join(','),
+    (archetypeBreakdown?.segments || []).map(a => `${a.archetype}:${a.channelCount}`).join(','),
   ].join('|');
   const cacheKey = `client_briefing:${client.id}:${sig.slice(0, 200)}`;
 
@@ -438,11 +502,17 @@ export async function loadOrGenerateBriefing(diagnostic) {
     // content (manufacturer-brand vs. independent reviewer vs. educator).
     // Averaging these together produces meaningless norms; the briefing
     // should ground recommendations in the client's archetype peers.
-    const archetypeLines = (archetypeBreakdown || [])
-      .map(a => `- ${a.label}: ${a.channelCount} channels, ${a.videoCount} videos, median engagement ${a.medianEngagement != null ? (a.medianEngagement * 100).toFixed(1) + '%' : 'n/a'}, top patterns: ${(a.patterns || []).slice(0, 2).map(p => `${p.label} (+${Math.round((p.lift - 1) * 100)}%)`).join(', ') || 'none with significant lift'}`)
+    const segments = archetypeBreakdown?.segments || [];
+    const archetypeLines = segments
+      .map(a => {
+        const outLine = a.outperformers?.length
+          ? `; outliers above segment median: ${a.outperformers.map(o => `${o.name} ${(o.engagement * 100).toFixed(1)}%`).join(', ')}`
+          : '';
+        return `- ${a.label}: ${a.channelCount} channels, ${a.videoCount} videos, median engagement ${a.medianEngagement != null ? (a.medianEngagement * 100).toFixed(1) + '%' : 'n/a'}, top patterns: ${(a.patterns || []).slice(0, 2).map(p => `${p.label} (+${Math.round((p.lift - 1) * 100)}%)`).join(', ') || 'none with significant lift'}${outLine}`;
+      })
       .join('\n');
 
-    const archetypeBlock = archetypeBreakdown && archetypeBreakdown.length > 1
+    const archetypeBlock = segments.length > 1
       ? `\nCOHORT SEGMENTED BY ARCHETYPE (channels grouped by how they make content — manufacturer-brand vs. creator-led vs. educator, etc. These have fundamentally different success math; averaging them is misleading):\n${archetypeLines}\n${client.archetypeLabel ? `\n${client.name} is tagged as: **${client.archetypeLabel}** — recommendations should reference this archetype's peers, not the whole cohort.\n` : ''}`
       : '';
 

@@ -112,8 +112,21 @@ function sectionExecutive(briefing, diagnostic) {
 }
 
 function sectionArchetypes(diagnostic) {
-  const breakdown = diagnostic?.archetypeBreakdown;
-  if (!breakdown || breakdown.length < 2) return null;
+  const segments = diagnostic?.archetypeBreakdown?.segments || [];
+  const coverage = diagnostic?.archetypeBreakdown?.coverage || {};
+
+  // Surface a visible "needs classifier" note when segmentation can't
+  // run — better than a silent missing section. The analyst sees that
+  // archetype segmentation didn't happen rather than guessing it did.
+  if (segments.length < 2) {
+    return [
+      '## 3. Cohort by archetype',
+      '',
+      "_Segmentation by channel archetype (creator-led / brand-owned / network / institutional / legacy-media) is the right grounding for archetype-aware recommendations — but the cohort isn't classified enough yet to segment. " +
+        `${coverage.unknownVideos || 0} of ${coverage.totalVideos || 0} cohort videos come from channels without an identity tag. ` +
+        "Run **Classify uncategorized** in Landscape to assign identity tags to the cohort, then re-generate this audit pack. Without segmentation, every cohort norm below averages across archetypes that have fundamentally different success math (e.g. brand-owned ~0.5% engagement vs. creator-led ~5%)._",
+    ].join('\n');
+  }
 
   const lines = [
     '## 3. Cohort by archetype',
@@ -126,17 +139,40 @@ function sectionArchetypes(diagnostic) {
     lines.push(`**${diagnostic.client.name} is tagged: ${diagnostic.client.archetypeLabel}** — peer benchmarks should come from this archetype's segment below.`, '');
   }
 
+  if ((coverage.unknownRatio || 0) > 0.20) {
+    lines.push(
+      `> ⚠️ **${Math.round(coverage.unknownRatio * 100)}% of cohort videos come from unclassified channels** — segmentation below excludes them. Run **Classify uncategorized** in Landscape to tighten the read.`,
+      '',
+    );
+  }
+
   lines.push(
     '| Archetype | Channels | Videos | Median views | Median engagement | Top patterns |',
     '|---|---:|---:|---:|---:|---|',
   );
-  for (const a of breakdown) {
+  for (const a of segments) {
     const patternList = (a.patterns || []).slice(0, 3)
       .map(p => `${p.label} (+${Math.round((p.lift - 1) * 100)}%)`)
       .join(', ') || '—';
     lines.push(
       `| ${a.label} | ${a.channelCount} | ${a.videoCount} | ${fmtNum(a.medianViews)} | ${a.medianEngagement != null ? fmtPct(a.medianEngagement, 1) : '—'} | ${patternList} |`
     );
+  }
+
+  // Within-archetype outliers — channels beating their segment median
+  // by ≥2×. Surfaces the Ring/ADT-type nuance ("brand-owned but
+  // engaging more like creator-led") that informs future strategic
+  // recommendations.
+  const haveOutliers = segments.some(s => (s.outperformers || []).length > 0);
+  if (haveOutliers) {
+    lines.push('', '**Within-archetype outliers** (channels beating their segment median by ≥2×):');
+    for (const s of segments) {
+      if (!s.outperformers?.length) continue;
+      const list = s.outperformers
+        .map(o => `${escapeMd(o.name)} (${(o.engagement * 100).toFixed(1)}%, ${o.ratio.toFixed(1)}× segment median)`)
+        .join(', ');
+      lines.push(`- **${s.label}:** ${list}`);
+    }
   }
   return lines.join('\n');
 }
