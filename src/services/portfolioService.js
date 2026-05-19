@@ -183,6 +183,18 @@ export async function setPortfolioRoot(clientId, isRoot) {
   return { ok: !error, error: error?.message };
 }
 
+// Bulk hide many clients in one shot. Used by the "hide all likely
+// sub-channels" header action so the operator doesn't have to click
+// through 14 rows after backfill leaves them NULL.
+export async function bulkSetPortfolioRoot(clientIds, isRoot) {
+  if (!clientIds?.length) return { ok: true, count: 0 };
+  const { error } = await supabase
+    .from('channels')
+    .update({ is_portfolio_root: isRoot })
+    .in('id', clientIds);
+  return { ok: !error, count: clientIds.length, error: error?.message };
+}
+
 export async function assignStrategist(clientId, strategistId) {
   if (!clientId) return { ok: false, error: 'missing' };
   const { error } = await supabase
@@ -206,4 +218,4 @@ export async function listStrategists() {
   return data || [];
 }
 
-export default { listPortfolio, updateClientStage, assignStrategist, listStrategists };
+export default { listPortfolio, updateClientStage, assignStrategist, listStrategists, setPortfolioRoot, bulkSetPortfolioRoot };

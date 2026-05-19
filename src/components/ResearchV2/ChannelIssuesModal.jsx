@@ -4,6 +4,11 @@
  * view === 'failing'  → channels with last_sync_error populated
  * view === 'handles'  → channels with youtube_channel_id LIKE 'handle_%'
  *
+ * When `clientId` is provided, the 'failing' view scopes to that client's
+ * pinned competitor cohort instead of the whole pipeline. Used from the
+ * Portfolio "Resolve N sync errors" chip so the operator drills into one
+ * client's broken competitors, not the system-wide failure list.
+ *
  * For each row: name + reason + actions:
  *   - failing: "Archive" (sets tier='archive' so it stops polluting the queue)
  *   - handles: just shows the synthetic id, the Resolve handles button on
@@ -14,19 +19,35 @@ import { createPortal } from 'react-dom';
 import { X, Loader, AlertTriangle, Wand2, Archive, ExternalLink } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 
-export default function ChannelIssuesModal({ view, onClose, onChanged }) {
+export default function ChannelIssuesModal({ view, clientId, clientName, onClose, onChanged }) {
   const [rows, setRows] = useState(null); // null = loading, [] = empty, [...] = list
   const [busyId, setBusyId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // For client-scoped failing view, first pull the cohort of pinned
+      // competitor ids. Keeps the modal narrow: this client's pain only.
+      let cohortIds = null;
+      if (view === 'failing' && clientId) {
+        const { data: junc } = await supabase
+          .from('client_channels')
+          .select('channel_id')
+          .eq('client_id', clientId);
+        cohortIds = (junc || []).map(r => r.channel_id);
+        if (!cohortIds.length) {
+          if (!cancelled) setRows([]);
+          return;
+        }
+      }
+
       let q;
       if (view === 'failing') {
         q = supabase.from('channels')
           .select('id, name, custom_url, youtube_channel_id, thumbnail_url, last_sync_error, last_sync_attempt_at, tier')
           .not('last_sync_error', 'is', null)
           .order('last_sync_attempt_at', { ascending: false });
+        if (cohortIds) q = q.in('id', cohortIds);
       } else {
         q = supabase.from('channels')
           .select('id, name, custom_url, youtube_channel_id, thumbnail_url, tracked_since, tier')
@@ -37,7 +58,7 @@ export default function ChannelIssuesModal({ view, onClose, onChanged }) {
       if (!cancelled) setRows(data || []);
     })();
     return () => { cancelled = true; };
-  }, [view]);
+  }, [view, clientId]);
 
   const archive = async (id) => {
     if (busyId) return;
@@ -49,9 +70,14 @@ export default function ChannelIssuesModal({ view, onClose, onChanged }) {
     } finally { setBusyId(null); }
   };
 
-  const title = view === 'failing' ? 'Failing sync' : 'Unresolved handles';
+  const scopedToClient = view === 'failing' && clientId;
+  const title = view === 'failing'
+    ? (scopedToClient ? `Failing sync · ${clientName || 'Client cohort'}` : 'Failing sync')
+    : 'Unresolved handles';
   const subtitle = view === 'failing'
-    ? "Channels where the last YouTube fetch failed. After 3 failures we still keep retrying — archive a channel to stop trying."
+    ? (scopedToClient
+        ? `Pinned competitor channels in this client's cohort whose last YouTube fetch failed. Sync retries automatically every 2h; archive a channel to stop trying entirely.`
+        : "Channels where the last YouTube fetch failed. Sync retries automatically every 2h — archive a channel to stop trying.")
     : "Channels imported by @handle but never resolved to a real YouTube channel id. The 'Resolve handles' button on the Landscape header does a bulk lookup.";
 
   return createPortal(

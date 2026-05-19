@@ -16,8 +16,10 @@ import {
   listPortfolio,
   updateClientStage,
   setPortfolioRoot,
+  bulkSetPortfolioRoot,
   LIFECYCLE_STAGES,
 } from '../../services/portfolioService.js';
+import ChannelIssuesModal from '../ResearchV2/ChannelIssuesModal.jsx';
 
 export default function PortfolioView() {
   const [clients, setClients] = useState(null);
@@ -25,6 +27,9 @@ export default function PortfolioView() {
   const [includeHidden, setIncludeHidden] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshTick, setRefreshTick] = useState(0);
+  // Drilldown into one client's failing competitor cohort. Opened from
+  // the "Resolve N sync errors" next-action chip.
+  const [issuesClient, setIssuesClient] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +72,29 @@ export default function PortfolioView() {
     setRefreshTick(t => t + 1);
   };
 
+  // "Likely sub-channels" — rows that have zero pinned competitors and
+  // aren't already marked is_portfolio_root=false. Real portfolio
+  // clients almost always have at least one pinned cohort, so this is
+  // a safe heuristic for the apostles-under-Leadership case.
+  const subChannelCandidates = useMemo(() => {
+    if (!clients) return [];
+    return clients.filter(c => c.pinnedCount === 0 && c.isPortfolioRoot !== false);
+  }, [clients]);
+
+  const handleBulkHideSubChannels = async () => {
+    const ids = subChannelCandidates.map(c => c.id);
+    if (!ids.length) return;
+    const names = subChannelCandidates.map(c => c.name).join(', ');
+    const ok = window.confirm(
+      `Hide ${ids.length} client${ids.length === 1 ? '' : 's'} with no pinned competitors?\n\n` +
+      `${names}\n\n` +
+      `They'll be marked as sub-channels (kept in Supabase, just removed from the Portfolio view). You can restore any of them later from the "Show N hidden" panel.`
+    );
+    if (!ok) return;
+    await bulkSetPortfolioRoot(ids, false);
+    setRefreshTick(t => t + 1);
+  };
+
   if (loading) {
     return (
       <div style={{ padding: 60, textAlign: 'center', color: '#666' }}>
@@ -101,6 +129,8 @@ export default function PortfolioView() {
         hiddenCount={hiddenCount}
         includeHidden={includeHidden}
         onToggleHidden={() => setIncludeHidden(v => !v)}
+        subChannelCount={subChannelCandidates.length}
+        onBulkHideSubChannels={handleBulkHideSubChannels}
       />
 
       {grouped.map(group => (
@@ -110,13 +140,24 @@ export default function PortfolioView() {
           onStageChange={handleStageChange}
           onHide={handleHide}
           onShow={handleShow}
+          onOpenSyncErrors={(c) => setIssuesClient({ id: c.id, name: c.name })}
         />
       ))}
+
+      {issuesClient && (
+        <ChannelIssuesModal
+          view="failing"
+          clientId={issuesClient.id}
+          clientName={issuesClient.name}
+          onClose={() => setIssuesClient(null)}
+          onChanged={() => setRefreshTick(t => t + 1)}
+        />
+      )}
     </div>
   );
 }
 
-function Header({ total, totals = [], onRefresh, hiddenCount = 0, includeHidden = false, onToggleHidden }) {
+function Header({ total, totals = [], onRefresh, hiddenCount = 0, includeHidden = false, onToggleHidden, subChannelCount = 0, onBulkHideSubChannels }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
       <div>
@@ -138,6 +179,15 @@ function Header({ total, totals = [], onRefresh, hiddenCount = 0, includeHidden 
         )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {subChannelCount > 0 && onBulkHideSubChannels && (
+          <button
+            onClick={onBulkHideSubChannels}
+            title={`Hide all ${subChannelCount} client${subChannelCount === 1 ? '' : 's'} that have no pinned competitors — typically OAuth sub-channels under an umbrella client. Reversible.`}
+            style={{ ...refreshBtn, background: '#3a1f1f', borderColor: '#5a2828', color: '#fca5a5' }}
+          >
+            <EyeOff size={13} /> Hide {subChannelCount} sub-channel{subChannelCount === 1 ? '' : 's'}
+          </button>
+        )}
         {hiddenCount > 0 && (
           <button
             onClick={onToggleHidden}
@@ -160,7 +210,7 @@ function Header({ total, totals = [], onRefresh, hiddenCount = 0, includeHidden 
   );
 }
 
-function StageSection({ group, onStageChange, onHide, onShow }) {
+function StageSection({ group, onStageChange, onHide, onShow, onOpenSyncErrors }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{
@@ -198,7 +248,7 @@ function StageSection({ group, onStageChange, onHide, onShow }) {
           </thead>
           <tbody>
             {group.rows.map(c => (
-              <ClientRow key={c.id} client={c} onStageChange={onStageChange} onHide={onHide} onShow={onShow} />
+              <ClientRow key={c.id} client={c} onStageChange={onStageChange} onHide={onHide} onShow={onShow} onOpenSyncErrors={onOpenSyncErrors} />
             ))}
           </tbody>
         </table>
@@ -207,9 +257,12 @@ function StageSection({ group, onStageChange, onHide, onShow }) {
   );
 }
 
-function ClientRow({ client: c, onStageChange, onHide, onShow }) {
+function ClientRow({ client: c, onStageChange, onHide, onShow, onOpenSyncErrors }) {
   const coveragePct = Math.round(c.coverage * 100);
   const isHidden = c.isPortfolioRoot === false;
+  // The next-action chip is clickable only when it surfaces sync errors,
+  // since that's the one action we can route to a focused triage view.
+  const canDrillNextAction = c.nextAction?.label?.startsWith?.('Resolve') && c.erroringCount > 0;
   return (
     <tr style={{ borderTop: '1px solid #1c1c20', opacity: isHidden ? 0.55 : 1 }}>
       <Td>
@@ -251,9 +304,20 @@ function ClientRow({ client: c, onStageChange, onHide, onShow }) {
       </Td>
       <Td align="right">
         {c.erroringCount > 0 ? (
-          <span style={{ color: '#f87171', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <button
+            onClick={() => onOpenSyncErrors?.(c)}
+            title={`View the ${c.erroringCount} failing channel${c.erroringCount === 1 ? '' : 's'} in ${c.name}'s cohort`}
+            style={{
+              color: '#f87171', fontWeight: 600,
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: 'transparent', border: 'none', padding: 0, margin: 0,
+              cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
+              fontVariantNumeric: 'tabular-nums', textDecoration: 'underline',
+              textDecorationColor: 'rgba(248,113,113,0.4)', textUnderlineOffset: 3,
+            }}
+          >
             <AlertTriangle size={11} />{c.erroringCount}
-          </span>
+          </button>
         ) : (
           <span style={{ color: '#555' }}>0</span>
         )}
@@ -264,7 +328,10 @@ function ClientRow({ client: c, onStageChange, onHide, onShow }) {
         </span>
       </Td>
       <Td>
-        <NextAction action={c.nextAction} />
+        <NextAction
+          action={c.nextAction}
+          onClick={canDrillNextAction ? () => onOpenSyncErrors?.(c) : null}
+        />
       </Td>
       <Td>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -320,20 +387,38 @@ function StagePicker({ value, onChange }) {
   );
 }
 
-function NextAction({ action }) {
+function NextAction({ action, onClick }) {
   if (!action) return null;
   const color = action.urgency === 'high' ? '#f87171'
     : action.urgency === 'attention' ? '#fbbf24'
     : '#d4d4d8';
-  return (
-    <span style={{
-      fontSize: 12, color, fontWeight: action.urgency === 'normal' ? 500 : 600,
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-    }}>
+  const content = (
+    <>
       {action.urgency !== 'normal' && <AlertTriangle size={11} />}
       {action.label}
-    </span>
+    </>
   );
+  const baseStyle = {
+    fontSize: 12, color, fontWeight: action.urgency === 'normal' ? 500 : 600,
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+  };
+  if (onClick) {
+    return (
+      <button
+        onClick={onClick}
+        style={{
+          ...baseStyle,
+          background: 'transparent', border: 'none', padding: 0, margin: 0,
+          cursor: 'pointer', fontFamily: 'inherit',
+          textDecoration: 'underline', textDecorationColor: 'rgba(251,191,36,0.4)',
+          textUnderlineOffset: 3,
+        }}
+      >
+        {content}
+      </button>
+    );
+  }
+  return <span style={baseStyle}>{content}</span>;
 }
 
 // ─── presentational ─────────────────────────────────────────────
