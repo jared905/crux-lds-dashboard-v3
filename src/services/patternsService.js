@@ -16,15 +16,26 @@ const SHORTS_DURATION_THRESHOLD = 180;
 // ──────────────────────────────────────────────────
 // Pattern definitions — pure regex, no NLP required.
 // Each returns true/false for a given title string.
+//
+// EXPORTED so clientDiagnosticService and any other consumer compute
+// patterns over the IDENTICAL definitions. Phase 1.7 caught the symptom
+// (mismatched n in the briefing vs. the table) but two services were
+// silently maintaining diverged copies of this array. Single source
+// from here on.
+//
+// All-caps tightened from {3,} to {4,} per reviewer guidance: the
+// loose {3,} regex matched acronyms ("CEO", "DIY", "SUV") that aren't
+// stylistic emphasis. {4,} catches "AMAZING / STUNNING / MASSIVE" —
+// the meaningful editorial signal.
 // ──────────────────────────────────────────────────
-const TITLE_PATTERNS = [
+export const TITLE_PATTERNS = [
   { id: 'question', label: 'Contains question mark',     test: (t) => /\?/.test(t) },
   { id: 'number',   label: 'Contains numbers',           test: (t) => /\d/.test(t) },
   { id: 'list',     label: 'Numbered list (top N…)',     test: (t) => /\b(top|best)\s+\d+\b/i.test(t) || /\b\d+\s+(ways|reasons|things|tips|secrets|rules)\b/i.test(t) },
   { id: 'how',      label: 'Starts with "How…"',         test: (t) => /^how\b/i.test(t.trim()) },
   { id: 'why',      label: 'Starts with "Why…"',         test: (t) => /^why\b/i.test(t.trim()) },
   { id: 'what',     label: 'Starts with "What…"',        test: (t) => /^what\b/i.test(t.trim()) },
-  { id: 'allcaps',  label: 'All-caps word',              test: (t) => /\b[A-Z]{3,}\b/.test(t) },
+  { id: 'allcaps',  label: 'ALL CAPS emphasis word',     test: (t) => /\b[A-Z]{4,}\b/.test(t) },
   { id: 'emoji',    label: 'Contains emoji',             test: (t) => /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(t) },
   { id: 'colon',    label: 'Contains colon',             test: (t) => /:/.test(t) },
   { id: 'pipe',     label: 'Contains pipe character',    test: (t) => /\|/.test(t) },

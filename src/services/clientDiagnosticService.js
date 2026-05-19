@@ -8,24 +8,16 @@
 
 import { supabase } from './supabaseClient';
 import { trimmedMedian, liftConfidence } from './statsHelpers.js';
-import { fetchVideosForChannels } from './patternsService.js';
+import { fetchVideosForChannels, TITLE_PATTERNS } from './patternsService.js';
 
 const SHORTS_THRESHOLD = 180;
 
-// Title patterns mirror those in patternsService — kept tight and copied
-// here to keep this service self-contained.
-const TITLE_PATTERNS = [
-  { id: 'question',   label: 'Question (?)',         test: t => /\?$|^(why|how|what|when|where|who|is|are|can|should|will|does|did)\b/i.test(t) },
-  { id: 'how_to',     label: 'How / How to',         test: t => /^how\b/i.test(t) },
-  { id: 'why',        label: 'Why',                  test: t => /^why\b/i.test(t) },
-  { id: 'number',     label: 'Number in title',      test: t => /\b\d+\b/.test(t) },
-  { id: 'listicle',   label: 'Listicle (top N, N ways)', test: t => /\b(top|best|worst)\s+\d+\b|\b\d+\s+(things|ways|tips|reasons|secrets|signs|mistakes)\b/i.test(t) },
-  { id: 'all_caps',   label: 'ALL CAPS word',        test: t => /\b[A-Z]{4,}\b/.test(t) },
-  { id: 'emoji',      label: 'Emoji',                test: t => /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(t) },
-  { id: 'colon',      label: 'Colon (subtitle)',     test: t => /:/.test(t) },
-  { id: 'vs',         label: 'vs / versus',          test: t => /\bvs\.?\b|\bversus\b/i.test(t) },
-  { id: 'parenthet',  label: 'Parenthetical',        test: t => /\(.+\)/.test(t) },
-];
+// TITLE_PATTERNS now imported from patternsService — single source of
+// truth. The previous local copy had diverged definitions (different
+// regexes, different ids like 'all_caps' vs 'allcaps', different labels)
+// which caused the briefing's pattern stats to silently disagree with
+// the Patterns lens table. Reviewer caught the symptom on "ALL CAPS"
+// with n=52 in the briefing vs n=123 in the table.
 
 // Local median kept for engagement comparisons; trimmedMedian from
 // statsHelpers used for view-count medians where outlier resistance matters.
@@ -270,7 +262,7 @@ const BRIEFING_CACHE_HOURS = 24 * 3; // re-synthesize every 3 days
 
 // Bump when the prompt structure or hedging rules change — invalidates
 // every cached briefing so stale pre-hedging output stops being served.
-const BRIEFING_PROMPT_VERSION = 'v5-harmonized-fetch';
+const BRIEFING_PROMPT_VERSION = 'v6-canonical-patterns';
 
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;
