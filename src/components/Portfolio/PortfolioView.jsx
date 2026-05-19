@@ -20,6 +20,7 @@ import {
   LIFECYCLE_STAGES,
 } from '../../services/portfolioService.js';
 import ChannelIssuesModal from '../ResearchV2/ChannelIssuesModal.jsx';
+import StrategySpine from './StrategySpine.jsx';
 
 export default function PortfolioView() {
   const [clients, setClients] = useState(null);
@@ -30,6 +31,9 @@ export default function PortfolioView() {
   // Drilldown into one client's failing competitor cohort. Opened from
   // the "Resolve N sync errors" next-action chip.
   const [issuesClient, setIssuesClient] = useState(null);
+  // Master/detail: when set, the spine view fills the page in place of
+  // the client list. Clicking a client name opens it; back button clears.
+  const [openSpineClient, setOpenSpineClient] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +99,15 @@ export default function PortfolioView() {
     setRefreshTick(t => t + 1);
   };
 
+  if (openSpineClient) {
+    return (
+      <StrategySpine
+        client={openSpineClient}
+        onBack={() => setOpenSpineClient(null)}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <div style={{ padding: 60, textAlign: 'center', color: '#666' }}>
@@ -141,6 +154,7 @@ export default function PortfolioView() {
           onHide={handleHide}
           onShow={handleShow}
           onOpenSyncErrors={(c) => setIssuesClient({ id: c.id, name: c.name })}
+          onOpenSpine={(c) => setOpenSpineClient(c)}
         />
       ))}
 
@@ -210,7 +224,7 @@ function Header({ total, totals = [], onRefresh, hiddenCount = 0, includeHidden 
   );
 }
 
-function StageSection({ group, onStageChange, onHide, onShow, onOpenSyncErrors }) {
+function StageSection({ group, onStageChange, onHide, onShow, onOpenSyncErrors, onOpenSpine }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{
@@ -248,7 +262,7 @@ function StageSection({ group, onStageChange, onHide, onShow, onOpenSyncErrors }
           </thead>
           <tbody>
             {group.rows.map(c => (
-              <ClientRow key={c.id} client={c} onStageChange={onStageChange} onHide={onHide} onShow={onShow} onOpenSyncErrors={onOpenSyncErrors} />
+              <ClientRow key={c.id} client={c} onStageChange={onStageChange} onHide={onHide} onShow={onShow} onOpenSyncErrors={onOpenSyncErrors} onOpenSpine={onOpenSpine} />
             ))}
           </tbody>
         </table>
@@ -257,7 +271,7 @@ function StageSection({ group, onStageChange, onHide, onShow, onOpenSyncErrors }
   );
 }
 
-function ClientRow({ client: c, onStageChange, onHide, onShow, onOpenSyncErrors }) {
+function ClientRow({ client: c, onStageChange, onHide, onShow, onOpenSyncErrors, onOpenSpine }) {
   const coveragePct = Math.round(c.coverage * 100);
   const isHidden = c.isPortfolioRoot === false;
   // The next-action chip is clickable only when it surfaces sync errors,
@@ -274,9 +288,20 @@ function ClientRow({ client: c, onStageChange, onHide, onShow, onOpenSyncErrors 
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#18181c', flexShrink: 0 }} />
           )}
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <button
+              onClick={() => onOpenSpine?.(c)}
+              title="Open strategy spine"
+              style={{
+                background: 'transparent', border: 'none', padding: 0, margin: 0,
+                cursor: 'pointer', fontFamily: 'inherit',
+                fontWeight: 600, color: '#fff', fontSize: 13,
+                textAlign: 'left', textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.textDecorationColor = 'rgba(255,255,255,0.4)'; e.currentTarget.style.textUnderlineOffset = '3px'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
+            >
               {c.name}
-            </div>
+            </button>
             {c.customUrl && (
               <div style={{ fontSize: 11, color: '#666' }}>{c.customUrl}</div>
             )}
