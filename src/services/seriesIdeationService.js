@@ -19,6 +19,7 @@
 import { supabase } from './supabaseClient';
 import { buildSpineContext } from './spineContextService';
 import { addActivePlay, updateActivePlay } from './strategySpineService';
+import { computeClientDiagnostic } from './clientDiagnosticService';
 import claudeAPI from './claudeAPI';
 import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 
@@ -63,6 +64,107 @@ export async function getConcept(conceptId) {
 }
 
 // ──────────────────────────────────────────────────
+// Cohort evidence — the analytical signal block we inject so series
+// generation isn't groundless. Reuses computeClientDiagnostic so the
+// cohort numbers match what shows up in the audit pack briefing.
+// ──────────────────────────────────────────────────
+
+/**
+ * Build a structured cohort evidence block for a client.
+ * Pulls pinned competitor ids → runs computeClientDiagnostic →
+ * formats the output for prompt injection.
+ *
+ * Skews toward DIVERGENT signal (structural gaps) over pattern
+ * amplification, so Claude has more incentive to propose novelty.
+ *
+ * Returns '' when the client has no pinned cohort or the diagnostic
+ * fails — safe to concatenate unconditionally.
+ */
+export async function buildCohortContext(clientId, { windowDays = 90 } = {}) {
+  if (!supabase || !clientId) return '';
+
+  // Pinned competitor ids
+  const { data: junctions } = await supabase
+    .from('client_channels')
+    .select('channel_id')
+    .eq('client_id', clientId);
+  const scopeChannelIds = (junctions || []).map(j => j.channel_id);
+  if (!scopeChannelIds.length) return '';
+
+  let diagnostic = null;
+  try {
+    diagnostic = await computeClientDiagnostic({ clientId, scopeChannelIds, windowDays });
+  } catch (e) {
+    console.warn('[seriesIdeation] diagnostic failed:', e);
+    return '';
+  }
+  if (!diagnostic) return '';
+
+  const { client, workingPatterns = [], workingBuckets = [], workingSlots = [], gaps = [], archetypeBreakdown, peerStats } = diagnostic;
+
+  // Only cite [STATISTICAL] findings as cohort patterns; [DIRECTIONAL]
+  // findings get a softer mention so Claude doesn't over-anchor on
+  // small-sample wins.
+  const stat = (items, kind) => items.filter(p => p.confidence === 'statistical').slice(0, 5);
+  const dir = (items, kind) => items.filter(p => p.confidence === 'directional').slice(0, 3);
+
+  const sections = [];
+
+  // Working patterns
+  const patternsStat = stat(workingPatterns);
+  const patternsDir = dir(workingPatterns);
+  if (patternsStat.length || patternsDir.length) {
+    const lines = [
+      ...patternsStat.map(p => `- ${p.label}: ${(p.freq * 100).toFixed(0)}% of cohort, ${((p.lift - 1) * 100).toFixed(0)}% more views than cohort median (n=${p.count}) [STATISTICAL]`),
+      ...patternsDir.map(p => `- ${p.label}: ${(p.freq * 100).toFixed(0)}% of cohort, ${((p.lift - 1) * 100).toFixed(0)}% more views (n=${p.count}) [DIRECTIONAL — small sample]`),
+    ];
+    sections.push(`COHORT WORKING PATTERNS (use as evidence, not templates to clone):\n${lines.join('\n')}`);
+  }
+
+  // Length buckets
+  const bucketsStat = stat(workingBuckets);
+  if (bucketsStat.length) {
+    const lines = bucketsStat.map(b => `- ${b.label}: ${(b.freq * 100).toFixed(0)}% of cohort, ${((b.lift - 1) * 100).toFixed(0)}% more views (n=${b.count}) [STATISTICAL]`);
+    sections.push(`LENGTH BANDS THAT WORK IN COHORT:\n${lines.join('\n')}`);
+  }
+
+  // Time-of-day
+  const slotsStat = stat(workingSlots);
+  if (slotsStat.length) {
+    const lines = slotsStat.slice(0, 3).map(s => `- ${s.slot} (MT): ${((s.lift - 1) * 100).toFixed(0)}% more views (n=${s.count}) [STATISTICAL]`);
+    sections.push(`UPLOAD SLOTS THAT WORK IN COHORT:\n${lines.join('\n')}`);
+  }
+
+  // Structural gaps — the anti-echo lever. Highest-leverage divergent
+  // signal in the dataset because gaps point AT what's absent, not what
+  // already exists.
+  if (gaps.length) {
+    const lines = gaps.slice(0, 6).map(g =>
+      `- ${g.label}: cohort uses ${(g.cohortFreq * 100).toFixed(0)}%, ${client.name} uses ${(g.clientFreq * 100).toFixed(0)}% (${g.freqRatio.toFixed(1)}× under)`
+    );
+    sections.push(`STRUCTURAL GAPS — ${client.name} is materially UNDER-using these patterns vs. cohort. Highest-leverage signal for divergent series ideas:\n${lines.join('\n')}`);
+  }
+
+  // Archetype context — peer baselines, not whole cohort
+  const segments = archetypeBreakdown?.segments || [];
+  if (segments.length > 1 && client.archetypeLabel) {
+    const lines = segments
+      .slice(0, 4)
+      .map(a => `- ${a.label}: ${a.channelCount} channels, median engagement ${a.medianEngagement != null ? (a.medianEngagement * 100).toFixed(1) + '%' : 'n/a'}, top patterns: ${(a.patterns || []).slice(0, 2).map(p => `${p.label} (+${Math.round((p.lift - 1) * 100)}%)`).join(', ') || '—'}`);
+    sections.push(`ARCHETYPE PEERS — ${client.name} is tagged as **${client.archetypeLabel}**. Ground recommendations in this archetype's peers, not whole-cohort averages:\n${lines.join('\n')}`);
+  }
+
+  // Peer stats summary if archetype data is present
+  if (peerStats?.engagement?.median != null && client.archetypeLabel) {
+    sections.push(`${client.archetypeLabel} peer median engagement: ${(peerStats.engagement.median * 100).toFixed(1)}%. Series concepts should benchmark against this, not the whole-cohort median.`);
+  }
+
+  if (!sections.length) return '';
+
+  return `COHORT EVIDENCE (last ${windowDays} days, ${scopeChannelIds.length} pinned competitor channels):\n\n${sections.join('\n\n')}\n\n---\n\n`;
+}
+
+// ──────────────────────────────────────────────────
 // Generate (AI-led)
 // ──────────────────────────────────────────────────
 
@@ -71,14 +173,25 @@ export async function getConcept(conceptId) {
  * the output respects stance, audience read, and guardrails. Persists
  * each concept individually so partial success is still useful.
  */
-export async function generateConcepts(clientId, { clientName, count = 5, cohortSummary = '' } = {}) {
+export async function generateConcepts(clientId, { clientName, count = 5, cohortSummary } = {}) {
   if (!clientId) return { ok: false, error: 'missing clientId', concepts: [] };
 
+  // Strategist's authored narrative (positioning, audience, stance, plays, guardrails)
   const spineContext = await buildSpineContext(clientId, { clientName });
+
+  // Analytical signal — gaps, patterns, archetype peers. Skip if caller
+  // pre-supplied a custom summary (e.g. for testing) by passing a string.
+  const cohortBlock = typeof cohortSummary === 'string'
+    ? cohortSummary
+    : await buildCohortContext(clientId);
+
+  // Calculate how many concepts should fill gaps vs. amplify patterns.
+  // Anti-echo: ~40% of concepts must explore divergent ground.
+  const gapMin = Math.max(2, Math.floor(count * 0.4));
 
   const prompt = `Generate ${count} distinct YouTube series concepts for ${clientName || 'this client'}. Each concept should be a series the strategist could plausibly run for the next 6–12 weeks.
 
-${cohortSummary ? `COHORT CONTEXT (what's working in this client's competitive set):\n${cohortSummary}\n\n` : ''}REQUIRED SHAPE — return a JSON array. Each element must have:
+${cohortBlock || ''}REQUIRED SHAPE — return a JSON array. Each element must have:
 {
   "title": "string — 2-5 word series title that signals the through-line",
   "premise": "string — 1-2 sentences naming the recurring promise of the series",
@@ -89,18 +202,21 @@ ${cohortSummary ? `COHORT CONTEXT (what's working in this client's competitive s
     { "title": "episode 1 title", "hook": "1-sentence hook" },
     ...
   ],
-  "rationale": "string — 2-3 sentences explaining why this series fits the strategic context above. Cite spine fields by name when relevant (e.g. 'aligns with stated stance on series-anchored shorts' or 'respects guardrail against doctrine commentary')."
+  "rationale": "string — 2-3 sentences. Cite specific cohort evidence when relevant (e.g. 'fills the why-title structural gap — cohort uses why-titles 24%, client only 8%'). Also cite spine fields when relevant ('aligns with Q2 stance', 'respects guardrail against X'). Be specific; vague rationale is unusable."
 }
 
-CRITICAL:
-- Episodes are one-liners — title + a short hook. Don't deep-develop yet.
-- Each series must be distinct in promise, not just in topic. Don't return five tutorials with different topics.
-- If GUARDRAILS are provided in the strategic context above, do not produce a series that violates them.
-- If the CURRENT STRATEGIC STANCE points at a specific format or rhythm, lean into it for at least 3 of the ${count} concepts.
+CRITICAL RULES:
+- **ANTI-ECHO — read carefully.** At least **${gapMin} of ${count}** concepts MUST explore a STRUCTURAL GAP from the cohort evidence above — a pattern the cohort uses that this client does not. These are the divergent bets where the strategist gets leverage. Do NOT generate ${count} concepts that all amplify what's already working — that's pattern cloning, not strategy.
+- Use cohort working patterns as EVIDENCE FOR HOW (format, length band, slot, archetype) — not as topic templates to clone. If the cohort wins with why-titles, your series can use why-framing for episodes; don't copy specific competitor topics.
+- **Concluded-lost plays in the spine (if any) MUST NOT be re-recommended** as variants. If the spine says a play concluded lost, that ground is dead unless the strategist explicitly revisits.
+- If GUARDRAILS are provided in the strategic context, do not produce a series that violates them. Hard constraint.
+- If the CURRENT STRATEGIC STANCE points at a specific format/rhythm, at least ${Math.max(2, Math.floor(count * 0.4))} concepts should lean into it (but not exclusively — the gap-filling concepts above may diverge from stated stance to challenge it).
+- Each series must be distinct in PROMISE, not just topic. Don't return five tutorials with different subjects.
+- Episodes are one-liners — title + 1-sentence hook. Don't deep-develop.
 
 Return ONLY the JSON array. No prose.`;
 
-  const baseSystem = `You generate distinct YouTube series concepts for a strategist. Each concept is a strategic bet — a series the strategist could greenlight and run for 6-12 weeks. Respect any STRATEGIC CONTEXT and GUARDRAILS provided above as hard constraints. Return ONLY valid JSON.`;
+  const baseSystem = `You generate distinct YouTube series concepts for a strategist. Each concept is a strategic bet — a series the strategist could greenlight and run for 6-12 weeks. Respect any STRATEGIC CONTEXT and GUARDRAILS above as hard constraints. Treat COHORT EVIDENCE as ground truth — cite specific numbers in rationales when applicable. Anti-echo discipline: gap-filling concepts beat pattern-amplifying concepts. Return ONLY valid JSON.`;
   const systemPrompt = spineContext + baseSystem;
 
   let parsed;
