@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Lightbulb, Sparkles, TrendingUp, Clock, AlertCircle, Loader2, FileText, Check } from 'lucide-react';
+import { Lightbulb, Sparkles, TrendingUp, Clock, AlertCircle, Loader2, FileText, Check, RefreshCw } from 'lucide-react';
 import claudeAPI from '../../services/claudeAPI';
 import { getBrandContextWithSignals } from '../../services/brandContextService';
 import { buildSpineContext } from '../../services/spineContextService';
@@ -775,6 +775,37 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
       {/* Generated Ideas */}
       {ideas.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* Header row with prominent regenerate — the buried button
+              inside the success card was missable; this surfaces the
+              action where users look after scanning the ideas. */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "12px 16px", background: "#1E1E1E",
+            border: "1px solid #333", borderRadius: "8px",
+          }}>
+            <div style={{ fontSize: 13, color: "#9E9E9E", fontWeight: 600 }}>
+              {ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'}
+              {activeClient?.name && (
+                <span style={{ color: '#666', fontWeight: 400 }}> · {activeClient.name}</span>
+              )}
+            </div>
+            <button
+              onClick={generateIdeas}
+              disabled={loading}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: '#2962FF', border: 'none', borderRadius: 8,
+                padding: '8px 14px', color: '#fff',
+                fontSize: 13, fontWeight: 600,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.6 : 1,
+              }}
+            >
+              {loading
+                ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Generating…</>
+                : <><RefreshCw size={13} /> Regenerate</>}
+            </button>
+          </div>
           <div id="video-ideas-content" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             {ideas.map((idea, index) => {
               const topicColors = getTopicColor(idea.topic);
