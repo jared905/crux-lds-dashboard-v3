@@ -30,6 +30,7 @@ import DashboardPage from "./components/Performance/DashboardPage.jsx";
 import DataStandardizer from "./components/Settings/DataStandardizer.jsx";
 import PerformanceFeedback from "./components/Strategy/PerformanceFeedback.jsx";
 import ResearchV2 from "./components/ResearchV2/ResearchV2.jsx";
+import PortfolioView from "./components/Portfolio/PortfolioView.jsx";
 import CommentAnalysis from "./components/Research/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContentIntelligence.jsx";
 import AIExecutiveSummary from "./components/Performance/AIExecutiveSummary.jsx";
@@ -1310,6 +1311,10 @@ export default function App() {
 
             {tab === "research-v2" && (
               <ResearchV2 />
+            )}
+
+            {tab === "portfolio" && (
+              <PortfolioView />
             )}
 
             {tab === "gap-detection" && (

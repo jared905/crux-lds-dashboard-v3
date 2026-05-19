@@ -6,6 +6,7 @@ const AuthContext = createContext({});
 // Default tab permissions by role
 const DEFAULT_VIEWER_TABS = ['dashboard', 'actions'];
 const ALL_TABS = [
+  'portfolio',
   'dashboard',
   'series-analysis',
   'channel-summary',
@@ -25,6 +26,7 @@ const ALL_TABS = [
 
 // Human-readable labels for tab IDs
 export const TAB_LABELS = {
+  'portfolio': 'Clients',
   'dashboard': 'Dashboard',
   'series-analysis': 'Series Analysis',
   'channel-summary': 'Channel Summary',

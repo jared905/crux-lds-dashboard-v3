@@ -18,6 +18,14 @@ import {
 /** Main sections shown in the top nav bar */
 export const MAIN_SECTIONS = [
   {
+    id: "operate",
+    label: "Operate",
+    icon: Briefcase,
+    tabs: [
+      { id: "portfolio", label: "Clients", icon: Users },
+    ],
+  },
+  {
     id: "performance",
     label: "Performance",
     icon: BarChart3,
