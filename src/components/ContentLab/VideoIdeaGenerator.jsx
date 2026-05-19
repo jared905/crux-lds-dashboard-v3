@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Lightbulb, Sparkles, TrendingUp, Clock, AlertCircle, Loader2, FileText, Check } from 'lucide-react';
 import claudeAPI from '../../services/claudeAPI';
 import { getBrandContextWithSignals } from '../../services/brandContextService';
+import { buildSpineContext } from '../../services/spineContextService';
 import { getOutlierVideos } from '../../services/competitorInsightsService';
 
 /**
@@ -193,6 +194,14 @@ Be creative but data-driven. Focus on what actually performs for this channel.`;
           if (brandBlock) systemPrompt += '\n\n' + brandBlock;
         } catch (e) {
           console.warn('[VideoIdeaGenerator] Brand context fetch failed, proceeding without:', e.message);
+        }
+        try {
+          // Strategist-authored spine: guardrails block ideation that
+          // violates client constraints; stance steers idea direction.
+          const spineBlock = await buildSpineContext(activeClient.id, { clientName: activeClient.name });
+          if (spineBlock) systemPrompt = spineBlock + systemPrompt;
+        } catch (e) {
+          console.warn('[VideoIdeaGenerator] Spine context fetch failed, proceeding without:', e.message);
         }
       }
 

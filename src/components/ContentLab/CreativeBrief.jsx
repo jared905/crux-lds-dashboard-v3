@@ -27,6 +27,7 @@ import {
 import { createBrief, createTranscript, validateBriefForGeneration, PERFORMANCE_LEVELS } from '../../lib/briefSchema';
 import claudeAPI from '../../services/claudeAPI';
 import { getBrandContextWithSignals } from '../../services/brandContextService';
+import { buildSpineContext } from '../../services/spineContextService';
 
 // Styles matching existing dashboard theme
 const s = {
@@ -513,6 +514,14 @@ Focus on:
           if (brandBlock) systemPrompt += '\n\n' + brandBlock;
         } catch (e) {
           console.warn('[CreativeBrief] Brand context fetch failed, proceeding without:', e.message);
+        }
+        try {
+          // Strategist-authored spine: ensures the brief respects
+          // positioning + guardrails, not just brand voice extraction.
+          const spineBlock = await buildSpineContext(activeClient.id, { clientName: activeClient.name });
+          if (spineBlock) systemPrompt = spineBlock + systemPrompt;
+        } catch (e) {
+          console.warn('[CreativeBrief] Spine context fetch failed, proceeding without:', e.message);
         }
       }
 

@@ -9,6 +9,7 @@
 import { supabase } from './supabaseClient';
 import { trimmedMedian, liftConfidence } from './statsHelpers.js';
 import { fetchVideosForChannels, TITLE_PATTERNS } from './patternsService.js';
+import { buildSpineContext } from './spineContextService.js';
 
 const SHORTS_THRESHOLD = 180;
 
@@ -435,15 +436,23 @@ const BRIEFING_CACHE_HOURS = 24 * 3; // re-synthesize every 3 days
 
 // Bump when the prompt structure or hedging rules change — invalidates
 // every cached briefing so stale pre-hedging output stops being served.
-const BRIEFING_PROMPT_VERSION = 'v9-archetype-outliers';
+const BRIEFING_PROMPT_VERSION = 'v10-spine-injected';
 
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;
   const { client, mode, workingPatterns, workingBuckets, workingSlots, gaps, cohort, archetypeBreakdown, peerStats } = diagnostic;
 
-  // Cache signature — when the underlying data OR the prompt version
-  // changes, we re-generate. Includes archetype info so changes there
-  // also flush.
+  // Load spine context once — used both for cache invalidation (a spine
+  // edit must flush the cached briefing) and for prompt injection below.
+  const spineContext = await buildSpineContext(client.id, { clientName: client.name });
+  // Lightweight signature: length + first 64 chars. Any non-trivial spine
+  // edit changes this, which is what we want for cache invalidation.
+  const spineSig = spineContext
+    ? `${spineContext.length}:${spineContext.slice(0, 64)}`
+    : 'no-spine';
+
+  // Cache signature — when the underlying data, the prompt version, or
+  // the spine context changes, we re-generate.
   const sig = [
     BRIEFING_PROMPT_VERSION,
     client.id, mode, client.archetype || '',
@@ -452,6 +461,7 @@ export async function loadOrGenerateBriefing(diagnostic) {
     workingSlots.slice(0, 3).map(s => `${s.day}-${s.block}:${s.lift?.toFixed(2)}:${s.confidence}`).join(','),
     gaps.map(g => `${g.id}:${g.freqRatio.toFixed(1)}`).join(','),
     (archetypeBreakdown?.segments || []).map(a => `${a.archetype}:${a.channelCount}`).join(','),
+    spineSig,
   ].join('|');
   const cacheKey = `client_briefing:${client.id}:${sig.slice(0, 200)}`;
 
@@ -549,7 +559,12 @@ Output: 3-5 sentence briefing. First sentence = the single highest-leverage move
 Return ONLY valid JSON:
 { "headline": "8-12 word punchy title", "body": "3-5 sentences" }`;
 
-    const systemPrompt = `You write executive briefings for YouTube channel operators. Your reputation depends on never claiming a confidently-wrong number. The audit data tags every finding as [STATISTICAL] or [DIRECTIONAL]; respect those tags rigorously — directional findings get hedged, statistical findings get cited with numbers. Gap analysis (frequency comparisons) is more reliable than view-count lifts and should lead when present. If the evidence is thin, say so plainly rather than fake conviction. Return ONLY valid JSON.`;
+    const baseSystem = `You write executive briefings for YouTube channel operators. Your reputation depends on never claiming a confidently-wrong number. The audit data tags every finding as [STATISTICAL] or [DIRECTIONAL]; respect those tags rigorously — directional findings get hedged, statistical findings get cited with numbers. Gap analysis (frequency comparisons) is more reliable than view-count lifts and should lead when present. If the evidence is thin, say so plainly rather than fake conviction. When STRATEGIC CONTEXT is provided above, treat its GUARDRAILS as hard constraints and align recommendations to the stated stance — do not re-recommend plays already marked concluded. Return ONLY valid JSON.`;
+    // Spine context (positioning, stance, plays, guardrails) is prepended
+    // to the system prompt so the strategist's narrative is load-bearing
+    // on this generation, not decoration. Empty string when spine has no
+    // authored fields, so concatenation is always safe.
+    const systemPrompt = spineContext + baseSystem;
 
     const result = await claudeAPI.call(prompt, systemPrompt, 'client_briefing', 600);
     const { parseClaudeJSON } = await import('../lib/parseClaudeJSON');

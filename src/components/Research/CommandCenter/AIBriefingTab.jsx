@@ -71,6 +71,7 @@ export default function AIBriefingTab({
     try {
       const { claudeAPI } = await import('../../../services/claudeAPI');
       const { getBrandContextWithSignals } = await import('../../../services/brandContextService');
+      const { buildSpineContext } = await import('../../../services/spineContextService');
 
       const dataContext = buildDataContext();
 
@@ -84,7 +85,17 @@ export default function AIBriefingTab({
         }
       }
 
-      const systemPrompt = `You are a senior competitive intelligence analyst for a YouTube channel strategy team.
+      // Spine context is keyed by channels.id (UUID), not youtube_channel_id.
+      let spineBlock = '';
+      if (activeClient?.id) {
+        try {
+          spineBlock = await buildSpineContext(activeClient.id, { clientName: activeClient.name }) || '';
+        } catch (e) {
+          console.warn('[AIBriefing] Spine context failed:', e.message);
+        }
+      }
+
+      const systemPrompt = `${spineBlock}You are a senior competitive intelligence analyst for a YouTube channel strategy team.
 Given competitive landscape data, produce a strategic briefing that helps the team understand what's happening and what to do about it.
 
 Write in a direct, editorial tone. Lead with insights, not data. Use specific examples from the data.

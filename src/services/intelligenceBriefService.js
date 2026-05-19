@@ -9,6 +9,7 @@ import { computeDiagnostics } from '../hooks/useDiagnostics';
 import { getUnifiedRecommendations } from './unifiedRecommendationService';
 import claudeAPI from './claudeAPI';
 import { getBrandContextWithSignals } from './brandContextService';
+import { buildSpineContext } from './spineContextService';
 
 /**
  * Fetch the latest brief for a client.
@@ -189,6 +190,15 @@ FORMAT RULES:
         if (brandBlock) systemPrompt += '\n\n' + brandBlock;
       } catch (e) {
         console.warn('[IntelligenceBrief] Brand context fetch failed:', e.message);
+      }
+      try {
+        // Strategist-authored spine: positioning, stance, plays, guardrails.
+        // Goes before brandBlock conceptually but appended here so brand
+        // context (extracted) and spine (interpreted) both reach the model.
+        const spineBlock = await buildSpineContext(clientId);
+        if (spineBlock) systemPrompt = spineBlock + systemPrompt;
+      } catch (e) {
+        console.warn('[IntelligenceBrief] Spine context fetch failed:', e.message);
       }
     }
 

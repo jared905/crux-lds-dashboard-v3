@@ -91,6 +91,23 @@ export default function StrategySpine({ client, onBack }) {
       <SpineHeader client={client} onBack={onBack} />
 
       <Section
+        title="Guardrails — do not recommend"
+        subtitle="Sensitive topics, vetoed formats, off-limits framings, and recommendations already tried and rejected. Read at the top because it's load-bearing — every AI generation for this client respects these as hard constraints."
+        accent="#f87171"
+        value={spine?.guardrails}
+        updatedAt={spine?.guardrails_updated_at}
+        placeholder="e.g. Do not recommend doctrine commentary. Do not suggest political topics. Avoid clickbait framing — client has explicitly vetoed it. Skip 'X vs Y' format — tested in Q1, low retention. Don't propose collaborations with creators outside the faith space."
+        onSave={(v) => handleFieldSave('guardrails', v)}
+      />
+
+      <QuarterlyStance
+        text={spine?.quarterly_stance}
+        label={spine?.quarterly_stance_label}
+        updatedAt={spine?.quarterly_stance_updated_at}
+        onSave={handleStanceSave}
+      />
+
+      <Section
         title="Positioning hypothesis"
         subtitle="Long-arc thesis — what this channel competes on, what audience it serves, what voice it owns. Typically reviewed quarterly."
         value={spine?.positioning_hypothesis}
@@ -106,13 +123,6 @@ export default function StrategySpine({ client, onBack }) {
         updatedAt={spine?.audience_updated_at}
         placeholder="e.g. Core audience is leaders in their 30s–50s who feel professionally capable but spiritually stuck. They came for tactical content but the highest-retention videos are the ones that name a pain they're already feeling."
         onSave={(v) => handleFieldSave('audience_read', v)}
-      />
-
-      <QuarterlyStance
-        text={spine?.quarterly_stance}
-        label={spine?.quarterly_stance_label}
-        updatedAt={spine?.quarterly_stance_updated_at}
-        onSave={handleStanceSave}
       />
 
       <ActivePlays
@@ -166,7 +176,7 @@ function SpineHeader({ client, onBack }) {
 // ────────────────────────────────────────────────────────────
 // Editable text section (positioning, audience)
 // ────────────────────────────────────────────────────────────
-function Section({ title, subtitle, value, updatedAt, placeholder, onSave }) {
+function Section({ title, subtitle, value, updatedAt, placeholder, onSave, accent }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || '');
 
@@ -178,7 +188,7 @@ function Section({ title, subtitle, value, updatedAt, placeholder, onSave }) {
   };
 
   return (
-    <SectionShell title={title} subtitle={subtitle} updatedAt={updatedAt}
+    <SectionShell title={title} subtitle={subtitle} updatedAt={updatedAt} accent={accent}
       action={editing ? (
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={handleSave} style={primaryBtn} title="Save"><Check size={12} /> Save</button>
@@ -527,16 +537,19 @@ function SnapshotStat({ label, value, tone = 'normal' }) {
 // ────────────────────────────────────────────────────────────
 // Shared section shell
 // ────────────────────────────────────────────────────────────
-function SectionShell({ title, subtitle, updatedAt, action, children }) {
+function SectionShell({ title, subtitle, updatedAt, action, accent, children }) {
   return (
     <div style={{
-      background: '#131316', border: '1px solid #1f1f24', borderRadius: 10,
+      background: '#131316',
+      border: `1px solid ${accent || '#1f1f24'}`,
+      borderLeft: accent ? `3px solid ${accent}` : '1px solid #1f1f24',
+      borderRadius: 10,
       padding: '18px 20px', marginBottom: 14,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: 13, fontWeight: 700, color: '#fff', margin: 0, letterSpacing: 0.2, textTransform: 'uppercase' }}>
+            <h2 style={{ fontSize: 13, fontWeight: 700, color: accent || '#fff', margin: 0, letterSpacing: 0.2, textTransform: 'uppercase' }}>
               {title}
             </h2>
             {updatedAt && (

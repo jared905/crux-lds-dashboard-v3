@@ -63,6 +63,7 @@ const FIELD_TIMESTAMP_MAP = {
   positioning_hypothesis: 'positioning_updated_at',
   audience_read: 'audience_updated_at',
   quarterly_stance: 'quarterly_stance_updated_at',
+  guardrails: 'guardrails_updated_at',
   // quarterly_stance_label rides on the same timestamp; updated together.
 };
 
