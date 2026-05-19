@@ -25,17 +25,17 @@ const STAGE_LABEL = Object.fromEntries(LIFECYCLE_STAGES.map(s => [s.id, s.label]
 // ──────────────────────────────────────────────────
 // List all client channels with derived flags
 // ──────────────────────────────────────────────────
-export async function listPortfolio() {
-  if (!supabase) return [];
+export async function listPortfolio({ includeHidden = false } = {}) {
+  if (!supabase) return { clients: [], hiddenCount: 0 };
 
   // 1. Pull every client channel
-  const { data: clients, error: cErr } = await supabase
+  let query = supabase
     .from('channels')
     .select(`
       id, name, youtube_channel_id, custom_url, thumbnail_url,
       subscriber_count, video_count,
       is_client, sync_enabled,
-      lifecycle_stage, primary_strategist_id,
+      lifecycle_stage, primary_strategist_id, is_portfolio_root,
       last_synced_at, last_sync_attempt_at, last_sync_error,
       classification_locked, last_classified_at,
       tracked_since
@@ -43,11 +43,19 @@ export async function listPortfolio() {
     .eq('is_client', true)
     .order('name', { ascending: true });
 
+  const { data: allClientRows, error: cErr } = await query;
+  // Apply portfolio-root filter in JS so we can also count hidden rows
+  // for the "Show hidden" affordance.
+  const hiddenCount = (allClientRows || []).filter(r => r.is_portfolio_root === false).length;
+  const clients = includeHidden
+    ? (allClientRows || [])
+    : (allClientRows || []).filter(r => r.is_portfolio_root !== false);
+
   if (cErr) {
     console.warn('[portfolio] list failed:', cErr);
-    return [];
+    return { clients: [], hiddenCount: 0 };
   }
-  if (!clients?.length) return [];
+  if (!clients.length) return { clients: [], hiddenCount };
 
   // 2. Pinned competitor counts via client_channels junction
   const clientIds = clients.map(c => c.id);
@@ -92,7 +100,7 @@ export async function listPortfolio() {
   //    - erroring count
   //    - lifecycle stage
 
-  return clients.map(c => {
+  const rows = clients.map(c => {
     const isStub = !c.youtube_channel_id || c.youtube_channel_id.startsWith('stub_');
     const pinnedIds = pinnedByClient[c.id] || [];
     const categorized = pinnedIds.filter(id => categorizedSet.has(id)).length;
@@ -106,6 +114,7 @@ export async function listPortfolio() {
       customUrl: c.custom_url,
       youtubeChannelId: c.youtube_channel_id,
       isStub,
+      isPortfolioRoot: c.is_portfolio_root,
       stage: c.lifecycle_stage,
       stageLabel: STAGE_LABEL[c.lifecycle_stage] || 'Unset',
       primaryStrategistId: c.primary_strategist_id,
@@ -125,6 +134,8 @@ export async function listPortfolio() {
       }),
     };
   });
+
+  return { clients: rows, hiddenCount };
 }
 
 // Stage-appropriate next-action heuristic. Keep it short and
@@ -159,6 +170,15 @@ export async function updateClientStage(clientId, stage) {
   const { error } = await supabase
     .from('channels')
     .update({ lifecycle_stage: stage })
+    .eq('id', clientId);
+  return { ok: !error, error: error?.message };
+}
+
+export async function setPortfolioRoot(clientId, isRoot) {
+  if (!clientId) return { ok: false, error: 'missing' };
+  const { error } = await supabase
+    .from('channels')
+    .update({ is_portfolio_root: isRoot })
     .eq('id', clientId);
   return { ok: !error, error: error?.message };
 }

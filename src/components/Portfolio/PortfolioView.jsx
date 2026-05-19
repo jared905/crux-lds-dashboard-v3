@@ -11,29 +11,33 @@
  * stage transitions) is in place for the hires-coming-soon case.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader, AlertTriangle, ChevronDown, ExternalLink, RefreshCw } from 'lucide-react';
+import { Loader, AlertTriangle, ChevronDown, ExternalLink, RefreshCw, EyeOff, Eye } from 'lucide-react';
 import {
   listPortfolio,
   updateClientStage,
+  setPortfolioRoot,
   LIFECYCLE_STAGES,
 } from '../../services/portfolioService.js';
 
 export default function PortfolioView() {
   const [clients, setClients] = useState(null);
+  const [hiddenCount, setHiddenCount] = useState(0);
+  const [includeHidden, setIncludeHidden] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    listPortfolio().then(rows => {
+    listPortfolio({ includeHidden }).then(({ clients: rows, hiddenCount: hc }) => {
       if (!cancelled) {
         setClients(rows);
+        setHiddenCount(hc);
         setLoading(false);
       }
     });
     return () => { cancelled = true; };
-  }, [refreshTick]);
+  }, [refreshTick, includeHidden]);
 
   const grouped = useMemo(() => {
     if (!clients) return null;
@@ -50,6 +54,16 @@ export default function PortfolioView() {
 
   const handleStageChange = async (clientId, stage) => {
     await updateClientStage(clientId, stage);
+    setRefreshTick(t => t + 1);
+  };
+
+  const handleHide = async (clientId) => {
+    await setPortfolioRoot(clientId, false);
+    setRefreshTick(t => t + 1);
+  };
+
+  const handleShow = async (clientId) => {
+    await setPortfolioRoot(clientId, true);
     setRefreshTick(t => t + 1);
   };
 
@@ -80,20 +94,29 @@ export default function PortfolioView() {
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1500, margin: '0 auto' }}>
-      <Header total={clients.length} totals={totals} onRefresh={() => setRefreshTick(t => t + 1)} />
+      <Header
+        total={clients.length}
+        totals={totals}
+        onRefresh={() => setRefreshTick(t => t + 1)}
+        hiddenCount={hiddenCount}
+        includeHidden={includeHidden}
+        onToggleHidden={() => setIncludeHidden(v => !v)}
+      />
 
       {grouped.map(group => (
         <StageSection
           key={group.id}
           group={group}
           onStageChange={handleStageChange}
+          onHide={handleHide}
+          onShow={handleShow}
         />
       ))}
     </div>
   );
 }
 
-function Header({ total, totals = [], onRefresh }) {
+function Header({ total, totals = [], onRefresh, hiddenCount = 0, includeHidden = false, onToggleHidden }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
       <div>
@@ -114,16 +137,30 @@ function Header({ total, totals = [], onRefresh }) {
           </div>
         )}
       </div>
-      {onRefresh && (
-        <button onClick={onRefresh} style={refreshBtn} title="Refresh portfolio">
-          <RefreshCw size={13} /> Refresh
-        </button>
-      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {hiddenCount > 0 && (
+          <button
+            onClick={onToggleHidden}
+            title={includeHidden
+              ? 'Hide sub-channels and other rows you marked hidden'
+              : 'Show all rows including sub-channels you marked hidden'}
+            style={{ ...refreshBtn, background: includeHidden ? '#1e3a5f' : '#18181c' }}
+          >
+            {includeHidden ? <Eye size={13} /> : <EyeOff size={13} />}
+            {includeHidden ? `Hide ${hiddenCount} sub-channel${hiddenCount === 1 ? '' : 's'}` : `Show ${hiddenCount} hidden`}
+          </button>
+        )}
+        {onRefresh && (
+          <button onClick={onRefresh} style={refreshBtn} title="Refresh portfolio">
+            <RefreshCw size={13} /> Refresh
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-function StageSection({ group, onStageChange }) {
+function StageSection({ group, onStageChange, onHide, onShow }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{
@@ -161,7 +198,7 @@ function StageSection({ group, onStageChange }) {
           </thead>
           <tbody>
             {group.rows.map(c => (
-              <ClientRow key={c.id} client={c} onStageChange={onStageChange} />
+              <ClientRow key={c.id} client={c} onStageChange={onStageChange} onHide={onHide} onShow={onShow} />
             ))}
           </tbody>
         </table>
@@ -170,10 +207,11 @@ function StageSection({ group, onStageChange }) {
   );
 }
 
-function ClientRow({ client: c, onStageChange }) {
+function ClientRow({ client: c, onStageChange, onHide, onShow }) {
   const coveragePct = Math.round(c.coverage * 100);
+  const isHidden = c.isPortfolioRoot === false;
   return (
-    <tr style={{ borderTop: '1px solid #1c1c20' }}>
+    <tr style={{ borderTop: '1px solid #1c1c20', opacity: isHidden ? 0.55 : 1 }}>
       <Td>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {c.thumbnail ? (
@@ -229,14 +267,33 @@ function ClientRow({ client: c, onStageChange }) {
         <NextAction action={c.nextAction} />
       </Td>
       <Td>
-        {c.youtubeChannelId && !c.isStub && (
-          <a href={`https://youtube.com/channel/${c.youtubeChannelId}`}
-             target="_blank" rel="noreferrer"
-             title="Open channel on YouTube"
-             style={iconLink}>
-            <ExternalLink size={13} />
-          </a>
-        )}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          {c.youtubeChannelId && !c.isStub && (
+            <a href={`https://youtube.com/channel/${c.youtubeChannelId}`}
+               target="_blank" rel="noreferrer"
+               title="Open channel on YouTube"
+               style={iconLink}>
+              <ExternalLink size={13} />
+            </a>
+          )}
+          {isHidden ? (
+            <button
+              onClick={() => onShow?.(c.id)}
+              title="Show in portfolio — mark as portfolio root"
+              style={iconLink}
+            >
+              <Eye size={13} />
+            </button>
+          ) : (
+            <button
+              onClick={() => onHide?.(c.id)}
+              title="Hide from portfolio — mark as sub-channel (keeps OAuth/analytics access)"
+              style={iconLink}
+            >
+              <EyeOff size={13} />
+            </button>
+          )}
+        </div>
       </Td>
     </tr>
   );
