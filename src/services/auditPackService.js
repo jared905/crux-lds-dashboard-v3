@@ -111,10 +111,40 @@ function sectionExecutive(briefing, diagnostic) {
   return lines.join('\n');
 }
 
+function sectionArchetypes(diagnostic) {
+  const breakdown = diagnostic?.archetypeBreakdown;
+  if (!breakdown || breakdown.length < 2) return null;
+
+  const lines = [
+    '## 3. Cohort by archetype',
+    '',
+    "_The cohort doesn't average meaningfully when it mixes channel archetypes — a manufacturer-brand (Blink) and a creator-led reviewer (Smart Home Solver) operate under different success math. Segmenting here so each archetype's norms read separately. The client's own archetype peers, if known, are the right baseline for any recommendation._",
+    '',
+  ];
+
+  if (diagnostic?.client?.archetypeLabel) {
+    lines.push(`**${diagnostic.client.name} is tagged: ${diagnostic.client.archetypeLabel}** — peer benchmarks should come from this archetype's segment below.`, '');
+  }
+
+  lines.push(
+    '| Archetype | Channels | Videos | Median views | Median engagement | Top patterns |',
+    '|---|---:|---:|---:|---:|---|',
+  );
+  for (const a of breakdown) {
+    const patternList = (a.patterns || []).slice(0, 3)
+      .map(p => `${p.label} (+${Math.round((p.lift - 1) * 100)}%)`)
+      .join(', ') || '—';
+    lines.push(
+      `| ${a.label} | ${a.channelCount} | ${a.videoCount} | ${fmtNum(a.medianViews)} | ${a.medianEngagement != null ? fmtPct(a.medianEngagement, 1) : '—'} | ${patternList} |`
+    );
+  }
+  return lines.join('\n');
+}
+
 function sectionCohort(channels) {
   if (!channels?.length) return null;
   const lines = [
-    '## 3. Cohort overview',
+    '## 4. Cohort overview',
     '',
     `**${channels.length} channels analyzed.**`,
     '',
@@ -143,7 +173,7 @@ function sectionTitlePatterns(patterns) {
   // Sort by views lift desc — what works comes first
   const sorted = [...patterns].sort((a, b) => (b.viewsLift ?? -Infinity) - (a.viewsLift ?? -Infinity));
   const lines = [
-    '## 4. Title patterns',
+    '## 5. Title patterns',
     '',
     '_Patterns sorted by views lift — videos using each pattern vs. the cohort median._',
     '',
@@ -169,7 +199,7 @@ function sectionFormatMix(formatBreakdown) {
   const longsPct = bucketPcts.reduce((s, v) => s + v, 0);
 
   const lines = [
-    '## 5. Format mix and length sweet spots',
+    '## 6. Format mix and length sweet spots',
     '',
     `**Format split:** ${shortsPct}% Shorts (${fmtNum(formatBreakdown.shortsMedianViews)} median views) · ${longsPct}% long-form (${fmtNum(formatBreakdown.longsMedianViews)} median views)`,
     '',
@@ -186,7 +216,7 @@ function sectionCadence(cadenceGaps) {
   if (!cadenceGaps?.grid) return null;
   const { grid, liftGrid, medianGrid, confidenceGrid, labels } = cadenceGaps;
   const lines = [
-    '## 6. Posting cadence and time-of-day performance',
+    '## 7. Posting cadence and time-of-day performance',
     '',
     `_Total uploads in window: ${cadenceGaps.total}. Cells show **upload count → median views → lift vs scope median**. Mountain Time._`,
     '',
@@ -245,7 +275,7 @@ function sectionOutliers(outliers) {
   const suspect = outliers.filter(o => o.isSuspect);
 
   const lines = [
-    '## 7. Top outliers (reference videos)',
+    '## 8. Top outliers (reference videos)',
     '',
     '_Videos that significantly out-performed their channel\'s median. The healthy list is what to anchor "this works in the category" claims on. Suspect videos (likely inflated views) are isolated below and **should not be used as reference examples in the deliverable**._',
     '',
@@ -280,7 +310,7 @@ function sectionOutliers(outliers) {
 function sectionTopics(topicCoverage) {
   if (!topicCoverage?.length) return null;
   const lines = [
-    '## 8. Topic landscape',
+    '## 9. Topic landscape',
     '',
     '_Themes the cohort covers, labeled by saturation. Gap themes are unclaimed flags._',
     '',
@@ -403,7 +433,7 @@ function sectionActivePlays(alerts) {
   const plays = detectActivePlays(alerts);
   if (!plays.length) return null;
   const lines = [
-    '## 9. Active competitive plays',
+    '## 10. Active competitive plays',
     '',
     "_Channels stacking 3+ breakouts inside 30 days using a shared title framing. These are direct competitors cracking a formula in real time — the most actionable competitive intel in the audit. Window to react before saturation is short._",
     '',
@@ -425,7 +455,7 @@ function sectionMovement(alerts) {
   const byType = {};
   for (const a of alerts) (byType[a.alert_type] ||= []).push(a);
   const lines = [
-    '## 10. Recent movement (last 30 days)',
+    '## 11. Recent movement (last 30 days)',
     '',
     '_Volatility filter applied: single-video spikes don\'t count as trends. Rank-change events require ≥5 videos per side with the change holding across the trimmed mean._',
     '',
@@ -517,6 +547,7 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
   const sections = [
     sectionExecutive(briefing, diagnostic),
     sectionOpportunityBrief(whiteSpaceResult?.brief),
+    sectionArchetypes(diagnostic),
     sectionCohort(channels),
     sectionTitlePatterns(patternsResult?.scope?.titlePatterns),
     sectionFormatMix(patternsResult?.scope?.formatBreakdown),

@@ -138,6 +138,85 @@ function cadenceStats(videos) {
 }
 
 // ──────────────────────────────────────────────────
+// Archetype clustering — segment the cohort by how a channel makes
+// content, not just what category it's in. A manufacturer-brand channel
+// (Blink, 0.6% engagement, 7.5/wk cadence) and an independent reviewer
+// (Smart Home Solver, 5.2% engagement, 2/mo) have fundamentally different
+// success math; averaging them produces a meaningless "cohort norm."
+//
+// Uses the existing identity tags from migration 066:
+//   creator-led | brand-owned | network | institutional | legacy-media
+// ──────────────────────────────────────────────────
+
+const ARCHETYPE_TAGS = new Set(['creator-led', 'brand-owned', 'network', 'institutional', 'legacy-media']);
+
+const ARCHETYPE_LABELS = {
+  'creator-led': 'Creator-led',
+  'brand-owned': 'Brand-owned (manufacturer)',
+  'network': 'Network / publisher',
+  'institutional': 'Institutional / org',
+  'legacy-media': 'Legacy media',
+  'unknown': 'Unclassified',
+};
+
+async function fetchChannelArchetypes(channelIds) {
+  if (!channelIds?.length) return new Map();
+  const { data } = await supabase
+    .from('channel_tags')
+    .select('channel_id, tag')
+    .in('channel_id', channelIds);
+  // Build channel_id → archetype tag. First identity tag wins.
+  const m = new Map();
+  for (const row of (data || [])) {
+    if (!ARCHETYPE_TAGS.has(row.tag)) continue;
+    if (!m.has(row.channel_id)) m.set(row.channel_id, row.tag);
+  }
+  return m;
+}
+
+function analyzeArchetypes(cohortVideos, archetypeByChannel) {
+  // Group videos by archetype
+  const grouped = {};
+  for (const v of cohortVideos) {
+    const arch = archetypeByChannel.get(v.channel_id) || 'unknown';
+    if (!grouped[arch]) grouped[arch] = [];
+    grouped[arch].push(v);
+  }
+
+  // Per-archetype norms: engagement, top patterns, top length, top slots
+  const breakdown = [];
+  for (const [arch, vids] of Object.entries(grouped)) {
+    if (vids.length < 10) continue; // skip tiny archetypes — not enough signal
+    const engSamples = vids
+      .map(v => v.view_count > 0 ? ((v.like_count || 0) + (v.comment_count || 0)) / v.view_count : null)
+      .filter(e => e != null && e >= 0);
+    const medianEngagement = engSamples.length > 0 ? median(engSamples) : null;
+    const viewSamples = vids.map(v => v.view_count || 0).filter(n => n > 0);
+    const medianViews = viewSamples.length > 0 ? trimmedMedian(viewSamples) : null;
+    const channelsInArchetype = new Set(vids.map(v => v.channel_id));
+
+    breakdown.push({
+      archetype: arch,
+      label: ARCHETYPE_LABELS[arch] || arch,
+      channelCount: channelsInArchetype.size,
+      videoCount: vids.length,
+      medianViews,
+      medianEngagement,
+      patterns: patternStats(vids).patterns
+        .filter(p => p.lift != null && p.lift >= 1.15 && p.confidence !== 'insufficient')
+        .sort((a, b) => (b.lift ?? 0) - (a.lift ?? 0))
+        .slice(0, 3),
+      buckets: bucketStats(vids)
+        .filter(b => b.lift != null && b.lift >= 1.15 && b.confidence !== 'insufficient')
+        .sort((a, b) => (b.lift ?? 0) - (a.lift ?? 0))
+        .slice(0, 2),
+    });
+  }
+  // Sort by channel count desc — biggest archetype first
+  return breakdown.sort((a, b) => b.channelCount - a.channelCount);
+}
+
+// ──────────────────────────────────────────────────
 // Main entry
 // ──────────────────────────────────────────────────
 export async function computeClientDiagnostic({ clientId, scopeChannelIds, windowDays = 90 }) {
@@ -163,9 +242,17 @@ export async function computeClientDiagnostic({ clientId, scopeChannelIds, windo
   // service had its own fetch with different limits, which produced
   // mismatched n= values across the audit.
   let cohortVideos = [];
+  let archetypeByChannel = new Map();
   if (scopeChannelIds?.length) {
-    cohortVideos = await fetchVideosForChannels(scopeChannelIds, { windowDays });
+    [cohortVideos, archetypeByChannel] = await Promise.all([
+      fetchVideosForChannels(scopeChannelIds, { windowDays }),
+      fetchChannelArchetypes(scopeChannelIds),
+    ]);
   }
+
+  // Look up the client's own archetype (if tagged)
+  const clientArchetypeMap = await fetchChannelArchetypes([client.id]);
+  const clientArchetype = clientArchetypeMap.get(client.id) || null;
 
   // 3. Client's own videos (only if real YouTube channel)
   let clientVideos = [];
@@ -181,6 +268,24 @@ export async function computeClientDiagnostic({ clientId, scopeChannelIds, windo
   }
 
   const mode = (!isStub && clientVideos.length >= 5) ? 'comparison' : 'prescriptive';
+
+  const archetypeBreakdown = analyzeArchetypes(cohortVideos, archetypeByChannel);
+
+  // If the client has its own archetype tag, also compute the patterns
+  // for ONLY their archetype peers — the most relevant comparison set.
+  const peerVideos = clientArchetype
+    ? cohortVideos.filter(v => archetypeByChannel.get(v.channel_id) === clientArchetype)
+    : null;
+  const peerStats = peerVideos && peerVideos.length >= 10
+    ? {
+        archetype: clientArchetype,
+        label: ARCHETYPE_LABELS[clientArchetype] || clientArchetype,
+        videoCount: peerVideos.length,
+        patterns: patternStats(peerVideos).patterns,
+        buckets: bucketStats(peerVideos),
+        cadence: cadenceStats(peerVideos),
+      }
+    : null;
 
   const cohort = {
     videoCount: cohortVideos.length,
@@ -243,6 +348,8 @@ export async function computeClientDiagnostic({ clientId, scopeChannelIds, windo
       name: client.name,
       thumbnail: client.thumbnail_url,
       isStub,
+      archetype: clientArchetype,
+      archetypeLabel: clientArchetype ? ARCHETYPE_LABELS[clientArchetype] : null,
     },
     cohort,
     clientStats,
@@ -250,6 +357,8 @@ export async function computeClientDiagnostic({ clientId, scopeChannelIds, windo
     workingBuckets,
     workingSlots,
     gaps,
+    archetypeBreakdown, // each archetype's norms + top patterns
+    peerStats,          // statistics restricted to client's archetype peers
   };
 }
 
@@ -262,22 +371,23 @@ const BRIEFING_CACHE_HOURS = 24 * 3; // re-synthesize every 3 days
 
 // Bump when the prompt structure or hedging rules change — invalidates
 // every cached briefing so stale pre-hedging output stops being served.
-const BRIEFING_PROMPT_VERSION = 'v7-actionable-closer';
+const BRIEFING_PROMPT_VERSION = 'v8-archetype-aware';
 
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;
-  const { client, mode, workingPatterns, workingBuckets, workingSlots, gaps, cohort } = diagnostic;
+  const { client, mode, workingPatterns, workingBuckets, workingSlots, gaps, cohort, archetypeBreakdown, peerStats } = diagnostic;
 
   // Cache signature — when the underlying data OR the prompt version
-  // changes, we re-generate. Now also reflects each finding's confidence
-  // so a directional→statistical promotion regenerates the briefing.
+  // changes, we re-generate. Includes archetype info so changes there
+  // also flush.
   const sig = [
     BRIEFING_PROMPT_VERSION,
-    client.id, mode,
+    client.id, mode, client.archetype || '',
     workingPatterns.map(p => `${p.id}:${p.lift?.toFixed(2)}:${p.confidence}`).join(','),
     workingBuckets.map(b => `${b.id}:${b.lift?.toFixed(2)}:${b.confidence}`).join(','),
     workingSlots.slice(0, 3).map(s => `${s.day}-${s.block}:${s.lift?.toFixed(2)}:${s.confidence}`).join(','),
     gaps.map(g => `${g.id}:${g.freqRatio.toFixed(1)}`).join(','),
+    (archetypeBreakdown || []).map(a => `${a.archetype}:${a.channelCount}`).join(','),
   ].join('|');
   const cacheKey = `client_briefing:${client.id}:${sig.slice(0, 200)}`;
 
@@ -324,10 +434,22 @@ export async function loadOrGenerateBriefing(diagnostic) {
       ? `statistical-evidence available (${statCount} robust findings, ${dirCount} directional)`
       : `${dirCount > 0 ? 'directional-only' : 'no'} evidence — no finding passes the sample-size + outlier-resistance test`;
 
+    // Archetype context — segments the cohort by how channels MAKE
+    // content (manufacturer-brand vs. independent reviewer vs. educator).
+    // Averaging these together produces meaningless norms; the briefing
+    // should ground recommendations in the client's archetype peers.
+    const archetypeLines = (archetypeBreakdown || [])
+      .map(a => `- ${a.label}: ${a.channelCount} channels, ${a.videoCount} videos, median engagement ${a.medianEngagement != null ? (a.medianEngagement * 100).toFixed(1) + '%' : 'n/a'}, top patterns: ${(a.patterns || []).slice(0, 2).map(p => `${p.label} (+${Math.round((p.lift - 1) * 100)}%)`).join(', ') || 'none with significant lift'}`)
+      .join('\n');
+
+    const archetypeBlock = archetypeBreakdown && archetypeBreakdown.length > 1
+      ? `\nCOHORT SEGMENTED BY ARCHETYPE (channels grouped by how they make content — manufacturer-brand vs. creator-led vs. educator, etc. These have fundamentally different success math; averaging them is misleading):\n${archetypeLines}\n${client.archetypeLabel ? `\n${client.name} is tagged as: **${client.archetypeLabel}** — recommendations should reference this archetype's peers, not the whole cohort.\n` : ''}`
+      : '';
+
     const prompt = `You are writing the executive briefing for a YouTube category audit of "${client.name}'s" competitive cohort.
 
 EVIDENCE STATE: ${evidenceState}
-
+${archetypeBlock}
 ${gapLines ? `STRUCTURAL GAPS (most reliable signal — survives small-sample variance because it's a frequency comparison, not a view-count lift):\n${gapLines}\n` : ''}
 COHORT SIGNAL — Title patterns:
 ${patternLines}
@@ -346,7 +468,8 @@ CRITICAL RULES — read carefully:
 5. **If evidence state is "directional-only" or "no evidence"**, the briefing's job is to say so plainly — "the cohort doesn't show statistically reliable patterns yet; here's where to test" — NOT to manufacture conviction. A briefing that admits the data is thin is more credible than one that fakes signal.
 6. **Don't invent insights** beyond what the data says. If there's no clear winner, lead with "the strongest signal here is structural — your usage of X is N× below cohort norm — start there."
 7. **TERMINOLOGY — critical:** A "lift" number is ALWAYS a VIEWS comparison ("videos using this pattern get X% MORE VIEWS than the cohort median"). It is NEVER a frequency claim ("the cohort uploads X% more often"). The data lines spell this out — if you describe a lift, the sentence MUST be about views, never about upload frequency. Misreading lift as frequency invalidates the briefing.
-8. **CLOSE WITH AN ACTIONABLE NEXT STEP.** The final sentence must tell ${client.name} what to do this week, separating "act on" (statistical findings) from "test" (directional findings). Examples of the closing pattern:
+8. **GROUND RECOMMENDATIONS IN ARCHETYPE PEERS, not the whole cohort.** If ${client.name} is tagged with an archetype, prefer patterns from that archetype's segment over whole-cohort averages — a manufacturer-brand and an independent reviewer have different success math. Call out the archetype explicitly when relevant ("among brand-owned peers, the median engagement is X% — that's the right baseline, not the cohort's Y%"). If the cohort doesn't separate cleanly by archetype OR ${client.name} has no archetype tag, fall back to the whole-cohort signal without inventing archetype framing.
+9. **CLOSE WITH AN ACTIONABLE NEXT STEP.** The final sentence must tell ${client.name} what to do this week, separating "act on" (statistical findings) from "test" (directional findings). Examples of the closing pattern:
    - "Anchor the next four uploads on emoji titles and Monday afternoon slots; treat Saturday morning and 8–15 minute length as test bets."
    - "Start with the Why-title gap (statistical, lift +X%); reserve one upload to A/B-test the Saturday slot before committing schedule changes."
    A briefing that ends on "needs more data to confirm" is advisory, not actionable. Always point at the next move, even when the move is "run these two tests this week."
