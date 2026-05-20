@@ -17,6 +17,7 @@ import { analyzePatterns, resolveScopeToChannelIds } from './patternsService.js'
 import { analyzeWhiteSpace } from './whiteSpaceService.js';
 import { loadAlerts } from './movementService.js';
 import { computeClientDiagnostic, loadOrGenerateBriefing } from './clientDiagnosticService.js';
+import { getSpine } from './strategySpineService.js';
 
 // ──────────────────────────────────────────────────
 // Formatters
@@ -108,6 +109,66 @@ function sectionExecutive(briefing, diagnostic) {
   } else if (diagnostic) {
     lines.push('', `_Cohort size_: ${diagnostic.cohort.videoCount} videos analyzed across the competitive set.`);
   }
+  return lines.join('\n');
+}
+
+// Strategist's authored strategy spine — the interpretive layer alongside
+// the analytical sections. Renders only fields that have been authored;
+// returns null when the spine is empty so the section disappears cleanly.
+// Positioned right after the briefing so a reader frames the rest of the
+// pack against the stated stance, not the other way around.
+function sectionSpine(spine) {
+  if (!spine) return null;
+  const has = (s) => typeof s === 'string' && s.trim().length > 0;
+  const hasAny = has(spine.positioning_hypothesis)
+    || has(spine.audience_read)
+    || has(spine.quarterly_stance)
+    || has(spine.guardrails)
+    || (Array.isArray(spine.active_plays) && spine.active_plays.length > 0);
+  if (!hasAny) return null;
+
+  const lines = ['## 2. Strategic frame'];
+  lines.push('', '_The strategist\'s interpretive layer for this client. Read first; everything below is in service of this stance._', '');
+
+  if (has(spine.quarterly_stance)) {
+    const label = has(spine.quarterly_stance_label) ? ` · ${spine.quarterly_stance_label}` : '';
+    lines.push(`### Strategic stance${label}`);
+    lines.push('', spine.quarterly_stance.trim(), '');
+  }
+  if (has(spine.positioning_hypothesis)) {
+    lines.push('### Positioning hypothesis');
+    lines.push('', spine.positioning_hypothesis.trim(), '');
+  }
+  if (has(spine.audience_read)) {
+    lines.push('### Audience read');
+    lines.push('', spine.audience_read.trim(), '');
+  }
+  const plays = Array.isArray(spine.active_plays) ? spine.active_plays : [];
+  const inFlight = plays.filter(p => p.status === 'in_flight');
+  const concluded = plays.filter(p => p.status === 'concluded_won' || p.status === 'concluded_lost');
+  if (inFlight.length || concluded.length) {
+    lines.push('### Active plays');
+    lines.push('');
+    if (inFlight.length) {
+      for (const p of inFlight) {
+        lines.push(`- **${p.name}** _(in flight${p.started_at ? `, since ${p.started_at}` : ''})_${p.hypothesis ? ` — ${p.hypothesis}` : ''}`);
+      }
+    }
+    if (concluded.length) {
+      lines.push('');
+      lines.push('_Concluded plays (do not re-recommend without new evidence):_');
+      for (const p of concluded) {
+        const label = p.status === 'concluded_won' ? 'won' : 'lost';
+        lines.push(`- ~~${p.name}~~ — concluded ${label}${p.hypothesis ? `; ${p.hypothesis}` : ''}`);
+      }
+    }
+    lines.push('');
+  }
+  if (has(spine.guardrails)) {
+    lines.push('### Guardrails');
+    lines.push('', '> ' + spine.guardrails.trim().replace(/\n/g, '\n> '), '');
+  }
+
   return lines.join('\n');
 }
 
@@ -548,12 +609,13 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
 
   // Run all the analyses in parallel where possible
   tick('Fetching cohort + patterns');
-  const [channels, patternsResult, whiteSpaceResult, alerts, diagnostic] = await Promise.all([
+  const [channels, patternsResult, whiteSpaceResult, alerts, diagnostic, spine] = await Promise.all([
     fetchLandscapeChannels(scope).catch(() => []),
     analyzePatterns({ scopeChannelIds, windowDays: 90 }).catch(() => null),
     analyzeWhiteSpace({ scopeChannelIds, windowDays: 90, scopeLabel }).catch(() => null),
     loadAlerts({ scopeChannelIds, windowDays: 30 }).catch(() => []),
     scope.clientId ? computeClientDiagnostic({ clientId: scope.clientId, scopeChannelIds, windowDays: 90 }).catch(() => null) : Promise.resolve(null),
+    scope.clientId ? getSpine(scope.clientId).catch(() => null) : Promise.resolve(null),
   ]);
 
   tick('Generating briefing');
@@ -577,11 +639,14 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
     '> **Reading this audit:** Every lift number is tagged with a sample size. Tables show `(directional)` next to lifts computed from small samples (<40 videos for title patterns, <30 uploads for time slots and length buckets) — treat those as early signal worth testing, not as evidence for committing resources. Trimmed medians (top/bottom 10% dropped) are used throughout, AND a drop-top-observation check runs on every lift — if removing the single highest-view video collapses the lift by >25%, the row gets downgraded to directional regardless of sample size. "Lift" always means views relative to the cohort median, never upload frequency.',
   ].join('\n');
 
-  // Order chosen for the deck workflow: lead with the briefing → opportunity
-  // brief (the recommendation) → cohort context → supporting analysis →
-  // examples → movement. Critique-driven reorder; brief was buried at #8.
+  // Order chosen for the deck workflow: briefing → strategic frame (spine) →
+  // opportunity brief (the recommendation) → cohort context → supporting
+  // analysis → examples → movement. Strategic frame sits high so readers
+  // interpret the rest of the pack against the stated stance, not in
+  // isolation. Section drops cleanly when the spine is empty.
   const sections = [
     sectionExecutive(briefing, diagnostic),
+    sectionSpine(spine),
     sectionOpportunityBrief(whiteSpaceResult?.brief),
     sectionArchetypes(diagnostic),
     sectionCohort(channels),
