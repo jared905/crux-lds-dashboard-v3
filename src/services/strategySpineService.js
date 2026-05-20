@@ -64,6 +64,7 @@ const FIELD_TIMESTAMP_MAP = {
   audience_read: 'audience_updated_at',
   quarterly_stance: 'quarterly_stance_updated_at',
   guardrails: 'guardrails_updated_at',
+  competitive_posture: 'competitive_posture_updated_at',
   // quarterly_stance_label rides on the same timestamp; updated together.
 };
 

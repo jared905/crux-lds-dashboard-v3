@@ -10,6 +10,7 @@ import { generateAuditPack, downloadMarkdown } from '../../services/auditPackSer
 import ScopeBar from './ScopeBar.jsx';
 import RecipesBar from './RecipesBar.jsx';
 import ClientDiagnostic from './ClientDiagnostic.jsx';
+import CompetitivePostureBanner from './CompetitivePostureBanner.jsx';
 import LandscapeLens from './LandscapeLens.jsx';
 import PatternsLens from './PatternsLens.jsx';
 import WhiteSpaceLens from './WhiteSpaceLens.jsx';
@@ -219,6 +220,12 @@ export default function ResearchV2() {
         if (lens) setActiveLens(lens);
       }} />
       <ScopeBar scope={scope} onChange={setScope} />
+
+      {/* Competitive posture — strategist's interpretation of the cohort.
+          Sits above ClientDiagnostic so the data underneath is read with
+          the stated stance already in mind. Renders only when pinned
+          client has competitive_posture authored on their spine. */}
+      <CompetitivePostureBanner scope={scope} />
 
       {/* Client diagnostic — only renders when a client is pinned */}
       <ClientDiagnostic scope={scope} refreshKey={refreshKey} />

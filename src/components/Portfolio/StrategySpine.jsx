@@ -108,6 +108,16 @@ export default function StrategySpine({ client, onBack }) {
       />
 
       <Section
+        title="Competitive posture"
+        subtitle="One-line interpretation of how this client is differentiating from the competitive set. Displays as a banner inside Research v2 whenever this client's cohort is loaded — so the cohort data is never read without interpretation."
+        accent="#60a5fa"
+        value={spine?.competitive_posture}
+        updatedAt={spine?.competitive_posture_updated_at}
+        placeholder="e.g. We compete on narrative warmth in a cohort that's flooded with utility-first content — when a competitor leans tactical, we lean story; when they lean shorts-heavy, we lean longer-form testimony."
+        onSave={(v) => handleFieldSave('competitive_posture', v)}
+      />
+
+      <Section
         title="Positioning hypothesis"
         subtitle="Long-arc thesis — what this channel competes on, what audience it serves, what voice it owns. Typically reviewed quarterly."
         value={spine?.positioning_hypothesis}
