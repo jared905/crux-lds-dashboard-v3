@@ -286,12 +286,25 @@ Return ONLY the JSON array. No prose.`;
 export async function addUserConcept(clientId, userSeed, { clientName } = {}) {
   if (!clientId || !userSeed?.trim()) return { ok: false, error: 'missing input', concept: null };
 
+  // Same evidence stack as generateConcepts — user seeds get fleshed out
+  // with the spine + cohort gaps + demand signals so the resulting concept
+  // is grounded, not just structurally completed.
   const spineContext = await buildSpineContext(clientId, { clientName });
+  const cohortBlock = await buildCohortContext(clientId);
+  let demandBlock = '';
+  try {
+    const demandRow = await getActiveDemandSignals(clientId);
+    demandBlock = formatDemandSignalsForPrompt(demandRow, { clientName });
+  } catch (e) {
+    console.warn('[seriesIdeation] demand fetch in addUserConcept failed:', e);
+  }
   const prompt = `A strategist provided this series seed for ${clientName || 'a client'}:
 
 "${userSeed.trim()}"
 
-Flesh it into a complete series concept. Stay faithful to the strategists framing — do not rewrite their core idea. Add the structural fields they did not specify (format, cadence, episode list, rationale). If the seed already specifies any of these, preserve them verbatim.
+${cohortBlock || ''}${demandBlock || ''}Flesh it into a complete series concept. Stay faithful to the strategists framing — do not rewrite their core idea. Add the structural fields they did not specify (format, cadence, episode list, rationale). If the seed already specifies any of these, preserve them verbatim.
+
+Use the cohort evidence and demand signals above to inform STRUCTURE — format/length band/cadence based on what works in the cohort, episodes that lean into unserved demand when relevant — but do not pivot the seed's core idea.
 
 Return JSON with this shape:
 {
@@ -362,11 +375,21 @@ export async function exploreConcept(conceptId, { clientName } = {}) {
   const concept = await getConcept(conceptId);
   if (!concept) return { ok: false, error: 'not found' };
 
+  // Full evidence stack on deepening so episode hooks and rationale are
+  // grounded in real signal — same wires as generateConcepts.
   const spineContext = await buildSpineContext(concept.client_id, { clientName });
+  const cohortBlock = await buildCohortContext(concept.client_id);
+  let demandBlock = '';
+  try {
+    const demandRow = await getActiveDemandSignals(concept.client_id);
+    demandBlock = formatDemandSignalsForPrompt(demandRow, { clientName });
+  } catch (e) {
+    console.warn('[seriesIdeation] demand fetch in exploreConcept failed:', e);
+  }
 
   const prompt = `Deepen this series concept. The strategist is considering it but hasn't greenlit it yet — your job is to give them enough texture to make the call.
 
-EXISTING CONCEPT:
+${cohortBlock || ''}${demandBlock || ''}EXISTING CONCEPT:
 Title: ${concept.title}
 Premise: ${concept.premise}
 Format: ${concept.format || '(unspecified)'}
@@ -374,6 +397,11 @@ Cadence: ${concept.cadence || '(unspecified)'}
 Episode count: ${concept.episode_count || '(unspecified)'}
 Episodes so far:
 ${(concept.episodes || []).map((e, i) => `  ${i + 1}. ${e.title}${e.hook ? ` — ${e.hook}` : ''}`).join('\n') || '(none yet)'}
+
+When deepening:
+- Use cohort evidence to refine format/length/cadence into something the data supports.
+- If demand signals point at unserved topics relevant to this premise, fold them into episode hooks.
+- The rationale section should now cite concrete numbers (cohort gaps, demand mentions, peer baselines) — vague rationale is unusable.
 
 Return JSON with this shape:
 {
