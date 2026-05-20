@@ -242,6 +242,66 @@ export async function refreshSnapshot(clientId) {
   return { ok: !error, error: error?.message, snapshot };
 }
 
+// ──────────────────────────────────────────────────
+// Snapshots — point-in-time captures of the spine
+// ──────────────────────────────────────────────────
+
+/**
+ * Capture the current spine fields as a snapshot. The label is the
+ * strategist's anchor ("Q2 2026 close", "post-rebrand"); notes optional.
+ */
+export async function captureSpineSnapshot(clientId, { label, notes } = {}) {
+  if (!supabase || !clientId) return { ok: false, error: 'missing' };
+  const spine = await getSpine(clientId);
+  if (!spine) return { ok: false, error: 'no spine to snapshot' };
+  const { data: created, error } = await supabase
+    .from('client_strategy_spine_snapshots')
+    .insert({
+      client_id: clientId,
+      label: label?.trim() || null,
+      notes: notes?.trim() || null,
+      positioning_hypothesis: spine.positioning_hypothesis,
+      audience_read: spine.audience_read,
+      quarterly_stance: spine.quarterly_stance,
+      quarterly_stance_label: spine.quarterly_stance_label,
+      competitive_posture: spine.competitive_posture,
+      guardrails: spine.guardrails,
+      active_plays: spine.active_plays || [],
+    })
+    .select()
+    .single();
+  return { ok: !error, snapshot: created, error: error?.message };
+}
+
+export async function listSpineSnapshots(clientId) {
+  if (!supabase || !clientId) return [];
+  const { data } = await supabase
+    .from('client_strategy_spine_snapshots')
+    .select('id, captured_at, label, notes, quarterly_stance_label')
+    .eq('client_id', clientId)
+    .order('captured_at', { ascending: false });
+  return data || [];
+}
+
+export async function getSpineSnapshot(snapshotId) {
+  if (!supabase || !snapshotId) return null;
+  const { data } = await supabase
+    .from('client_strategy_spine_snapshots')
+    .select('*')
+    .eq('id', snapshotId)
+    .maybeSingle();
+  return data;
+}
+
+export async function deleteSpineSnapshot(snapshotId) {
+  if (!supabase || !snapshotId) return { ok: false, error: 'missing' };
+  const { error } = await supabase
+    .from('client_strategy_spine_snapshots')
+    .delete()
+    .eq('id', snapshotId);
+  return { ok: !error, error: error?.message };
+}
+
 export default {
   getSpine,
   updateSpineField,
@@ -250,5 +310,9 @@ export default {
   updateActivePlay,
   removeActivePlay,
   refreshSnapshot,
+  captureSpineSnapshot,
+  listSpineSnapshots,
+  getSpineSnapshot,
+  deleteSpineSnapshot,
   PLAY_STATUS_LABELS,
 };

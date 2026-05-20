@@ -10,7 +10,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, Loader, Edit2, Check, X as XIcon, Plus, Trash2,
-  RefreshCw, Calendar, ExternalLink, ChevronDown,
+  RefreshCw, Calendar, ExternalLink, ChevronDown, ChevronRight,
+  Camera, History,
 } from 'lucide-react';
 import {
   getSpine,
@@ -20,6 +21,10 @@ import {
   updateActivePlay,
   removeActivePlay,
   refreshSnapshot,
+  captureSpineSnapshot,
+  listSpineSnapshots,
+  getSpineSnapshot,
+  deleteSpineSnapshot,
   PLAY_STATUS_LABELS,
 } from '../../services/strategySpineService.js';
 
@@ -28,13 +33,18 @@ export default function StrategySpine({ client, onBack }) {
   const [loading, setLoading] = useState(true);
   const [refreshTick, setRefreshTick] = useState(0);
   const [snapshotBusy, setSnapshotBusy] = useState(false);
+  const [snapshots, setSnapshots] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [snapshotCaptureBusy, setSnapshotCaptureBusy] = useState(false);
+  const [viewingSnapshot, setViewingSnapshot] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getSpine(client.id).then(row => {
+    Promise.all([getSpine(client.id), listSpineSnapshots(client.id)]).then(([row, snaps]) => {
       if (!cancelled) {
         setSpine(row);
+        setSnapshots(snaps);
         setLoading(false);
       }
     });
@@ -77,6 +87,37 @@ export default function StrategySpine({ client, onBack }) {
     }
   };
 
+  const handleCaptureSnapshot = async () => {
+    const defaultLabel = spine?.quarterly_stance_label
+      ? `${spine.quarterly_stance_label} close`
+      : '';
+    const label = window.prompt(
+      'Snapshot label (e.g. "Q2 2026 close", "post-rebrand pivot"). Leave blank for unlabeled.',
+      defaultLabel,
+    );
+    if (label === null) return;  // cancel
+    setSnapshotCaptureBusy(true);
+    try {
+      const r = await captureSpineSnapshot(client.id, { label });
+      if (!r.ok) window.alert(`Snapshot failed: ${r.error || 'unknown'}`);
+      setRefreshTick(t => t + 1);
+      setShowHistory(true);
+    } finally {
+      setSnapshotCaptureBusy(false);
+    }
+  };
+
+  const handleViewSnapshot = async (snapshotId) => {
+    const snap = await getSpineSnapshot(snapshotId);
+    if (snap) setViewingSnapshot(snap);
+  };
+
+  const handleDeleteSnapshot = async (snapshotId) => {
+    if (!window.confirm('Delete this snapshot? This cannot be undone.')) return;
+    await deleteSpineSnapshot(snapshotId);
+    setRefreshTick(t => t + 1);
+  };
+
   if (loading) {
     return (
       <div style={{ padding: 60, textAlign: 'center', color: '#666' }}>
@@ -88,7 +129,13 @@ export default function StrategySpine({ client, onBack }) {
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1100, margin: '0 auto' }}>
-      <SpineHeader client={client} onBack={onBack} />
+      <SpineHeader
+        client={client}
+        onBack={onBack}
+        snapshotCount={snapshots.length}
+        snapshotBusy={snapshotCaptureBusy}
+        onCaptureSnapshot={handleCaptureSnapshot}
+      />
 
       <Section
         title="Guardrails — do not recommend"
@@ -148,6 +195,21 @@ export default function StrategySpine({ client, onBack }) {
         busy={snapshotBusy}
         onRefresh={handleRefreshSnapshot}
       />
+
+      <SnapshotHistory
+        snapshots={snapshots}
+        expanded={showHistory}
+        onToggle={() => setShowHistory(v => !v)}
+        onView={handleViewSnapshot}
+        onDelete={handleDeleteSnapshot}
+      />
+
+      {viewingSnapshot && (
+        <SnapshotViewer
+          snapshot={viewingSnapshot}
+          onClose={() => setViewingSnapshot(null)}
+        />
+      )}
     </div>
   );
 }
@@ -155,7 +217,7 @@ export default function StrategySpine({ client, onBack }) {
 // ────────────────────────────────────────────────────────────
 // Header
 // ────────────────────────────────────────────────────────────
-function SpineHeader({ client, onBack }) {
+function SpineHeader({ client, onBack, snapshotCount = 0, snapshotBusy = false, onCaptureSnapshot }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <button onClick={onBack} style={backBtn} title="Back to Clients">
@@ -168,7 +230,7 @@ function SpineHeader({ client, onBack }) {
         ) : (
           <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#18181c' }} />
         )}
-        <div>
+        <div style={{ flex: 1 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#fff', margin: 0, letterSpacing: '-0.3px' }}>
             {client.name}
           </h1>
@@ -176,8 +238,155 @@ function SpineHeader({ client, onBack }) {
             Strategy spine
             {client.stageLabel && <> · <span style={{ color: '#aaa' }}>{client.stageLabel}</span></>}
             {client.customUrl && <> · {client.customUrl}</>}
+            {snapshotCount > 0 && <> · <span style={{ color: '#aaa' }}>{snapshotCount} snapshot{snapshotCount === 1 ? '' : 's'}</span></>}
           </div>
         </div>
+        {onCaptureSnapshot && (
+          <button
+            onClick={onCaptureSnapshot}
+            disabled={snapshotBusy}
+            title="Capture the current spine state as a snapshot (for evolved-across-quarters history)"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '7px 12px', borderRadius: 6,
+              background: '#18181c', color: '#d4d4d8',
+              border: '1px solid #232328', cursor: snapshotBusy ? 'wait' : 'pointer',
+              fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+              opacity: snapshotBusy ? 0.6 : 1,
+            }}
+          >
+            {snapshotBusy
+              ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Capturing…</>
+              : <><Camera size={12} /> Snapshot now</>}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Snapshot history list + viewer
+// ────────────────────────────────────────────────────────────
+function SnapshotHistory({ snapshots, expanded, onToggle, onView, onDelete }) {
+  if (!snapshots?.length) return null;
+  return (
+    <div style={{ marginTop: 18, marginBottom: 14 }}>
+      <button
+        onClick={onToggle}
+        style={{
+          background: 'transparent', border: 'none', padding: '4px 0',
+          color: '#888', fontSize: 11, fontWeight: 700,
+          textTransform: 'uppercase', letterSpacing: 0.7,
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}
+      >
+        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        <History size={12} />
+        History · {snapshots.length} snapshot{snapshots.length === 1 ? '' : 's'}
+      </button>
+      {expanded && (
+        <div style={{
+          background: '#131316', border: '1px solid #1f1f24', borderRadius: 10,
+          padding: 12, marginTop: 8,
+        }}>
+          {snapshots.map(s => {
+            const days = Math.floor((Date.now() - new Date(s.captured_at).getTime()) / 86400000);
+            const when = days === 0 ? 'today' : days === 1 ? '1 day ago' : days < 30 ? `${days} days ago` : days < 365 ? `${Math.floor(days/30)} months ago` : `${Math.floor(days/365)} years ago`;
+            return (
+              <div key={s.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                gap: 10, padding: '8px 4px', borderBottom: '1px solid #1c1c20',
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: '#d4d4d8', fontWeight: 600 }}>
+                    {s.label || <span style={{ color: '#666', fontWeight: 400 }}>(unlabeled)</span>}
+                    {s.quarterly_stance_label && s.label !== s.quarterly_stance_label && (
+                      <span style={{ color: '#666', fontWeight: 400, marginLeft: 8 }}>· stance was "{s.quarterly_stance_label}"</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#777', marginTop: 2 }}>
+                    Captured {when} · {new Date(s.captured_at).toISOString().slice(0, 10)}
+                  </div>
+                </div>
+                <button onClick={() => onView(s.id)} style={ghostBtnSmall} title="View snapshot">View</button>
+                <button onClick={() => onDelete(s.id)} style={{ ...ghostBtnSmall, color: '#f87171' }} title="Delete snapshot">
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SnapshotViewer({ snapshot, onClose }) {
+  if (!snapshot) return null;
+  const fmtField = (label, value) => value?.trim() ? (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4, fontWeight: 700 }}>
+        {label}
+      </div>
+      <div style={{ color: '#d4d4d8', fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{value}</div>
+    </div>
+  ) : null;
+
+  const plays = Array.isArray(snapshot.active_plays) ? snapshot.active_plays : [];
+
+  return (
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+        zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20,
+      }}
+    >
+      <div style={{
+        width: 'min(720px, 100%)', maxHeight: '85vh', overflowY: 'auto',
+        background: '#131316', border: '1px solid #2a2a30', borderRadius: 12,
+        padding: 20,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, marginBottom: 4 }}>
+              Snapshot · {new Date(snapshot.captured_at).toISOString().slice(0, 10)}
+            </div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: 0 }}>
+              {snapshot.label || 'Unlabeled snapshot'}
+            </h2>
+            {snapshot.notes && (
+              <div style={{ fontSize: 12, color: '#888', marginTop: 6, lineHeight: 1.5 }}>{snapshot.notes}</div>
+            )}
+          </div>
+          <button onClick={onClose} style={ghostBtnSmall} title="Close"><XIcon size={14} /></button>
+        </div>
+
+        {fmtField(`Strategic stance${snapshot.quarterly_stance_label ? ` · ${snapshot.quarterly_stance_label}` : ''}`, snapshot.quarterly_stance)}
+        {fmtField('Competitive posture', snapshot.competitive_posture)}
+        {fmtField('Positioning hypothesis', snapshot.positioning_hypothesis)}
+        {fmtField('Audience read', snapshot.audience_read)}
+        {fmtField('Guardrails', snapshot.guardrails)}
+
+        {plays.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6, fontWeight: 700 }}>
+              Active plays at capture ({plays.length})
+            </div>
+            {plays.map(p => (
+              <div key={p.id} style={{
+                background: '#16161a', border: '1px solid #1f1f24', borderRadius: 6,
+                padding: '8px 10px', marginBottom: 6, fontSize: 12, color: '#d4d4d8',
+              }}>
+                <strong>{p.name}</strong> <span style={{ color: '#888' }}>· {PLAY_STATUS_LABELS[p.status] || p.status}</span>
+                {p.hypothesis && <div style={{ color: '#a1a1aa', marginTop: 3 }}>{p.hypothesis}</div>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
