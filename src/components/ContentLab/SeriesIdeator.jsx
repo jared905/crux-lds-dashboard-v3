@@ -16,6 +16,7 @@ import {
   Sparkles, Loader2, Plus, RefreshCw, ArrowLeft,
   CheckCircle, Archive, RotateCcw, Trash2, AlertCircle,
   Compass, Flag, ChevronDown, ChevronRight, Edit3, User, Bot,
+  MessageSquare,
 } from 'lucide-react';
 import {
   listConcepts,
@@ -28,6 +29,10 @@ import {
   ungreenlightConcept,
   deleteConcept,
 } from '../../services/seriesIdeationService.js';
+import {
+  getActiveDemandSignals,
+  extractAndStoreDemandSignals,
+} from '../../services/demandSignalService.js';
 
 export default function SeriesIdeator({ activeClient }) {
   const [buckets, setBuckets] = useState({ active: [], shelved: [], greenlit: [], concluded: [] });
@@ -40,17 +45,27 @@ export default function SeriesIdeator({ activeClient }) {
   const [seedInput, setSeedInput] = useState('');
   const [seeding, setSeeding] = useState(false);
 
+  // Audience demand signals state
+  const [demandRow, setDemandRow] = useState(null);
+  const [demandRefreshing, setDemandRefreshing] = useState(false);
+  const [demandProgress, setDemandProgress] = useState(null);
+
   const clientId = activeClient?.id;
   const clientName = activeClient?.name;
 
   useEffect(() => {
     if (!clientId) {
       setBuckets({ active: [], shelved: [], greenlit: [], concluded: [] });
+      setDemandRow(null);
       return;
     }
     setLoading(true);
-    listConcepts(clientId).then(b => {
+    Promise.all([
+      listConcepts(clientId),
+      getActiveDemandSignals(clientId),
+    ]).then(([b, demand]) => {
       setBuckets(b);
+      setDemandRow(demand);
       setLoading(false);
     });
   }, [clientId, refreshTick]);
@@ -136,6 +151,31 @@ export default function SeriesIdeator({ activeClient }) {
     setRefreshTick(t => t + 1);
   };
 
+  const handleRefreshDemand = async () => {
+    if (!clientId || demandRefreshing) return;
+    if (demandRow) {
+      const days = Math.floor((Date.now() - new Date(demandRow.extracted_at).getTime()) / 86400000);
+      if (days < 7 && !window.confirm(`Demand signals were refreshed ${days} day${days === 1 ? '' : 's'} ago. Refresh again? (Will pull comments from the client's recent videos and run a Claude pass.)`)) return;
+    }
+    setError(null);
+    setDemandRefreshing(true);
+    setDemandProgress({ step: 'starting' });
+    try {
+      const r = await extractAndStoreDemandSignals(clientId, {
+        clientName,
+        onProgress: (p) => setDemandProgress(p),
+      });
+      if (!r.ok) {
+        setError(r.error || 'Demand signal refresh failed');
+      } else {
+        setDemandRow(r.signals);
+      }
+    } finally {
+      setDemandRefreshing(false);
+      setDemandProgress(null);
+    }
+  };
+
   const handleDelete = async (conceptId) => {
     if (!window.confirm('Delete this concept permanently? This cannot be undone.')) return;
     setBusyAction({ type: 'delete', conceptId });
@@ -186,6 +226,13 @@ export default function SeriesIdeator({ activeClient }) {
         onChange={setSeedInput}
         onSubmit={handleAddSeed}
         busy={seeding}
+      />
+
+      <DemandBanner
+        row={demandRow}
+        refreshing={demandRefreshing}
+        progress={demandProgress}
+        onRefresh={handleRefreshDemand}
       />
 
       {error && (
@@ -325,6 +372,78 @@ function SeedRow({ value, onChange, onSubmit, busy }) {
     </div>
   );
 }
+
+// ────────────────────────────────────────────────────────────
+// Demand signals banner — surfaces audience demand mining status
+// ────────────────────────────────────────────────────────────
+function DemandBanner({ row, refreshing, progress, onRefresh }) {
+  const hasSignals = !!row;
+  const days = hasSignals
+    ? Math.floor((Date.now() - new Date(row.extracted_at).getTime()) / 86400000)
+    : null;
+
+  const stale = days != null && days >= 14;
+  const itemCount = hasSignals
+    ? ((row.signals?.unserved_requests?.length || 0)
+       + (row.signals?.recurring_themes?.length || 0)
+       + (row.signals?.engagement_peaks?.length || 0))
+    : 0;
+
+  const accent = !hasSignals ? '#71717a' : stale ? '#fbbf24' : '#60a5fa';
+
+  return (
+    <div style={{
+      background: '#16161a',
+      border: `1px solid ${accent}33`,
+      borderLeft: `3px solid ${accent}`,
+      borderRadius: 10, padding: '12px 14px', marginBottom: 14,
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      gap: 12, flexWrap: 'wrap',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+        <MessageSquare size={15} color={accent} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>
+            Audience demand signals
+          </div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+            {refreshing ? (
+              progress?.step === 'analyzing'
+                ? 'Analyzing comments…'
+                : progress?.step === 'fetching'
+                  ? `Fetching comments (${progress.videoIndex}/${progress.videoCount})…`
+                  : 'Starting…'
+            ) : !hasSignals ? (
+              'Not yet mined. Refresh to pull comments from the client\'s recent videos and extract unserved demand.'
+            ) : (
+              <>
+                {itemCount} {itemCount === 1 ? 'item' : 'items'} from {row.comment_count} comments across {row.video_count} videos · refreshed {days === 0 ? 'today' : days === 1 ? '1 day ago' : `${days} days ago`}
+                {stale && <span style={{ color: '#fbbf24', marginLeft: 6 }}>· stale, consider refreshing</span>}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+      <button
+        onClick={onRefresh}
+        disabled={refreshing}
+        style={{ ...refreshBtnSmall, opacity: refreshing ? 0.7 : 1 }}
+      >
+        {refreshing
+          ? <><Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Refreshing…</>
+          : <><RefreshCw size={12} /> {hasSignals ? 'Refresh' : 'Mine demand signals'}</>}
+      </button>
+    </div>
+  );
+}
+
+const refreshBtnSmall = {
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+  padding: '6px 11px', borderRadius: 6,
+  background: '#18181c', color: '#d4d4d8',
+  border: '1px solid #232328', cursor: 'pointer',
+  fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+};
 
 // ────────────────────────────────────────────────────────────
 // Section shells

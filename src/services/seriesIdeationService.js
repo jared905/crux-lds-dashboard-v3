@@ -20,6 +20,7 @@ import { supabase } from './supabaseClient';
 import { buildSpineContext } from './spineContextService';
 import { addActivePlay, updateActivePlay } from './strategySpineService';
 import { computeClientDiagnostic } from './clientDiagnosticService';
+import { getActiveDemandSignals, formatDemandSignalsForPrompt } from './demandSignalService';
 import claudeAPI from './claudeAPI';
 import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 
@@ -185,13 +186,25 @@ export async function generateConcepts(clientId, { clientName, count = 5, cohort
     ? cohortSummary
     : await buildCohortContext(clientId);
 
+  // Audience demand signals — pure anti-echo, mined from the client's
+  // own comment threads. Read-only here; refresh is a separate action.
+  let demandBlock = '';
+  let hasDemandSignals = false;
+  try {
+    const demandRow = await getActiveDemandSignals(clientId);
+    demandBlock = formatDemandSignalsForPrompt(demandRow, { clientName });
+    hasDemandSignals = !!demandBlock;
+  } catch (e) {
+    console.warn('[seriesIdeation] demand signals fetch failed:', e);
+  }
+
   // Calculate how many concepts should fill gaps vs. amplify patterns.
   // Anti-echo: ~40% of concepts must explore divergent ground.
   const gapMin = Math.max(2, Math.floor(count * 0.4));
 
   const prompt = `Generate ${count} distinct YouTube series concepts for ${clientName || 'this client'}. Each concept should be a series the strategist could plausibly run for the next 6–12 weeks.
 
-${cohortBlock || ''}REQUIRED SHAPE — return a JSON array. Each element must have:
+${cohortBlock || ''}${demandBlock || ''}REQUIRED SHAPE — return a JSON array. Each element must have:
 {
   "title": "string — 2-5 word series title that signals the through-line",
   "premise": "string — 1-2 sentences naming the recurring promise of the series",
@@ -207,6 +220,7 @@ ${cohortBlock || ''}REQUIRED SHAPE — return a JSON array. Each element must ha
 
 CRITICAL RULES:
 - **ANTI-ECHO — read carefully.** At least **${gapMin} of ${count}** concepts MUST explore a STRUCTURAL GAP from the cohort evidence above — a pattern the cohort uses that this client does not. These are the divergent bets where the strategist gets leverage. Do NOT generate ${count} concepts that all amplify what's already working — that's pattern cloning, not strategy.
+${hasDemandSignals ? `- **DEMAND ANCHORING — read carefully.** At least **1 of ${count}** concepts MUST address an UNSERVED REQUEST or RECURRING THEME from the audience demand signals above. This is the audience telling us what they want; ignoring that signal would be malpractice. Cite the specific demand item in the concept's rationale.` : ''}
 - Use cohort working patterns as EVIDENCE FOR HOW (format, length band, slot, archetype) — not as topic templates to clone. If the cohort wins with why-titles, your series can use why-framing for episodes; don't copy specific competitor topics.
 - **Concluded-lost plays in the spine (if any) MUST NOT be re-recommended** as variants. If the spine says a play concluded lost, that ground is dead unless the strategist explicitly revisits.
 - If GUARDRAILS are provided in the strategic context, do not produce a series that violates them. Hard constraint.
