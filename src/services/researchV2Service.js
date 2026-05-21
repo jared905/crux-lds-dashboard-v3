@@ -37,6 +37,7 @@ export async function fetchLandscapeChannels(opts = {}) {
     search = '',
     windowDays = 30,
     clientId = null,
+    uncategorized = false,
   } = opts;
 
   // 1. Base channel query
@@ -81,6 +82,16 @@ export async function fetchLandscapeChannels(opts = {}) {
 
   // 2. Filter by category junction (if requested)
   let filteredChannels = channels;
+  // Uncategorized: keep only channels with no row in channel_categories.
+  // Mutually exclusive with categoryIds; categoryIds wins if both arrive.
+  if (uncategorized && !categoryIds?.length) {
+    const { data: ccRows } = await supabase
+      .from('channel_categories')
+      .select('channel_id')
+      .in('channel_id', channels.map(c => c.id));
+    const categorized = new Set((ccRows || []).map(r => r.channel_id));
+    filteredChannels = channels.filter(c => !categorized.has(c.id));
+  }
   if (categoryIds?.length) {
     // Parent → descendants so picking "Faith" includes "LDS", "Catholic", etc.
     const expandedIds = await expandCategoriesWithDescendants(categoryIds);

@@ -32,6 +32,7 @@ export default function ResearchV2() {
     tiers: ['priority', 'tracked'],
     search: '',
     windowDays: 30,
+    uncategorized: false,
   });
   const [alertCount, setAlertCount] = useState(0);
   const [syncing, setSyncing] = useState(false);

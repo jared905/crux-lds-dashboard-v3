@@ -86,13 +86,21 @@ export default function ScopeBar({ scope, onChange }) {
   }, [scope.categoryIds, selectedParent, subCategoriesOfParent]);
 
   // ── Mutators ──
+  // Picking any parent clears the uncategorized flag and vice versa —
+  // the two are mutually exclusive (uncategorized means "no category",
+  // a parent means "in this category subtree").
   const setParent = (parentId) => {
     setShowParentMenu(false);
     if (!parentId) {
-      onChange({ ...scope, categoryIds: [] });
+      onChange({ ...scope, categoryIds: [], uncategorized: false });
     } else {
-      onChange({ ...scope, categoryIds: [parentId] });
+      onChange({ ...scope, categoryIds: [parentId], uncategorized: false });
     }
+  };
+
+  const setUncategorized = () => {
+    setShowParentMenu(false);
+    onChange({ ...scope, categoryIds: [], uncategorized: true });
   };
 
   const toggleSubCategory = (childId) => {
@@ -124,7 +132,10 @@ export default function ScopeBar({ scope, onChange }) {
   const selectedClient = scope.clientId ? allClients.find(c => c.id === scope.clientId) : null;
 
   // ── Render ──
-  const parentLabel = selectedParent?.name || 'All categories';
+  const isUncategorized = !!scope.uncategorized && !selectedParent;
+  const parentLabel = isUncategorized
+    ? 'Uncategorized'
+    : (selectedParent?.name || 'All categories');
   const subSummary = selectedSubIds.length === 0
     ? `+ Sub-category`
     : selectedSubIds.length === 1
@@ -180,7 +191,7 @@ export default function ScopeBar({ scope, onChange }) {
       <Label className="left-margin">Category</Label>
       <div style={{ position: 'relative' }}>
         <Select
-          active={!!selectedParent}
+          active={!!selectedParent || isUncategorized}
           onClick={() => setShowParentMenu(v => !v)}
         >
           {parentLabel}
@@ -188,8 +199,12 @@ export default function ScopeBar({ scope, onChange }) {
         </Select>
         {showParentMenu && (
           <PickerMenu onClose={() => setShowParentMenu(false)}>
-            <PickerItem onClick={() => setParent(null)} active={!selectedParent}>
+            <PickerItem onClick={() => setParent(null)} active={!selectedParent && !isUncategorized}>
               All categories
+            </PickerItem>
+            <PickerItem onClick={setUncategorized} active={isUncategorized}>
+              <span style={{ color: '#fbbf24' }}>Uncategorized</span>
+              <span style={{ color: '#666', fontSize: 11, marginLeft: 6 }}>— channels with no category</span>
             </PickerItem>
             {parentCategories.length === 0 && (
               <PickerItem disabled>No categories yet</PickerItem>
@@ -214,7 +229,7 @@ export default function ScopeBar({ scope, onChange }) {
         )}
       </div>
 
-      {/* Sub-category multi-select — only when a parent is picked */}
+      {/* Sub-category multi-select — only when a parent is picked (not for Uncategorized) */}
       {selectedParent && (
         <>
           <Label className="left-margin">Sub-category</Label>

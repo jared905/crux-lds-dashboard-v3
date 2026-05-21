@@ -128,7 +128,7 @@ export async function expandCategoriesWithDescendants(rootIds) {
 
 export async function resolveScopeToChannelIds(scope = {}) {
   if (!supabase) return [];
-  const { categoryIds = null, tags = null, tiers = ['priority', 'tracked'], search = '', clientId = null } = scope;
+  const { categoryIds = null, tags = null, tiers = ['priority', 'tracked'], search = '', clientId = null, uncategorized = false } = scope;
 
   let q = supabase.from('channels').select('id').eq('is_competitor', true);
   if (tiers?.length) q = q.in('tier', tiers);
@@ -147,6 +147,17 @@ export async function resolveScopeToChannelIds(scope = {}) {
     const allowed = new Set((cc || []).map(r => r.channel_id));
     ids = ids.filter(id => allowed.has(id));
     if (!ids.length) return [];
+  }
+
+  // Uncategorized: keep only channels with NO row in channel_categories.
+  // Mutually exclusive with categoryIds; ScopeBar prevents both from
+  // being set, but we guard here anyway so categoryIds wins if both arrive.
+  if (uncategorized && !categoryIds?.length) {
+    const { data: ccRows } = await supabase
+      .from('channel_categories').select('channel_id')
+      .in('channel_id', ids);
+    const categorized = new Set((ccRows || []).map(r => r.channel_id));
+    ids = ids.filter(id => !categorized.has(id));
   }
 
   if (categoryIds?.length) {
