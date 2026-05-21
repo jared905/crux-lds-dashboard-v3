@@ -269,17 +269,25 @@ export async function refreshSnapshot(clientId) {
       }
     : null;
 
-  // cadence — top working slots; statistical-confidence first.
-  const cadence = diagnostic?.workingSlots?.length
+  // cadence — top working slots, segmented by format. Pooling long-form
+  // and shorts together produces release-slot artifacts (the cohort's
+  // big content releases dominate whatever slot they land in). Per-format
+  // gives the strategist actionable "upload here" recommendations.
+  const formatSlots = (slots = []) => slots.slice(0, 5).map(s => ({
+    slot: s.slot,
+    day: s.day,
+    block: s.block,
+    lift: s.lift,
+    count: s.count,
+    confidence: s.confidence,
+    release_slot_caveat: !!s.releaseSlotCaveat,
+  }));
+  const longFormSlots = diagnostic?.workingSlotsByFormat?.longForm || [];
+  const shortsSlots = diagnostic?.workingSlotsByFormat?.shorts || [];
+  const cadence = (longFormSlots.length || shortsSlots.length)
     ? {
-        slots: diagnostic.workingSlots.slice(0, 5).map(s => ({
-          slot: s.slot,
-          day: s.day,
-          block: s.block,
-          lift: s.lift,
-          count: s.count,
-          confidence: s.confidence,
-        })),
+        long_form: formatSlots(longFormSlots),
+        shorts: formatSlots(shortsSlots),
       }
     : null;
 

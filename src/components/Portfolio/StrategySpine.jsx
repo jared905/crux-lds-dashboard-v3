@@ -814,15 +814,24 @@ function ComputedSnapshotInner({ snapshot, computedAt, busy, onRefresh }) {
             )}
           </SnapshotPanel>
 
-          <SnapshotPanel title="Cadence — upload slots that work" empty={!snapshot.cadence}>
+          <SnapshotPanel title="Cadence — recommended upload windows (Mountain Time)" empty={!snapshot.cadence}>
             {snapshot.cadence && (
-              <ul style={snapshotList}>
-                {(snapshot.cadence.slots || []).map((s, i) => (
-                  <li key={i} style={{ marginBottom: 4 }}>
-                    <strong>{s.slot}</strong> — +{Math.round((s.lift - 1) * 100)}% views (n={s.count}) <em style={{ color: '#777' }}>[{s.confidence}]</em>
-                  </li>
-                ))}
-              </ul>
+              <>
+                {/* Per-format recommendation lists. Combined-format slot
+                    pooling produced misleading "release-slot" lifts (major-
+                    content dominated). Per-format gives "where to upload
+                    your next long-form" vs "where to upload your next short". */}
+                <CadenceFormatList
+                  title="Long-form (videos >3 min)"
+                  slots={snapshot.cadence.long_form}
+                  legacySlots={snapshot.cadence.slots}
+                />
+                <CadenceFormatList
+                  title="Shorts (videos ≤3 min)"
+                  slots={snapshot.cadence.shorts}
+                />
+                <CadenceCaveatList slots={snapshot.cadence} />
+              </>
             )}
           </SnapshotPanel>
 
@@ -881,6 +890,76 @@ function ComputedSnapshotInner({ snapshot, computedAt, busy, onRefresh }) {
     </SectionShell>
   );
 }
+
+// Render a per-format cadence recommendation list. Filters out
+// release-slot caveat entries (those are surfaced separately below).
+// Falls back to legacy `slots` (combined view) only when the new
+// per-format keys are absent — so old snapshots still render.
+function CadenceFormatList({ title, slots, legacySlots }) {
+  let usable = Array.isArray(slots) ? slots.filter(s => s && !s.release_slot_caveat) : null;
+  let degraded = false;
+  if (!usable && Array.isArray(legacySlots)) {
+    usable = legacySlots.filter(s => s && !s.release_slot_caveat);
+    degraded = true;
+  }
+  if (!usable || !usable.length) {
+    return (
+      <div style={{ marginBottom: 10 }}>
+        <div style={cadenceFormatHeader}>{title}</div>
+        <div style={{ color: '#666', fontSize: 12, fontStyle: 'italic', paddingLeft: 4 }}>
+          No actionable slots — too thin in this format or all candidates were release-slot dominated.
+        </div>
+      </div>
+    );
+  }
+  // Numbered list with primary slot + lift + confidence
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={cadenceFormatHeader}>{title}</div>
+      <ol style={{ ...snapshotList, paddingLeft: 22, marginTop: 4 }}>
+        {usable.slice(0, 3).map((s, i) => (
+          <li key={i} style={{ marginBottom: 4 }}>
+            <strong>{typeof s.slot === 'string' ? s.slot : `${s.day || ''} ${s.block || ''}`}</strong>
+            {typeof s.lift === 'number' && <> — +{Math.round((s.lift - 1) * 100)}% views</>}
+            {typeof s.count === 'number' && <> (n={s.count})</>}
+            {s.confidence && <em style={{ color: '#777' }}> [{s.confidence}]</em>}
+          </li>
+        ))}
+      </ol>
+      {degraded && (
+        <div style={{ color: '#fbbf24', fontSize: 11, paddingLeft: 4, marginTop: 4 }}>
+          Showing legacy combined-format data. Click Refresh to regenerate with per-format split.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Footer note when any slot was excluded as release-slot dominated.
+function CadenceCaveatList({ slots }) {
+  const lf = (slots?.long_form || []).filter(s => s?.release_slot_caveat);
+  const sh = (slots?.shorts || []).filter(s => s?.release_slot_caveat);
+  const all = [...lf, ...sh];
+  if (!all.length) return null;
+  return (
+    <div style={{
+      marginTop: 8, padding: '8px 10px',
+      background: '#1a1410', border: '1px solid #3a2a1f', borderRadius: 6,
+      fontSize: 11, color: '#fbbf24', lineHeight: 1.5,
+    }}>
+      <strong>Excluded as likely release-slot:</strong>{' '}
+      {all.slice(0, 4).map(s => s.slot).filter(Boolean).join(', ')}
+      {all.length > 4 && ` +${all.length - 4} more`}.
+      These slots had extreme lifts (&gt;300%) which typically marks when the cohort releases major content, not when the audience is most receptive.
+    </div>
+  );
+}
+
+const cadenceFormatHeader = {
+  fontSize: 11, color: '#a1a1aa', fontWeight: 700,
+  textTransform: 'uppercase', letterSpacing: 0.5,
+  marginBottom: 2,
+};
 
 function SnapshotPanel({ title, empty, children }) {
   return (

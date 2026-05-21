@@ -129,11 +129,29 @@ export async function buildCohortContext(clientId, { windowDays = 90 } = {}) {
     sections.push(`LENGTH BANDS THAT WORK IN COHORT:\n${lines.join('\n')}`);
   }
 
-  // Time-of-day
-  const slotsStat = stat(workingSlots);
-  if (slotsStat.length) {
-    const lines = slotsStat.slice(0, 3).map(s => `- ${s.slot} (MT): ${((s.lift - 1) * 100).toFixed(0)}% more views (n=${s.count}) [STATISTICAL]`);
-    sections.push(`UPLOAD SLOTS THAT WORK IN COHORT:\n${lines.join('\n')}`);
+  // Time-of-day — per format. Pooling shorts and long-form together
+  // produces release-slot artifacts (major-content dominated lifts), so
+  // we surface separate recommendations.
+  const slotLine = (s) => {
+    const tag = s.confidence === 'statistical' ? '[STATISTICAL]' : '[directional]';
+    const caveat = s.releaseSlotCaveat ? ' (release-slot — major-content dominated)' : '';
+    return `  - ${s.slot} (MT): +${Math.round((s.lift - 1) * 100)}% views (n=${s.count}) ${tag}${caveat}`;
+  };
+  const formatSlots = diagnostic?.workingSlotsByFormat;
+  const lfSlots = (formatSlots?.longForm || []).filter(s => !s.releaseSlotCaveat).slice(0, 3);
+  const shSlots = (formatSlots?.shorts || []).filter(s => !s.releaseSlotCaveat).slice(0, 3);
+  if (lfSlots.length || shSlots.length) {
+    const blocks = [];
+    if (lfSlots.length) blocks.push(`Long-form upload windows:\n${lfSlots.map(slotLine).join('\n')}`);
+    if (shSlots.length) blocks.push(`Shorts upload windows:\n${shSlots.map(slotLine).join('\n')}`);
+    sections.push(`COHORT UPLOAD CADENCE (segmented by format — combined view conflates release-slots with audience-time):\n${blocks.join('\n\n')}`);
+  } else {
+    // Fall back to combined view if format split has nothing actionable.
+    const slotsStat = stat(workingSlots);
+    if (slotsStat.length) {
+      const lines = slotsStat.slice(0, 3).map(s => `- ${s.slot} (MT): +${Math.round((s.lift - 1) * 100)}% views (n=${s.count}) [STATISTICAL]`);
+      sections.push(`UPLOAD SLOTS THAT WORK IN COHORT (note: combined-format; may include release-slot artifacts):\n${lines.join('\n')}`);
+    }
   }
 
   // Structural gaps — the anti-echo lever. Highest-leverage divergent

@@ -126,6 +126,14 @@ function cadenceStats(videos) {
   return Object.values(slots).map(s => {
     const m = s.views.length > 0 ? trimmedMedian(s.views) : null;
     const conf = liftConfidence({ sampleValues: s.views, currentMedian: m, kind: 'cadenceCell' });
+    const lift = (m != null && scopeMedian && scopeMedian > 0 && conf !== 'insufficient') ? m / scopeMedian : null;
+    // Release-slot contamination guard: a lift >300% within a single
+    // format almost always means the slot is dominated by major-release
+    // content (full sermons, full episodes, premieres) — those videos
+    // structurally outperform daily content, so the slot can't be read
+    // as "the audience watches here." Flag it so callers can downgrade
+    // or exclude it from "upload here" recommendations.
+    const releaseSlotCaveat = lift != null && lift > 4.0;  // >300% lift
     return {
       day: DAY_LABELS[s.dayIdx],
       block: BLOCK_LABELS[s.block],
@@ -133,9 +141,25 @@ function cadenceStats(videos) {
       count: s.count,
       confidence: conf,
       medianViews: m,
-      lift: (m != null && scopeMedian && scopeMedian > 0 && conf !== 'insufficient') ? m / scopeMedian : null,
+      lift,
+      releaseSlotCaveat,
     };
   });
+}
+
+// Per-format slot analysis. The single-list cadenceStats conflates
+// long-form major releases (sermons, full episodes) with daily shorts —
+// the resulting "best slots" reflect when the cohort RELEASES big
+// content, not when the AUDIENCE is most receptive. Splitting by format
+// gives the strategist two distinct, actionable recommendations.
+function cadenceStatsByFormat(videos) {
+  if (!videos?.length) return { longForm: [], shorts: [] };
+  const shorts = videos.filter(v => (v.duration_seconds || 0) > 0 && v.duration_seconds <= SHORTS_THRESHOLD);
+  const longForm = videos.filter(v => (v.duration_seconds || 0) > SHORTS_THRESHOLD);
+  return {
+    longForm: cadenceStats(longForm),
+    shorts: cadenceStats(shorts),
+  };
 }
 
 // ──────────────────────────────────────────────────
@@ -357,6 +381,7 @@ export async function computeClientDiagnostic({ clientId, scopeChannelIds, windo
     patterns: patternStats(cohortVideos).patterns,
     buckets: bucketStats(cohortVideos),
     cadence: cadenceStats(cohortVideos),
+    cadenceByFormat: cadenceStatsByFormat(cohortVideos),
   };
   const clientStats = mode === 'comparison' ? {
     videoCount: clientVideos.length,
@@ -379,7 +404,15 @@ export async function computeClientDiagnostic({ clientId, scopeChannelIds, windo
 
   const workingPatterns = sortLift(cohort.patterns.filter(p => p.freq >= 0.05)).slice(0, 5);
   const workingBuckets  = sortLift(cohort.buckets).slice(0, 3);
+  // Combined view kept for backward compatibility, but it conflates
+  // long-form releases with shorts. workingSlotsByFormat is the new
+  // primary surface — strategist sees a clean "where to upload
+  // long-form" vs "where to upload shorts" recommendation.
   const workingSlots    = sortLift(cohort.cadence).slice(0, 5);
+  const workingSlotsByFormat = {
+    longForm: sortLift(cohort.cadenceByFormat?.longForm || []).slice(0, 5),
+    shorts: sortLift(cohort.cadenceByFormat?.shorts || []).slice(0, 5),
+  };
 
   // 7. Gaps (comparison mode only): cohort patterns where client lags by 2× freq
   let gaps = [];
@@ -421,6 +454,7 @@ export async function computeClientDiagnostic({ clientId, scopeChannelIds, windo
     workingPatterns,
     workingBuckets,
     workingSlots,
+    workingSlotsByFormat, // { longForm, shorts } — primary cadence surface
     gaps,
     archetypeBreakdown, // each archetype's norms + top patterns
     peerStats,          // statistics restricted to client's archetype peers
@@ -436,11 +470,11 @@ const BRIEFING_CACHE_HOURS = 24 * 3; // re-synthesize every 3 days
 
 // Bump when the prompt structure or hedging rules change — invalidates
 // every cached briefing so stale pre-hedging output stops being served.
-const BRIEFING_PROMPT_VERSION = 'v10-spine-injected';
+const BRIEFING_PROMPT_VERSION = 'v11-cadence-by-format';
 
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;
-  const { client, mode, workingPatterns, workingBuckets, workingSlots, gaps, cohort, archetypeBreakdown, peerStats } = diagnostic;
+  const { client, mode, workingPatterns, workingBuckets, workingSlots, workingSlotsByFormat, gaps, cohort, archetypeBreakdown, peerStats } = diagnostic;
 
   // Load spine context once — used both for cache invalidation (a spine
   // edit must flush the cached briefing) and for prompt injection below.
@@ -484,10 +518,22 @@ export async function loadOrGenerateBriefing(diagnostic) {
     };
     const patternLines = workingPatterns.map(p => fmtLine(p.label, p.freq, p.lift, p.count, p.confidence)).join('\n') || '(none with significant lift)';
     const bucketLines  = workingBuckets.map(b  => fmtLine(b.label, b.freq, b.lift, b.count, b.confidence)).join('\n') || '(none with significant lift)';
-    const slotLines    = workingSlots.slice(0, 5).map(s => {
+
+    // Per-format slot lines. The combined-format slot analysis is misleading
+    // because long-form major-releases (full sermons / episodes) dominate
+    // whatever slot they release in — that's a release pattern, not an
+    // audience-time signal. We split by format and exclude release-slot
+    // caveat slots from the actionable list.
+    const fmtSlotLine = (s) => {
       const tag = s.confidence === 'statistical' ? '[STATISTICAL]' : '[DIRECTIONAL — small sample]';
-      return `- ${s.slot} (MT) slot: ${s.count} cohort uploads land here. Videos posted in this slot get ${((s.lift - 1) * 100).toFixed(0)}% MORE VIEWS than the cohort median (n=${s.count}). ${tag}`;
-    }).join('\n') || '(none with significant lift)';
+      const caveat = s.releaseSlotCaveat ? ' (likely release-slot — major-content dominated)' : '';
+      return `- ${s.slot} (MT): ${((s.lift - 1) * 100).toFixed(0)}% more views than format median (n=${s.count}). ${tag}${caveat}`;
+    };
+    const lf = (workingSlotsByFormat?.longForm || []).filter(s => !s.releaseSlotCaveat).slice(0, 5);
+    const sh = (workingSlotsByFormat?.shorts || []).filter(s => !s.releaseSlotCaveat).slice(0, 5);
+    const lfLines = lf.length ? lf.map(fmtSlotLine).join('\n') : '(no actionable slots — either too thin or all are release-slots)';
+    const shLines = sh.length ? sh.map(fmtSlotLine).join('\n') : '(no actionable slots — either too thin or all are release-slots)';
+    const slotLines = `LONG-FORM upload windows (videos >3 min):\n${lfLines}\n\nSHORTS upload windows (videos ≤3 min):\n${shLines}`;
 
     const gapLines = gaps.length > 0 ? gaps.map(g =>
       `- ${g.label}: cohort uses ${(g.cohortFreq * 100).toFixed(0)}%, ${client.name} uses ${(g.clientFreq * 100).toFixed(0)}% (${g.freqRatio.toFixed(1)}× ratio)`
@@ -537,7 +583,7 @@ ${patternLines}
 Length buckets:
 ${bucketLines}
 
-Time-of-day slots:
+Cadence — segmented by format (mixing long-form releases with daily shorts produces release-slot artifacts; we split):
 ${slotLines}
 
 CRITICAL RULES — read carefully:
