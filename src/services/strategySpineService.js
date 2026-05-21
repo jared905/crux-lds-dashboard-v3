@@ -13,6 +13,9 @@
  * audit pack is refactored onto the spine.
  */
 import { supabase } from './supabaseClient';
+import { computeClientDiagnostic } from './clientDiagnosticService';
+import { analyzePatterns } from './patternsService';
+import { analyzeWhiteSpace } from './whiteSpaceService';
 
 const PLAY_STATUSES = ['in_flight', 'concluded_won', 'concluded_lost', 'paused'];
 export const PLAY_STATUS_LABELS = {
@@ -167,10 +170,13 @@ export async function removeActivePlay(clientId, playId) {
 // ──────────────────────────────────────────────────
 
 /**
- * Refresh the cached computed_snapshot for a client. v1 captures a thin
- * slice — pinned-cohort summary + lifecycle context — so the UI has
- * something to render. Audit pack refactor will expand this to include
- * archetype mix, format mix, cadence, opportunity briefs, outliers.
+ * Refresh the cached computed_snapshot for a client. Runs the same
+ * analysis pipeline as the audit pack (diagnostic + patterns + white
+ * space) and stores compact summaries so the spine view can render
+ * meaningful signal without re-running the heavy compute on every load.
+ *
+ * Cost note: this triggers a Claude call inside analyzeWhiteSpace (for
+ * the opportunity brief). Cents per click. Strategist-controlled.
  */
 export async function refreshSnapshot(clientId) {
   if (!supabase || !clientId) return { ok: false, error: 'missing' };
@@ -206,14 +212,106 @@ export async function refreshSnapshot(clientId) {
     competitorsCategorized = new Set((categorized || []).map(r => r.channel_id)).size;
   }
 
+  // Run the heavy compute pipeline in parallel. Each piece feeds one
+  // of the snapshot slots. Failures degrade gracefully — the slot stays
+  // null rather than blowing up the whole refresh.
+  const [diagnostic, patterns, whiteSpace] = await Promise.all([
+    competitorIds.length
+      ? computeClientDiagnostic({ clientId, scopeChannelIds: competitorIds, windowDays: 90 }).catch(() => null)
+      : null,
+    competitorIds.length
+      ? analyzePatterns({ scopeChannelIds: competitorIds, windowDays: 90 }).catch(() => null)
+      : null,
+    competitorIds.length
+      ? analyzeWhiteSpace({ scopeChannelIds: competitorIds, windowDays: 90, scopeLabel: client?.name || 'cohort' }).catch(() => null)
+      : null,
+  ]);
+
+  // ─── Build compact summaries for each slot ───
+
+  // archetype_mix — segments with channel counts + engagement medians.
+  // Trimmed to the fields a strategist actually skims.
+  const archetypeMix = diagnostic?.archetypeBreakdown?.segments?.length
+    ? {
+        client_archetype: diagnostic.client?.archetypeLabel || null,
+        segments: diagnostic.archetypeBreakdown.segments.slice(0, 6).map(a => ({
+          archetype: a.archetype,
+          label: a.label,
+          channel_count: a.channelCount,
+          video_count: a.videoCount,
+          median_engagement: a.medianEngagement,
+          top_patterns: (a.patterns || []).slice(0, 3).map(p => ({
+            label: p.label,
+            lift: p.lift,
+            confidence: p.confidence,
+          })),
+        })),
+        coverage: diagnostic.archetypeBreakdown.coverage || null,
+      }
+    : null;
+
+  // format_mix — length bands that work + shorts/long balance derived
+  // from working buckets when available.
+  const formatMix = diagnostic?.workingBuckets?.length
+    ? {
+        working_buckets: diagnostic.workingBuckets.slice(0, 6).map(b => ({
+          label: b.label,
+          freq: b.freq,
+          lift: b.lift,
+          count: b.count,
+          confidence: b.confidence,
+        })),
+      }
+    : null;
+
+  // cadence — top working slots; statistical-confidence first.
+  const cadence = diagnostic?.workingSlots?.length
+    ? {
+        slots: diagnostic.workingSlots.slice(0, 5).map(s => ({
+          slot: s.slot,
+          day: s.day,
+          block: s.block,
+          lift: s.lift,
+          count: s.count,
+          confidence: s.confidence,
+        })),
+      }
+    : null;
+
+  // outliers — top breakout videos in the cohort (anti-echo: helps
+  // strategist see what's actually working without inferring).
+  const outliers = patterns?.scope?.outliers?.length
+    ? patterns.scope.outliers.slice(0, 8).map(o => ({
+        title: o.title,
+        channel: o.channel,
+        view_count: o.view_count,
+        outlier_score: o.outlier_score,
+        published_at: o.published_at,
+        suspect: o.suspect || false,
+      }))
+    : null;
+
+  // opportunity_briefs — the Claude-synthesized brief from white-space.
+  // We snapshot the structured fields, not the rendered prose, so the
+  // UI can re-render without re-calling Claude.
+  const opportunityBriefs = whiteSpace?.brief
+    ? {
+        headline: whiteSpace.brief.headline,
+        body: whiteSpace.brief.body,
+        evidence: whiteSpace.brief.evidence || null,
+        generated_at: whiteSpace.brief.generatedAt || null,
+      }
+    : null;
+
   const snapshot = {
-    version: 1,
+    version: 2,
     client: {
       id: client?.id,
       name: client?.name,
       subscriber_count: client?.subscriber_count,
       video_count: client?.video_count,
       lifecycle_stage: client?.lifecycle_stage,
+      archetype: diagnostic?.client?.archetypeLabel || null,
     },
     cohort: {
       pinned_count: competitorIds.length,
@@ -222,13 +320,13 @@ export async function refreshSnapshot(clientId) {
         ? competitorsCategorized / competitorIds.length
         : 0,
       errored_count: competitorsErrored,
+      videos_analyzed: diagnostic?.cohort?.videoCount || null,
     },
-    // Slots that the audit pack refactor will populate:
-    archetype_mix: null,
-    format_mix: null,
-    cadence: null,
-    outliers: null,
-    opportunity_briefs: null,
+    archetype_mix: archetypeMix,
+    format_mix: formatMix,
+    cadence,
+    outliers,
+    opportunity_briefs: opportunityBriefs,
   };
 
   const { error } = await supabase

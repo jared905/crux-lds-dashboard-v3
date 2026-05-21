@@ -687,7 +687,7 @@ function ComputedSnapshot({ snapshot, computedAt, busy, onRefresh }) {
   return (
     <SectionShell
       title="Computed signal"
-      subtitle="Cached analytical snapshot the artifacts render alongside your strategist fields. Regenerable on demand."
+      subtitle="Cached analytical snapshot — cohort summary, archetype mix, format mix, cadence, outliers, opportunity briefs. Heavy compute; refresh when the data has materially shifted."
       action={
         <button onClick={onRefresh} disabled={busy} style={primaryBtn}>
           {busy
@@ -699,12 +699,13 @@ function ComputedSnapshot({ snapshot, computedAt, busy, onRefresh }) {
     >
       {!snapshot ? (
         <div style={{ color: '#555', fontSize: 13, fontStyle: 'italic' }}>
-          Snapshot not yet computed. Click <strong style={{ color: '#888' }}>Compute</strong> to populate the cohort summary.
+          Snapshot not yet computed. Click <strong style={{ color: '#888' }}>Compute</strong> to run the full pipeline (diagnostic + patterns + white space).
         </div>
       ) : (
         <>
           <div style={{ fontSize: 11, color: '#666', marginBottom: 10 }}>
             Last refreshed {computedAt ? formatRelative(computedAt) : '—'}
+            {snapshot.cohort?.videos_analyzed && <> · {snapshot.cohort.videos_analyzed} cohort videos analyzed</>}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 14 }}>
             <SnapshotStat label="Pinned competitors" value={cohort?.pinned_count ?? 0} />
@@ -720,21 +721,113 @@ function ComputedSnapshot({ snapshot, computedAt, busy, onRefresh }) {
             />
             <SnapshotStat label="Lifecycle" value={snapshot?.client?.lifecycle_stage || '—'} />
           </div>
-          <div style={{ color: '#666', fontSize: 12, lineHeight: 1.55 }}>
-            Slots reserved for the audit pack refactor:
-            <ul style={{ margin: '6px 0 0', paddingLeft: 18, color: '#555' }}>
-              <li>Archetype mix — {snapshot.archetype_mix ? 'populated' : 'pending'}</li>
-              <li>Format mix — {snapshot.format_mix ? 'populated' : 'pending'}</li>
-              <li>Cadence — {snapshot.cadence ? 'populated' : 'pending'}</li>
-              <li>Outliers — {snapshot.outliers ? 'populated' : 'pending'}</li>
-              <li>Opportunity briefs — {snapshot.opportunity_briefs ? 'populated' : 'pending'}</li>
-            </ul>
-          </div>
+
+          <SnapshotPanel title="Archetype mix" empty={!snapshot.archetype_mix}>
+            {snapshot.archetype_mix && (
+              <>
+                {snapshot.archetype_mix.client_archetype && (
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
+                    This client tagged as <strong style={{ color: '#d4d4d8' }}>{snapshot.archetype_mix.client_archetype}</strong>
+                  </div>
+                )}
+                <ul style={snapshotList}>
+                  {(snapshot.archetype_mix.segments || []).map(s => (
+                    <li key={s.archetype} style={{ marginBottom: 4 }}>
+                      <strong>{s.label}</strong> — {s.channel_count} channels, {s.video_count} videos
+                      {s.median_engagement != null && <>, {(s.median_engagement * 100).toFixed(1)}% engagement</>}
+                      {s.top_patterns?.length > 0 && (
+                        <span style={{ color: '#777' }}>; top: {s.top_patterns.map(p => `${p.label} (+${Math.round((p.lift - 1) * 100)}%)`).join(', ')}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </SnapshotPanel>
+
+          <SnapshotPanel title="Format mix — length bands that work" empty={!snapshot.format_mix}>
+            {snapshot.format_mix && (
+              <ul style={snapshotList}>
+                {(snapshot.format_mix.working_buckets || []).map((b, i) => (
+                  <li key={i} style={{ marginBottom: 4 }}>
+                    <strong>{b.label}</strong> · {(b.freq * 100).toFixed(0)}% of cohort, +{Math.round((b.lift - 1) * 100)}% views (n={b.count}) <em style={{ color: '#777' }}>[{b.confidence}]</em>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SnapshotPanel>
+
+          <SnapshotPanel title="Cadence — upload slots that work" empty={!snapshot.cadence}>
+            {snapshot.cadence && (
+              <ul style={snapshotList}>
+                {(snapshot.cadence.slots || []).map((s, i) => (
+                  <li key={i} style={{ marginBottom: 4 }}>
+                    <strong>{s.slot}</strong> — +{Math.round((s.lift - 1) * 100)}% views (n={s.count}) <em style={{ color: '#777' }}>[{s.confidence}]</em>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SnapshotPanel>
+
+          <SnapshotPanel title="Cohort outliers — recent breakouts" empty={!snapshot.outliers?.length}>
+            {snapshot.outliers && (
+              <ul style={snapshotList}>
+                {snapshot.outliers.slice(0, 6).map((o, i) => (
+                  <li key={i} style={{ marginBottom: 4 }}>
+                    <strong>{o.title?.slice(0, 80)}{o.title?.length > 80 ? '…' : ''}</strong>
+                    {o.channel && <span style={{ color: '#888' }}> · {o.channel}</span>}
+                    {o.outlier_score && <span style={{ color: '#777' }}> · {o.outlier_score.toFixed(1)}x median</span>}
+                    {o.suspect && <span style={{ color: '#fbbf24', marginLeft: 6, fontSize: 10 }}>suspect</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SnapshotPanel>
+
+          <SnapshotPanel title="Opportunity brief" empty={!snapshot.opportunity_briefs}>
+            {snapshot.opportunity_briefs && (
+              <>
+                {snapshot.opportunity_briefs.headline && (
+                  <div style={{ fontWeight: 600, color: '#fff', marginBottom: 6, fontSize: 13 }}>
+                    {snapshot.opportunity_briefs.headline}
+                  </div>
+                )}
+                {snapshot.opportunity_briefs.body && (
+                  <div style={{ color: '#d4d4d8', fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                    {snapshot.opportunity_briefs.body}
+                  </div>
+                )}
+              </>
+            )}
+          </SnapshotPanel>
         </>
       )}
     </SectionShell>
   );
 }
+
+function SnapshotPanel({ title, empty, children }) {
+  return (
+    <div style={{
+      background: '#16161a', border: '1px solid #1f1f24', borderRadius: 8,
+      padding: '10px 12px', marginBottom: 8,
+    }}>
+      <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, marginBottom: 6 }}>
+        {title}
+      </div>
+      {empty ? (
+        <div style={{ color: '#555', fontSize: 12, fontStyle: 'italic' }}>
+          Not yet populated — needs a Refresh, or the cohort is too thin for this signal.
+        </div>
+      ) : children}
+    </div>
+  );
+}
+
+const snapshotList = {
+  margin: 0, paddingLeft: 18,
+  color: '#d4d4d8', fontSize: 12, lineHeight: 1.55,
+};
 
 function SnapshotStat({ label, value, tone = 'normal' }) {
   const color = tone === 'good' ? '#34d399'
