@@ -124,6 +124,10 @@ function sectionSpine(spine) {
     || has(spine.audience_read)
     || has(spine.quarterly_stance)
     || has(spine.guardrails)
+    || has(spine.competitive_posture)
+    || has(spine.editorial_pov)
+    || has(spine.voice_tone)
+    || has(spine.host_archetype)
     || (Array.isArray(spine.active_plays) && spine.active_plays.length > 0);
   if (!hasAny) return null;
 
@@ -138,6 +142,18 @@ function sectionSpine(spine) {
   if (has(spine.positioning_hypothesis)) {
     lines.push('### Positioning hypothesis');
     lines.push('', spine.positioning_hypothesis.trim(), '');
+  }
+  if (has(spine.editorial_pov)) {
+    lines.push('### Editorial POV + mission');
+    lines.push('', spine.editorial_pov.trim(), '');
+  }
+  if (has(spine.voice_tone)) {
+    lines.push('### Voice + tone');
+    lines.push('', spine.voice_tone.trim(), '');
+  }
+  if (has(spine.host_archetype)) {
+    lines.push('### Host archetype');
+    lines.push('', spine.host_archetype.trim(), '');
   }
   if (has(spine.audience_read)) {
     lines.push('### Audience read');

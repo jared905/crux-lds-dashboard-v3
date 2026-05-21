@@ -26,6 +26,8 @@ import {
   getSpineSnapshot,
   deleteSpineSnapshot,
   PLAY_STATUS_LABELS,
+  HOST_ARCHETYPES,
+  HOST_ARCHETYPE_BY_ID,
 } from '../../services/strategySpineService.js';
 
 export default function StrategySpine({ client, onBack }) {
@@ -171,6 +173,30 @@ export default function StrategySpine({ client, onBack }) {
         updatedAt={spine?.positioning_updated_at}
         placeholder="e.g. We position [client] as the human, story-led voice in a category that's flooded with utility-first content. Our audience comes for narrative warmth and stays for the practical takeaway folded into it."
         onSave={(v) => handleFieldSave('positioning_hypothesis', v)}
+      />
+
+      <Section
+        title="Editorial POV + mission"
+        subtitle="The channel's beliefs and reason for existing. Different from positioning (which is competitive); this is the editorial soul — what the channel argues, what it stands for."
+        value={spine?.editorial_pov}
+        updatedAt={spine?.editorial_pov_updated_at}
+        placeholder="e.g. We believe leadership is a daily discipline lived out in small moments, not a destination. Our mission is to make that practice visible — what it looks like, where it cracks, how it gets repaired — for an audience that already wants to live this way but rarely sees it modeled."
+        onSave={(v) => handleFieldSave('editorial_pov', v)}
+      />
+
+      <Section
+        title="Voice + tone"
+        subtitle="Affirmative description of how the channel sounds. Different from Guardrails (which lists what NOT to do); this is the positive pattern producers and AI generation match against."
+        value={spine?.voice_tone}
+        updatedAt={spine?.voice_tone_updated_at}
+        placeholder="e.g. Warm and unhurried. Speaks plainly, never preachily. Uses concrete imagery over abstraction. Lets silence breathe. Calls out tension before resolving it. Confident enough to admit doubt; never performs certainty."
+        onSave={(v) => handleFieldSave('voice_tone', v)}
+      />
+
+      <HostArchetypeSection
+        value={spine?.host_archetype}
+        updatedAt={spine?.host_archetype_updated_at}
+        onSave={(v) => handleFieldSave('host_archetype', v)}
       />
 
       <Section
@@ -370,6 +396,9 @@ function SnapshotViewer({ snapshot, onClose }) {
         {fmtField(`Strategic stance${snapshot.quarterly_stance_label ? ` · ${snapshot.quarterly_stance_label}` : ''}`, snapshot.quarterly_stance)}
         {fmtField('Competitive posture', snapshot.competitive_posture)}
         {fmtField('Positioning hypothesis', snapshot.positioning_hypothesis)}
+        {fmtField('Editorial POV + mission', snapshot.editorial_pov)}
+        {fmtField('Voice + tone', snapshot.voice_tone)}
+        {fmtField('Host archetype', snapshot.host_archetype)}
         {fmtField('Audience read', snapshot.audience_read)}
         {fmtField('Guardrails', snapshot.guardrails)}
 
@@ -437,6 +466,119 @@ function Section({ title, subtitle, value, updatedAt, placeholder, onSave, accen
       ) : (
         <div style={{ color: '#555', fontSize: 13, fontStyle: 'italic' }}>
           {placeholder}
+        </div>
+      )}
+    </SectionShell>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Host archetype — catalog picker + optional refinement
+// ────────────────────────────────────────────────────────────
+// Feeds the talent audition rubric. Strategist picks from the catalog
+// (8 personas) and can append a refinement note to capture nuance.
+// Stored as plain TEXT so AI suggestion (Phase D) and free-text overrides
+// both ride on the same field.
+function HostArchetypeSection({ value, updatedAt, onSave }) {
+  const [editing, setEditing] = useState(false);
+  // Parse value: if it matches a catalog label exactly, the picker is
+  // selected; anything else is treated as a free-text "Custom" entry.
+  const matchedArchetype = useMemo(() => {
+    if (!value) return null;
+    return HOST_ARCHETYPES.find(a => value.trim().startsWith(a.label)) || null;
+  }, [value]);
+  const [pickedId, setPickedId] = useState(matchedArchetype?.id || '');
+  const [refinement, setRefinement] = useState(() => {
+    if (!value || !matchedArchetype) return value || '';
+    const suffix = value.trim().slice(matchedArchetype.label.length).trim();
+    return suffix.startsWith('—') ? suffix.slice(1).trim() : suffix;
+  });
+
+  useEffect(() => {
+    setPickedId(matchedArchetype?.id || '');
+    if (!matchedArchetype) setRefinement(value || '');
+  }, [matchedArchetype, value]);
+
+  const handleSave = async () => {
+    const archetype = HOST_ARCHETYPE_BY_ID[pickedId];
+    let composed;
+    if (archetype) {
+      composed = refinement.trim()
+        ? `${archetype.label} — ${refinement.trim()}`
+        : archetype.label;
+    } else {
+      composed = refinement.trim() || null;
+    }
+    await onSave(composed);
+    setEditing(false);
+  };
+
+  return (
+    <SectionShell
+      title="Host archetype"
+      subtitle="The on-camera persona the talent audition rubric matches against. Different from cohort archetype (which is structural — how a channel is built); this is who's on screen and how they relate to the viewer."
+      updatedAt={updatedAt}
+      action={editing ? (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={handleSave} style={primaryBtn}><Check size={12} /> Save</button>
+          <button onClick={() => setEditing(false)} style={ghostBtn}><XIcon size={12} /></button>
+        </div>
+      ) : (
+        <button onClick={() => setEditing(true)} style={ghostBtn}><Edit2 size={12} /> Edit</button>
+      )}
+    >
+      {editing ? (
+        <>
+          <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
+            Archetype
+          </label>
+          <select
+            value={pickedId}
+            onChange={(e) => setPickedId(e.target.value)}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: '#0e0e10', color: '#e4e4e7',
+              border: '1px solid #2a2a30', borderRadius: 6,
+              padding: '8px 10px', fontSize: 13,
+              fontFamily: 'inherit', marginBottom: 8,
+            }}
+          >
+            <option value="">— pick one —</option>
+            {HOST_ARCHETYPES.map(a => (
+              <option key={a.id} value={a.id}>{a.label}</option>
+            ))}
+          </select>
+          {pickedId && (
+            <div style={{ fontSize: 11, color: '#888', marginBottom: 8, paddingLeft: 2 }}>
+              {HOST_ARCHETYPE_BY_ID[pickedId].description}
+            </div>
+          )}
+          <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
+            Refinement (optional)
+          </label>
+          <textarea
+            value={refinement}
+            onChange={(e) => setRefinement(e.target.value)}
+            placeholder={pickedId
+              ? 'e.g. "with companion overtones in shorts" or "leans Sage on long-form, Storyteller on shorts"'
+              : 'Or write a custom archetype description if none of the catalog fits.'}
+            rows={3}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: '#0e0e10', color: '#e4e4e7',
+              border: '1px solid #2a2a30', borderRadius: 6,
+              padding: '10px 12px', fontSize: 13, lineHeight: 1.55,
+              fontFamily: 'inherit', resize: 'vertical',
+            }}
+          />
+        </>
+      ) : value ? (
+        <div style={{ color: '#d4d4d8', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+          {value}
+        </div>
+      ) : (
+        <div style={{ color: '#555', fontSize: 13, fontStyle: 'italic' }}>
+          Not set. Pick from the catalog (The Authority, Storyteller, Companion, Showman, Practitioner, Sage, Analyst, Guide) or write your own.
         </div>
       )}
     </SectionShell>

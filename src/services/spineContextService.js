@@ -35,7 +35,7 @@ export async function buildSpineContext(clientId, { clientName } = {}) {
   if (!supabase || !clientId) return '';
   const { data: spine } = await supabase
     .from('client_strategy_spine')
-    .select('positioning_hypothesis, audience_read, quarterly_stance, quarterly_stance_label, active_plays, guardrails')
+    .select('positioning_hypothesis, audience_read, quarterly_stance, quarterly_stance_label, active_plays, guardrails, competitive_posture, editorial_pov, voice_tone, host_archetype')
     .eq('client_id', clientId)
     .maybeSingle();
   if (!spine) return '';
@@ -54,8 +54,20 @@ export function formatSpineForPrompt(spine, { clientName } = {}) {
   if (spine.positioning_hypothesis?.trim()) {
     sections.push(`POSITIONING HYPOTHESIS:\n${spine.positioning_hypothesis.trim()}`);
   }
+  if (spine.competitive_posture?.trim()) {
+    sections.push(`COMPETITIVE POSTURE (vs cohort):\n${spine.competitive_posture.trim()}`);
+  }
+  if (spine.editorial_pov?.trim()) {
+    sections.push(`EDITORIAL POV + MISSION:\n${spine.editorial_pov.trim()}`);
+  }
   if (spine.audience_read?.trim()) {
     sections.push(`AUDIENCE READ (strategists interpretation):\n${spine.audience_read.trim()}`);
+  }
+  if (spine.voice_tone?.trim()) {
+    sections.push(`VOICE + TONE (affirmative — what the channel sounds like):\n${spine.voice_tone.trim()}`);
+  }
+  if (spine.host_archetype?.trim()) {
+    sections.push(`HOST ARCHETYPE:\n${spine.host_archetype.trim()}`);
   }
   if (spine.quarterly_stance?.trim()) {
     const label = spine.quarterly_stance_label?.trim();

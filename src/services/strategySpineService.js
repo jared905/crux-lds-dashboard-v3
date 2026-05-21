@@ -68,8 +68,27 @@ const FIELD_TIMESTAMP_MAP = {
   quarterly_stance: 'quarterly_stance_updated_at',
   guardrails: 'guardrails_updated_at',
   competitive_posture: 'competitive_posture_updated_at',
+  editorial_pov: 'editorial_pov_updated_at',
+  voice_tone: 'voice_tone_updated_at',
+  host_archetype: 'host_archetype_updated_at',
   // quarterly_stance_label rides on the same timestamp; updated together.
 };
+
+// Host archetype catalog — the on-camera personas the talent audition
+// rubric chooses against. Surfaced as a picker in the spine UI; AI
+// suggestion in Phase D will propose one of these from sample videos.
+export const HOST_ARCHETYPES = [
+  { id: 'authority',    label: 'The Authority',    description: 'Subject expert. Didactic. Establishes credibility through knowledge density.' },
+  { id: 'storyteller',  label: 'The Storyteller',  description: 'Narrative-led. Emotional arc per episode. Lessons land through story.' },
+  { id: 'companion',    label: 'The Companion',    description: 'Conversational, intimate. "Friend at coffee." Low-production, high-warmth.' },
+  { id: 'showman',      label: 'The Showman',      description: 'High-energy entertainer. Pace, surprise, spectacle. Brand-personality dominant.' },
+  { id: 'practitioner', label: 'The Practitioner', description: 'Demonstrates. Hands-on. Viewer watches the work, not the talk.' },
+  { id: 'sage',         label: 'The Sage',         description: 'Older voice. Perspective. Speaks slowly; what is said matters more than how much.' },
+  { id: 'analyst',      label: 'The Analyst',      description: 'Frameworks + data. Visualizes thinking. Persuades by structure rather than emotion.' },
+  { id: 'guide',        label: 'The Guide',        description: 'Walks the viewer through a transformation step-by-step. Coaching posture.' },
+];
+
+export const HOST_ARCHETYPE_BY_ID = Object.fromEntries(HOST_ARCHETYPES.map(a => [a.id, a]));
 
 /**
  * Update a single strategist field. Touches the corresponding
@@ -382,6 +401,9 @@ export async function captureSpineSnapshot(clientId, { label, notes } = {}) {
       quarterly_stance_label: spine.quarterly_stance_label,
       competitive_posture: spine.competitive_posture,
       guardrails: spine.guardrails,
+      editorial_pov: spine.editorial_pov,
+      voice_tone: spine.voice_tone,
+      host_archetype: spine.host_archetype,
       active_plays: spine.active_plays || [],
     })
     .select()
