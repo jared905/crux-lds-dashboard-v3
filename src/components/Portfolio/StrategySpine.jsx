@@ -189,12 +189,14 @@ export default function StrategySpine({ client, onBack }) {
         onRemove={handleRemovePlay}
       />
 
-      <ComputedSnapshot
-        snapshot={spine?.computed_snapshot}
-        computedAt={spine?.snapshot_computed_at}
-        busy={snapshotBusy}
-        onRefresh={handleRefreshSnapshot}
-      />
+      <SnapshotErrorBoundary onRefresh={handleRefreshSnapshot} busy={snapshotBusy}>
+        <ComputedSnapshotInner
+          snapshot={spine?.computed_snapshot}
+          computedAt={spine?.snapshot_computed_at}
+          busy={snapshotBusy}
+          onRefresh={handleRefreshSnapshot}
+        />
+      </SnapshotErrorBoundary>
 
       <SnapshotHistory
         snapshots={snapshots}
@@ -682,7 +684,42 @@ function PlayEditor({ play, onSave, onCancel }) {
 // ────────────────────────────────────────────────────────────
 // Computed snapshot
 // ────────────────────────────────────────────────────────────
-function ComputedSnapshot({ snapshot, computedAt, busy, onRefresh }) {
+// Last-resort guard so a shape mismatch in the cached snapshot can't
+// crash the entire spine page. If rendering throws, we surface a calm
+// message + a Refresh button instead of a white screen.
+class SnapshotErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error('[ComputedSnapshot] render failed:', error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <SectionShell title="Computed signal" action={
+          <button onClick={this.props.onRefresh} disabled={this.props.busy} style={primaryBtn}>
+            {this.props.busy
+              ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} />
+              : <RefreshCw size={12} />}
+            {this.props.busy ? 'Refreshing…' : 'Refresh'}
+          </button>
+        }>
+          <div style={{ color: '#fbbf24', fontSize: 13, lineHeight: 1.55 }}>
+            Snapshot data couldn't be rendered (likely a shape mismatch in the cached row). Click Refresh above to recompute and replace it.
+          </div>
+        </SectionShell>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function ComputedSnapshotInner({ snapshot, computedAt, busy, onRefresh }) {
   const cohort = snapshot?.cohort;
   return (
     <SectionShell
@@ -725,18 +762,25 @@ function ComputedSnapshot({ snapshot, computedAt, busy, onRefresh }) {
           <SnapshotPanel title="Archetype mix" empty={!snapshot.archetype_mix}>
             {snapshot.archetype_mix && (
               <>
-                {snapshot.archetype_mix.client_archetype && (
+                {typeof snapshot.archetype_mix.client_archetype === 'string' && (
                   <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
                     This client tagged as <strong style={{ color: '#d4d4d8' }}>{snapshot.archetype_mix.client_archetype}</strong>
                   </div>
                 )}
                 <ul style={snapshotList}>
-                  {(snapshot.archetype_mix.segments || []).map(s => (
-                    <li key={s.archetype} style={{ marginBottom: 4 }}>
-                      <strong>{s.label}</strong> — {s.channel_count} channels, {s.video_count} videos
-                      {s.median_engagement != null && <>, {(s.median_engagement * 100).toFixed(1)}% engagement</>}
-                      {s.top_patterns?.length > 0 && (
-                        <span style={{ color: '#777' }}>; top: {s.top_patterns.map(p => `${p.label} (+${Math.round((p.lift - 1) * 100)}%)`).join(', ')}</span>
+                  {(snapshot.archetype_mix.segments || []).map((s, idx) => (
+                    <li key={idx} style={{ marginBottom: 4 }}>
+                      <strong>{typeof s.label === 'string' ? s.label : (typeof s.archetype === 'string' ? s.archetype : '?')}</strong>
+                      {typeof s.channel_count === 'number' && <> — {s.channel_count} channels</>}
+                      {typeof s.video_count === 'number' && <>, {s.video_count} videos</>}
+                      {typeof s.median_engagement === 'number' && <>, {(s.median_engagement * 100).toFixed(1)}% engagement</>}
+                      {Array.isArray(s.top_patterns) && s.top_patterns.length > 0 && (
+                        <span style={{ color: '#777' }}>; top: {
+                          s.top_patterns
+                            .filter(p => p && typeof p.label === 'string')
+                            .map(p => `${p.label}${typeof p.lift === 'number' ? ` (+${Math.round((p.lift - 1) * 100)}%)` : ''}`)
+                            .join(', ')
+                        }</span>
                       )}
                     </li>
                   ))}
@@ -745,15 +789,28 @@ function ComputedSnapshot({ snapshot, computedAt, busy, onRefresh }) {
             )}
           </SnapshotPanel>
 
-          <SnapshotPanel title="Format mix — length bands that work" empty={!snapshot.format_mix}>
+          <SnapshotPanel title="Format mix — shorts vs long + length bands" empty={!snapshot.format_mix}>
             {snapshot.format_mix && (
-              <ul style={snapshotList}>
-                {(snapshot.format_mix.working_buckets || []).map((b, i) => (
-                  <li key={i} style={{ marginBottom: 4 }}>
-                    <strong>{b.label}</strong> · {(b.freq * 100).toFixed(0)}% of cohort, +{Math.round((b.lift - 1) * 100)}% views (n={b.count}) <em style={{ color: '#777' }}>[{b.confidence}]</em>
-                  </li>
-                ))}
-              </ul>
+              <>
+                {(snapshot.format_mix.shorts_freq != null || snapshot.format_mix.longs_freq != null) && (
+                  <div style={{ fontSize: 12, color: '#d4d4d8', marginBottom: 8 }}>
+                    Cohort split: <strong>{Math.round((snapshot.format_mix.shorts_freq || 0) * 100)}% Shorts</strong> · <strong>{Math.round((snapshot.format_mix.longs_freq || 0) * 100)}% long-form</strong>
+                  </div>
+                )}
+                {(snapshot.format_mix.working_buckets || []).length > 0 && (
+                  <ul style={snapshotList}>
+                    {snapshot.format_mix.working_buckets.map((b, i) => (
+                      <li key={i} style={{ marginBottom: 4 }}>
+                        <strong>{typeof b.label === 'string' ? b.label : '?'}</strong>
+                        {typeof b.freq === 'number' && <> · {(b.freq * 100).toFixed(0)}% of cohort</>}
+                        {typeof b.lift === 'number' && <>, +{Math.round((b.lift - 1) * 100)}% views</>}
+                        {b.count != null && <> (n={b.count})</>}
+                        {b.confidence && <em style={{ color: '#777' }}> [{b.confidence}]</em>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
             )}
           </SnapshotPanel>
 
@@ -772,32 +829,51 @@ function ComputedSnapshot({ snapshot, computedAt, busy, onRefresh }) {
           <SnapshotPanel title="Cohort outliers — recent breakouts" empty={!snapshot.outliers?.length}>
             {snapshot.outliers && (
               <ul style={snapshotList}>
-                {snapshot.outliers.slice(0, 6).map((o, i) => (
-                  <li key={i} style={{ marginBottom: 4 }}>
-                    <strong>{o.title?.slice(0, 80)}{o.title?.length > 80 ? '…' : ''}</strong>
-                    {o.channel && <span style={{ color: '#888' }}> · {o.channel}</span>}
-                    {o.outlier_score && <span style={{ color: '#777' }}> · {o.outlier_score.toFixed(1)}x median</span>}
-                    {o.suspect && <span style={{ color: '#fbbf24', marginLeft: 6, fontSize: 10 }}>suspect</span>}
-                  </li>
-                ))}
+                {snapshot.outliers.slice(0, 6).map((o, i) => {
+                  // Defensive: tolerate both v2 shape (channel_name, multiplier)
+                  // and the v1 buggy shape (channel object, outlier_score
+                  // undefined) — never let a render crash the page.
+                  const channelLabel = typeof o.channel === 'string'
+                    ? o.channel
+                    : (o.channel_name || o.channel?.name || null);
+                  const score = typeof o.multiplier === 'number' ? o.multiplier
+                    : typeof o.outlier_score === 'number' ? o.outlier_score
+                    : null;
+                  const titleStr = typeof o.title === 'string' ? o.title : '';
+                  return (
+                    <li key={i} style={{ marginBottom: 4 }}>
+                      <strong>{titleStr.slice(0, 80)}{titleStr.length > 80 ? '…' : ''}</strong>
+                      {channelLabel && <span style={{ color: '#888' }}> · {channelLabel}</span>}
+                      {score != null && <span style={{ color: '#777' }}> · {score.toFixed(1)}x median</span>}
+                      {o.suspect && <span style={{ color: '#fbbf24', marginLeft: 6, fontSize: 10 }}>suspect</span>}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </SnapshotPanel>
 
-          <SnapshotPanel title="Opportunity brief" empty={!snapshot.opportunity_briefs}>
-            {snapshot.opportunity_briefs && (
-              <>
-                {snapshot.opportunity_briefs.headline && (
-                  <div style={{ fontWeight: 600, color: '#fff', marginBottom: 6, fontSize: 13 }}>
-                    {snapshot.opportunity_briefs.headline}
+          <SnapshotPanel title="Opportunity briefs" empty={!snapshot.opportunity_briefs?.opportunities?.length}>
+            {snapshot.opportunity_briefs?.opportunities?.length > 0 && (
+              <div>
+                {snapshot.opportunity_briefs.opportunities.map((o, i) => (
+                  <div key={i} style={{ marginBottom: 12, paddingBottom: 10, borderBottom: i < snapshot.opportunity_briefs.opportunities.length - 1 ? '1px solid #1c1c20' : 'none' }}>
+                    <div style={{ fontWeight: 600, color: '#fff', fontSize: 13, marginBottom: 4 }}>
+                      {typeof o.title === 'string' ? o.title : '(untitled)'}
+                    </div>
+                    {Array.isArray(o.tags) && o.tags.length > 0 && (
+                      <div style={{ fontSize: 10, color: '#888', marginBottom: 5 }}>
+                        {o.tags.filter(t => typeof t === 'string').map(t => `#${t}`).join(' ')}
+                      </div>
+                    )}
+                    {typeof o.body === 'string' && o.body.trim() && (
+                      <div style={{ color: '#d4d4d8', fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                        {o.body}
+                      </div>
+                    )}
                   </div>
-                )}
-                {snapshot.opportunity_briefs.body && (
-                  <div style={{ color: '#d4d4d8', fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
-                    {snapshot.opportunity_briefs.body}
-                  </div>
-                )}
-              </>
+                ))}
+              </div>
             )}
           </SnapshotPanel>
         </>

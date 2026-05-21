@@ -250,11 +250,16 @@ export async function refreshSnapshot(clientId) {
       }
     : null;
 
-  // format_mix — length bands that work + shorts/long balance derived
-  // from working buckets when available.
-  const formatMix = diagnostic?.workingBuckets?.length
+  // format_mix — shorts/long ratio (from patternsService.formatBreakdown)
+  // + length bands with lifts (from diagnostic.workingBuckets).
+  const fb = patterns?.scope?.formatBreakdown;
+  const formatMix = (diagnostic?.workingBuckets?.length || fb)
     ? {
-        working_buckets: diagnostic.workingBuckets.slice(0, 6).map(b => ({
+        shorts_freq: fb?.shortsFreq ?? null,
+        longs_freq: fb?.longsFreq ?? null,
+        shorts_count: fb?.shortsCount ?? null,
+        longs_count: fb?.longsCount ?? null,
+        working_buckets: (diagnostic?.workingBuckets || []).slice(0, 6).map(b => ({
           label: b.label,
           freq: b.freq,
           lift: b.lift,
@@ -280,25 +285,30 @@ export async function refreshSnapshot(clientId) {
 
   // outliers — top breakout videos in the cohort (anti-echo: helps
   // strategist see what's actually working without inferring).
+  // patternsService returns: { title, views, multiplier, channel: { name, ... },
+  //   publishedAt, isSuspect, ... } — extract the primitives we need.
   const outliers = patterns?.scope?.outliers?.length
     ? patterns.scope.outliers.slice(0, 8).map(o => ({
         title: o.title,
-        channel: o.channel,
-        view_count: o.view_count,
-        outlier_score: o.outlier_score,
-        published_at: o.published_at,
-        suspect: o.suspect || false,
+        channel_name: o.channel?.name || null,
+        views: o.views,
+        multiplier: o.multiplier,
+        published_at: o.publishedAt,
+        suspect: !!o.isSuspect,
       }))
     : null;
 
   // opportunity_briefs — the Claude-synthesized brief from white-space.
-  // We snapshot the structured fields, not the rendered prose, so the
-  // UI can re-render without re-calling Claude.
-  const opportunityBriefs = whiteSpace?.brief
+  // Shape is { opportunities: [{ title, body, tags }], generatedAt }.
+  // We snapshot the structured fields, not rendered prose, so the UI
+  // can re-render without re-calling Claude.
+  const opportunityBriefs = whiteSpace?.brief?.opportunities?.length
     ? {
-        headline: whiteSpace.brief.headline,
-        body: whiteSpace.brief.body,
-        evidence: whiteSpace.brief.evidence || null,
+        opportunities: whiteSpace.brief.opportunities.slice(0, 5).map(o => ({
+          title: typeof o.title === 'string' ? o.title : '',
+          body: typeof o.body === 'string' ? o.body : '',
+          tags: Array.isArray(o.tags) ? o.tags.filter(t => typeof t === 'string') : [],
+        })),
         generated_at: whiteSpace.brief.generatedAt || null,
       }
     : null;
