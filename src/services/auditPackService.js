@@ -18,6 +18,7 @@ import { analyzeWhiteSpace } from './whiteSpaceService.js';
 import { loadAlerts } from './movementService.js';
 import { computeClientDiagnostic, loadOrGenerateBriefing } from './clientDiagnosticService.js';
 import { getSpine } from './strategySpineService.js';
+import { getActiveDemandSignals } from './demandSignalService.js';
 
 // ──────────────────────────────────────────────────
 // Formatters
@@ -183,6 +184,55 @@ function sectionSpine(spine) {
   if (has(spine.guardrails)) {
     lines.push('### Guardrails');
     lines.push('', '> ' + spine.guardrails.trim().replace(/\n/g, '\n> '), '');
+  }
+
+  return lines.join('\n');
+}
+
+// Demand signals — what audience asks for in their own comments and isn't
+// getting. Pure anti-echo signal complementing the cohort-pattern data
+// elsewhere in the audit. Renders nothing when no signals are mined or
+// the extraction was thin.
+function sectionDemandSignals(row) {
+  if (!row?.signals) return null;
+  const s = row.signals;
+  const hasUnserved = Array.isArray(s.unserved_requests) && s.unserved_requests.length > 0;
+  const hasThemes = Array.isArray(s.recurring_themes) && s.recurring_themes.length > 0;
+  const hasPeaks = Array.isArray(s.engagement_peaks) && s.engagement_peaks.length > 0;
+  if (!hasUnserved && !hasThemes && !hasPeaks) return null;
+
+  const lines = ['## Audience demand — what they\'re asking for'];
+  lines.push('');
+  lines.push(`_Mined from ${row.comment_count} comments across the channel's last ${row.video_count} videos. Complementary to cohort-pattern data: those show what works in the category; demand signals show what THIS audience has been requesting and isn't getting._`);
+  lines.push('');
+
+  if (hasUnserved) {
+    lines.push('### Unserved requests');
+    lines.push('');
+    s.unserved_requests.slice(0, 6).forEach(r => {
+      const mentions = r.mentions ? ` _(${r.mentions} mentions)_` : '';
+      const quote = r.sample_quote ? `\n  > "${r.sample_quote}"` : '';
+      lines.push(`- **${r.topic}**${mentions}${quote}`);
+    });
+    lines.push('');
+  }
+  if (hasThemes) {
+    lines.push('### Recurring themes');
+    lines.push('');
+    s.recurring_themes.slice(0, 6).forEach(t => {
+      const count = t.count ? ` _(${t.count} commenters)_` : '';
+      lines.push(`- **${t.pattern}**${count}`);
+    });
+    lines.push('');
+  }
+  if (hasPeaks) {
+    lines.push('### Engagement peaks');
+    lines.push('');
+    s.engagement_peaks.slice(0, 4).forEach(p => {
+      const strength = p.signal_strength ? ` _(${p.signal_strength})_` : '';
+      lines.push(`- "${p.quote}"${strength}${p.context ? ` — ${p.context}` : ''}`);
+    });
+    lines.push('');
   }
 
   return lines.join('\n');
@@ -625,13 +675,14 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
 
   // Run all the analyses in parallel where possible
   tick('Fetching cohort + patterns');
-  const [channels, patternsResult, whiteSpaceResult, alerts, diagnostic, spine] = await Promise.all([
+  const [channels, patternsResult, whiteSpaceResult, alerts, diagnostic, spine, demandRow] = await Promise.all([
     fetchLandscapeChannels(scope).catch(() => []),
     analyzePatterns({ scopeChannelIds, windowDays: 90 }).catch(() => null),
     analyzeWhiteSpace({ scopeChannelIds, windowDays: 90, scopeLabel }).catch(() => null),
     loadAlerts({ scopeChannelIds, windowDays: 30 }).catch(() => []),
     scope.clientId ? computeClientDiagnostic({ clientId: scope.clientId, scopeChannelIds, windowDays: 90 }).catch(() => null) : Promise.resolve(null),
     scope.clientId ? getSpine(scope.clientId).catch(() => null) : Promise.resolve(null),
+    scope.clientId ? getActiveDemandSignals(scope.clientId).catch(() => null) : Promise.resolve(null),
   ]);
 
   tick('Generating briefing');
@@ -664,6 +715,7 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
     sectionExecutive(briefing, diagnostic),
     sectionSpine(spine),
     sectionOpportunityBrief(whiteSpaceResult?.brief),
+    sectionDemandSignals(demandRow),
     sectionArchetypes(diagnostic),
     sectionCohort(channels),
     sectionTitlePatterns(patternsResult?.scope?.titlePatterns),
