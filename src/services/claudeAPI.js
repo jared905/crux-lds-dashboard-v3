@@ -168,26 +168,60 @@ MANDATORY OUTPUT RULES (apply to ALL responses):
     return rules.trim();
   }
 
-  // Main API call method
-  async call(prompt, systemPrompt = '', feature = 'general', maxTokens = MAX_TOKENS) {
+  // Main API call method. If `images` array is provided, builds a
+  // multimodal user message (Vision) — each image becomes an image
+  // content block alongside the prompt text. Images should be objects:
+  //   { url: 'https://...', media_type?: 'image/jpeg' }
+  //   or { base64: 'data:image/...;base64,...', media_type: 'image/jpeg' }
+  // Vision tokens cost the same as text input but each image is ~1.5K
+  // tokens worth of input — caller is responsible for picking a sane
+  // batch size.
+  async call(prompt, systemPrompt = '', feature = 'general', maxTokens = MAX_TOKENS, options = {}) {
     // Validate API key
     if (!this.apiKey) {
       throw new Error('Claude API key not configured. Please add your API key in settings.');
     }
 
-    // Check budget (separate input vs output estimates for accurate costing)
-    const estimatedInputTokens = this.estimateTokens(systemPrompt + prompt);
+    const images = Array.isArray(options.images) ? options.images : null;
+
+    // Check budget. Vision images add ~1.5K tokens each to input cost.
+    const visionTokens = images ? images.length * 1500 : 0;
+    const estimatedInputTokens = this.estimateTokens(systemPrompt + prompt) + visionTokens;
     if (!this.checkBudget(estimatedInputTokens, maxTokens)) {
       throw new Error(`Monthly budget of $${this.monthlyBudget} would be exceeded. Current usage: $${this.usageStats.totalCost.toFixed(2)}`);
     }
 
     try {
+      // Build the user message. Multimodal when images are provided.
+      let userContent;
+      if (images?.length) {
+        userContent = [
+          ...images.map(img => {
+            if (img.base64) {
+              // strip data URL prefix if present
+              const stripped = img.base64.replace(/^data:image\/[a-z]+;base64,/, '');
+              return {
+                type: 'image',
+                source: { type: 'base64', media_type: img.media_type || 'image/jpeg', data: stripped },
+              };
+            }
+            return {
+              type: 'image',
+              source: { type: 'url', url: img.url },
+            };
+          }),
+          { type: 'text', text: prompt },
+        ];
+      } else {
+        userContent = prompt;
+      }
+
       // Build request body
       const requestBody = {
         apiKey: this.apiKey,
         model: CLAUDE_MODEL,
         maxTokens: maxTokens,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [{ role: 'user', content: userContent }],
         stream: false
       };
 

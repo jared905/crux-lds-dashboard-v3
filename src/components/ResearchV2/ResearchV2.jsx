@@ -5,8 +5,9 @@
  * White Space / Movement). See mockups/research/ for the spec.
  */
 import React, { useState, useEffect } from 'react';
-import { Globe, BarChart3, Square, Inbox, RefreshCw, Loader, Download } from 'lucide-react';
+import { Globe, BarChart3, Square, Inbox, RefreshCw, Loader, Download, Image as ImageIcon } from 'lucide-react';
 import { generateAuditPack, downloadMarkdown } from '../../services/auditPackService.js';
+import { refreshCohortProductionSignals } from '../../services/productionSignalService.js';
 import ScopeBar from './ScopeBar.jsx';
 import RecipesBar from './RecipesBar.jsx';
 import ClientDiagnostic from './ClientDiagnostic.jsx';
@@ -40,6 +41,8 @@ export default function ResearchV2() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
+  const [productionRefreshing, setProductionRefreshing] = useState(false);
+  const [productionStatus, setProductionStatus] = useState(null);
 
   const handleExportAudit = async () => {
     if (exporting) return;
@@ -62,6 +65,38 @@ export default function ResearchV2() {
     } finally {
       setExporting(false);
       setTimeout(() => setExportStatus(null), 6000);
+    }
+  };
+
+  const handleRefreshProductionSignals = async () => {
+    if (productionRefreshing) return;
+    if (!scope.clientId) {
+      setProductionStatus({ ok: false, message: 'Pin a client first — this refreshes the client + pinned competitors.' });
+      setTimeout(() => setProductionStatus(null), 6000);
+      return;
+    }
+    setProductionRefreshing(true);
+    setProductionStatus({ ok: true, message: 'Resolving cohort…' });
+    try {
+      const r = await refreshCohortProductionSignals(scope.clientId, {
+        onProgress: (p) => {
+          if (p.step === 'resolving-cohort') {
+            setProductionStatus({ ok: true, message: 'Resolving cohort…' });
+          } else if (p.step === 'analyzing') {
+            setProductionStatus({ ok: true, message: `Analyzing ${p.channelName} (${p.index}/${p.total})…` });
+          } else if (p.step === 'starting' || p.step === 'channel-start') {
+            setProductionStatus({ ok: true, message: `Fetching thumbnails for ${p.channelName} (${p.index}/${p.total})…` });
+          }
+        },
+      });
+      if (!r.ok) throw new Error(r.error || 'Refresh failed');
+      setProductionStatus({ ok: true, message: `Production signals refreshed for ${r.okCount}/${r.total} channels` });
+      setRefreshKey(k => k + 1);
+    } catch (err) {
+      setProductionStatus({ ok: false, message: err.message });
+    } finally {
+      setProductionRefreshing(false);
+      setTimeout(() => setProductionStatus(null), 8000);
     }
   };
 
@@ -166,6 +201,15 @@ export default function ResearchV2() {
               {exportStatus.ok ? '✓ ' : '✕ '}{exportStatus.message}
             </span>
           )}
+          {productionStatus && (
+            <span style={{
+              fontSize: '12px',
+              color: productionStatus.ok ? '#a78bfa' : '#f87171',
+              fontWeight: 500,
+            }}>
+              {productionStatus.ok ? '✓ ' : '✕ '}{productionStatus.message}
+            </span>
+          )}
           {syncResult && (
             <span style={{
               fontSize: '12px',
@@ -175,6 +219,27 @@ export default function ResearchV2() {
               {syncResult.ok ? '✓ ' : '✕ '}{syncResult.message}
             </span>
           )}
+          <button
+            onClick={handleRefreshProductionSignals}
+            disabled={productionRefreshing || !scope.clientId}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '7px 14px', borderRadius: '6px',
+              background: productionRefreshing ? '#1c1c20' : '#18181c',
+              border: '1px solid #232328',
+              color: (productionRefreshing || !scope.clientId) ? '#666' : '#d4d4d8',
+              fontSize: '13px', fontWeight: 600,
+              cursor: productionRefreshing ? 'wait' : (scope.clientId ? 'pointer' : 'not-allowed'),
+              fontFamily: 'inherit',
+            }}
+            title={scope.clientId
+              ? 'Run Claude Vision over recent thumbnails for the client + pinned competitors. Caches structured production signals for the audit pack.'
+              : 'Pin a client to enable cohort production-signal refresh.'}
+          >
+            {productionRefreshing
+              ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Refreshing production…</>
+              : <><ImageIcon size={13} /> Refresh production signals</>}
+          </button>
           <button
             onClick={handleExportAudit}
             disabled={exporting}
