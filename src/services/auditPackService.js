@@ -332,76 +332,108 @@ function sectionCohort(channels) {
   return lines.join('\n');
 }
 
+// Renders one channel's production-signal block: prose summary + structured
+// bullets. Suffix is appended to the heading (e.g. " (client)") so the reader
+// can spot the client row at a glance.
+function renderProductionBlock(channel, row, { headingSuffix = '' } = {}) {
+  const lines = [];
+  lines.push(`### ${escapeMd(channel.name)}${headingSuffix}`);
+  lines.push('');
+
+  if (!row?.signals) {
+    lines.push(`_No production signals available — channel has no recent videos with thumbnails in sync. Run a public sync on this channel, then re-refresh production signals._`);
+    lines.push('');
+    return lines.join('\n');
+  }
+
+  const s = row.signals;
+  if (s.summary) {
+    lines.push(s.summary);
+    lines.push('');
+  }
+  const bullets = [];
+  const vt = s.visual_treatment;
+  if (vt) {
+    const treatment = [];
+    if (vt.face_pct != null) treatment.push(`${vt.face_pct}% face-driven`);
+    if (vt.text_pct != null) treatment.push(`${vt.text_pct}% with overlaid text`);
+    if (vt.scene_pct != null) treatment.push(`${vt.scene_pct}% scene-driven`);
+    if (vt.brand_consistency_score != null) treatment.push(`brand consistency ${vt.brand_consistency_score}/100`);
+    if (treatment.length) bullets.push(`- **Visual treatment:** ${treatment.join(' · ')}`);
+    if (Array.isArray(vt.dominant_palette) && vt.dominant_palette.length) {
+      bullets.push(`- **Palette:** ${vt.dominant_palette.join(', ')}`);
+    }
+  }
+  const hf = s.host_framing;
+  if (hf) {
+    const framing = [];
+    if (hf.close_pct != null) framing.push(`${hf.close_pct}% close`);
+    if (hf.mid_pct != null) framing.push(`${hf.mid_pct}% mid`);
+    if (hf.wide_pct != null) framing.push(`${hf.wide_pct}% wide`);
+    if (hf.host_visible_pct != null) framing.push(`host visible ${hf.host_visible_pct}%`);
+    if (framing.length) bullets.push(`- **Host framing:** ${framing.join(' · ')}${hf.notes ? ` — ${hf.notes}` : ''}`);
+    else if (hf.notes) bullets.push(`- **Host framing:** ${hf.notes}`);
+  }
+  const ty = s.typography;
+  if (ty?.headline_pattern) {
+    const tParts = [ty.headline_pattern];
+    if (ty.all_caps_pct != null) tParts.push(`${ty.all_caps_pct}% all-caps`);
+    bullets.push(`- **Typography:** ${tParts.join(' · ')}`);
+  }
+  if (s.production_tier) bullets.push(`- **Production tier:** ${s.production_tier}`);
+  if (row.thumbnail_count) bullets.push(`- _Based on ${row.thumbnail_count} recent thumbnails · extracted ${fmtAge(row.extracted_at)}_`);
+  if (bullets.length) lines.push(bullets.join('\n'));
+  lines.push('');
+  return lines.join('\n');
+}
+
 // Production approach — how the cohort presents itself visually. Reads
 // cached rows from channel_production_signals (migration 078) keyed by
-// channel id. The cohort-level tier rollup sits at the top so a reader
-// gets the shape of the field before per-channel detail.
-function sectionProductionApproach(signalsByChannel, channels) {
-  if (!signalsByChannel || !channels?.length) return null;
-  const enriched = channels
+// channel id. The client renders first (when present) so the strategist
+// sees where the client sits before reading the competitor field. The
+// cohort-level tier rollup sits between the client and the competitors.
+function sectionProductionApproach(signalsByChannel, channels, clientChannel) {
+  if (!signalsByChannel) return null;
+
+  // Competitor list — anything in the landscape cohort that has signals,
+  // minus the client (to avoid double-rendering if landscape ever returns
+  // the client in the channel set).
+  const clientId = clientChannel?.id || null;
+  const competitorEnriched = (channels || [])
+    .filter(c => c.id !== clientId)
     .map(c => ({ ...c, row: signalsByChannel[c.id] }))
     .filter(c => c.row?.signals);
-  if (!enriched.length) return null;
+
+  const clientRow = clientId ? signalsByChannel[clientId] : null;
+  const hasClientBlock = !!(clientChannel && (clientRow || clientChannel.id));
+  if (!competitorEnriched.length && !hasClientBlock) return null;
 
   const lines = ['## Production approach — how the cohort looks'];
   lines.push('');
   lines.push('_Visual extraction from each channel\'s recent thumbnails. Composition, framing, typography, polish — independent of what each channel talks about. Use this to read the cohort\'s aesthetic conventions, then judge where the client should match vs. break pattern._');
   lines.push('');
 
-  // Cohort-level production-tier rollup
+  // Client block first — strategist's anchor point. Renders even without
+  // cached signals so a missing-data state is visible (not invisible).
+  if (hasClientBlock) {
+    lines.push(renderProductionBlock(clientChannel, clientRow, { headingSuffix: ' _(client)_' }));
+  }
+
+  // Cohort-level rollup (competitors only — the client is the comparator,
+  // not part of the cohort distribution they're being read against).
   const tiers = { high: 0, medium: 0, low: 0, mixed: 0 };
-  for (const c of enriched) {
+  for (const c of competitorEnriched) {
     const t = c.row.signals.production_tier;
     if (t && tiers[t] != null) tiers[t]++;
   }
   const tierParts = Object.entries(tiers).filter(([, n]) => n > 0).map(([t, n]) => `**${t}** ${n}`);
   if (tierParts.length) {
-    lines.push(`**Cohort production tiers** (${enriched.length} channels analyzed): ${tierParts.join(' · ')}`);
+    lines.push(`**Cohort production tiers** (${competitorEnriched.length} competitors analyzed): ${tierParts.join(' · ')}`);
     lines.push('');
   }
 
-  // Per-channel detail. Lead with the prose summary, then structured bullets.
-  for (const c of enriched) {
-    const s = c.row.signals;
-    lines.push(`### ${escapeMd(c.name)}`);
-    lines.push('');
-    if (s.summary) {
-      lines.push(s.summary);
-      lines.push('');
-    }
-    const bullets = [];
-    const vt = s.visual_treatment;
-    if (vt) {
-      const treatment = [];
-      if (vt.face_pct != null) treatment.push(`${vt.face_pct}% face-driven`);
-      if (vt.text_pct != null) treatment.push(`${vt.text_pct}% with overlaid text`);
-      if (vt.scene_pct != null) treatment.push(`${vt.scene_pct}% scene-driven`);
-      if (vt.brand_consistency_score != null) treatment.push(`brand consistency ${vt.brand_consistency_score}/100`);
-      if (treatment.length) bullets.push(`- **Visual treatment:** ${treatment.join(' · ')}`);
-      if (Array.isArray(vt.dominant_palette) && vt.dominant_palette.length) {
-        bullets.push(`- **Palette:** ${vt.dominant_palette.join(', ')}`);
-      }
-    }
-    const hf = s.host_framing;
-    if (hf) {
-      const framing = [];
-      if (hf.close_pct != null) framing.push(`${hf.close_pct}% close`);
-      if (hf.mid_pct != null) framing.push(`${hf.mid_pct}% mid`);
-      if (hf.wide_pct != null) framing.push(`${hf.wide_pct}% wide`);
-      if (hf.host_visible_pct != null) framing.push(`host visible ${hf.host_visible_pct}%`);
-      if (framing.length) bullets.push(`- **Host framing:** ${framing.join(' · ')}${hf.notes ? ` — ${hf.notes}` : ''}`);
-      else if (hf.notes) bullets.push(`- **Host framing:** ${hf.notes}`);
-    }
-    const ty = s.typography;
-    if (ty?.headline_pattern) {
-      const tParts = [ty.headline_pattern];
-      if (ty.all_caps_pct != null) tParts.push(`${ty.all_caps_pct}% all-caps`);
-      bullets.push(`- **Typography:** ${tParts.join(' · ')}`);
-    }
-    if (s.production_tier) bullets.push(`- **Production tier:** ${s.production_tier}`);
-    if (c.row.thumbnail_count) bullets.push(`- _Based on ${c.row.thumbnail_count} recent thumbnails · extracted ${fmtAge(c.row.extracted_at)}_`);
-    if (bullets.length) lines.push(bullets.join('\n'));
-    lines.push('');
+  for (const c of competitorEnriched) {
+    lines.push(renderProductionBlock(c, c.row));
   }
 
   return lines.join('\n');
@@ -749,9 +781,14 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
   tick('Resolving scope');
   const scopeChannelIds = await resolveScopeToChannelIds(scope);
 
-  // Run all the analyses in parallel where possible
+  // Run all the analyses in parallel where possible. Production signals
+  // lookup includes the clientId alongside cohort ids so the client's
+  // own cached row gets rendered in the Production Approach section.
   tick('Fetching cohort + patterns');
-  const [channels, patternsResult, whiteSpaceResult, alerts, diagnostic, spine, demandRow, productionSignalsByChannel] = await Promise.all([
+  const productionLookupIds = scope.clientId && !scopeChannelIds.includes(scope.clientId)
+    ? [scope.clientId, ...scopeChannelIds]
+    : scopeChannelIds;
+  const [channels, patternsResult, whiteSpaceResult, alerts, diagnostic, spine, demandRow, productionSignalsByChannel, clientChannel] = await Promise.all([
     fetchLandscapeChannels(scope).catch(() => []),
     analyzePatterns({ scopeChannelIds, windowDays: 90 }).catch(() => null),
     analyzeWhiteSpace({ scopeChannelIds, windowDays: 90, scopeLabel }).catch(() => null),
@@ -759,7 +796,10 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
     scope.clientId ? computeClientDiagnostic({ clientId: scope.clientId, scopeChannelIds, windowDays: 90 }).catch(() => null) : Promise.resolve(null),
     scope.clientId ? getSpine(scope.clientId).catch(() => null) : Promise.resolve(null),
     scope.clientId ? getActiveDemandSignals(scope.clientId).catch(() => null) : Promise.resolve(null),
-    getActiveProductionSignalsForChannels(scopeChannelIds).catch(() => ({})),
+    getActiveProductionSignalsForChannels(productionLookupIds).catch(() => ({})),
+    scope.clientId
+      ? supabase.from('channels').select('id, name').eq('id', scope.clientId).maybeSingle().then(r => r.data || null).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   tick('Generating briefing');
@@ -795,7 +835,7 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
     sectionDemandSignals(demandRow),
     sectionArchetypes(diagnostic),
     sectionCohort(channels),
-    sectionProductionApproach(productionSignalsByChannel, channels),
+    sectionProductionApproach(productionSignalsByChannel, channels, clientChannel),
     sectionTitlePatterns(patternsResult?.scope?.titlePatterns),
     sectionFormatMix(patternsResult?.scope?.formatBreakdown),
     sectionCadence(whiteSpaceResult?.cadenceGaps),
