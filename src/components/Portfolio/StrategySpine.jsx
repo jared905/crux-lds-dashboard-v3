@@ -11,7 +11,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, Loader, Edit2, Check, X as XIcon, Plus, Trash2,
   RefreshCw, Calendar, ExternalLink, ChevronDown, ChevronRight,
-  Camera, History,
+  Camera, History, Sparkles,
 } from 'lucide-react';
 import {
   getSpine,
@@ -25,7 +25,9 @@ import {
   listSpineSnapshots,
   getSpineSnapshot,
   deleteSpineSnapshot,
+  suggestPositioningOneliner,
   PLAY_STATUS_LABELS,
+  POSITIONING_ONELINER_MAX_CHARS,
   HOST_ARCHETYPES,
   HOST_ARCHETYPE_BY_ID,
 } from '../../services/strategySpineService.js';
@@ -164,6 +166,14 @@ export default function StrategySpine({ client, onBack }) {
         updatedAt={spine?.competitive_posture_updated_at}
         placeholder="e.g. We compete on narrative warmth in a cohort that's flooded with utility-first content — when a competitor leans tactical, we lean story; when they lean shorts-heavy, we lean longer-form testimony."
         onSave={(v) => handleFieldSave('competitive_posture', v)}
+      />
+
+      <PositioningOneLinerSection
+        clientId={client.id}
+        clientName={client.name}
+        value={spine?.positioning_oneliner}
+        updatedAt={spine?.positioning_oneliner_updated_at}
+        onSave={(v) => handleFieldSave('positioning_oneliner', v)}
       />
 
       <Section
@@ -395,6 +405,7 @@ function SnapshotViewer({ snapshot, onClose }) {
 
         {fmtField(`Strategic stance${snapshot.quarterly_stance_label ? ` · ${snapshot.quarterly_stance_label}` : ''}`, snapshot.quarterly_stance)}
         {fmtField('Competitive posture', snapshot.competitive_posture)}
+        {fmtField('Channel articulation (one-liner)', snapshot.positioning_oneliner)}
         {fmtField('Positioning hypothesis', snapshot.positioning_hypothesis)}
         {fmtField('Editorial POV + mission', snapshot.editorial_pov)}
         {fmtField('Voice + tone', snapshot.voice_tone)}
@@ -426,6 +437,152 @@ function SnapshotViewer({ snapshot, onClose }) {
 // ────────────────────────────────────────────────────────────
 // Editable text section (positioning, audience)
 // ────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────
+// Positioning one-liner — the headline of the deliverable
+// ────────────────────────────────────────────────────────────
+// Single sentence ≤120 chars. Char counter visible at all times so the
+// strategist trims toward the cap. AI Suggest pulls 3 candidates (each a
+// distinct angle) from the rest of the spine — the strategist clicks one
+// to drop it into the draft, then edits and saves. No auto-save.
+function PositioningOneLinerSection({ clientId, clientName, value, updatedAt, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || '');
+  const [suggesting, setSuggesting] = useState(false);
+  const [candidates, setCandidates] = useState(null);
+  const [suggestError, setSuggestError] = useState(null);
+
+  useEffect(() => { setDraft(value || ''); }, [value]);
+
+  const charCount = draft.length;
+  const overLimit = charCount > POSITIONING_ONELINER_MAX_CHARS;
+
+  const handleSave = async () => {
+    if (overLimit) return;
+    await onSave(draft.trim() || null);
+    setEditing(false);
+    setCandidates(null);
+  };
+
+  const handleCancel = () => {
+    setDraft(value || '');
+    setEditing(false);
+    setCandidates(null);
+    setSuggestError(null);
+  };
+
+  const handleSuggest = async () => {
+    if (suggesting) return;
+    setSuggesting(true);
+    setSuggestError(null);
+    setCandidates(null);
+    try {
+      const r = await suggestPositioningOneliner(clientId, { clientName });
+      if (!r.ok) setSuggestError(r.error);
+      else setCandidates(r.candidates);
+    } catch (e) {
+      setSuggestError(e.message || 'Suggestion failed');
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  const counterColor = overLimit ? '#f87171' : (charCount > POSITIONING_ONELINER_MAX_CHARS * 0.9 ? '#fbbf24' : '#666');
+
+  return (
+    <SectionShell
+      title="Channel articulation (one-liner)"
+      subtitle="The single sentence that names what this channel is. The headline of the Positioning Recommendation section of the client deliverable — strategist-approved, ≤120 chars."
+      updatedAt={updatedAt}
+      accent="#a78bfa"
+      action={editing ? (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={handleSave} disabled={overLimit} style={{ ...primaryBtn, opacity: overLimit ? 0.4 : 1, cursor: overLimit ? 'not-allowed' : 'pointer' }} title={overLimit ? `Over ${POSITIONING_ONELINER_MAX_CHARS}-char limit` : 'Save'}>
+            <Check size={12} /> Save
+          </button>
+          <button onClick={handleCancel} style={ghostBtn} title="Cancel"><XIcon size={12} /></button>
+        </div>
+      ) : (
+        <button onClick={() => setEditing(true)} style={ghostBtn} title="Edit">
+          <Edit2 size={12} /> Edit
+        </button>
+      )}
+    >
+      {editing ? (
+        <>
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="e.g. Daily reps for leaders who already know the theory, shot in the moments doctrine usually skips."
+            autoFocus
+            maxLength={POSITIONING_ONELINER_MAX_CHARS * 2}
+            style={{ ...inputStyle, fontSize: 14, padding: '10px 12px' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <button
+              onClick={handleSuggest}
+              disabled={suggesting}
+              style={{ ...ghostBtn, opacity: suggesting ? 0.7 : 1, cursor: suggesting ? 'wait' : 'pointer' }}
+              title="Generate 3 candidate one-liners from the rest of the spine"
+            >
+              {suggesting
+                ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Suggesting…</>
+                : <><Sparkles size={12} /> AI suggest</>}
+            </button>
+            <div style={{ fontSize: 11, color: counterColor, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+              {charCount}/{POSITIONING_ONELINER_MAX_CHARS}
+            </div>
+          </div>
+          {suggestError && (
+            <div style={{ color: '#f87171', fontSize: 12, marginBottom: 8 }}>
+              {suggestError}
+            </div>
+          )}
+          {candidates && candidates.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                Click to use, then edit:
+              </div>
+              {candidates.map((c, i) => (
+                <button
+                  key={i}
+                  onClick={() => setDraft(c.oneliner)}
+                  style={{
+                    textAlign: 'left',
+                    background: '#15151a',
+                    border: '1px solid #2a2a30',
+                    borderRadius: 6,
+                    padding: '8px 10px',
+                    fontFamily: 'inherit',
+                    fontSize: 13,
+                    color: '#d4d4d8',
+                    cursor: 'pointer',
+                    lineHeight: 1.45,
+                  }}
+                  title={`Insert this candidate (${c.angle} angle) into the draft`}
+                >
+                  <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: 0.6, marginRight: 8 }}>
+                    {c.angle}
+                  </span>
+                  {c.oneliner}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      ) : value ? (
+        <div style={{ color: '#e4e4e7', fontSize: 16, lineHeight: 1.5, fontWeight: 600 }}>
+          {value}
+        </div>
+      ) : (
+        <div style={{ color: '#555', fontSize: 13, fontStyle: 'italic' }}>
+          Not yet written. Click <strong style={{ color: '#888' }}>Edit</strong>, then optionally <strong style={{ color: '#888' }}>AI suggest</strong> to generate 3 candidates from the rest of the spine.
+        </div>
+      )}
+    </SectionShell>
+  );
+}
+
 function Section({ title, subtitle, value, updatedAt, placeholder, onSave, accent }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || '');

@@ -35,7 +35,7 @@ export async function buildSpineContext(clientId, { clientName } = {}) {
   if (!supabase || !clientId) return '';
   const { data: spine } = await supabase
     .from('client_strategy_spine')
-    .select('positioning_hypothesis, audience_read, quarterly_stance, quarterly_stance_label, active_plays, guardrails, competitive_posture, editorial_pov, voice_tone, host_archetype')
+    .select('positioning_oneliner, positioning_hypothesis, audience_read, quarterly_stance, quarterly_stance_label, active_plays, guardrails, competitive_posture, editorial_pov, voice_tone, host_archetype')
     .eq('client_id', clientId)
     .maybeSingle();
   if (!spine) return '';
@@ -51,6 +51,10 @@ export function formatSpineForPrompt(spine, { clientName } = {}) {
 
   const sections = [];
 
+  // One-liner leads — it's the headline the rest of the spine elaborates.
+  if (spine.positioning_oneliner?.trim()) {
+    sections.push(`CHANNEL ARTICULATION (one-liner — the headline):\n${spine.positioning_oneliner.trim()}`);
+  }
   if (spine.positioning_hypothesis?.trim()) {
     sections.push(`POSITIONING HYPOTHESIS:\n${spine.positioning_hypothesis.trim()}`);
   }

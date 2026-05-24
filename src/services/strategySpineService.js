@@ -16,6 +16,8 @@ import { supabase } from './supabaseClient';
 import { computeClientDiagnostic } from './clientDiagnosticService';
 import { analyzePatterns } from './patternsService';
 import { analyzeWhiteSpace } from './whiteSpaceService';
+import claudeAPI from './claudeAPI';
+import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 
 const PLAY_STATUSES = ['in_flight', 'concluded_won', 'concluded_lost', 'paused'];
 export const PLAY_STATUS_LABELS = {
@@ -64,6 +66,7 @@ export async function getSpine(clientId) {
 
 const FIELD_TIMESTAMP_MAP = {
   positioning_hypothesis: 'positioning_updated_at',
+  positioning_oneliner: 'positioning_oneliner_updated_at',
   audience_read: 'audience_updated_at',
   quarterly_stance: 'quarterly_stance_updated_at',
   guardrails: 'guardrails_updated_at',
@@ -73,6 +76,8 @@ const FIELD_TIMESTAMP_MAP = {
   host_archetype: 'host_archetype_updated_at',
   // quarterly_stance_label rides on the same timestamp; updated together.
 };
+
+export const POSITIONING_ONELINER_MAX_CHARS = 120;
 
 // Host archetype catalog — the on-camera personas the talent audition
 // rubric chooses against. Surfaced as a picker in the spine UI; AI
@@ -396,6 +401,7 @@ export async function captureSpineSnapshot(clientId, { label, notes } = {}) {
       label: label?.trim() || null,
       notes: notes?.trim() || null,
       positioning_hypothesis: spine.positioning_hypothesis,
+      positioning_oneliner: spine.positioning_oneliner,
       audience_read: spine.audience_read,
       quarterly_stance: spine.quarterly_stance,
       quarterly_stance_label: spine.quarterly_stance_label,
@@ -440,6 +446,92 @@ export async function deleteSpineSnapshot(snapshotId) {
   return { ok: !error, error: error?.message };
 }
 
+// ──────────────────────────────────────────────────
+// AI suggestion: positioning one-liner
+// ──────────────────────────────────────────────────
+
+/**
+ * Generate 3 candidate one-liners from the spine + client name. The
+ * strategist picks/edits one — we never auto-save. Each candidate takes
+ * a distinct angle (positioning thesis, editorial mission, audience
+ * promise) so the strategist has real choice, not three rewrites of the
+ * same idea.
+ *
+ * Returns `{ ok, candidates: string[] }` on success; `{ ok: false,
+ * error }` on failure. Candidates are guaranteed to be strings ≤
+ * POSITIONING_ONELINER_MAX_CHARS; oversized model output is truncated
+ * defensively.
+ */
+export async function suggestPositioningOneliner(clientId, { clientName } = {}) {
+  if (!clientId) return { ok: false, error: 'missing clientId' };
+
+  const spine = await getSpine(clientId);
+  if (!spine) return { ok: false, error: 'no spine on file for this client' };
+
+  const haveAny =
+    spine.positioning_hypothesis?.trim()
+    || spine.editorial_pov?.trim()
+    || spine.voice_tone?.trim()
+    || spine.competitive_posture?.trim()
+    || spine.audience_read?.trim();
+  if (!haveAny) {
+    return { ok: false, error: 'Spine has no positioning fields authored yet. Write the positioning hypothesis or editorial POV first, then ask for one-liner suggestions.' };
+  }
+
+  const parts = [];
+  if (clientName) parts.push(`CLIENT: ${clientName}`);
+  if (spine.positioning_hypothesis?.trim()) parts.push(`POSITIONING HYPOTHESIS:\n${spine.positioning_hypothesis.trim()}`);
+  if (spine.editorial_pov?.trim()) parts.push(`EDITORIAL POV + MISSION:\n${spine.editorial_pov.trim()}`);
+  if (spine.competitive_posture?.trim()) parts.push(`COMPETITIVE POSTURE:\n${spine.competitive_posture.trim()}`);
+  if (spine.voice_tone?.trim()) parts.push(`VOICE + TONE:\n${spine.voice_tone.trim()}`);
+  if (spine.audience_read?.trim()) parts.push(`AUDIENCE READ:\n${spine.audience_read.trim()}`);
+  if (spine.host_archetype?.trim()) parts.push(`HOST ARCHETYPE:\n${spine.host_archetype.trim()}`);
+
+  const systemPrompt = `You compress a strategist's working spine into a single-sentence channel articulation — the headline of a client-facing positioning recommendation. The strategist needs a sentence they can paste into a deck, repeat in a meeting, or stick on the wall. Return ONLY valid JSON.`;
+
+  const prompt = `Read the spine below and propose THREE candidate one-liners that articulate what this channel is.
+
+REQUIREMENTS:
+- Each candidate is a single sentence, ${POSITIONING_ONELINER_MAX_CHARS} characters or fewer.
+- The three candidates take DISTINCT angles, not three rewrites of the same idea. Suggested angle split:
+    1. Positioning angle — what this channel competes on (audience + format + edge)
+    2. Mission angle — what this channel argues / why it exists
+    3. Promise angle — what the audience gets from showing up
+- Be specific, not generic. "We help leaders grow" is dead on arrival. "Daily reps for leaders who already know the theory, shot in the moments doctrine usually skips" is alive.
+- No marketing throat-clearing — no "We empower", "We inspire", "We are dedicated to". State what the channel IS.
+- Match the spine's voice/tone if specified. If voice is warm and unhurried, do not propose a hype-y one-liner.
+
+SPINE:
+${parts.join('\n\n')}
+
+Return JSON exactly:
+{
+  "candidates": [
+    { "angle": "positioning", "oneliner": "string ≤${POSITIONING_ONELINER_MAX_CHARS} chars" },
+    { "angle": "mission", "oneliner": "string ≤${POSITIONING_ONELINER_MAX_CHARS} chars" },
+    { "angle": "promise", "oneliner": "string ≤${POSITIONING_ONELINER_MAX_CHARS} chars" }
+  ]
+}
+Return ONLY the JSON.`;
+
+  try {
+    const result = await claudeAPI.call(prompt, systemPrompt, 'positioning_oneliner_suggest', 1024);
+    const parsed = parseClaudeJSON(result.text, null);
+    const raw = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
+    const candidates = raw
+      .map(c => ({
+        angle: typeof c?.angle === 'string' ? c.angle : null,
+        oneliner: typeof c?.oneliner === 'string' ? c.oneliner.trim().slice(0, POSITIONING_ONELINER_MAX_CHARS) : null,
+      }))
+      .filter(c => c.oneliner);
+    if (!candidates.length) return { ok: false, error: 'Claude returned no usable candidates. Try again or refine the spine fields.' };
+    return { ok: true, candidates };
+  } catch (e) {
+    console.error('[spine] positioning_oneliner suggest failed:', e);
+    return { ok: false, error: e.message || 'Suggestion call failed' };
+  }
+}
+
 export default {
   getSpine,
   updateSpineField,
@@ -452,5 +544,7 @@ export default {
   listSpineSnapshots,
   getSpineSnapshot,
   deleteSpineSnapshot,
+  suggestPositioningOneliner,
   PLAY_STATUS_LABELS,
+  POSITIONING_ONELINER_MAX_CHARS,
 };

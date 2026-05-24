@@ -122,7 +122,8 @@ function sectionExecutive(briefing, diagnostic) {
 function sectionSpine(spine) {
   if (!spine) return null;
   const has = (s) => typeof s === 'string' && s.trim().length > 0;
-  const hasAny = has(spine.positioning_hypothesis)
+  const hasAny = has(spine.positioning_oneliner)
+    || has(spine.positioning_hypothesis)
     || has(spine.audience_read)
     || has(spine.quarterly_stance)
     || has(spine.guardrails)
@@ -135,6 +136,13 @@ function sectionSpine(spine) {
 
   const lines = ['## 2. Strategic frame'];
   lines.push('', '_The strategist\'s interpretive layer for this client. Read first; everything below is in service of this stance._', '');
+
+  // One-liner first — the headline. Rendered as a blockquote so it visually
+  // sits above the rest of the spine fields rather than alongside them.
+  if (has(spine.positioning_oneliner)) {
+    lines.push(`> **${spine.positioning_oneliner.trim()}**`);
+    lines.push('');
+  }
 
   if (has(spine.quarterly_stance)) {
     const label = has(spine.quarterly_stance_label) ? ` · ${spine.quarterly_stance_label}` : '';
