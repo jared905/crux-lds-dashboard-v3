@@ -11,8 +11,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, Loader, Edit2, Check, X as XIcon, Plus, Trash2,
   RefreshCw, Calendar, ExternalLink, ChevronDown, ChevronRight,
-  Camera, History, Sparkles, Printer, ClipboardList,
+  Camera, History, Sparkles, Printer, ClipboardList, FileText,
 } from 'lucide-react';
+import ClientDeliverable from '../ClientDeliverable/ClientDeliverable.jsx';
 import {
   getSpine,
   updateSpineField,
@@ -47,6 +48,7 @@ export default function StrategySpine({ client, onBack }) {
   const [snapshotCaptureBusy, setSnapshotCaptureBusy] = useState(false);
   const [viewingSnapshot, setViewingSnapshot] = useState(null);
   const [talentRubric, setTalentRubric] = useState(null);
+  const [deliverableOpen, setDeliverableOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -150,7 +152,16 @@ export default function StrategySpine({ client, onBack }) {
         snapshotCount={snapshots.length}
         snapshotBusy={snapshotCaptureBusy}
         onCaptureSnapshot={handleCaptureSnapshot}
+        onOpenDeliverable={() => setDeliverableOpen(true)}
       />
+
+      {deliverableOpen && (
+        <ClientDeliverable
+          clientId={client.id}
+          clientName={client.name}
+          onClose={() => setDeliverableOpen(false)}
+        />
+      )}
 
       <Section
         title="Guardrails — do not recommend"
@@ -274,7 +285,7 @@ export default function StrategySpine({ client, onBack }) {
 // ────────────────────────────────────────────────────────────
 // Header
 // ────────────────────────────────────────────────────────────
-function SpineHeader({ client, onBack, snapshotCount = 0, snapshotBusy = false, onCaptureSnapshot }) {
+function SpineHeader({ client, onBack, snapshotCount = 0, snapshotBusy = false, onCaptureSnapshot, onOpenDeliverable }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <button onClick={onBack} style={backBtn} title="Back to Clients">
@@ -298,6 +309,21 @@ function SpineHeader({ client, onBack, snapshotCount = 0, snapshotBusy = false, 
             {snapshotCount > 0 && <> · <span style={{ color: '#aaa' }}>{snapshotCount} snapshot{snapshotCount === 1 ? '' : 's'}</span></>}
           </div>
         </div>
+        {onOpenDeliverable && (
+          <button
+            onClick={onOpenDeliverable}
+            title="Open the client-facing two-part deliverable (01 Category Audit + 02 Positioning Recommendation)"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '7px 12px', borderRadius: 6,
+              background: '#1e3a5f', color: '#dbeafe',
+              border: '1px solid #2a4f7f', cursor: 'pointer',
+              fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+            }}
+          >
+            <FileText size={12} /> Client deliverable
+          </button>
+        )}
         {onCaptureSnapshot && (
           <button
             onClick={onCaptureSnapshot}
