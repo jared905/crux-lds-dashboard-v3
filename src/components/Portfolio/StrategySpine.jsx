@@ -11,7 +11,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, Loader, Edit2, Check, X as XIcon, Plus, Trash2,
   RefreshCw, Calendar, ExternalLink, ChevronDown, ChevronRight,
-  Camera, History, Sparkles,
+  Camera, History, Sparkles, Printer, ClipboardList,
 } from 'lucide-react';
 import {
   getSpine,
@@ -31,6 +31,11 @@ import {
   HOST_ARCHETYPES,
   HOST_ARCHETYPE_BY_ID,
 } from '../../services/strategySpineService.js';
+import {
+  getActiveTalentRubric,
+  generateTalentAuditionRubric,
+  saveTalentAuditionRubric,
+} from '../../services/talentRubricService.js';
 
 export default function StrategySpine({ client, onBack }) {
   const [spine, setSpine] = useState(null);
@@ -41,14 +46,20 @@ export default function StrategySpine({ client, onBack }) {
   const [showHistory, setShowHistory] = useState(false);
   const [snapshotCaptureBusy, setSnapshotCaptureBusy] = useState(false);
   const [viewingSnapshot, setViewingSnapshot] = useState(null);
+  const [talentRubric, setTalentRubric] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    Promise.all([getSpine(client.id), listSpineSnapshots(client.id)]).then(([row, snaps]) => {
+    Promise.all([
+      getSpine(client.id),
+      listSpineSnapshots(client.id),
+      getActiveTalentRubric(client.id),
+    ]).then(([row, snaps, rubric]) => {
       if (!cancelled) {
         setSpine(row);
         setSnapshots(snaps);
+        setTalentRubric(rubric);
         setLoading(false);
       }
     });
@@ -207,6 +218,14 @@ export default function StrategySpine({ client, onBack }) {
         value={spine?.host_archetype}
         updatedAt={spine?.host_archetype_updated_at}
         onSave={(v) => handleFieldSave('host_archetype', v)}
+      />
+
+      <TalentRubricSection
+        clientId={client.id}
+        clientName={client.name}
+        spine={spine}
+        rubric={talentRubric}
+        onSaved={(saved) => { setTalentRubric(saved); }}
       />
 
       <Section
@@ -739,6 +758,431 @@ function HostArchetypeSection({ value, updatedAt, onSave }) {
         </div>
       )}
     </SectionShell>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Talent audition rubric — the operational artifact of Part 02
+// ────────────────────────────────────────────────────────────
+// AI-generates 5–7 criteria from the spine. Strategist edits each
+// criterion inline, then saves. The "Preview as scorecard" button opens
+// a print-ready modal that the client prints and uses during auditions.
+// Drift indicator surfaces when source_spine_fingerprint differs from
+// the current spine, so the strategist knows when to regenerate.
+function TalentRubricSection({ clientId, clientName, spine, rubric, onSaved }) {
+  const [draft, setDraft] = useState(null);  // { criteria, introNote, sourceSpineFingerprint } when editing
+  const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [printOpen, setPrintOpen] = useState(false);
+
+  const editing = !!draft;
+
+  // Drift: current spine fields differ from what the rubric was generated against.
+  const drift = useMemo(() => {
+    if (!rubric?.source_spine_fingerprint || !spine) return null;
+    const fp = rubric.source_spine_fingerprint;
+    const changed = [];
+    const cmp = (key, label) => {
+      if ((spine[key] || '').trim() !== (fp[key] || '').trim()) changed.push(label);
+    };
+    cmp('host_archetype', 'host archetype');
+    cmp('voice_tone', 'voice + tone');
+    cmp('editorial_pov', 'editorial POV');
+    cmp('positioning_oneliner', 'one-liner');
+    return changed.length ? changed : null;
+  }, [rubric, spine]);
+
+  const handleGenerate = async () => {
+    if (generating) return;
+    setError(null);
+    setGenerating(true);
+    try {
+      const r = await generateTalentAuditionRubric(clientId, { clientName });
+      if (!r.ok) { setError(r.error); return; }
+      setDraft({
+        criteria: r.criteria,
+        introNote: r.introNote || '',
+        sourceSpineFingerprint: r.sourceSpineFingerprint,
+      });
+    } catch (e) {
+      setError(e.message || 'Generation failed');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleEditCurrent = () => {
+    if (!rubric) return;
+    setDraft({
+      criteria: rubric.criteria || [],
+      introNote: rubric.intro_note || '',
+      sourceSpineFingerprint: rubric.source_spine_fingerprint || null,
+    });
+  };
+
+  const handleSave = async () => {
+    if (!draft || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const r = await saveTalentAuditionRubric(clientId, draft);
+      if (!r.ok) { setError(r.error); return; }
+      onSaved?.(r.rubric);
+      setDraft(null);
+    } catch (e) {
+      setError(e.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateCriterion = (i, patch) => {
+    setDraft(d => ({ ...d, criteria: d.criteria.map((c, idx) => idx === i ? { ...c, ...patch } : c) }));
+  };
+  const removeCriterion = (i) => {
+    setDraft(d => ({ ...d, criteria: d.criteria.filter((_, idx) => idx !== i) }));
+  };
+  const addCriterion = () => {
+    setDraft(d => ({
+      ...d,
+      criteria: [...d.criteria, {
+        name: '',
+        what_excellence_looks_like: '',
+        disqualifier: '',
+        scoring_anchors: { 1: '', 3: '', 5: '' },
+        weight: 'medium',
+      }],
+    }));
+  };
+
+  const action = editing ? (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <button onClick={handleSave} disabled={saving} style={primaryBtn}>
+        {saving ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={12} />}
+        {saving ? 'Saving…' : 'Save'}
+      </button>
+      <button onClick={() => { setDraft(null); setError(null); }} style={ghostBtn}><XIcon size={12} /> Cancel</button>
+    </div>
+  ) : rubric ? (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <button onClick={() => setPrintOpen(true)} style={primaryBtn} title="Open the printable scorecard">
+        <Printer size={12} /> Scorecard
+      </button>
+      <button onClick={handleEditCurrent} style={ghostBtn} title="Edit criteria">
+        <Edit2 size={12} /> Edit
+      </button>
+      <button onClick={handleGenerate} disabled={generating} style={ghostBtn} title="Regenerate from current spine — replaces the active rubric on save">
+        {generating
+          ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Regenerating…</>
+          : <><Sparkles size={12} /> Regenerate</>}
+      </button>
+    </div>
+  ) : (
+    <button onClick={handleGenerate} disabled={generating} style={primaryBtn}>
+      {generating
+        ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Generating…</>
+        : <><Sparkles size={12} /> Generate rubric</>}
+    </button>
+  );
+
+  return (
+    <>
+      <SectionShell
+        title={<><ClipboardList size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: -2 }} />Talent audition rubric</>}
+        subtitle="The scorecard the client uses during on-camera auditions. AI-generated from host archetype + voice/tone + editorial POV — specific to this channel, not a generic template."
+        updatedAt={rubric?.generated_at}
+        accent="#a78bfa"
+        action={action}
+      >
+        {error && (
+          <div style={{ color: '#f87171', fontSize: 12, marginBottom: 10 }}>{error}</div>
+        )}
+
+        {drift && !editing && (
+          <div style={{ background: '#2a1f0e', border: '1px solid #5a3f0e', color: '#fbbf24', borderRadius: 6, padding: '8px 10px', fontSize: 12, marginBottom: 12 }}>
+            Rubric is stale — {drift.join(', ')} {drift.length === 1 ? 'has' : 'have'} changed since it was generated. Click <strong>Regenerate</strong> to refresh against the current spine.
+          </div>
+        )}
+
+        {editing ? (
+          <RubricEditor
+            criteria={draft.criteria}
+            introNote={draft.introNote}
+            onUpdateCriterion={updateCriterion}
+            onRemoveCriterion={removeCriterion}
+            onAddCriterion={addCriterion}
+            onChangeIntro={(v) => setDraft(d => ({ ...d, introNote: v }))}
+          />
+        ) : rubric ? (
+          <RubricView rubric={rubric} />
+        ) : (
+          <div style={{ color: '#555', fontSize: 13, fontStyle: 'italic', lineHeight: 1.55 }}>
+            No rubric yet. Click <strong style={{ color: '#888' }}>Generate rubric</strong> — Claude reads the host archetype, voice/tone, and editorial POV above and proposes 5–7 criteria specific to this channel. You edit, save, and print.
+          </div>
+        )}
+      </SectionShell>
+
+      {printOpen && rubric && (
+        <TalentRubricPrintModal
+          rubric={rubric}
+          clientName={clientName}
+          onClose={() => setPrintOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+function RubricView({ rubric }) {
+  const weightTone = { high: '#f87171', medium: '#a78bfa', low: '#666' };
+  return (
+    <div>
+      {rubric.intro_note && (
+        <div style={{ color: '#d4d4d8', fontSize: 13, lineHeight: 1.55, marginBottom: 14, paddingLeft: 10, borderLeft: '2px solid #2a2a30', fontStyle: 'italic' }}>
+          {rubric.intro_note}
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {(rubric.criteria || []).map((c, i) => (
+          <div key={i} style={{ background: '#15151a', border: '1px solid #232328', borderRadius: 6, padding: '10px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#e4e4e7' }}>{i + 1}. {c.name}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: weightTone[c.weight] || '#666', textTransform: 'uppercase', letterSpacing: 0.6 }}>{c.weight || 'medium'}</div>
+            </div>
+            {c.what_excellence_looks_like && (
+              <div style={{ fontSize: 12, color: '#a8a8b0', lineHeight: 1.5, marginBottom: 4 }}>
+                <strong style={{ color: '#888' }}>5/5:</strong> {c.what_excellence_looks_like}
+              </div>
+            )}
+            {c.disqualifier && (
+              <div style={{ fontSize: 12, color: '#a8a8b0', lineHeight: 1.5 }}>
+                <strong style={{ color: '#f87171' }}>Disqualifier:</strong> {c.disqualifier}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RubricEditor({ criteria, introNote, onUpdateCriterion, onRemoveCriterion, onAddCriterion, onChangeIntro }) {
+  return (
+    <div>
+      <label style={fieldLabel}>Intro for the hiring panel</label>
+      <textarea
+        value={introNote}
+        onChange={(e) => onChangeIntro(e.target.value)}
+        placeholder="Optional 1–2 sentences the panel reads before scoring."
+        rows={2}
+        style={textareaStyle}
+      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
+        {criteria.map((c, i) => (
+          <CriterionEditor
+            key={i}
+            index={i}
+            criterion={c}
+            onChange={(patch) => onUpdateCriterion(i, patch)}
+            onRemove={() => onRemoveCriterion(i)}
+          />
+        ))}
+      </div>
+      <button onClick={onAddCriterion} style={{ ...ghostBtn, marginTop: 10 }}>
+        <Plus size={12} /> Add criterion
+      </button>
+    </div>
+  );
+}
+
+function CriterionEditor({ index, criterion, onChange, onRemove }) {
+  return (
+    <div style={{ background: '#15151a', border: '1px solid #2a2a30', borderRadius: 6, padding: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 11, color: '#666', minWidth: 18 }}>#{index + 1}</span>
+        <input
+          value={criterion.name}
+          onChange={(e) => onChange({ name: e.target.value })}
+          placeholder="Criterion name (e.g. Editorial Voice Fit)"
+          style={{ ...inputStyle, fontWeight: 700, marginBottom: 0, flex: 1 }}
+        />
+        <select
+          value={criterion.weight || 'medium'}
+          onChange={(e) => onChange({ weight: e.target.value })}
+          style={{ ...inputStyle, marginBottom: 0, width: 110 }}
+        >
+          <option value="high">high weight</option>
+          <option value="medium">medium weight</option>
+          <option value="low">low weight</option>
+        </select>
+        <button onClick={onRemove} style={ghostBtnSmall} title="Remove criterion"><Trash2 size={13} /></button>
+      </div>
+      <label style={fieldLabel}>What 5/5 looks like (for THIS channel)</label>
+      <textarea
+        value={criterion.what_excellence_looks_like || ''}
+        onChange={(e) => onChange({ what_excellence_looks_like: e.target.value })}
+        rows={2}
+        style={textareaStyle}
+      />
+      <label style={fieldLabel}>Disqualifier</label>
+      <textarea
+        value={criterion.disqualifier || ''}
+        onChange={(e) => onChange({ disqualifier: e.target.value })}
+        rows={2}
+        style={textareaStyle}
+      />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        {[1, 3, 5].map(score => (
+          <div key={score}>
+            <label style={fieldLabel}>Anchor {score}/5</label>
+            <textarea
+              value={criterion.scoring_anchors?.[score] || ''}
+              onChange={(e) => onChange({
+                scoring_anchors: { ...(criterion.scoring_anchors || {}), [score]: e.target.value },
+              })}
+              rows={3}
+              style={textareaStyle}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Print modal — full-screen overlay rendering the rubric as a printable
+// scorecard. @media print hides everything outside the modal so the
+// browser's Print dialog produces only the rubric pages.
+function TalentRubricPrintModal({ rubric, clientName, onClose }) {
+  const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  const totalWeight = (rubric.criteria || []).reduce((acc, c) => acc + (c.weight === 'high' ? 3 : c.weight === 'low' ? 1 : 2), 0);
+
+  return (
+    <div className="rubric-print-overlay" role="dialog" aria-modal="true">
+      <style>{`
+        @media screen {
+          .rubric-print-overlay {
+            position: fixed; inset: 0; z-index: 1000;
+            background: rgba(8, 8, 10, 0.92);
+            overflow: auto;
+            padding: 32px;
+          }
+          .rubric-print-toolbar {
+            position: sticky; top: 0; display: flex; gap: 8px; justify-content: flex-end;
+            padding-bottom: 12px;
+          }
+          .rubric-print-page {
+            background: #ffffff; color: #1a1a1a;
+            max-width: 820px; margin: 0 auto;
+            padding: 56px 64px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            border-radius: 4px;
+            font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+            line-height: 1.5;
+          }
+        }
+        @media print {
+          body * { visibility: hidden !important; }
+          .rubric-print-overlay, .rubric-print-overlay * { visibility: visible !important; }
+          .rubric-print-overlay {
+            position: absolute; inset: 0; background: white; padding: 0;
+          }
+          .rubric-print-toolbar { display: none !important; }
+          .rubric-print-page {
+            box-shadow: none !important; max-width: none !important; margin: 0 !important;
+            padding: 0.6in 0.7in !important; border-radius: 0 !important;
+            color: #000 !important;
+          }
+          .rubric-print-criterion { break-inside: avoid; }
+        }
+        .rubric-print-page h1 { font-size: 22px; margin: 0 0 4px; font-weight: 800; letter-spacing: -0.3px; }
+        .rubric-print-page .rubric-sub { font-size: 12px; color: #666; margin-bottom: 18px; }
+        .rubric-print-page .rubric-intro { font-size: 13px; line-height: 1.55; border-left: 3px solid #1a1a1a; padding-left: 12px; margin: 12px 0 22px; }
+        .rubric-print-page .rubric-meta-row { display: flex; gap: 24px; font-size: 12px; color: #1a1a1a; margin-bottom: 22px; padding-bottom: 12px; border-bottom: 1px solid #ccc; }
+        .rubric-print-page .rubric-meta-row .label { color: #666; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; }
+        .rubric-print-criterion { margin-bottom: 22px; padding: 14px 16px; border: 1px solid #c8c8c8; border-radius: 4px; }
+        .rubric-print-criterion .crit-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+        .rubric-print-criterion .crit-name { font-size: 14px; font-weight: 700; }
+        .rubric-print-criterion .crit-weight { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
+        .rubric-print-criterion .crit-detail { font-size: 12px; line-height: 1.5; margin-bottom: 6px; }
+        .rubric-print-criterion .crit-anchors { font-size: 11px; margin-top: 8px; }
+        .rubric-print-criterion .crit-anchors td { padding: 3px 8px 3px 0; vertical-align: top; }
+        .rubric-print-criterion .crit-anchors .score { font-weight: 700; width: 38px; }
+        .rubric-print-criterion .crit-scale {
+          display: flex; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px dashed #ccc;
+        }
+        .rubric-print-criterion .crit-scale .pill {
+          width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid #1a1a1a;
+          display: inline-flex; align-items: center; justify-content: center;
+          font-size: 12px; font-weight: 700;
+        }
+        .rubric-print-criterion .crit-notes {
+          margin-top: 10px; min-height: 36px; border-bottom: 1px solid #ccc; font-size: 10px; color: #888;
+        }
+        .rubric-footer { display: flex; justify-content: space-between; gap: 24px; margin-top: 28px; padding-top: 16px; border-top: 1px solid #ccc; font-size: 11px; }
+        .rubric-footer .sig-line { border-bottom: 1px solid #1a1a1a; min-width: 200px; margin-top: 22px; }
+      `}</style>
+
+      <div className="rubric-print-toolbar">
+        <button onClick={() => window.print()} style={primaryBtn}><Printer size={12} /> Print</button>
+        <button onClick={onClose} style={ghostBtn}><XIcon size={12} /> Close</button>
+      </div>
+
+      <div className="rubric-print-page">
+        <h1>Talent Audition Rubric</h1>
+        <div className="rubric-sub">{clientName || 'Channel'} · Generated {dateStr}</div>
+
+        <div className="rubric-meta-row">
+          <div><div className="label">Candidate</div><div style={{ borderBottom: '1px solid #1a1a1a', minWidth: 180, marginTop: 4 }}>&nbsp;</div></div>
+          <div><div className="label">Audition date</div><div style={{ borderBottom: '1px solid #1a1a1a', minWidth: 120, marginTop: 4 }}>&nbsp;</div></div>
+          <div><div className="label">Reviewer</div><div style={{ borderBottom: '1px solid #1a1a1a', minWidth: 140, marginTop: 4 }}>&nbsp;</div></div>
+        </div>
+
+        {rubric.intro_note && (
+          <div className="rubric-intro">{rubric.intro_note}</div>
+        )}
+
+        {(rubric.criteria || []).map((c, i) => (
+          <div key={i} className="rubric-print-criterion">
+            <div className="crit-head">
+              <div className="crit-name">{i + 1}. {c.name}</div>
+              <div className="crit-weight">{c.weight || 'medium'} weight</div>
+            </div>
+            {c.what_excellence_looks_like && (
+              <div className="crit-detail"><strong>5/5 looks like:</strong> {c.what_excellence_looks_like}</div>
+            )}
+            {c.disqualifier && (
+              <div className="crit-detail"><strong>Disqualifier:</strong> {c.disqualifier}</div>
+            )}
+            {(c.scoring_anchors?.[1] || c.scoring_anchors?.[3] || c.scoring_anchors?.[5]) && (
+              <table className="crit-anchors">
+                <tbody>
+                  {[1, 3, 5].map(s => c.scoring_anchors?.[s] && (
+                    <tr key={s}><td className="score">{s}/5</td><td>{c.scoring_anchors[s]}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div className="crit-scale">
+              {[1, 2, 3, 4, 5].map(s => <span key={s} className="pill">{s}</span>)}
+            </div>
+            <div className="crit-notes">Notes</div>
+          </div>
+        ))}
+
+        <div className="rubric-footer">
+          <div>
+            <div style={{ color: '#666', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Total weight units</div>
+            <div style={{ fontSize: 13 }}>{totalWeight} (high=3, medium=2, low=1)</div>
+          </div>
+          <div>
+            <div style={{ color: '#666', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Reviewer signature</div>
+            <div className="sig-line">&nbsp;</div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

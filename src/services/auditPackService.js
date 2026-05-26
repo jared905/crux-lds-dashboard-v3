@@ -20,6 +20,7 @@ import { computeClientDiagnostic, loadOrGenerateBriefing } from './clientDiagnos
 import { getSpine } from './strategySpineService.js';
 import { getActiveDemandSignals } from './demandSignalService.js';
 import { getActiveProductionSignalsForChannels } from './productionSignalService.js';
+import { getActiveTalentRubric } from './talentRubricService.js';
 
 // ──────────────────────────────────────────────────
 // Formatters
@@ -194,6 +195,51 @@ function sectionSpine(spine) {
     lines.push('### Guardrails');
     lines.push('', '> ' + spine.guardrails.trim().replace(/\n/g, '\n> '), '');
   }
+
+  return lines.join('\n');
+}
+
+// Talent audition rubric — the operational artifact that closes Part 02.
+// Renders the criteria as a structured scorecard the client can paste
+// into a hiring doc. Strategist-approved, AI-generated. Section drops
+// cleanly when no active rubric exists.
+function sectionTalentRubric(rubric) {
+  if (!rubric || !Array.isArray(rubric.criteria) || !rubric.criteria.length) return null;
+
+  const weightLabel = { high: 'high weight', medium: 'medium weight', low: 'low weight' };
+
+  const lines = ['## Talent audition rubric'];
+  lines.push('');
+  lines.push('_Score on-camera candidates against the criteria below during auditions. Derived from this channel\'s host archetype, voice, and editorial POV — not a generic scorecard._');
+  lines.push('');
+
+  if (rubric.intro_note?.trim()) {
+    lines.push(`> ${rubric.intro_note.trim().replace(/\n/g, '\n> ')}`);
+    lines.push('');
+  }
+
+  rubric.criteria.forEach((c, i) => {
+    const weight = weightLabel[c.weight] || 'medium weight';
+    lines.push(`### ${i + 1}. ${escapeMd(c.name)} _(${weight})_`);
+    lines.push('');
+    if (c.what_excellence_looks_like) {
+      lines.push(`**5/5 looks like:** ${c.what_excellence_looks_like}`);
+      lines.push('');
+    }
+    if (c.disqualifier) {
+      lines.push(`**Disqualifier:** ${c.disqualifier}`);
+      lines.push('');
+    }
+    const anchors = c.scoring_anchors || {};
+    if (anchors[1] || anchors[3] || anchors[5]) {
+      lines.push('| Score | Anchor |');
+      lines.push('|---|---|');
+      if (anchors[1]) lines.push(`| 1 | ${escapeMd(anchors[1])} |`);
+      if (anchors[3]) lines.push(`| 3 | ${escapeMd(anchors[3])} |`);
+      if (anchors[5]) lines.push(`| 5 | ${escapeMd(anchors[5])} |`);
+      lines.push('');
+    }
+  });
 
   return lines.join('\n');
 }
@@ -796,7 +842,7 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
   const productionLookupIds = scope.clientId && !scopeChannelIds.includes(scope.clientId)
     ? [scope.clientId, ...scopeChannelIds]
     : scopeChannelIds;
-  const [channels, patternsResult, whiteSpaceResult, alerts, diagnostic, spine, demandRow, productionSignalsByChannel, clientChannel] = await Promise.all([
+  const [channels, patternsResult, whiteSpaceResult, alerts, diagnostic, spine, demandRow, productionSignalsByChannel, clientChannel, talentRubric] = await Promise.all([
     fetchLandscapeChannels(scope).catch(() => []),
     analyzePatterns({ scopeChannelIds, windowDays: 90 }).catch(() => null),
     analyzeWhiteSpace({ scopeChannelIds, windowDays: 90, scopeLabel }).catch(() => null),
@@ -808,6 +854,7 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
     scope.clientId
       ? supabase.from('channels').select('id, name').eq('id', scope.clientId).maybeSingle().then(r => r.data || null).catch(() => null)
       : Promise.resolve(null),
+    scope.clientId ? getActiveTalentRubric(scope.clientId).catch(() => null) : Promise.resolve(null),
   ]);
 
   tick('Generating briefing');
@@ -839,6 +886,7 @@ export async function generateAuditPack(scope, { onProgress } = {}) {
   const sections = [
     sectionExecutive(briefing, diagnostic),
     sectionSpine(spine),
+    sectionTalentRubric(talentRubric),
     sectionOpportunityBrief(whiteSpaceResult?.brief),
     sectionDemandSignals(demandRow),
     sectionArchetypes(diagnostic),
