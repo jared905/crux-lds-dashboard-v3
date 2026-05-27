@@ -1434,6 +1434,45 @@ function CohortEngagementSummary({ channels, patternsResult }) {
 // in the last 30 days, who shifted, what's worth reacting to before
 // the formula saturates. Renders the top 4-5 breakouts and 2-3 rank
 // changes, compressed and sorted by recency.
+// Channel avatar — circle. Falls back to monogram of channel name
+// when no thumbnail URL is available or the image fails to load.
+function ChannelAvatar({ name, url, size = 28 }) {
+  const [errored, setErrored] = useState(false);
+  const initials = (name || '?').trim().slice(0, 1).toUpperCase();
+  const showImg = url && !errored;
+  return (
+    <div
+      className="cd-channel-avatar"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.42) }}
+      title={name}
+    >
+      {showImg ? (
+        <img src={url} alt="" onError={() => setErrored(true)} />
+      ) : (
+        <span>{initials}</span>
+      )}
+    </div>
+  );
+}
+
+// Short / Long-form pill. Used inline on breakout rows so the reader
+// can tell at a glance whether a high-multiplier video is a Short or
+// a long-form upload (those mean very different things creatively).
+function FormatTag({ kind }) {
+  const isShort = kind === 'Short';
+  return (
+    <span
+      className="cd-format-tag"
+      style={{
+        background: isShort ? '#fef3c7' : '#dbeafe',
+        color: isShort ? '#92400e' : '#1e40af',
+      }}
+    >
+      {kind}
+    </span>
+  );
+}
+
 function MovementSummary({ alerts }) {
   // Alerts come from movementService.loadAlerts. The real shape is:
   //   { id, channel_id, video_id, alert_type, payload, generated_at,
@@ -1471,22 +1510,34 @@ function MovementSummary({ alerts }) {
       {breakouts.length > 0 && (
         <>
           <p style={{ marginBottom: 8 }}><strong>Breakouts</strong> — videos hitting unusual multipliers off their channel's baseline:</p>
-          <ul className="cd-list">
+          <ul className="cd-movement-list">
             {breakouts.map((b, i) => {
               const p = b.payload || {};
               const multi = p.multiplier != null ? Number(p.multiplier).toFixed(1) : null;
               const videoTitle = p.video_title;
               const ytId = p.youtube_video_id;
+              // Format tag: Shorts < 3 min, anything else is Long-form.
+              // Null duration → omit the tag (don't guess).
+              const dur = b._videoDurationSeconds;
+              const formatTag = dur == null
+                ? null
+                : (dur > 0 && dur < 180 ? 'Short' : 'Long-form');
               return (
-                <li key={i}>
-                  <strong>{b._channelName}</strong>
-                  {multi && <span style={{ color: MUTED }}> · {multi}× channel median</span>}
-                  {videoTitle && <div className="cd-quote">"{videoTitle}"</div>}
-                  <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
-                    {fmtDate(b.generated_at)}
-                    {ytId && (
-                      <> · <a href={`https://youtu.be/${ytId}`} target="_blank" rel="noreferrer" style={{ color: ACCENT, textDecoration: 'none' }}>watch</a></>
-                    )}
+                <li key={i} className="cd-movement-item">
+                  <ChannelAvatar name={b._channelName} url={b._channelThumbnail} />
+                  <div className="cd-movement-body">
+                    <div>
+                      <strong>{b._channelName}</strong>
+                      {multi && <span style={{ color: MUTED }}> · {multi}× channel median</span>}
+                      {formatTag && <FormatTag kind={formatTag} />}
+                    </div>
+                    {videoTitle && <div className="cd-quote">"{videoTitle}"</div>}
+                    <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
+                      {fmtDate(b.generated_at)}
+                      {ytId && (
+                        <> · <a href={`https://youtu.be/${ytId}`} target="_blank" rel="noreferrer" style={{ color: ACCENT, textDecoration: 'none' }}>watch</a></>
+                      )}
+                    </div>
                   </div>
                 </li>
               );
@@ -1498,7 +1549,7 @@ function MovementSummary({ alerts }) {
       {rankChanges.length > 0 && (
         <>
           <p style={{ marginTop: 14, marginBottom: 8 }}><strong>Rank changes</strong> — channels whose recent average shifted meaningfully:</p>
-          <ul className="cd-list">
+          <ul className="cd-movement-list">
             {rankChanges.map((r, i) => {
               const p = r.payload || {};
               const pct = p.pct_change != null ? Math.round(Math.abs(p.pct_change)) : null;
@@ -1506,15 +1557,20 @@ function MovementSummary({ alerts }) {
               const prev = p.prev_velocity != null ? Number(p.prev_velocity).toLocaleString() : null;
               const curr = p.curr_velocity != null ? Number(p.curr_velocity).toLocaleString() : null;
               return (
-                <li key={i}>
-                  <strong>{r._channelName}</strong>
-                  {pct != null && (
-                    <span style={{ color: MUTED }}>
-                      {' '}— avg views {arrow} <strong>{pct}%</strong>
-                      {prev && curr && <span> ({prev}/day → {curr}/day)</span>}
-                    </span>
-                  )}
-                  <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>{fmtDate(r.generated_at)}</div>
+                <li key={i} className="cd-movement-item">
+                  <ChannelAvatar name={r._channelName} url={r._channelThumbnail} />
+                  <div className="cd-movement-body">
+                    <div>
+                      <strong>{r._channelName}</strong>
+                      {pct != null && (
+                        <span style={{ color: MUTED }}>
+                          {' '}— avg views {arrow} <strong>{pct}%</strong>
+                          {prev && curr && <span> ({prev}/day → {curr}/day)</span>}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>{fmtDate(r.generated_at)}</div>
+                  </div>
                 </li>
               );
             })}
@@ -2983,6 +3039,39 @@ function PrintStyles() {
         margin-top: 4px;
         padding-left: 12px;
         border-left: 2px solid #d9cfb1;
+      }
+
+      .cd-movement-list {
+        list-style: none; margin: 0; padding: 0;
+      }
+      .cd-movement-item {
+        display: flex; align-items: flex-start; gap: 10px;
+        margin-bottom: 12px;
+      }
+      .cd-movement-body { flex: 1; min-width: 0; line-height: 1.5; }
+      .cd-channel-avatar {
+        flex-shrink: 0;
+        border-radius: 50%;
+        background: #e8e2d0;
+        color: ${INK};
+        display: flex; align-items: center; justify-content: center;
+        overflow: hidden;
+        font-weight: 700;
+        margin-top: 1px;
+      }
+      .cd-channel-avatar img {
+        width: 100%; height: 100%; object-fit: cover;
+      }
+      .cd-format-tag {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 1px 7px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        vertical-align: middle;
       }
 
       .cd-table {

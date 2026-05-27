@@ -72,7 +72,7 @@ async function attachThumbnails(alerts) {
       ? supabase.from('channels').select('id, name, thumbnail_url, youtube_channel_id').in('id', channelIds)
       : Promise.resolve({ data: [] }),
     videoIds.length
-      ? supabase.from('videos').select('id, thumbnail_url, youtube_video_id').in('id', videoIds)
+      ? supabase.from('videos').select('id, thumbnail_url, youtube_video_id, duration_seconds').in('id', videoIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -89,6 +89,7 @@ async function attachThumbnails(alerts) {
     if (a.video_id) {
       const v = vidMap.get(a.video_id);
       a._videoThumbnail = v?.thumbnail_url || null;
+      a._videoDurationSeconds = v?.duration_seconds ?? null;
       if (v?.youtube_video_id && !a.payload?.youtube_video_id) {
         a.payload = { ...(a.payload || {}), youtube_video_id: v.youtube_video_id };
       }
