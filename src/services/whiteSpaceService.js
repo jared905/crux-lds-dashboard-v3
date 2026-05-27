@@ -187,10 +187,10 @@ async function computeTopicCoverage({ videos, scopeChannelIds, scopeLabel }) {
 
   if (titles.length < 5) return [];
 
-  // v2 prompt: product-specific categorization (previous prompt drifted
-  // toward emotional/thematic). Bumping the cache key invalidates old
-  // emotional-leaning clusters.
-  const cacheKey = `whitespace_topics:v2-product-specific:${hashIds(scopeChannelIds)}:${titles.length}`;
+  // v3 prompt: product-specific categorization + brand-name exclusion.
+  // Bump invalidates old clusters that may have named competitor brands
+  // in theme labels (e.g. 'Ring Doorbell Moments').
+  const cacheKey = `whitespace_topics:v3-no-brands:${hashIds(scopeChannelIds)}:${titles.length}`;
   const cached = await loadCache(cacheKey);
   if (cached) return cached;
 
@@ -209,6 +209,12 @@ CRITICAL — categorization style:
 - AVOID falling back to emotional / thematic categorization ("Heartwarming Family Moments", "Funny Pet Antics", "Customer Stories") UNLESS the videos are genuinely emotion-led and have no underlying product or topic specificity. A doorbell video with a heartwarming family clip is still primarily a doorbell video.
 - When a cluster could be either product-specific or emotional, choose product-specific. The emotional framing belongs in the example titles, not the theme name.
 - Gaps named at the product level ("Smart Lock Reviews — gap") are far more useful than gaps named at the emotional level ("Customer Appreciation — gap"). The former tells the analyst what to build; the latter tells them nothing.
+
+BRAND NAME RULE (CRITICAL):
+- DO NOT name specific competitor product brands in theme names. Refer to product categories generically.
+- WRONG: "Ring Doorbell Moments", "Nest Cam Captures", "Vivint Setup", "SimpliSafe Installs"
+- RIGHT: "Doorbell Camera Moments", "Outdoor Camera Captures", "Alarm System Setup", "Professional Installs"
+- A specific brand may appear in example titles (because that's the data), but never in the theme name itself. The theme is the category; brands are instances of it.
 
 Titles:
 ${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
@@ -249,7 +255,7 @@ async function loadOrGenerateBrief({ scopeChannelIds, scopeLabel, windowDays, to
   const bizKey = businessContext?.id || 'no-biz';
   // Prompt version — bump when the brief prompt changes substantively
   // so stale briefs generated under older rules get re-generated.
-  const BRIEF_PROMPT_VERSION = 'v2-brand-exclusivity';
+  const BRIEF_PROMPT_VERSION = 'v3-series-concepts';
   const cacheKey = `whitespace_brief:${BRIEF_PROMPT_VERSION}:${hashIds(scopeChannelIds)}:${windowDays}:${bizKey}`;
   const cached = await loadCache(cacheKey);
   if (cached) return cached;
@@ -279,7 +285,7 @@ async function loadOrGenerateBrief({ scopeChannelIds, scopeLabel, windowDays, to
 ${businessContext.one_line_summary ? `Summary: ${businessContext.one_line_summary}\n` : ''}${businessContext.products_offered ? `OFFERS:\n${businessContext.products_offered}\n` : ''}${businessContext.products_not_offered ? `DOES NOT OFFER (do NOT recommend content in these categories):\n${businessContext.products_not_offered}\n` : ''}${businessContext.target_market ? `Target market: ${businessContext.target_market}` : ''}`
       : '';
 
-    const prompt = `You are writing a pitch-deck-ready opportunity brief for a client interested in the "${scopeLabel}" space.
+    const prompt = `You are proposing YouTube SERIES CONCEPTS for a channel entering the "${scopeLabel}" space. The audit data below names unclaimed topical territory + format/cadence gaps. Your job: translate those gaps into specific, pitchable YouTube show ideas — not abstract content angles or memo-style positioning headers.
 
 Scope: ${scopeChannelIds.length} channels · ${videos.length} videos analyzed · last ${windowDays} days.
 
@@ -292,31 +298,47 @@ ${formatSummary}
 Cadence:
 ${cadenceSummary}${businessBlock}
 
-Generate 3-5 numbered opportunities. Each opportunity should be:
-- A specific, defensible angle a new entrant could own (or a current channel could expand into)
-- Backed by the data above (cite specific numbers, formats, topics, or time slots)
-- Written in 2-4 sentences total
-- Tagged with one of: "topic gap", "format gap", "cadence gap", "audience gap"
-${businessContext?.products_not_offered ? '- WITHIN this client\'s product/service offer. If a cohort gap is in a category the client does NOT sell, do not recommend it — say so explicitly if the strongest gaps are out-of-scope.' : ''}
+Generate 3-5 numbered SERIES CONCEPTS. Each concept must read as a YouTube show someone could actually pitch in a meeting — a viewer would recognize it as a series, click on episode 1, and know what to expect from episode 2.
 
-BRAND NAME RULE (CRITICAL — applies to BOTH the opportunity TITLE and the BODY text):
-- DO NOT name specific competitor product brands by name anywhere in the opportunity. This applies to ALL competitor brands including those mentioned in cohort data (Ring, Nest, Nest Cam, Vivint, SimpliSafe, Brinks, ADT, Wyze, Arlo, Blink, eufy, Lorex, etc.).
+For each series concept:
+- TITLE: the series name as it would appear in a viewer's feed or a thumbnail. Punchy, recognizable, curiosity-driven. 2–6 words is the sweet spot.
+  WRONG: "Emergency Response Proof Points" (slide-deck header, no viewer would click this)
+  WRONG: "Network Reliability Deep Dives" (B2B blog post, not YouTube)
+  WRONG: "Afternoon Installation Explainers" (descriptive but flat)
+  RIGHT: "Saves of the Week" / "When the System Worked" / "Inside the Install" / "Why It Broke" / "30 Years on the Truck"
+
+- BODY (4–6 sentences, in this order):
+    1. What the series IS — one sentence on format + concept (e.g., "A weekly long-form series shot ride-along with a professional installer on real customer visits.")
+    2. The HOOK — why viewers click episode 1. The emotional or curiosity payoff. ("Watching someone with 30 years on the job explain what 80% of homeowners miss when they DIY their setup.")
+    3. The intended AUDIENCE — who the viewer is + the interest-axis position (entertainment ↔ thought leadership).
+    4. The DATA ANCHOR — cite the specific cohort gap, format absence, or cadence opening this series claims. Use actual numbers from the input above.
+
+- TAGS: one or more of "topic gap", "format gap", "cadence gap", "audience gap" — which space this series claims.
+
+REQUIREMENTS:
+- Each concept is BACKED BY the data (cite specific numbers, format buckets, or topic counts from the input).
+${businessContext?.products_not_offered ? '- Each concept fits WITHIN this client\'s product/service offer. If a cohort gap sits in a category the client does NOT sell, skip it — do not propose a series in an out-of-scope category.' : ''}
+- Skip any concept that would require demonstrating competitor products.
+- Each concept feels like a real YouTube show. If it reads like a slide-deck section title, the title is wrong — rewrite it.
+
+BRAND NAME RULE (CRITICAL — applies to TITLE and BODY):
+- DO NOT name specific competitor product brands anywhere. This applies to ALL competitor brands including those mentioned in cohort data (Ring, Nest, Nest Cam, Vivint, SimpliSafe, Brinks, ADT, Wyze, Arlo, Blink, eufy, Lorex, etc.).
 - Refer to product CATEGORIES generically: "video doorbell," "outdoor security camera," "smart lock," "professionally-monitored alarm system," "indoor camera."
 - WRONG: "showcase how Nest Cam detects motion," "compare to Ring Pro features," "alternative to SimpliSafe."
-- RIGHT: "showcase how a professional-grade doorbell detects motion," "compare against DIY equipment in the same category," "the case for professional monitoring vs DIY equivalents."
-- The ONLY brand name you may mention is the client's own brand (taken from the business context above, if any). Mentioning a competitor by name — even as an example or analogy — counts as a violation.
+- RIGHT: "showcase how a professional-grade doorbell detects motion," "compare against DIY equipment in the same category."
+- The ONLY brand name allowed is the client's own (from business context above). Mentioning a competitor by name — even as analogy — is a violation.
 
-Avoid platitudes. Each opportunity must point at something concrete and absent. If the data doesn't support 5 opportunities, return fewer.
+If the data doesn't support 5 series concepts, return fewer. Better to give 3 strong concepts than pad with weak ones.
 
 Return ONLY valid JSON:
-{ "opportunities": [ { "title": "string", "body": "2-4 sentence opportunity", "tags": ["topic gap"] } ] }`;
+{ "opportunities": [ { "title": "string — series name as it appears in feed", "body": "4-6 sentence series concept covering what it IS, the HOOK, the AUDIENCE, the DATA anchor", "tags": ["topic gap"] } ] }`;
 
-    const systemPrompt = `You're an analyst writing the kind of brief that makes a CMO say "let's pursue this."
-- Lead with the claim, not the data. Data is evidence.
-- Cite specific numbers from the input.
-- One concrete example is worth more than three abstractions.
-- If a category is truly well-covered, say so — don't manufacture gaps.
-- Treat the client's business context as a HARD constraint: never recommend content in categories the client does not sell, AND never name specific competitor product brands in body text — refer to product categories generically instead.
+    const systemPrompt = `You propose YouTube series concepts for a strategist pitching a channel direction. Your concepts must read as pitchable shows, not as analyst opportunities or strategic positioning angles. A viewer should be able to read your title and know what the series is; a strategist should be able to take your title + body straight into a pitch meeting without rewriting the framing.
+- Lead with the show, not the analysis. The data is evidence backing why the show works, not the show itself.
+- One concrete series with a clear hook beats three abstract "explore this space" pitches.
+- If a category is truly well-covered, say so — don't manufacture series concepts.
+- Treat the client's business context as a HARD constraint: never propose a series in a category the client does not sell, AND never name specific competitor product brands in title or body — refer to product categories generically instead.
+- Test every title against the question: "Would a viewer scroll past this or click it?" If the answer is scroll, rewrite.
 Return ONLY valid JSON.`;
 
     const result = await claudeAPI.call(prompt, systemPrompt, 'whitespace_brief', 2000);

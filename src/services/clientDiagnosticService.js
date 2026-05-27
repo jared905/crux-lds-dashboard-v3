@@ -470,7 +470,7 @@ const BRIEFING_CACHE_HOURS = 24 * 3; // re-synthesize every 3 days
 
 // Bump when the prompt structure or hedging rules change — invalidates
 // every cached briefing so stale pre-hedging output stops being served.
-const BRIEFING_PROMPT_VERSION = 'v11-cadence-by-format';
+const BRIEFING_PROMPT_VERSION = 'v12-brand-exclusivity';
 
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;
@@ -599,6 +599,7 @@ CRITICAL RULES — read carefully:
    - "Anchor the next four uploads on emoji titles and Monday afternoon slots; treat Saturday morning and 8–15 minute length as test bets."
    - "Start with the Why-title gap (statistical, lift +X%); reserve one upload to A/B-test the Saturday slot before committing schedule changes."
    A briefing that ends on "needs more data to confirm" is advisory, not actionable. Always point at the next move, even when the move is "run these two tests this week."
+10. **BRAND NAME RULE (CRITICAL).** Never name specific competitor product brands anywhere in the briefing. Refer to product CATEGORIES generically ("video doorbell," "outdoor security camera," "professionally-monitored alarm system"). The ONLY brand name allowed is ${client.name}'s own. Even illustrative examples or analogies must use category names — "showcase how Nest Cam detects motion" is wrong; "showcase how a doorbell camera detects motion" is right. This applies to ALL competitor brands, including those that appear in the cohort data (Ring, Nest, Vivint, SimpliSafe, Brinks, ADT, Wyze, Arlo, Blink, eufy, Lorex, etc.).
 
 Output: 3-5 sentence briefing. First sentence = the single highest-leverage move (gap-led if a gap exists, otherwise the strongest statistical finding, otherwise an honest "data is too thin for confident recommendations"). Cite concrete numbers from the lines above. No platitudes.
 
