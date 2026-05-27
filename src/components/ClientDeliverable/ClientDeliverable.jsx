@@ -260,7 +260,11 @@ function SynthesisPage({ clientName, spine, hosts, synthesisData }) {
     } catch { /* fallback: markdown export covers it */ }
   };
 
-  if (!oneliner && !moves.length && !antiStance.length) return null;
+  // Render unless every slot is empty (no oneliner, no populated moves,
+  // no anti-stance). Missing moves still render as visible placeholders
+  // so the strategist sees the gap rather than a silently-shorter list.
+  const hasAnyContent = oneliner || moves.some(m => !m.missing) || antiStance.length;
+  if (!hasAnyContent) return null;
 
   return (
     <section className="cd-page cd-synthesis">
@@ -287,16 +291,24 @@ function SynthesisPage({ clientName, spine, hosts, synthesisData }) {
         {moves.length > 0 && (
           <ol className="cd-synthesis-moves">
             {moves.map((m, i) => (
-              <li className="cd-synthesis-move" key={i}>
+              <li className={`cd-synthesis-move${m.missing ? ' cd-synthesis-move-empty' : ''}`} key={i}>
                 <div className="cd-synthesis-move-num">{String(i + 1).padStart(2, '0')}</div>
                 <div className="cd-synthesis-move-body">
                   <div className="cd-synthesis-move-label">{m.label}</div>
-                  <div className="cd-synthesis-move-text">{m.text}</div>
-                  {m.evidence && (
-                    <div className="cd-synthesis-move-evidence">
-                      <span className="cd-synthesis-evidence-tag">Why</span>
-                      <span>{m.evidence}</span>
+                  {m.missing ? (
+                    <div className="cd-synthesis-move-missing">
+                      <strong>Not yet authored.</strong> {m.missingHint}
                     </div>
+                  ) : (
+                    <>
+                      <div className="cd-synthesis-move-text">{m.text}</div>
+                      {m.evidence && (
+                        <div className="cd-synthesis-move-evidence">
+                          <span className="cd-synthesis-evidence-tag">Why</span>
+                          <span>{m.evidence}</span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </li>
@@ -331,39 +343,36 @@ function buildSynthesis({ spine, hosts, channels, patternsResult, whiteSpaceResu
     demandRow,
   });
 
-  const moves = [];
-
-  // Move 1: Positioning — compressed from positioning_hypothesis
+  // Always emit all three move slots so missing fields render as
+  // explicit "not yet authored" placeholders rather than silently
+  // shuffling smaller moves into the lead position. Strategist sees
+  // the gap directly and knows what to author next.
   const positioningText = compressForSynthesis(spine?.positioning_hypothesis) || spine?.positioning_oneliner;
-  if (positioningText) {
-    moves.push({
-      label: 'Positioning',
-      text: positioningText,
-      evidence: extractEvidenceText(rationales.editorial_pov || rationales.oneliner),
-    });
-  }
-
-  // Move 2: Voice — first sentence of voice_tone
   const voiceText = firstSentence(spine?.voice_tone);
-  if (voiceText) {
-    moves.push({
-      label: 'Voice',
-      text: voiceText,
-      evidence: extractEvidenceText(rationales.voice_tone),
-    });
-  }
-
-  // Move 3: Host — primary host archetype (multi-host) or spine.host_archetype
   const primaryHost = (hosts || [])[0];
   const hostText = primaryHost?.archetype || spine?.host_archetype;
-  if (hostText) {
-    const label = (hosts || []).length > 1 ? `Hosts (${hosts.length})` : 'Host';
-    moves.push({
-      label,
+  const hostLabel = (hosts || []).length > 1 ? `Hosts (${hosts.length})` : 'Host';
+
+  const moves = [
+    {
+      label: 'Positioning',
+      missingHint: 'Author the positioning one-liner or positioning hypothesis on the Strategy Spine.',
+      text: positioningText,
+      evidence: extractEvidenceText(rationales.editorial_pov || rationales.oneliner),
+    },
+    {
+      label: 'Voice',
+      missingHint: 'Author the voice + tone field on the Strategy Spine.',
+      text: voiceText,
+      evidence: extractEvidenceText(rationales.voice_tone),
+    },
+    {
+      label: hostLabel,
+      missingHint: 'Add a host profile on the Strategy Spine (or fill in host_archetype on the legacy field).',
       text: hostText,
       evidence: extractEvidenceText(rationales.host_archetype),
-    });
-  }
+    },
+  ].map(m => ({ ...m, missing: !m.text }));
 
   // Anti-stance — pulled from guardrails. Split into individual constraints.
   const antiStance = (spine?.guardrails || '')
@@ -537,9 +546,21 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
         </SubSection>
       )}
 
+      {patternsResult?.scope?.formatBreakdown && (
+        <SubSection title="Content mix" kicker="Format split + length sweet spots">
+          <ContentMix formatBreakdown={patternsResult.scope.formatBreakdown} />
+        </SubSection>
+      )}
+
       {cadenceGaps?.grid && (
         <SubSection title="Cadence" kicker="When the cohort gets seen">
           <CadenceHeatmap cadenceGaps={cadenceGaps} />
+        </SubSection>
+      )}
+
+      {isPreLaunch && channels?.length > 0 && (
+        <SubSection title="How the category engages" kicker="Cohort-level audience behavior">
+          <CohortEngagementSummary channels={channels} patternsResult={patternsResult} />
         </SubSection>
       )}
 
@@ -594,6 +615,126 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
         </SubSection>
       )}
     </section>
+  );
+}
+
+// Content mix — format split (shorts vs long-form) + length buckets.
+// Reads from patternsResult.scope.formatBreakdown. Renders as a small
+// stacked bar for the shorts/long split + a clean table for length
+// buckets with their median views — the "where does length pay off"
+// read a client cares about.
+function ContentMix({ formatBreakdown }) {
+  const shortsFreq = formatBreakdown.shortsFreq || 0;
+  const longsFreq = 1 - shortsFreq;
+  const shortsMedian = formatBreakdown.shortsMedianViews;
+  const longsMedian = formatBreakdown.longsMedianViews;
+  const buckets = formatBreakdown.buckets || [];
+
+  return (
+    <div>
+      <p style={{ marginBottom: 12 }}>
+        <strong>The cohort posts {Math.round(shortsFreq * 100)}% Shorts</strong> ({fmtNum(shortsMedian)} median views) and{' '}
+        <strong>{Math.round(longsFreq * 100)}% long-form</strong> ({fmtNum(longsMedian)} median views).
+      </p>
+
+      <div style={{ display: 'flex', width: '100%', height: 22, borderRadius: 4, overflow: 'hidden', border: `1px solid ${BORDER}`, marginBottom: 18 }}>
+        <div style={{ width: `${shortsFreq * 100}%`, background: ACCENT, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+          {shortsFreq >= 0.15 ? `Shorts ${Math.round(shortsFreq * 100)}%` : ''}
+        </div>
+        <div style={{ width: `${longsFreq * 100}%`, background: '#cbd5e1', color: INK, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+          {longsFreq >= 0.15 ? `Long ${Math.round(longsFreq * 100)}%` : ''}
+        </div>
+      </div>
+
+      {buckets.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>Length sweet spots (long-form only)</div>
+          <table className="cd-table">
+            <thead><tr><th>Length</th><th className="cd-num">Share of long-form</th><th className="cd-num">Median views</th></tr></thead>
+            <tbody>
+              {buckets.map((b, i) => (
+                <tr key={i}>
+                  <td>{b.label}</td>
+                  <td className="cd-num">{Math.round((b.freq || 0) * 100)}%</td>
+                  <td className="cd-num">{fmtNum(b.medianViews)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Cohort engagement summary — activates in pre-launch mode as a stand-in
+// for "your audience" sections we can't render. Surfaces engagement-rate
+// leaders in the cohort and flags where title-pattern engagement diverges
+// from views — the audience-behavior read for a channel that doesn't yet
+// have an audience of its own.
+function CohortEngagementSummary({ channels, patternsResult }) {
+  const ranked = (channels || [])
+    .filter(c => typeof c.engagementRate === 'number')
+    .sort((a, b) => (b.engagementRate ?? 0) - (a.engagementRate ?? 0));
+
+  const top = ranked.slice(0, 5);
+  const cohortMedianEng = ranked.length
+    ? ranked[Math.floor(ranked.length / 2)].engagementRate
+    : null;
+
+  // Look for title patterns where engagement and views diverge meaningfully
+  // — "audiences engage with X even when it doesn't pull big views" or
+  // vice versa.
+  const titlePatterns = (patternsResult?.scope?.titlePatterns || [])
+    .filter(p => p.avgEngagement != null && p.viewsLift != null && p.count >= 10);
+  const engagementWinners = titlePatterns
+    .filter(p => p.avgEngagement > 0.02 && p.viewsLift < 0)
+    .sort((a, b) => b.avgEngagement - a.avgEngagement)
+    .slice(0, 2);
+
+  return (
+    <>
+      <p style={{ marginBottom: 12 }}>
+        With no published videos yet, this section reads the <strong>category's</strong> audience behavior rather than yours — which channels keep viewers engaged, and where engagement decouples from raw views. Once you publish, your own behavior layer replaces this.
+      </p>
+
+      {top.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>Engagement-rate leaders in the cohort</div>
+          <table className="cd-table">
+            <thead><tr><th>Channel</th><th className="cd-num">Engagement rate</th><th className="cd-num">vs cohort median</th></tr></thead>
+            <tbody>
+              {top.map(c => {
+                const mult = cohortMedianEng ? (c.engagementRate / cohortMedianEng) : null;
+                return (
+                  <tr key={c.id || c.name}>
+                    <td>{c.name}</td>
+                    <td className="cd-num">{(c.engagementRate * 100).toFixed(1)}%</td>
+                    <td className="cd-num">{mult ? `${mult.toFixed(1)}×` : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {engagementWinners.length > 0 && (
+        <>
+          <p style={{ marginTop: 18, marginBottom: 6, fontSize: 13 }}>
+            <strong>Where engagement diverges from views</strong> — patterns audiences engage with even when reach is weak. Worth pairing with reach-winners to balance the content strategy:
+          </p>
+          <ul className="cd-list">
+            {engagementWinners.map((p, i) => (
+              <li key={i}>
+                <strong>{p.label}</strong> · {(p.avgEngagement * 100).toFixed(1)}% engagement
+                <span style={{ color: MUTED }}> · but views {Math.round(p.viewsLift)}% vs cohort median</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </>
   );
 }
 
@@ -1354,6 +1495,19 @@ function PrintStyles() {
         display: flex; gap: 10px; align-items: flex-start;
         font-size: 13px; color: ${MUTED};
         line-height: 1.5;
+      }
+      .cd-synthesis-move-empty .cd-synthesis-move-num { color: ${MUTED}; opacity: 0.4; }
+      .cd-synthesis-move-empty .cd-synthesis-move-label { color: ${MUTED}; }
+      .cd-synthesis-move-missing {
+        font-size: 13px; color: ${MUTED};
+        line-height: 1.5;
+        padding: 8px 12px;
+        background: #f5f5f5;
+        border-radius: 4px;
+        border-left: 2px dashed ${MUTED};
+      }
+      .cd-synthesis-move-missing strong {
+        color: ${INK}; display: block; margin-bottom: 2px;
       }
       .cd-synthesis-evidence-tag {
         font-size: 9px; font-weight: 800;
