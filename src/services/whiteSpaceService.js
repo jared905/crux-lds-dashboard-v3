@@ -83,23 +83,39 @@ export { resolveScopeToChannelIds };
 // ──────────────────────────────────────────────────
 function computeFormatGaps(videos) {
   const buckets = [
-    { id: 'shorts',   label: 'Shorts (<3 min)',           min: 0,    max: SHORTS_DURATION_THRESHOLD },
-    { id: 'lf_3_8',   label: 'Short long-form (3–8 min)', min: 181,  max: 480 },
-    { id: 'lf_8_15',  label: 'Mid (8–15 min)',            min: 481,  max: 900 },
-    { id: 'lf_15_25', label: 'Long (15–25 min)',          min: 901,  max: 1500 },
-    { id: 'doc_25p',  label: 'Documentary (25 min+)',     min: 1501, max: Infinity },
+    { id: 'shorts',   label: 'Shorts (<3 min)',           min: 0,    max: SHORTS_DURATION_THRESHOLD, isShorts: true  },
+    { id: 'lf_3_8',   label: 'Short long-form (3–8 min)', min: 181,  max: 480,                       isShorts: false },
+    { id: 'lf_8_15',  label: 'Mid (8–15 min)',            min: 481,  max: 900,                       isShorts: false },
+    { id: 'lf_15_25', label: 'Long (15–25 min)',          min: 901,  max: 1500,                      isShorts: false },
+    { id: 'doc_25p',  label: 'Documentary (25 min+)',     min: 1501, max: Infinity,                  isShorts: false },
   ];
 
   const total = videos.length;
-  const allViews = videos.map(v => v.view_count || 0).filter(v => v > 0);
-  const scopeMedian = allViews.length ? trimmedMedian(allViews) : null;
+  // Separate baselines: long-form is dramatically higher-volume than
+  // Shorts on YouTube, so comparing a long-form bucket median against
+  // an all-videos scope median (which Shorts drag down) makes every
+  // long-form bucket look like it "outperforms scope by 600%" when
+  // really it's outperforming a Shorts-diluted baseline. Compare each
+  // bucket against its own length-class baseline.
+  const longFormViews = videos
+    .filter(v => (v.duration_seconds || 0) > SHORTS_DURATION_THRESHOLD)
+    .map(v => v.view_count || 0)
+    .filter(v => v > 0);
+  const shortsViews = videos
+    .filter(v => (v.duration_seconds || 0) <= SHORTS_DURATION_THRESHOLD && (v.duration_seconds || 0) > 0)
+    .map(v => v.view_count || 0)
+    .filter(v => v > 0);
+  const longFormMedian = longFormViews.length >= 5 ? trimmedMedian(longFormViews) : null;
+  const shortsMedian = shortsViews.length >= 5 ? trimmedMedian(shortsViews) : null;
 
   return buckets.map(b => {
     const matched = videos.filter(v => (v.duration_seconds || 0) >= b.min && (v.duration_seconds || 0) <= b.max);
     const freq = matched.length / total;
     const views = matched.map(v => v.view_count || 0).filter(v => v > 0);
     const medianViews = views.length >= 5 ? trimmedMedian(views) : null;
-    const viewsLift = (medianViews && scopeMedian) ? medianViews / scopeMedian : null;
+    const baseline = b.isShorts ? shortsMedian : longFormMedian;
+    const baselineLabel = b.isShorts ? 'shorts median' : 'long-form median';
+    const viewsLift = (medianViews && baseline) ? medianViews / baseline : null;
     return {
       id: b.id,
       label: b.label,
@@ -107,6 +123,7 @@ function computeFormatGaps(videos) {
       freq,
       medianViews,
       viewsLift,
+      baselineLabel,
       // Flag as gap if <8% of videos in this length bucket
       isGap: freq < 0.08,
     };
@@ -195,10 +212,13 @@ function extractCadenceHotspots(cadenceGaps) {
       const lift = liftGrid[d]?.[b];
       const conf = confidenceGrid[d]?.[b];
       const uploads = grid[d]?.[b] || 0;
-      // High-lift = ≥1.3× scope median. Under-supplied = uploads are
-      // a minority of supply. Skip insufficient-sample cells so we
-      // don't anchor recommendations to 1-video noise.
-      if (lift != null && lift >= 1.3 && conf !== 'insufficient' && uploads > 0) {
+      // Hotspots must clear the "statistical" bar — n ≥ 30 AND not
+      // outlier-dominated (one viral video can't carry the cell).
+      // "Directional" cells get filtered: their lift numbers are
+      // exactly the kind of thing that produces a misleading "1503%
+      // above scope median" claim with 14 uploads, where one viral
+      // video does all the work.
+      if (lift != null && lift >= 1.3 && conf === 'statistical' && uploads >= 5) {
         hotspots.push({
           day: labels.days[d],
           block: labels.blocks[b],
@@ -296,7 +316,7 @@ async function loadOrGenerateBrief({ scopeChannelIds, scopeLabel, windowDays, to
   const bizKey = businessContext?.id || 'no-biz';
   // Prompt version — bump when the brief prompt changes substantively
   // so stale briefs generated under older rules get re-generated.
-  const BRIEF_PROMPT_VERSION = 'v4-evidence-findings';
+  const BRIEF_PROMPT_VERSION = 'v5-baseline-fix';
   const cacheKey = `whitespace_brief:${BRIEF_PROMPT_VERSION}:${hashIds(scopeChannelIds)}:${windowDays}:${bizKey}`;
   const cached = await loadCache(cacheKey);
   if (cached) return cached;
@@ -310,25 +330,29 @@ async function loadOrGenerateBrief({ scopeChannelIds, scopeLabel, windowDays, to
       `${t.coverage.toUpperCase()}: ${t.name} (${t.count} titles)`
     ).join('\n');
 
-    // Format summary now includes median views + lift vs scope median
-    // so Claude can write "format X performs Y% above the scope median
-    // but is only Z% of supply" — the user's "performing X% better but
-    // no one is consistently producing it" pattern.
+    // Format summary now includes median views + lift vs the LENGTH-
+    // CLASS baseline (long-form vs long-form, shorts vs shorts). Using
+    // an all-videos scope median inflated every long-form bucket's
+    // apparent lift by ~5-7× because Shorts pull the baseline down.
+    // The label in each line tells Claude what it's reading.
     const formatSummary = formatGaps.map(b => {
       const liftStr = b.viewsLift != null
-        ? ` — median views ${b.medianViews?.toLocaleString()} (${b.viewsLift >= 1 ? '+' : ''}${((b.viewsLift - 1) * 100).toFixed(0)}% vs scope median)`
+        ? ` — median views ${b.medianViews?.toLocaleString()} (${b.viewsLift >= 1 ? '+' : ''}${((b.viewsLift - 1) * 100).toFixed(0)}% vs ${b.baselineLabel})`
         : '';
       return `${b.isGap ? 'GAP' : 'OK'}: ${b.label} — ${b.count} videos (${(b.freq * 100).toFixed(1)}% of supply)${liftStr}`;
     }).join('\n');
 
     // Cadence: include lift hotspots so Claude can cite specific slots
-    // where median views run high but supply is thin.
+    // where median views run high but supply is thin. Hotspots now
+    // require statistical-confidence cells (n ≥ 30 + not outlier-
+    // dominated); directional cells are excluded because that's where
+    // a single viral video can produce a misleading "1500% lift" claim.
     const totalUploads = cadenceGaps.total;
     const cadenceHotspots = extractCadenceHotspots(cadenceGaps).slice(0, 4);
     const hotspotLines = cadenceHotspots.length
-      ? cadenceHotspots.map(h => `- ${h.day} ${h.block}: ${h.uploads} upload(s), median views ${h.medianViews?.toLocaleString()} (+${Math.round((h.lift - 1) * 100)}% vs scope median)`).join('\n')
-      : '- (no slots meet sufficient-sample threshold)';
-    const cadenceSummary = `Total uploads in window: ${totalUploads} over ${windowDays} days.\nHigh-lift / under-supplied slots (where uploads land above scope median view performance but the slot is thinly covered):\n${hotspotLines}`;
+      ? cadenceHotspots.map(h => `- ${h.day} ${h.block}: ${h.uploads} uploads, median views ${h.medianViews?.toLocaleString()} (+${Math.round((h.lift - 1) * 100)}% vs scope median, ${h.confidence} confidence)`).join('\n')
+      : '- (no slots meet statistical-confidence threshold — cadence data alone is not enough to anchor a leadership claim; lean on topic/format findings)';
+    const cadenceSummary = `Total uploads in window: ${totalUploads} over ${windowDays} days.\nHigh-lift / under-supplied slots (n ≥ 30 uploads in the slot AND not outlier-dominated):\n${hotspotLines}`;
 
     // Business-context block — the offer/not-offer fields constrain
     // which opportunities the brief can recommend. Without this, the
@@ -369,11 +393,18 @@ EACH FINDING MUST INCLUDE:
 - TITLE: 2-7 word headline naming what the opportunity IS. Plain English, no jargon. Examples: "Own DIY install guidance" / "Lead the 15-25 minute long-form slot" / "Mid-week evening cadence is unclaimed".
 - BODY: 1-2 sentences in one of the patterns above. MUST cite specific numbers from the input (title counts, format frequencies, lift percentages, cadence slot uploads). Use the exact numbers above — do not invent or round heavily.
 
+TITLE-BODY COHERENCE (CRITICAL):
+- ONE FINDING = ONE PIECE OF EVIDENCE. The title must summarize the body, and the body must cite the specific evidence the title implies. Do NOT bundle multiple disparate topic gaps under an umbrella title (e.g., title "Own professional installation storytelling" + body listing 3 unrelated gaps like thermostat, smart lock, and home renovation — those are three different findings, not one).
+- If you have a topic finding, the body cites the specific topic theme(s) from topic coverage, NOT a bundle of unrelated themes.
+- If you have a format finding, the body cites the specific format bucket and its lift number, NOT a generalization across multiple buckets.
+- If you have a cadence finding, the body cites the specific slot(s) from the hotspot list, NOT generic "cohort posts on weekends" claims.
+- When the title says "the X format" or "X category," the X must appear in the body as a concrete cited piece of evidence.
+
 REQUIREMENTS:
-- Always return 3-5 findings. If topic data is thin, lean on format and cadence. If cadence data is thin, lean on topics. The data above has enough across the three dimensions to support 3 findings; produce them.
-- Each finding is one of patterns A / B / C above. Mix patterns when possible.
+- Return 3-5 findings, mixing patterns A / B / C when the data supports it. Don't manufacture findings from thin data — if cadence has no hotspots and only one format bucket has a meaningful lift, two strong findings is better than five weak ones. Minimum is 3.
 ${businessContext?.products_not_offered ? '- Each finding must point at territory the client could actually claim given their offer. If the only unclaimed topic theme is a category the client does NOT sell, find a different finding (lean on format or cadence) rather than pointing at out-of-scope topics.' : ''}
 - Findings are OBSERVATIONS, not pitches. Do NOT propose specific shows, episode formats, or content series titles. The strategist turns these into pillars later.
+- The lift baselines above are LENGTH-CLASS baselines (long-form vs long-form median, shorts vs shorts median). When you cite a lift number, say "above long-form median" or "above shorts median" — NOT "above scope median" or "above the cohort." Using "above scope median" misrepresents the comparison.
 
 BRAND NAME RULE (CRITICAL):
 - DO NOT name specific competitor product brands anywhere in title or body. This applies to ALL competitor brands in the cohort data.
