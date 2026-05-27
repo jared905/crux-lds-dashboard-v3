@@ -26,6 +26,7 @@ import { analyzePatterns, resolveScopeToChannelIds } from './patternsService.js'
 import { analyzeWhiteSpace } from './whiteSpaceService.js';
 import { computeClientDiagnostic, loadOrGenerateBriefing } from './clientDiagnosticService';
 import { computeAudienceSignals } from './audienceSignalService';
+import { loadAlerts } from './movementService.js';
 
 /**
  * Load every data slot the deliverable needs. Heavy — parallelizes all
@@ -58,6 +59,7 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
     whiteSpaceResult,
     diagnostic,
     audienceSignals,
+    alerts,
   ] = await Promise.all([
     supabase.from('channels').select('id, name, subscriber_count, total_view_count').eq('id', clientId).maybeSingle().then(r => r.data || null).catch(() => null),
     getSpine(clientId).catch(() => null),
@@ -70,6 +72,7 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
     analyzeWhiteSpace({ scopeChannelIds, windowDays: 90, scopeLabel: `Client: ${clientId}`, clientId }).catch(() => null),
     computeClientDiagnostic({ clientId, scopeChannelIds, windowDays: 90 }).catch(() => null),
     computeAudienceSignals(clientId, { days: 90 }).catch(() => null),
+    loadAlerts({ scopeChannelIds, windowDays: 30 }).catch(() => []),
   ]);
 
   // Decorate each host with its active rubric (rubricsByKey is keyed
@@ -112,6 +115,15 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
     briefing,
     audienceSignals,
     formatMixByChannel,
+    alerts,
+    // Data coverage — surfaced on the cover so the client can read
+    // the audit's basis at a glance.
+    coverage: {
+      videoCount: diagnostic?.cohort?.videoCount || null,
+      channelCount: (channels || []).length,
+      windowDays: 90,
+      generatedAt: new Date().toISOString(),
+    },
     generatedAt: new Date().toISOString(),
   };
 }

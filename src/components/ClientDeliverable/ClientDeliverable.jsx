@@ -207,7 +207,7 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
 }
 
 function DeliverablePages({ data, clientName, mode = MODE_FULL }) {
-  const { clientChannel, spine, hosts, legacyRubric, demandRow, productionSignalsByChannel, clientProductionRow, channels, patternsResult, whiteSpaceResult, diagnostic, briefing, audienceSignals, formatMixByChannel } = data;
+  const { clientChannel, spine, hosts, legacyRubric, demandRow, productionSignalsByChannel, clientProductionRow, channels, patternsResult, whiteSpaceResult, diagnostic, briefing, audienceSignals, formatMixByChannel, alerts, coverage } = data;
   const displayName = clientName || clientChannel?.name || 'Client';
   const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -228,6 +228,7 @@ function DeliverablePages({ data, clientName, mode = MODE_FULL }) {
         oneliner={mode === MODE_AUDIT ? null : spine?.positioning_oneliner}
         isPreLaunch={isPreLaunch}
         mode={mode}
+        coverage={coverage}
       />
 
       {mode === MODE_AUDIT ? (
@@ -282,6 +283,7 @@ function DeliverablePages({ data, clientName, mode = MODE_FULL }) {
         demandRow={demandRow}
         audienceSignals={audienceSignals}
         formatMixByChannel={formatMixByChannel}
+        alerts={alerts}
         isPreLaunch={isPreLaunch}
       />
 
@@ -323,12 +325,19 @@ function DeliverablePages({ data, clientName, mode = MODE_FULL }) {
 // Cover + section callouts
 // ──────────────────────────────────────────────────
 
-function Cover({ clientName, dateStr, oneliner, isPreLaunch, mode = MODE_FULL }) {
+function Cover({ clientName, dateStr, oneliner, isPreLaunch, mode = MODE_FULL, coverage }) {
   // Cover label adapts to mode so the artifact's identity is clear from
   // the first page — "Audit & Landscape Report" is a different document
   // from "Audit + Positioning Recommendation" and the cover sets the
   // reader's expectation.
   const label = MODE_LABEL[mode] || brand.productLabel;
+
+  // Data-coverage line. Signals rigor and surfaces a stale audit when
+  // the underlying sync is old. Shows only when we have real numbers.
+  const coverageLine = coverage && coverage.videoCount && coverage.channelCount
+    ? `Audit basis: ${fmtNum(coverage.videoCount)} videos across ${coverage.channelCount} channels · last ${coverage.windowDays || 90} days`
+    : null;
+
   return (
     <section className="cd-page cd-cover">
       {brand.logoUrl ? (
@@ -348,6 +357,9 @@ function Cover({ clientName, dateStr, oneliner, isPreLaunch, mode = MODE_FULL })
           <E tag="span">{oneliner}</E>
           <span className="cd-cover-oneliner-mark">”</span>
         </div>
+      )}
+      {coverageLine && (
+        <div className="cd-cover-coverage">{coverageLine}</div>
       )}
       <div className="cd-cover-footer">{brand.footerNote || `Prepared by ${brand.studio || brand.name}`}</div>
     </section>
@@ -961,7 +973,7 @@ function SubSection({ title, kicker, children }) {
 // Part 01 sub-sections (client-facing curation)
 // ──────────────────────────────────────────────────
 
-function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, clientProductionRow, demandRow, audienceSignals, formatMixByChannel, isPreLaunch }) {
+function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, clientProductionRow, demandRow, audienceSignals, formatMixByChannel, alerts, isPreLaunch }) {
   const titlePatterns = patternsResult?.scope?.titlePatterns || [];
   const opportunities = whiteSpaceResult?.brief?.opportunities || [];
   const cadenceGaps = whiteSpaceResult?.cadenceGaps || null;
@@ -1119,6 +1131,12 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
           </ol>
         </SubSection>
       )}
+
+      {Array.isArray(alerts) && alerts.length > 0 && (
+        <SubSection title="Recent movement" kicker="What just popped in the last 30 days">
+          <MovementSummary alerts={alerts} />
+        </SubSection>
+      )}
     </section>
   );
 }
@@ -1246,6 +1264,77 @@ function CohortEngagementSummary({ channels, patternsResult }) {
           </ul>
         </>
       )}
+    </>
+  );
+}
+
+// Movement summary — recent breakouts + rank changes from the cohort.
+// The most actionable competitive intel in the doc: what's just popped
+// in the last 30 days, who shifted, what's worth reacting to before
+// the formula saturates. Renders the top 4-5 breakouts and 2-3 rank
+// changes, compressed and sorted by recency.
+function MovementSummary({ alerts }) {
+  const breakouts = (alerts || [])
+    .filter(a => a.alert_type === 'breakout')
+    .sort((a, b) => new Date(b.detected_at || 0) - new Date(a.detected_at || 0))
+    .slice(0, 5);
+  const rankChanges = (alerts || [])
+    .filter(a => a.alert_type === 'rank_change')
+    .sort((a, b) => new Date(b.detected_at || 0) - new Date(a.detected_at || 0))
+    .slice(0, 3);
+
+  if (!breakouts.length && !rankChanges.length) return null;
+
+  const fmtDate = (iso) => {
+    if (!iso) return '';
+    try { return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
+    catch { return ''; }
+  };
+
+  return (
+    <>
+      {breakouts.length > 0 && (
+        <>
+          <p style={{ marginBottom: 8 }}><strong>Breakouts</strong> — videos hitting unusual multipliers off their channel's baseline:</p>
+          <ul className="cd-list">
+            {breakouts.map((b, i) => {
+              const multi = b.body?.match(/(\d+\.?\d*)×/)?.[1];
+              return (
+                <li key={i}>
+                  <strong>{b.channel_name || 'Unknown'}</strong>
+                  {multi && <span style={{ color: MUTED }}> · {multi}× channel median</span>}
+                  {b.title && <div className="cd-quote">"{b.title}"</div>}
+                  <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
+                    {fmtDate(b.detected_at)}
+                    {b.youtube_video_id && (
+                      <> · <a href={`https://youtu.be/${b.youtube_video_id}`} target="_blank" rel="noreferrer" style={{ color: ACCENT, textDecoration: 'none' }}>watch</a></>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+
+      {rankChanges.length > 0 && (
+        <>
+          <p style={{ marginTop: 14, marginBottom: 8 }}><strong>Rank changes</strong> — channels whose recent average shifted meaningfully:</p>
+          <ul className="cd-list">
+            {rankChanges.map((r, i) => (
+              <li key={i}>
+                <strong>{r.channel_name || 'Unknown'}</strong>
+                {r.body && <span style={{ color: MUTED }}> — {r.body.replace(/[*_`]/g, '')}</span>}
+                <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>{fmtDate(r.detected_at)}</div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      <SoWhat>
+        <strong>Movement is the time-sensitive signal in this audit.</strong> Breakouts named here are still inside the saturation window — testing an equivalent angle in the next 2–3 weeks captures the slope before the formula gets crowded. Rank changes flag who's gaining or fading in the field; both inform where to compete.
+      </SoWhat>
     </>
   );
 }
@@ -2235,6 +2324,12 @@ function PrintStyles() {
       }
       .cd-cover-oneliner-mark {
         color: ${ACCENT}; font-weight: 700; font-style: normal;
+      }
+      .cd-cover-coverage {
+        font-size: 11px; color: ${MUTED};
+        font-style: italic; margin-bottom: 32px;
+        padding-top: 12px;
+        border-top: 1px solid ${BORDER};
       }
       .cd-cover-footer {
         font-size: 11px; color: ${MUTED};
