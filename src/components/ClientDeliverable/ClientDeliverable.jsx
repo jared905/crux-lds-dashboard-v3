@@ -103,7 +103,7 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
 }
 
 function DeliverablePages({ data, clientName }) {
-  const { clientChannel, spine, hosts, legacyRubric, demandRow, productionSignalsByChannel, clientProductionRow, channels, patternsResult, whiteSpaceResult, diagnostic, briefing, audienceSignals } = data;
+  const { clientChannel, spine, hosts, legacyRubric, demandRow, productionSignalsByChannel, clientProductionRow, channels, patternsResult, whiteSpaceResult, diagnostic, briefing, audienceSignals, formatMixByChannel } = data;
   const displayName = clientName || clientChannel?.name || 'Client';
   const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -160,6 +160,7 @@ function DeliverablePages({ data, clientName }) {
         clientProductionRow={clientProductionRow}
         demandRow={demandRow}
         audienceSignals={audienceSignals}
+        formatMixByChannel={formatMixByChannel}
         isPreLaunch={isPreLaunch}
       />
 
@@ -469,7 +470,7 @@ function SubSection({ title, kicker, children }) {
 // Part 01 sub-sections (client-facing curation)
 // ──────────────────────────────────────────────────
 
-function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, clientProductionRow, demandRow, audienceSignals, isPreLaunch }) {
+function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, clientProductionRow, demandRow, audienceSignals, formatMixByChannel, isPreLaunch }) {
   const titlePatterns = patternsResult?.scope?.titlePatterns || [];
   const opportunities = whiteSpaceResult?.brief?.opportunities || [];
   const cadenceGaps = whiteSpaceResult?.cadenceGaps || null;
@@ -552,8 +553,15 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
         </SubSection>
       )}
 
+      {channels?.length > 0 && (
+        <SubSection title="Upload tempo" kicker="What we're up against, by volume">
+          <UploadTempo channels={channels} formatMixByChannel={formatMixByChannel} />
+        </SubSection>
+      )}
+
       {cadenceGaps?.grid && (
         <SubSection title="Cadence" kicker="When the cohort gets seen">
+          <TopSlotsCallout cadenceGaps={cadenceGaps} />
           <CadenceHeatmap cadenceGaps={cadenceGaps} />
         </SubSection>
       )}
@@ -850,6 +858,164 @@ function TitlePatternBars({ patterns }) {
         * directional (small sample)
       </text>
     </svg>
+  );
+}
+
+// Top-slots callout — extracts the highest-lift slots from the heatmap
+// data and renders them as plain English above the grid. Lets the
+// strategist take action without reading 28 cells.
+function TopSlotsCallout({ cadenceGaps }) {
+  const { grid, liftGrid, confidenceGrid, labels } = cadenceGaps;
+  if (!grid || !labels) return null;
+  const winners = [];
+  for (let d = 0; d < 7; d++) {
+    for (let b = 0; b < (labels.blocks?.length || 0); b++) {
+      const lift = liftGrid?.[d]?.[b];
+      if (lift == null || lift < 1.15) continue;
+      winners.push({
+        slot: `${labels.days?.[d] || ''} ${labels.blocks?.[b] || ''}`.trim(),
+        liftPct: Math.round((lift - 1) * 100),
+        count: grid[d][b],
+        confidence: confidenceGrid?.[d]?.[b] || 'directional',
+      });
+    }
+  }
+  // Statistical wins ranked first; tie-break by lift magnitude.
+  winners.sort((a, b) => {
+    const aS = a.confidence === 'statistical' ? 1 : 0;
+    const bS = b.confidence === 'statistical' ? 1 : 0;
+    if (aS !== bS) return bS - aS;
+    return b.liftPct - a.liftPct;
+  });
+  const statistical = winners.filter(w => w.confidence === 'statistical').slice(0, 3);
+  const directional = winners.filter(w => w.confidence === 'directional').slice(0, 2);
+
+  if (!statistical.length && !directional.length) {
+    return <p style={{ marginBottom: 14, color: MUTED, fontStyle: 'italic' }}>No slots show meaningful lift in the current window. Upload distribution is essentially flat across the week.</p>;
+  }
+
+  return (
+    <div style={{ marginBottom: 14, padding: '12px 14px', background: ACCENT_SOFT, borderRadius: 6, borderLeft: `3px solid ${ACCENT}` }}>
+      <div style={{ fontSize: 10, fontWeight: 800, color: ACCENT, textTransform: 'uppercase', letterSpacing: 1.4, marginBottom: 6 }}>When to post</div>
+      <div style={{ fontSize: 13, lineHeight: 1.55, color: INK }}>
+        {statistical.length > 0 ? (
+          <>
+            <strong>{statistical[0].slot}</strong> leads at <strong>+{statistical[0].liftPct}%</strong>{' '}
+            (n={statistical[0].count}, statistical).
+            {statistical.length > 1 && (
+              <>{' '}{statistical.slice(1).map((w, i) => (
+                <span key={i}>
+                  {i > 0 ? ' / ' : ''}<strong>{w.slot}</strong> follows at <strong>+{w.liftPct}%</strong>{i === statistical.slice(1).length - 1 ? '.' : ''}
+                </span>
+              ))}</>
+            )}
+          </>
+        ) : (
+          <>No slot crosses the statistical threshold yet — sample sizes are still thin.</>
+        )}
+        {directional.length > 0 && (
+          <>
+            {' '}<span style={{ color: MUTED }}>
+              Directional flags worth testing once (small sample): {directional.map((w, i) => (
+                <span key={i}>{i > 0 ? ', ' : ''}{w.slot} (+{w.liftPct}%)</span>
+              ))}.
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Upload tempo — per-channel cadence with format-mix split. Answers
+// "what are we up against, by volume" without conflating "channel
+// posts often" with "channel posts the same kind of content as us."
+// Each bar is two-toned: pink-saturated for Shorts share, neutral for
+// long-form share — so eufy's 25/wk reads as "Shorts pumping" and
+// Smart Home Solver's 0.2/wk reads as "long-form essays" at a glance.
+function UploadTempo({ channels, formatMixByChannel }) {
+  // Normalize to a per-channel object with weekly upload rate + shorts share.
+  const rows = (channels || [])
+    .filter(c => c.uploadsPerWeek != null && c.uploadsPerWeek > 0)
+    .map(c => {
+      const mix = formatMixByChannel?.[c.id];
+      const total = mix?.total || 0;
+      const shortsShare = total > 0 ? mix.shorts / total : null;
+      return {
+        id: c.id,
+        name: c.name,
+        uploadsPerWeek: c.uploadsPerWeek,
+        shortsShare, // null when unknown
+        formatKnown: total > 0,
+      };
+    })
+    .sort((a, b) => b.uploadsPerWeek - a.uploadsPerWeek);
+
+  if (!rows.length) {
+    return <p style={{ color: MUTED, fontStyle: 'italic' }}>No upload-rate data for the cohort yet.</p>;
+  }
+
+  const maxRate = rows[0].uploadsPerWeek;
+  const labelWidth = 180;
+  const barAreaWidth = 380;
+  const valueWidth = 100;
+  const rowHeight = 26;
+  const height = rows.length * rowHeight + 6;
+
+  // Compact format helpers — under 1/wk shows as /mo for readability
+  const formatTempo = (perWeek) => {
+    if (perWeek >= 1) return `${perWeek.toFixed(1)}/wk`;
+    const perMonth = perWeek * 30 / 7;
+    return `${perMonth.toFixed(1)}/mo`;
+  };
+
+  return (
+    <div>
+      <p style={{ marginBottom: 12 }}>
+        Cohort tempo ranges from <strong>{formatTempo(maxRate)}</strong> at the top to{' '}
+        <strong>{formatTempo(rows[rows.length - 1].uploadsPerWeek)}</strong> at the bottom. Bars split into Shorts (pink) and long-form (neutral) so volume reads alongside what kind of volume it is.
+      </p>
+      <svg className="cd-chart" viewBox={`0 0 ${labelWidth + barAreaWidth + valueWidth} ${height}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', maxWidth: 760 }}>
+        {rows.map((r, i) => {
+          const y = i * rowHeight + 6;
+          const width = (r.uploadsPerWeek / maxRate) * barAreaWidth;
+          const shortsW = r.shortsShare != null ? width * r.shortsShare : width;
+          const longsW = r.shortsShare != null ? width * (1 - r.shortsShare) : 0;
+          const formatNote = r.formatKnown
+            ? r.shortsShare >= 0.85 ? 'shorts'
+              : r.shortsShare <= 0.15 ? 'long-form'
+              : 'mixed'
+            : null;
+          return (
+            <g key={r.id || r.name}>
+              <text x={labelWidth - 8} y={y + 14} textAnchor="end" fontSize="11.5" fill={INK} style={{ fontWeight: 500 }}>
+                {r.name}
+              </text>
+              {r.shortsShare != null ? (
+                <>
+                  <rect x={labelWidth} y={y + 6} width={shortsW} height={14} fill={ACCENT} opacity={0.92} rx={2} />
+                  <rect x={labelWidth + shortsW} y={y + 6} width={longsW} height={14} fill="#cbd5e1" rx={2} />
+                </>
+              ) : (
+                <rect x={labelWidth} y={y + 6} width={width} height={14} fill="#cbd5e1" rx={2} />
+              )}
+              <text x={labelWidth + barAreaWidth + 6} y={y + 14} fontSize="11" fill={INK} style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 600 }}>
+                {formatTempo(r.uploadsPerWeek)}
+                {formatNote && <tspan style={{ fontWeight: 400 }} fill={MUTED}>{` · ${formatNote}`}</tspan>}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11, color: MUTED }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ width: 10, height: 10, background: ACCENT, borderRadius: 2 }} /> Shorts
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ width: 10, height: 10, background: '#cbd5e1', borderRadius: 2 }} /> Long-form
+        </span>
+      </div>
+    </div>
   );
 }
 

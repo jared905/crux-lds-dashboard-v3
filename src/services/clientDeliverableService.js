@@ -88,6 +88,14 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
   // Briefing is dependent on diagnostic — chained.
   const briefing = diagnostic ? await loadOrGenerateBriefing(diagnostic).catch(() => null) : null;
 
+  // Per-channel format mix — Shorts vs long-form split over the cadence
+  // window. Powers the Upload tempo section so each channel's volume
+  // can be read alongside its format strategy. Without this the
+  // 25-uploads-a-week eufy bar looks comparable to Smart Home Solver's
+  // monthly 30-minute essay, which it isn't.
+  const channelIdsForTempo = (channels || []).map(c => c.id).filter(Boolean);
+  const formatMixByChannel = await fetchPerChannelFormatMix(channelIdsForTempo, 90).catch(() => ({}));
+
   return {
     ok: true,
     clientChannel,
@@ -103,8 +111,33 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
     diagnostic,
     briefing,
     audienceSignals,
+    formatMixByChannel,
     generatedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Per-channel Shorts vs long-form counts over a recent window. Returns
+ * `{ [channelId]: { shorts, longs, total } }`. Used by the deliverable's
+ * Upload tempo section so volume reads alongside format strategy.
+ */
+async function fetchPerChannelFormatMix(channelIds, windowDays = 90) {
+  if (!supabase || !Array.isArray(channelIds) || !channelIds.length) return {};
+  const cutoff = new Date(Date.now() - windowDays * 86400_000).toISOString();
+  const { data } = await supabase
+    .from('videos')
+    .select('channel_id, video_type')
+    .in('channel_id', channelIds)
+    .gte('published_at', cutoff);
+  const byChannel = {};
+  for (const v of (data || [])) {
+    if (!byChannel[v.channel_id]) byChannel[v.channel_id] = { shorts: 0, longs: 0, total: 0 };
+    const bucket = byChannel[v.channel_id];
+    bucket.total++;
+    if (v.video_type === 'short') bucket.shorts++;
+    else bucket.longs++;
+  }
+  return byChannel;
 }
 
 export default { loadDeliverableData };
