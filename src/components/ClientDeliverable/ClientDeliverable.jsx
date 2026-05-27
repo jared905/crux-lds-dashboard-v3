@@ -506,16 +506,16 @@ function PreLaunchFraming({ clientName }) {
   return (
     <section className="cd-page cd-prelaunch">
       <div className="cd-prelaunch-kicker">Why this deliverable looks different</div>
-      <h3 className="cd-prelaunch-title">{clientName} hasn't published yet — so we're reading the field, not the channel.</h3>
+      <h3 className="cd-prelaunch-title">{clientName} hasn't published in over 90 days — so we're reading the field, not the channel.</h3>
       <div className="cd-prelaunch-body">
         <p>
-          When a channel has a year of uploads behind it, an audit reads the channel: what's worked, what's flatlined, where the audience is leaning. This deliverable can't do that yet — and shouldn't pretend to.
+          When a channel has a year of recent uploads behind it, an audit reads the channel: what's worked, what's flatlined, where the audience is leaning. This deliverable can't do that yet — there isn't enough current data — and shouldn't pretend to.
         </p>
         <p>
-          Instead, the audit below describes the <strong>category</strong> {clientName} is entering: who occupies it today, how those channels post, what they look like, and where the field has open ground. The Positioning Recommendation that follows is calibrated against that landscape — so the channel can launch into a defined slot rather than discover one mid-flight.
+          Instead, the audit below describes the <strong>category</strong> {clientName} is operating in: who occupies it today, how those channels post, what they look like, and where the field has open ground. The Positioning Recommendation that follows is calibrated against that landscape — so the channel can re-enter into a defined slot rather than discover one mid-flight.
         </p>
         <p>
-          The performance-feedback layer (what your audience watches, what they comment on, what time slots win for your content specifically) will populate after the first 90 days of uploads. We'll regenerate this document then with the channel's own signal layered on top of the landscape.
+          The performance-feedback layer (what your audience watches, what they comment on, what time slots win for your content specifically) will populate once the channel publishes consistently again — roughly 90 days of activity. We'll regenerate this document then with the channel's own signal layered on top of the landscape.
         </p>
       </div>
     </section>
