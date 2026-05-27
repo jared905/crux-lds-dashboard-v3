@@ -21,6 +21,19 @@ import { supabase } from './supabaseClient';
 
 const VALID_STATUSES = ['draft', 'active', 'retired'];
 const VALID_SOURCES = ['strategist', 'client_idea', 'existing_channel_pillar'];
+const VALID_FORMAT_TYPES = ['long_form', 'shorts', 'multi_cut'];
+const VALID_TALENT_MODELS = ['host', 'voiceover', 'none'];
+
+export const PILLAR_FORMAT_LABELS = {
+  long_form: 'Long-form',
+  shorts: 'Shorts',
+  multi_cut: 'Long-form + Shorts cuts',
+};
+export const PILLAR_TALENT_LABELS = {
+  host: 'On-camera host',
+  voiceover: 'Voiceover only',
+  none: 'No on-camera talent (UGC / footage / animation)',
+};
 
 // ──────────────────────────────────────────────────
 // Read
@@ -87,6 +100,8 @@ export async function createPillar(clientId, patch = {}) {
 
   const status = VALID_STATUSES.includes(patch.status) ? patch.status : 'draft';
   const source = patch.source && VALID_SOURCES.includes(patch.source) ? patch.source : null;
+  const format_type = patch.format_type && VALID_FORMAT_TYPES.includes(patch.format_type) ? patch.format_type : null;
+  const talent_model = patch.talent_model && VALID_TALENT_MODELS.includes(patch.talent_model) ? patch.talent_model : null;
 
   const { data: row, error } = await supabase
     .from('client_pillars')
@@ -96,6 +111,8 @@ export async function createPillar(clientId, patch = {}) {
       title: patch.title.trim(),
       creative_description: patch.creative_description ?? null,
       intended_audience: patch.intended_audience ?? null,
+      format_type,
+      talent_model,
       budget_per_video_low: patch.budget_per_video_low ?? null,
       budget_per_video_high: patch.budget_per_video_high ?? null,
       rotation_position: patch.rotation_position ?? null,
@@ -137,6 +154,18 @@ export async function updatePillar(pillarId, patch = {}) {
       return { ok: false, error: `invalid source: ${patch.source}` };
     }
     updates.source = patch.source;
+  }
+  if ('format_type' in patch) {
+    if (patch.format_type != null && !VALID_FORMAT_TYPES.includes(patch.format_type)) {
+      return { ok: false, error: `invalid format_type: ${patch.format_type}` };
+    }
+    updates.format_type = patch.format_type;
+  }
+  if ('talent_model' in patch) {
+    if (patch.talent_model != null && !VALID_TALENT_MODELS.includes(patch.talent_model)) {
+      return { ok: false, error: `invalid talent_model: ${patch.talent_model}` };
+    }
+    updates.talent_model = patch.talent_model;
   }
 
   const { data: row, error } = await supabase
