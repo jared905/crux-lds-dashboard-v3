@@ -14,11 +14,36 @@
  * uppercase titles, editorial sans-serif body.
  */
 
-import React, { useEffect, useState } from 'react';
-import { Printer, X as XIcon, Loader, Download, Copy, Check } from 'lucide-react';
+import React, { useEffect, useState, useContext, createContext } from 'react';
+import { Printer, X as XIcon, Loader, Download, Copy, Check, Edit3, RotateCcw } from 'lucide-react';
 import { loadDeliverableData } from '../../services/clientDeliverableService.js';
 import { generateAuditPack, downloadMarkdown } from '../../services/auditPackService.js';
 import { brand } from '../../config/brand.js';
+
+// Session-scoped edit mode. When on, certain prose elements become
+// contentEditable. Edits live in the DOM and survive Print / Save-as-PDF
+// / Copy actions; they're lost when the modal closes. No persistence —
+// the spine and business context remain the source of truth.
+const EditCtx = createContext(false);
+
+// Editable wrapper. Renders a tag (default <div>) with contentEditable
+// toggled by context. Safe to use anywhere prose lives — tables,
+// charts, and numeric values stay out of this so data integrity isn't
+// at the strategist's typing speed.
+function E({ children, tag = 'div', className = '', style }) {
+  const editMode = useContext(EditCtx);
+  return React.createElement(
+    tag,
+    {
+      className: `${className} ${editMode ? 'cd-editable' : ''}`.trim(),
+      contentEditable: editMode,
+      suppressContentEditableWarning: true,
+      spellCheck: editMode,
+      style,
+    },
+    children,
+  );
+}
 
 // Pull palette from brand config so a brand swap is one file edit.
 const ACCENT = brand.colors.accent;
@@ -37,6 +62,10 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  // resetKey bumps when the strategist clicks Reset — re-mounts the
+  // document so all contentEditable edits are wiped back to defaults.
+  const [resetKey, setResetKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +101,19 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
       <PrintStyles />
 
       <div className="cd-toolbar">
+        <button
+          onClick={() => setEditMode(e => !e)}
+          disabled={!data}
+          className={`cd-btn ${editMode ? 'cd-btn-primary' : ''}`}
+          title={editMode ? 'Exit edit mode' : 'Edit prose inline — edits print but do not save when you close'}
+        >
+          <Edit3 size={13} /> {editMode ? 'Editing — done' : 'Edit'}
+        </button>
+        {editMode && (
+          <button onClick={() => setResetKey(k => k + 1)} disabled={!data} className="cd-btn" title="Reset all inline edits back to the auto-generated text">
+            <RotateCcw size={13} /> Reset
+          </button>
+        )}
         <button onClick={() => window.print()} disabled={!data} className="cd-btn cd-btn-primary">
           <Printer size={13} /> Print / Save as PDF
         </button>
@@ -82,22 +124,30 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
         <button onClick={onClose} className="cd-btn"><XIcon size={13} /> Close</button>
       </div>
 
-      <div className="cd-doc">
-        {loading && (
-          <div className="cd-loading">
-            <Loader size={28} className="cd-spin" />
-            <div style={{ marginTop: 10, fontSize: 14, color: MUTED }}>
-              Loading deliverable… this can take 10–30 seconds — the briefing and white-space brief are AI-generated.
+      {editMode && data && (
+        <div className="cd-edit-banner">
+          <strong>Edit mode.</strong> Click any highlighted prose to edit. Changes print + copy with the document but won't save when you close — the spine remains the source of truth. Use <strong>Reset</strong> to revert all edits.
+        </div>
+      )}
+
+      <EditCtx.Provider value={editMode}>
+        <div className="cd-doc" key={resetKey}>
+          {loading && (
+            <div className="cd-loading">
+              <Loader size={28} className="cd-spin" />
+              <div style={{ marginTop: 10, fontSize: 14, color: MUTED }}>
+                Loading deliverable… this can take 10–30 seconds — the briefing and white-space brief are AI-generated.
+              </div>
             </div>
-          </div>
-        )}
-        {error && (
-          <div className="cd-error">
-            <strong>Couldn't load deliverable:</strong> {error}
-          </div>
-        )}
-        {data && <DeliverablePages data={data} clientName={clientName} />}
-      </div>
+          )}
+          {error && (
+            <div className="cd-error">
+              <strong>Couldn't load deliverable:</strong> {error}
+            </div>
+          )}
+          {data && <DeliverablePages data={data} clientName={clientName} />}
+        </div>
+      </EditCtx.Provider>
     </div>
   );
 }
@@ -206,7 +256,7 @@ function Cover({ clientName, dateStr, oneliner, isPreLaunch }) {
       {oneliner && (
         <div className="cd-cover-oneliner">
           <span className="cd-cover-oneliner-mark">“</span>
-          {oneliner}
+          <E tag="span">{oneliner}</E>
           <span className="cd-cover-oneliner-mark">”</span>
         </div>
       )}
@@ -302,11 +352,11 @@ function SynthesisPage({ clientName, spine, hosts, synthesisData }) {
                     </div>
                   ) : (
                     <>
-                      <div className="cd-synthesis-move-text">{m.text}</div>
+                      <E className="cd-synthesis-move-text">{m.text}</E>
                       {m.evidence && (
                         <div className="cd-synthesis-move-evidence">
                           <span className="cd-synthesis-evidence-tag">Why</span>
-                          <span>{m.evidence}</span>
+                          <E tag="span">{m.evidence}</E>
                         </div>
                       )}
                     </>
@@ -321,7 +371,7 @@ function SynthesisPage({ clientName, spine, hosts, synthesisData }) {
           <div className="cd-synthesis-anti">
             <div className="cd-synthesis-anti-label">What this isn't</div>
             <ul className="cd-synthesis-anti-list">
-              {antiStance.map((a, i) => <li key={i}>{a}</li>)}
+              {antiStance.map((a, i) => <E key={i} tag="li">{a}</E>)}
             </ul>
           </div>
         )}
@@ -490,8 +540,8 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
     <section className="cd-page">
       {(briefing || diagnostic) && (
         <SubSection title="Where to start" kicker="The single highest-leverage move">
-          {briefing?.headline && <div className="cd-headline">{briefing.headline}</div>}
-          {briefing?.body && <p>{briefing.body}</p>}
+          {briefing?.headline && <E className="cd-headline">{briefing.headline}</E>}
+          {briefing?.body && <E tag="p">{briefing.body}</E>}
           {!briefing && diagnostic && (
             <p style={{ color: MUTED, fontStyle: 'italic' }}>
               Briefing not yet generated. {diagnostic.cohort?.videoCount} cohort videos analyzed.
@@ -621,8 +671,8 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
           <ol className="cd-list cd-list-numbered">
             {opportunities.slice(0, 5).map((o, i) => (
               <li key={i}>
-                <strong>{o.title}</strong>
-                {o.body && <div style={{ marginTop: 4 }}>{o.body}</div>}
+                <E tag="strong">{o.title}</E>
+                {o.body && <E style={{ marginTop: 4 }}>{o.body}</E>}
               </li>
             ))}
           </ol>
@@ -1209,7 +1259,7 @@ function PartTwoContent({ spine, hosts = [], legacyRubric, rationales = {} }) {
       {spine?.editorial_pov && (
         <SubSection title="Editorial POV + mission" kicker="What this channel believes">
           {rationales.editorial_pov && <EvidenceLead>{rationales.editorial_pov}</EvidenceLead>}
-          <p className="cd-recommendation">{spine.editorial_pov}</p>
+          <E tag="p" className="cd-recommendation">{spine.editorial_pov}</E>
           <InPractice>Every script and brief is tested against this POV — if a video doesn't argue or stand for something in this frame, it doesn't ship.</InPractice>
         </SubSection>
       )}
@@ -1217,7 +1267,7 @@ function PartTwoContent({ spine, hosts = [], legacyRubric, rationales = {} }) {
       {spine?.voice_tone && (
         <SubSection title="Voice + tone" kicker="How this channel sounds">
           {rationales.voice_tone && <EvidenceLead>{rationales.voice_tone}</EvidenceLead>}
-          <p className="cd-recommendation">{spine.voice_tone}</p>
+          <E tag="p" className="cd-recommendation">{spine.voice_tone}</E>
           <InPractice>This is the style sheet talent reads before takes and producers reference during edits — generated copy and scripts match this register or get rejected.</InPractice>
         </SubSection>
       )}
@@ -1244,7 +1294,7 @@ function PartTwoContent({ spine, hosts = [], legacyRubric, rationales = {} }) {
       {spine?.guardrails && (
         <SubSection title="What this isn't" kicker="Explicit anti-stances">
           {rationales.guardrails && <EvidenceLead>{rationales.guardrails}</EvidenceLead>}
-          <div className="cd-guardrails">{spine.guardrails}</div>
+          <E className="cd-guardrails">{spine.guardrails}</E>
           <InPractice>AI generations, producer briefs, and content pitches explicitly exclude these stances. A pitch that drifts into them gets pulled before production.</InPractice>
         </SubSection>
       )}
@@ -1334,7 +1384,7 @@ function SoWhat({ children }) {
   return (
     <div className="cd-sowhat">
       <div className="cd-sowhat-tag">So what</div>
-      <div className="cd-sowhat-body">{children}</div>
+      <E className="cd-sowhat-body">{children}</E>
     </div>
   );
 }
@@ -1462,7 +1512,7 @@ function EvidenceLead({ children }) {
   return (
     <div className="cd-evidence">
       <div className="cd-evidence-tag">Why</div>
-      <div className="cd-evidence-body">{children}</div>
+      <E className="cd-evidence-body">{children}</E>
     </div>
   );
 }
@@ -1474,7 +1524,7 @@ function InPractice({ children }) {
   return (
     <div className="cd-in-practice">
       <div className="cd-in-practice-tag">In practice</div>
-      <div className="cd-in-practice-body">{children}</div>
+      <E className="cd-in-practice-body">{children}</E>
     </div>
   );
 }
@@ -1632,6 +1682,36 @@ function PrintStyles() {
       .cd-btn-primary { background: #1e3a5f; color: #dbeafe; border-color: #2a4f7f; }
       .cd-spin { animation: cd-spin 1s linear infinite; }
       @keyframes cd-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+
+      /* Edit-mode banner — surfaces what's happening + the constraint */
+      .cd-edit-banner {
+        max-width: 840px; margin: 12px auto -12px;
+        padding: 10px 16px;
+        background: rgba(236, 72, 153, 0.12);
+        border: 1px solid rgba(236, 72, 153, 0.35);
+        border-radius: 6px;
+        color: #fce7f3;
+        font-size: 12px; line-height: 1.55;
+      }
+      .cd-edit-banner strong { color: #fbcfe8; }
+
+      /* Editable affordance — subtle dashed outline on the editable
+         elements when edit mode is on, brighter on hover/focus.
+         Crucially: never appears in print (handled below). */
+      .cd-editable {
+        outline: 1px dashed rgba(236, 72, 153, 0.4);
+        outline-offset: 2px;
+        border-radius: 2px;
+        cursor: text;
+        transition: outline-color 0.15s;
+      }
+      .cd-editable:hover {
+        outline-color: rgba(236, 72, 153, 0.75);
+      }
+      .cd-editable:focus {
+        outline: 2px solid ${ACCENT};
+        background: rgba(236, 72, 153, 0.04);
+      }
 
       .cd-doc {
         max-width: 840px; margin: 32px auto 80px;
@@ -2070,6 +2150,8 @@ function PrintStyles() {
         .cd-prelaunch { break-after: page; }
         .cd-synthesis { break-after: page; padding: 0.7in 0.8in !important; }
         .cd-synthesis-move { break-inside: avoid; }
+        .cd-edit-banner { display: none !important; }
+        .cd-editable { outline: none !important; background: transparent !important; }
       }
     `}</style>
   );
