@@ -28,6 +28,8 @@ import {
   getSpineSnapshot,
   deleteSpineSnapshot,
   suggestPositioningOneliner,
+  suggestEditorialPov,
+  suggestVoiceTone,
   PLAY_STATUS_LABELS,
   POSITIONING_ONELINER_MAX_CHARS,
   HOST_ARCHETYPES,
@@ -43,6 +45,7 @@ import {
   createHost,
   updateHost,
   deleteHost,
+  suggestHostProfile,
 } from '../../services/clientHostsService.js';
 import {
   getActiveBusinessContext,
@@ -249,6 +252,7 @@ export default function StrategySpine({ client, onBack }) {
         updatedAt={spine?.editorial_pov_updated_at}
         placeholder="e.g. We believe leadership is a daily discipline lived out in small moments, not a destination. Our mission is to make that practice visible — what it looks like, where it cracks, how it gets repaired — for an audience that already wants to live this way but rarely sees it modeled."
         onSave={(v) => handleFieldSave('editorial_pov', v)}
+        onSuggest={() => suggestEditorialPov(client.id, { clientName: client.name })}
       />
 
       <Section
@@ -258,6 +262,7 @@ export default function StrategySpine({ client, onBack }) {
         updatedAt={spine?.voice_tone_updated_at}
         placeholder="e.g. Warm and unhurried. Speaks plainly, never preachily. Uses concrete imagery over abstraction. Lets silence breathe. Calls out tension before resolving it. Confident enough to admit doubt; never performs certainty."
         onSave={(v) => handleFieldSave('voice_tone', v)}
+        onSuggest={() => suggestVoiceTone(client.id, { clientName: client.name })}
       />
 
       <HostsPanel
@@ -883,15 +888,43 @@ function PositioningOneLinerSection({ clientId, clientName, value, updatedAt, on
   );
 }
 
-function Section({ title, subtitle, value, updatedAt, placeholder, onSave, accent }) {
+function Section({ title, subtitle, value, updatedAt, placeholder, onSave, onSuggest, accent }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || '');
+  // AI-suggest state — only active when an onSuggest callback is provided
+  const [suggesting, setSuggesting] = useState(false);
+  const [candidates, setCandidates] = useState(null);
+  const [suggestError, setSuggestError] = useState(null);
 
   useEffect(() => { setDraft(value || ''); }, [value]);
 
   const handleSave = async () => {
     await onSave(draft.trim() || null);
     setEditing(false);
+    setCandidates(null);
+  };
+
+  const handleCancel = () => {
+    setDraft(value || '');
+    setEditing(false);
+    setCandidates(null);
+    setSuggestError(null);
+  };
+
+  const handleSuggest = async () => {
+    if (!onSuggest || suggesting) return;
+    setSuggesting(true);
+    setSuggestError(null);
+    setCandidates(null);
+    try {
+      const r = await onSuggest();
+      if (!r?.ok) setSuggestError(r?.error || 'Suggestion failed');
+      else setCandidates(r.candidates || []);
+    } catch (e) {
+      setSuggestError(e.message || 'Suggestion failed');
+    } finally {
+      setSuggesting(false);
+    }
   };
 
   return (
@@ -899,7 +932,7 @@ function Section({ title, subtitle, value, updatedAt, placeholder, onSave, accen
       action={editing ? (
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={handleSave} style={primaryBtn} title="Save"><Check size={12} /> Save</button>
-          <button onClick={() => { setDraft(value || ''); setEditing(false); }} style={ghostBtn} title="Cancel"><XIcon size={12} /></button>
+          <button onClick={handleCancel} style={ghostBtn} title="Cancel"><XIcon size={12} /></button>
         </div>
       ) : (
         <button onClick={() => setEditing(true)} style={ghostBtn} title="Edit">
@@ -908,14 +941,71 @@ function Section({ title, subtitle, value, updatedAt, placeholder, onSave, accen
       )}
     >
       {editing ? (
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={placeholder}
-          autoFocus
-          rows={5}
-          style={textareaStyle}
-        />
+        <>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={placeholder}
+            autoFocus
+            rows={5}
+            style={textareaStyle}
+          />
+          {onSuggest && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <button
+                onClick={handleSuggest}
+                disabled={suggesting}
+                style={{ ...ghostBtn, opacity: suggesting ? 0.7 : 1, cursor: suggesting ? 'wait' : 'pointer' }}
+                title="Generate 3 candidate drafts from the rest of the spine"
+              >
+                {suggesting
+                  ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Suggesting…</>
+                  : <><Sparkles size={12} /> AI suggest</>}
+              </button>
+              {!candidates && !suggesting && (
+                <span style={{ fontSize: 11, color: '#666' }}>
+                  Generates three candidates from the rest of the spine. You pick + edit.
+                </span>
+              )}
+            </div>
+          )}
+          {suggestError && (
+            <div style={{ color: '#f87171', fontSize: 12, marginBottom: 8 }}>
+              {suggestError}
+            </div>
+          )}
+          {candidates && candidates.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                Click to use, then edit:
+              </div>
+              {candidates.map((c, i) => (
+                <button
+                  key={i}
+                  onClick={() => setDraft(c.text || c.oneliner || '')}
+                  style={{
+                    textAlign: 'left',
+                    background: '#15151a',
+                    border: '1px solid #2a2a30',
+                    borderRadius: 6,
+                    padding: '10px 12px',
+                    fontFamily: 'inherit',
+                    fontSize: 13,
+                    color: '#d4d4d8',
+                    cursor: 'pointer',
+                    lineHeight: 1.55,
+                  }}
+                  title={`Insert this candidate (${c.angle || 'option'}) into the draft`}
+                >
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
+                    {c.angle || `option ${i + 1}`}
+                  </div>
+                  {c.text || c.oneliner || ''}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       ) : value ? (
         <div style={{ color: '#d4d4d8', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
           {value}
@@ -1009,6 +1099,11 @@ function HostCard({ clientId, clientName, spine, host, startEditing, onCreate, o
     notes: host?.notes || '',
   });
   const [busy, setBusy] = useState(false);
+
+  // AI suggest state — only used in edit mode for archetype/refinement picks
+  const [suggesting, setSuggesting] = useState(false);
+  const [hostCandidates, setHostCandidates] = useState(null);
+  const [suggestError, setSuggestError] = useState(null);
 
   // Rubric state — per-host
   const [rubric, setRubric] = useState(null);
@@ -1157,6 +1252,27 @@ function HostCard({ clientId, clientName, spine, host, startEditing, onCreate, o
 
       {editing && (
         <div style={{ marginTop: 6 }}>
+          <HostSuggestPanel
+            clientId={clientId}
+            clientName={clientName}
+            seriesLabelHint={draft.series_label}
+            suggesting={suggesting}
+            setSuggesting={setSuggesting}
+            candidates={hostCandidates}
+            setCandidates={setHostCandidates}
+            error={suggestError}
+            setError={setSuggestError}
+            onPickCandidate={(c) => {
+              setDraft(d => ({
+                ...d,
+                archetypeId: c.archetypeId || '',
+                archetypeRefinement: c.refinement || '',
+                voice_tone_refinement: c.voice_tone_refinement || d.voice_tone_refinement,
+              }));
+              setHostCandidates(null);
+            }}
+          />
+
           <label style={fieldLabel}>Name (or "TBD" if pre-casting)</label>
           <input
             value={draft.name}
@@ -1277,6 +1393,93 @@ function HostCard({ clientId, clientName, spine, host, startEditing, onCreate, o
           clientName={`${clientName}${host?.series_label ? ` · ${host.series_label}` : ''}${host?.name ? ` · ${host.name}` : ''}`}
           onClose={() => setPrintOpen(false)}
         />
+      )}
+    </div>
+  );
+}
+
+// AI-suggest panel for HostCard. Renders the "AI suggest" button +
+// the candidate cards below. Sits at the top of the host edit panel
+// so a strategist can populate the archetype + refinement + voice
+// refinement from spine context before manually editing other fields.
+function HostSuggestPanel({ clientId, clientName, seriesLabelHint, suggesting, setSuggesting, candidates, setCandidates, error, setError, onPickCandidate }) {
+  const handleSuggest = async () => {
+    if (suggesting) return;
+    setSuggesting(true);
+    setError(null);
+    setCandidates(null);
+    try {
+      // Read sibling hosts so the suggester avoids proposing the same
+      // archetype twice (for multi-series channels).
+      const others = (await listHosts(clientId)).map(h => h.archetype).filter(Boolean);
+      const r = await suggestHostProfile(clientId, {
+        clientName,
+        seriesLabel: seriesLabelHint || null,
+        existingArchetypes: others,
+      });
+      if (!r.ok) setError(r.error);
+      else setCandidates(r.candidates || []);
+    } catch (e) {
+      setError(e.message || 'Suggestion failed');
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 12, padding: 10, background: '#0e0e10', border: '1px dashed #2a2a30', borderRadius: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ fontSize: 11, color: '#888' }}>
+          Generate three candidate host profiles from the spine. Pick one to pre-fill archetype, refinement, and voice refinement.
+        </div>
+        <button onClick={handleSuggest} disabled={suggesting} style={{ ...ghostBtn, flexShrink: 0 }}>
+          {suggesting
+            ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Suggesting…</>
+            : <><Sparkles size={12} /> AI suggest</>}
+        </button>
+      </div>
+      {error && (
+        <div style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>{error}</div>
+      )}
+      {candidates && candidates.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+            Click to use:
+          </div>
+          {candidates.map((c, i) => (
+            <button
+              key={i}
+              onClick={() => onPickCandidate(c)}
+              style={{
+                textAlign: 'left',
+                background: '#15151a',
+                border: '1px solid #2a2a30',
+                borderRadius: 6,
+                padding: '10px 12px',
+                fontFamily: 'inherit',
+                fontSize: 13,
+                color: '#d4d4d8',
+                cursor: 'pointer',
+                lineHeight: 1.5,
+              }}
+              title="Insert this archetype + refinement + voice refinement into the form"
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 4 }}>
+                {c.archetypeLabel}{c.refinement ? ` — ${c.refinement}` : ''}
+              </div>
+              {c.voice_tone_refinement && (
+                <div style={{ fontSize: 12, color: '#a8a8b0', marginBottom: 4 }}>
+                  <span style={{ color: '#a78bfa', fontWeight: 600 }}>Voice:</span> {c.voice_tone_refinement}
+                </div>
+              )}
+              {c.rationale && (
+                <div style={{ fontSize: 11, color: '#666', fontStyle: 'italic' }}>
+                  {c.rationale}
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

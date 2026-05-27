@@ -532,6 +532,167 @@ Return ONLY the JSON.`;
   }
 }
 
+/**
+ * Suggest three candidate editorial POV statements. Compresses what
+ * tends to read as strategist brainstorm notes ("we want to make the
+ * channel a first step in meeting people who...") into evidence-led
+ * statements ("We argue X. We exist because Y."). Each candidate takes
+ * a distinct angle:
+ *   - belief   — what this channel argues/stands for (the editorial core)
+ *   - mission  — why this channel exists (the operational reason)
+ *   - bet      — what this channel is wagering on being right about
+ * Returns `{ ok, candidates: [{angle, text}] }`.
+ */
+export async function suggestEditorialPov(clientId, { clientName } = {}) {
+  if (!clientId) return { ok: false, error: 'missing clientId' };
+  const spine = await getSpine(clientId);
+  if (!spine) return { ok: false, error: 'no spine on file for this client' };
+
+  // Need at least one other positioning field to anchor against —
+  // editorial POV without a one-liner or positioning_hypothesis is
+  // generated from nothing and reads like generic marketing copy.
+  const haveAnchor =
+    spine.positioning_oneliner?.trim()
+    || spine.positioning_hypothesis?.trim()
+    || spine.competitive_posture?.trim()
+    || spine.audience_read?.trim();
+  if (!haveAnchor) {
+    return { ok: false, error: 'Need positioning or audience read authored first — editorial POV is what this channel argues against the competitive landscape, not a recommendation generated from scratch.' };
+  }
+
+  const parts = [];
+  if (clientName) parts.push(`CLIENT: ${clientName}`);
+  if (spine.positioning_oneliner?.trim()) parts.push(`POSITIONING ONE-LINER:\n${spine.positioning_oneliner.trim()}`);
+  if (spine.positioning_hypothesis?.trim()) parts.push(`POSITIONING HYPOTHESIS:\n${spine.positioning_hypothesis.trim()}`);
+  if (spine.competitive_posture?.trim()) parts.push(`COMPETITIVE POSTURE:\n${spine.competitive_posture.trim()}`);
+  if (spine.voice_tone?.trim()) parts.push(`VOICE + TONE:\n${spine.voice_tone.trim()}`);
+  if (spine.audience_read?.trim()) parts.push(`AUDIENCE READ:\n${spine.audience_read.trim()}`);
+  if (spine.guardrails?.trim()) parts.push(`GUARDRAILS:\n${spine.guardrails.trim()}`);
+
+  const systemPrompt = `You compress strategist brainstorm into client-facing editorial POV statements — what this channel argues, why it exists, what it's betting on. The strategist's draft language ("we want to...", "I see this being...") gets rewritten into stating language ("We argue...", "We exist because..."). Return ONLY valid JSON.`;
+
+  const prompt = `Read the spine below and propose THREE candidate Editorial POV + Mission statements.
+
+REQUIREMENTS:
+- Each candidate is 2–4 sentences. Reads as a statement, not a brief.
+- The three candidates take DISTINCT angles, not three rewrites of the same idea:
+    1. belief — name what this channel argues. State a conviction. Implies an opposition (something the channel argues AGAINST).
+    2. mission — why this channel exists. The operational reason — what would change in the world if this channel succeeded.
+    3. bet — what this channel is wagering on being right about. Names a specific bet about audience, category, or moment.
+- No marketing throat-clearing — never "we are dedicated to," "we strive to," "we empower," "we believe in [vague abstraction]."
+- Reference the audience by what they're doing or feeling, not by demographic category.
+- Match the spine's voice/tone if specified.
+
+SPINE:
+${parts.join('\n\n')}
+
+Return JSON exactly:
+{
+  "candidates": [
+    { "angle": "belief", "text": "string — 2-4 sentence editorial POV statement" },
+    { "angle": "mission", "text": "string — 2-4 sentence editorial POV statement" },
+    { "angle": "bet", "text": "string — 2-4 sentence editorial POV statement" }
+  ]
+}
+Return ONLY the JSON.`;
+
+  try {
+    const result = await claudeAPI.call(prompt, systemPrompt, 'editorial_pov_suggest', 1536);
+    const parsed = parseClaudeJSON(result.text, null);
+    const raw = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
+    const candidates = raw
+      .map(c => ({
+        angle: typeof c?.angle === 'string' ? c.angle : null,
+        text: typeof c?.text === 'string' ? c.text.trim() : null,
+      }))
+      .filter(c => c.text);
+    if (!candidates.length) return { ok: false, error: 'Claude returned no usable candidates. Try again or refine the spine fields.' };
+    return { ok: true, candidates };
+  } catch (e) {
+    console.error('[spine] editorial_pov suggest failed:', e);
+    return { ok: false, error: e.message || 'Suggestion call failed' };
+  }
+}
+
+/**
+ * Suggest three candidate voice + tone descriptions. The voice field
+ * suffers worst from the "brainstorm-notes-not-statements" problem —
+ * strategists write "friendly and approachable" and stop. This compresses
+ * into a producer-ready spec: register + pacing + signature moves +
+ * anti-pattern. Each candidate takes a distinct angle:
+ *   - register   — leads with the speech register (plainspoken, ASMR-quiet, etc.)
+ *   - identity   — leads with the speaker's identity ("a SafeStreets installer talking")
+ *   - antipattern — leads with what to NOT do (defines voice by what it isn't)
+ */
+export async function suggestVoiceTone(clientId, { clientName } = {}) {
+  if (!clientId) return { ok: false, error: 'missing clientId' };
+  const spine = await getSpine(clientId);
+  if (!spine) return { ok: false, error: 'no spine on file for this client' };
+
+  const haveAnchor =
+    spine.editorial_pov?.trim()
+    || spine.positioning_oneliner?.trim()
+    || spine.positioning_hypothesis?.trim()
+    || spine.host_archetype?.trim();
+  if (!haveAnchor) {
+    return { ok: false, error: 'Need editorial POV, positioning, or host archetype authored first — voice/tone is calibrated against those, not generated in isolation.' };
+  }
+
+  const parts = [];
+  if (clientName) parts.push(`CLIENT: ${clientName}`);
+  if (spine.positioning_oneliner?.trim()) parts.push(`POSITIONING ONE-LINER:\n${spine.positioning_oneliner.trim()}`);
+  if (spine.positioning_hypothesis?.trim()) parts.push(`POSITIONING HYPOTHESIS:\n${spine.positioning_hypothesis.trim()}`);
+  if (spine.editorial_pov?.trim()) parts.push(`EDITORIAL POV + MISSION:\n${spine.editorial_pov.trim()}`);
+  if (spine.competitive_posture?.trim()) parts.push(`COMPETITIVE POSTURE:\n${spine.competitive_posture.trim()}`);
+  if (spine.host_archetype?.trim()) parts.push(`HOST ARCHETYPE:\n${spine.host_archetype.trim()}`);
+  if (spine.audience_read?.trim()) parts.push(`AUDIENCE READ:\n${spine.audience_read.trim()}`);
+  if (spine.guardrails?.trim()) parts.push(`GUARDRAILS:\n${spine.guardrails.trim()}`);
+
+  const systemPrompt = `You compress strategist brainstorm into producer-ready voice + tone style sheets. The strategist tends to write adjective lists ("friendly and approachable") that producers can't act on. You write what an editor needs: register + pacing + signature moves + what to avoid. Return ONLY valid JSON.`;
+
+  const prompt = `Read the spine below and propose THREE candidate Voice + Tone style sheets.
+
+REQUIREMENTS:
+- Each candidate is 2–4 sentences. Reads as something a producer can hold a script against and reject lines that drift from.
+- The three candidates take DISTINCT angles:
+    1. register   — leads with the speech register and pacing (plainspoken vs hyped, slow vs cracked, etc.). Producer can hear it.
+    2. identity   — leads with who is speaking ("an installer talking about their actual work," not "a brand voice"). Producer can cast against it.
+    3. antipattern — defines voice by what it's NOT. Names the cliché this channel must avoid (clickbait register, polished marketing voice, etc.). Producer can flag drift toward the anti-pattern in edits.
+- Be concrete about signature moves: holds a beat after a hard question, never punches up a noun, refuses corporate jargon, uses concrete examples over abstractions, etc.
+- Each candidate must end with something a producer can actually enforce.
+- No marketing language ("warm and engaging," "professional yet approachable").
+
+SPINE:
+${parts.join('\n\n')}
+
+Return JSON exactly:
+{
+  "candidates": [
+    { "angle": "register", "text": "string — 2-4 sentence voice + tone spec" },
+    { "angle": "identity", "text": "string — 2-4 sentence voice + tone spec" },
+    { "angle": "antipattern", "text": "string — 2-4 sentence voice + tone spec" }
+  ]
+}
+Return ONLY the JSON.`;
+
+  try {
+    const result = await claudeAPI.call(prompt, systemPrompt, 'voice_tone_suggest', 1536);
+    const parsed = parseClaudeJSON(result.text, null);
+    const raw = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
+    const candidates = raw
+      .map(c => ({
+        angle: typeof c?.angle === 'string' ? c.angle : null,
+        text: typeof c?.text === 'string' ? c.text.trim() : null,
+      }))
+      .filter(c => c.text);
+    if (!candidates.length) return { ok: false, error: 'Claude returned no usable candidates. Try again or refine the spine fields.' };
+    return { ok: true, candidates };
+  } catch (e) {
+    console.error('[spine] voice_tone suggest failed:', e);
+    return { ok: false, error: e.message || 'Suggestion call failed' };
+  }
+}
+
 export default {
   getSpine,
   updateSpineField,
@@ -545,6 +706,8 @@ export default {
   getSpineSnapshot,
   deleteSpineSnapshot,
   suggestPositioningOneliner,
+  suggestEditorialPov,
+  suggestVoiceTone,
   PLAY_STATUS_LABELS,
   POSITIONING_ONELINER_MAX_CHARS,
 };

@@ -15,7 +15,9 @@
  */
 
 import { supabase } from './supabaseClient';
-import { getSpine } from './strategySpineService';
+import { getSpine, HOST_ARCHETYPES, HOST_ARCHETYPE_BY_ID } from './strategySpineService';
+import claudeAPI from './claudeAPI';
+import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 
 // ──────────────────────────────────────────────────
 // Read
@@ -154,4 +156,117 @@ export async function deleteHost(hostId) {
   return { ok: !error, error: error?.message };
 }
 
-export default { listHosts, createHost, updateHost, deleteHost };
+/**
+ * Suggest three candidate host profiles from the spine context.
+ * Returns three distinct archetype + refinement + voice-refinement
+ * combos so the strategist sees real choice, not three rewrites of
+ * the same archetype. Each candidate names its rationale so the
+ * strategist understands WHY this archetype fits this channel +
+ * series.
+ *
+ * Options: `{ clientName, seriesLabel, existingArchetypes }`. Passing
+ * existingArchetypes lets the suggester avoid duplicating archetypes
+ * already on the spine — useful when generating a second/third host
+ * for a multi-series channel.
+ *
+ * Returns `{ ok, candidates: [{archetypeId, archetypeLabel, refinement,
+ * voice_tone_refinement, rationale}] }`.
+ */
+export async function suggestHostProfile(clientId, { clientName, seriesLabel, existingArchetypes = [] } = {}) {
+  if (!clientId) return { ok: false, error: 'missing clientId' };
+  const spine = await getSpine(clientId);
+  if (!spine) return { ok: false, error: 'no spine on file for this client' };
+
+  const haveAnchor =
+    spine.editorial_pov?.trim()
+    || spine.voice_tone?.trim()
+    || spine.positioning_oneliner?.trim()
+    || spine.positioning_hypothesis?.trim();
+  if (!haveAnchor) {
+    return { ok: false, error: 'Need editorial POV, voice/tone, or positioning authored first — the host archetype is derived from those fields, not picked in a vacuum.' };
+  }
+
+  const catalogBlock = HOST_ARCHETYPES.map(a => `  - ${a.id} (${a.label}): ${a.description}`).join('\n');
+
+  const parts = [];
+  if (clientName) parts.push(`CLIENT: ${clientName}`);
+  if (seriesLabel) parts.push(`SERIES THIS HOST WILL FRONT: ${seriesLabel}`);
+  if (spine.positioning_oneliner?.trim()) parts.push(`POSITIONING ONE-LINER:\n${spine.positioning_oneliner.trim()}`);
+  if (spine.positioning_hypothesis?.trim()) parts.push(`POSITIONING HYPOTHESIS:\n${spine.positioning_hypothesis.trim()}`);
+  if (spine.editorial_pov?.trim()) parts.push(`EDITORIAL POV + MISSION:\n${spine.editorial_pov.trim()}`);
+  if (spine.voice_tone?.trim()) parts.push(`CHANNEL VOICE + TONE:\n${spine.voice_tone.trim()}`);
+  if (spine.audience_read?.trim()) parts.push(`AUDIENCE READ:\n${spine.audience_read.trim()}`);
+  if (spine.guardrails?.trim()) parts.push(`GUARDRAILS:\n${spine.guardrails.trim()}`);
+  if (existingArchetypes.length) {
+    parts.push(`EXISTING HOST ARCHETYPES on this channel (don't propose these — generate complementary picks):\n${existingArchetypes.map(a => `  - ${a}`).join('\n')}`);
+  }
+
+  const systemPrompt = `You design on-camera host profiles for YouTube channels. You read the channel's positioning + voice + audience and recommend a host archetype from a fixed catalog, plus a channel-specific refinement note. The refinement is what makes the archetype specific to THIS channel — not "The Practitioner" generally but "The Practitioner — an active installer who narrates the work, never explains it from outside." Return ONLY valid JSON.`;
+
+  const prompt = `Read the spine below and propose THREE candidate host profiles for this channel${seriesLabel ? ` (specifically the "${seriesLabel}" series)` : ''}.
+
+HOST ARCHETYPE CATALOG (pick archetypeId from this list):
+${catalogBlock}
+
+REQUIREMENTS:
+- Each candidate picks one archetype from the catalog above by id.
+- The three candidates take DISTINCT archetypes — never propose the same archetypeId twice. Each archetype implies a different bet about who's on screen.
+- Each candidate includes:
+    - archetypeId (catalog id, lowercase)
+    - refinement: 1–2 sentence specific gloss on the archetype FOR THIS CHANNEL. Names what the host actually does on screen ("narrates the install while doing it, never breaks the fourth wall to explain"), not generic descriptors.
+    - voice_tone_refinement: 1–2 sentence overlay on the channel voice that's SPECIFIC TO THIS HOST. What this host's voice does that the channel default doesn't.
+    - rationale: 1 sentence on WHY this archetype fits this channel. Anchor to the spine: cite editorial POV or audience read or voice/tone language.
+
+SPINE:
+${parts.join('\n\n')}
+
+Return JSON exactly:
+{
+  "candidates": [
+    {
+      "archetypeId": "string from catalog",
+      "refinement": "string",
+      "voice_tone_refinement": "string",
+      "rationale": "string"
+    },
+    ... three total
+  ]
+}
+Return ONLY the JSON.`;
+
+  try {
+    const result = await claudeAPI.call(prompt, systemPrompt, 'host_profile_suggest', 2048);
+    const parsed = parseClaudeJSON(result.text, null);
+    const raw = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
+    const candidates = raw
+      .map(c => {
+        const id = typeof c?.archetypeId === 'string' ? c.archetypeId.toLowerCase().trim() : null;
+        const archetype = id ? HOST_ARCHETYPE_BY_ID[id] : null;
+        if (!archetype) return null;
+        const refinement = typeof c?.refinement === 'string' ? c.refinement.trim() : '';
+        const voice_tone_refinement = typeof c?.voice_tone_refinement === 'string' ? c.voice_tone_refinement.trim() : '';
+        const rationale = typeof c?.rationale === 'string' ? c.rationale.trim() : '';
+        // Compose the archetype string that goes on the host row (matches
+        // the legacy host_archetype format: "Label — refinement")
+        const composedArchetype = refinement
+          ? `${archetype.label} — ${refinement}`
+          : archetype.label;
+        return {
+          archetypeId: id,
+          archetypeLabel: archetype.label,
+          refinement,
+          composedArchetype,
+          voice_tone_refinement,
+          rationale,
+        };
+      })
+      .filter(Boolean);
+    if (!candidates.length) return { ok: false, error: 'Claude returned no usable archetype candidates. Try again or refine the spine fields.' };
+    return { ok: true, candidates };
+  } catch (e) {
+    console.error('[clientHosts] suggestHostProfile failed:', e);
+    return { ok: false, error: e.message || 'Suggestion call failed' };
+  }
+}
+
+export default { listHosts, createHost, updateHost, deleteHost, suggestHostProfile };
