@@ -103,7 +103,7 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
 }
 
 function DeliverablePages({ data, clientName }) {
-  const { clientChannel, spine, rubric, demandRow, productionSignalsByChannel, clientProductionRow, channels, patternsResult, whiteSpaceResult, diagnostic, briefing, audienceSignals } = data;
+  const { clientChannel, spine, hosts, legacyRubric, demandRow, productionSignalsByChannel, clientProductionRow, channels, patternsResult, whiteSpaceResult, diagnostic, briefing, audienceSignals } = data;
   const displayName = clientName || clientChannel?.name || 'Client';
   const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -152,7 +152,8 @@ function DeliverablePages({ data, clientName }) {
 
       <PartTwoContent
         spine={spine}
-        rubric={rubric}
+        hosts={hosts || []}
+        legacyRubric={legacyRubric}
         rationales={buildRationales({
           channels,
           patternsResult,
@@ -658,7 +659,22 @@ function ProductionTierBar({ rollup }) {
 // Part 02 sub-sections (positioning)
 // ──────────────────────────────────────────────────
 
-function PartTwoContent({ spine, rubric, rationales = {} }) {
+function PartTwoContent({ spine, hosts = [], legacyRubric, rationales = {} }) {
+  // Hosts to render — prefer the multi-host list. Fall back to a synthetic
+  // single-host shape from the legacy spine.host_archetype + legacyRubric
+  // if no multi-host rows exist yet.
+  const hostsToRender = hosts.length > 0
+    ? hosts
+    : (spine?.host_archetype || legacyRubric)
+      ? [{ id: 'legacy', name: null, archetype: spine?.host_archetype || null, series_label: null, voice_tone_refinement: null, rubric: legacyRubric }]
+      : [];
+
+  const hasAnyPositioning =
+    spine?.positioning_oneliner
+    || spine?.editorial_pov
+    || spine?.voice_tone
+    || hostsToRender.length > 0;
+
   return (
     <section className="cd-page">
       {spine?.positioning_oneliner && (
@@ -685,9 +701,16 @@ function PartTwoContent({ spine, rubric, rationales = {} }) {
         </SubSection>
       )}
 
-      {spine?.host_archetype && (
-        <SubSection title="Host archetype" kicker="Who is on screen">
-          <p>{spine.host_archetype}</p>
+      {hostsToRender.length > 0 && (
+        <SubSection
+          title={hostsToRender.length === 1 ? 'Host' : `Hosts (${hostsToRender.length})`}
+          kicker={hostsToRender.length === 1 ? 'Who is on screen' : 'Series-specific on-camera personas'}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {hostsToRender.map((h, i) => (
+              <HostBlock key={h.id || i} host={h} />
+            ))}
+          </div>
           {rationales.host_archetype && <Rationale>{rationales.host_archetype}</Rationale>}
         </SubSection>
       )}
@@ -699,37 +722,78 @@ function PartTwoContent({ spine, rubric, rationales = {} }) {
         </SubSection>
       )}
 
-      {rubric?.criteria?.length > 0 && (
-        <SubSection title="Talent audition rubric" kicker="Scorecard for on-camera auditions">
-          {rubric.intro_note && (
-            <div className="cd-quote">{rubric.intro_note}</div>
-          )}
-          <ol className="cd-list cd-list-numbered">
-            {rubric.criteria.map((c, i) => (
-              <li key={i}>
-                <strong>{c.name}</strong>{' '}
-                <span style={{ color: MUTED, fontSize: 12 }}>· {c.weight || 'medium'} weight</span>
-                {c.what_excellence_looks_like && (
-                  <div style={{ marginTop: 4 }}><em>5/5:</em> {c.what_excellence_looks_like}</div>
-                )}
-                {c.disqualifier && (
-                  <div style={{ marginTop: 4 }}><em style={{ color: '#b91c1c' }}>Disqualifier:</em> {c.disqualifier}</div>
-                )}
-              </li>
-            ))}
-          </ol>
-          <p style={{ marginTop: 14, fontSize: 12, color: MUTED, fontStyle: 'italic' }}>
-            The printable scorecard with 1–5 scoring rows for each criterion lives in the Strategy Spine view. Print it separately to use during auditions.
-          </p>
-        </SubSection>
-      )}
-
-      {!spine?.positioning_oneliner && !spine?.editorial_pov && !spine?.voice_tone && !spine?.host_archetype && (
+      {!hasAnyPositioning && (
         <div style={{ color: MUTED, fontStyle: 'italic', padding: 40, textAlign: 'center' }}>
           No positioning fields authored yet. Open the Strategy Spine to add them.
         </div>
       )}
     </section>
+  );
+}
+
+// One host block inside Part 02's "Hosts" subsection. Renders the host's
+// archetype + series label + voice refinement + (when available) the
+// host's audition rubric criteria. The printable scorecard for each
+// host lives in the spine UI; this block is the document's read-only
+// summary of what that scorecard scores against.
+function HostBlock({ host }) {
+  const label = host.name || host.series_label || host.archetype || 'Host';
+  return (
+    <div style={{ border: `1px solid ${BORDER}`, borderRadius: 6, padding: '14px 16px', background: '#fdfcf8' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: INK }}>{label}</div>
+        {host.series_label && host.series_label !== label && (
+          <div style={{ fontSize: 11, fontWeight: 700, color: ACCENT, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            {host.series_label}
+          </div>
+        )}
+      </div>
+      {host.archetype && (
+        <div style={{ fontSize: 13, color: INK, marginBottom: host.voice_tone_refinement ? 6 : 0 }}>
+          <strong style={{ color: MUTED, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, marginRight: 6 }}>Archetype</strong>
+          {host.archetype}
+        </div>
+      )}
+      {host.voice_tone_refinement && (
+        <div style={{ fontSize: 13, color: INK, marginBottom: host.notes ? 6 : 0 }}>
+          <strong style={{ color: MUTED, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, marginRight: 6 }}>Voice refinement</strong>
+          <span>{host.voice_tone_refinement}</span>
+        </div>
+      )}
+      {host.notes && (
+        <div style={{ fontSize: 12, color: MUTED, fontStyle: 'italic', marginTop: 4 }}>
+          {host.notes}
+        </div>
+      )}
+
+      {host.rubric?.criteria?.length > 0 && (
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px dashed ${BORDER}` }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: ACCENT, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+            Audition rubric · {host.rubric.criteria.length} criteria
+          </div>
+          {host.rubric.intro_note && (
+            <div className="cd-quote" style={{ marginBottom: 8 }}>{host.rubric.intro_note}</div>
+          )}
+          <ol className="cd-list cd-list-numbered" style={{ marginTop: 6 }}>
+            {host.rubric.criteria.map((c, i) => (
+              <li key={i} style={{ marginBottom: 8 }}>
+                <strong>{c.name}</strong>{' '}
+                <span style={{ color: MUTED, fontSize: 12 }}>· {c.weight || 'medium'} weight</span>
+                {c.what_excellence_looks_like && (
+                  <div style={{ marginTop: 3, fontSize: 13 }}><em>5/5:</em> {c.what_excellence_looks_like}</div>
+                )}
+                {c.disqualifier && (
+                  <div style={{ marginTop: 3, fontSize: 13 }}><em style={{ color: '#b91c1c' }}>Disqualifier:</em> {c.disqualifier}</div>
+                )}
+              </li>
+            ))}
+          </ol>
+          <p style={{ marginTop: 8, fontSize: 11, color: MUTED, fontStyle: 'italic' }}>
+            The printable scorecard with 1–5 scoring rows for each criterion lives in the Strategy Spine view. Print it separately to use during this host's auditions.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 

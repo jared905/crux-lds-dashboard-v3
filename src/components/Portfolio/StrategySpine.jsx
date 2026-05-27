@@ -37,6 +37,12 @@ import {
   generateTalentAuditionRubric,
   saveTalentAuditionRubric,
 } from '../../services/talentRubricService.js';
+import {
+  listHosts,
+  createHost,
+  updateHost,
+  deleteHost,
+} from '../../services/clientHostsService.js';
 
 export default function StrategySpine({ client, onBack }) {
   const [spine, setSpine] = useState(null);
@@ -47,7 +53,7 @@ export default function StrategySpine({ client, onBack }) {
   const [showHistory, setShowHistory] = useState(false);
   const [snapshotCaptureBusy, setSnapshotCaptureBusy] = useState(false);
   const [viewingSnapshot, setViewingSnapshot] = useState(null);
-  const [talentRubric, setTalentRubric] = useState(null);
+  const [hosts, setHosts] = useState([]);
   const [deliverableOpen, setDeliverableOpen] = useState(false);
 
   useEffect(() => {
@@ -56,12 +62,12 @@ export default function StrategySpine({ client, onBack }) {
     Promise.all([
       getSpine(client.id),
       listSpineSnapshots(client.id),
-      getActiveTalentRubric(client.id),
-    ]).then(([row, snaps, rubric]) => {
+      listHosts(client.id),
+    ]).then(([row, snaps, hostRows]) => {
       if (!cancelled) {
         setSpine(row);
         setSnapshots(snaps);
-        setTalentRubric(rubric);
+        setHosts(hostRows);
         setLoading(false);
       }
     });
@@ -225,18 +231,15 @@ export default function StrategySpine({ client, onBack }) {
         onSave={(v) => handleFieldSave('voice_tone', v)}
       />
 
-      <HostArchetypeSection
-        value={spine?.host_archetype}
-        updatedAt={spine?.host_archetype_updated_at}
-        onSave={(v) => handleFieldSave('host_archetype', v)}
-      />
-
-      <TalentRubricSection
+      <HostsPanel
         clientId={client.id}
         clientName={client.name}
         spine={spine}
-        rubric={talentRubric}
-        onSaved={(saved) => { setTalentRubric(saved); }}
+        hosts={hosts}
+        onHostsChanged={async () => {
+          const refreshed = await listHosts(client.id);
+          setHosts(refreshed);
+        }}
       />
 
       <Section
@@ -672,6 +675,372 @@ function Section({ title, subtitle, value, updatedAt, placeholder, onSave, accen
       )}
     </SectionShell>
   );
+}
+
+// ────────────────────────────────────────────────────────────
+// Multi-host panel — Step 7 (replaces single Host Archetype + Rubric)
+// ────────────────────────────────────────────────────────────
+// A client can have multiple host profiles, one per series. Each host
+// has its own archetype, voice refinement, and audition rubric. The
+// previous single-host model auto-migrates to a "Primary host" row in
+// client_hosts (handled in clientHostsService.listHosts).
+function HostsPanel({ clientId, clientName, spine, hosts, onHostsChanged }) {
+  const [adding, setAdding] = useState(false);
+
+  const handleCreate = async (patch) => {
+    const r = await createHost(clientId, patch);
+    if (r.ok) {
+      setAdding(false);
+      await onHostsChanged?.();
+    } else {
+      window.alert(`Add host failed: ${r.error}`);
+    }
+  };
+
+  return (
+    <SectionShell
+      title={<><ClipboardList size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: -2 }} />Hosts</>}
+      subtitle="One profile per on-camera host. Each host has its own archetype, voice refinement, and audition rubric. Channels with multiple series typically run multiple hosts."
+      accent="#a78bfa"
+      action={
+        <button onClick={() => setAdding(true)} disabled={adding} style={primaryBtn}>
+          <Plus size={12} /> Add host
+        </button>
+      }
+    >
+      {hosts.length === 0 && !adding && (
+        <div style={{ color: '#666', fontSize: 13, fontStyle: 'italic', lineHeight: 1.55 }}>
+          No hosts yet. Click <strong style={{ color: '#888' }}>Add host</strong> to define the first on-camera persona. If you've already authored a host archetype on the spine, it'll show up here automatically.
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {hosts.map(h => (
+          <HostCard
+            key={h.id}
+            clientId={clientId}
+            clientName={clientName}
+            spine={spine}
+            host={h}
+            onChanged={onHostsChanged}
+          />
+        ))}
+        {adding && (
+          <HostCard
+            clientId={clientId}
+            clientName={clientName}
+            spine={spine}
+            host={null}
+            startEditing
+            onCreate={handleCreate}
+            onCancelCreate={() => setAdding(false)}
+            onChanged={onHostsChanged}
+          />
+        )}
+      </div>
+    </SectionShell>
+  );
+}
+
+// Single host card. Inline editor for the host's fields + an embedded
+// per-host rubric editor (reuses RubricView / RubricEditor / print
+// modal from the Step 3 work). Each card owns its own rubric state.
+function HostCard({ clientId, clientName, spine, host, startEditing, onCreate, onCancelCreate, onChanged }) {
+  const isNew = !host;
+  const [editing, setEditing] = useState(!!startEditing);
+  const [draft, setDraft] = useState({
+    name: host?.name || '',
+    archetypeId: matchArchetypeId(host?.archetype),
+    archetypeRefinement: extractArchetypeRefinement(host?.archetype),
+    voice_tone_refinement: host?.voice_tone_refinement || '',
+    series_label: host?.series_label || '',
+    notes: host?.notes || '',
+  });
+  const [busy, setBusy] = useState(false);
+
+  // Rubric state — per-host
+  const [rubric, setRubric] = useState(null);
+  const [rubricLoaded, setRubricLoaded] = useState(false);
+  const [rubricDraft, setRubricDraft] = useState(null);
+  const [rubricGenerating, setRubricGenerating] = useState(false);
+  const [rubricSaving, setRubricSaving] = useState(false);
+  const [rubricError, setRubricError] = useState(null);
+  const [printOpen, setPrintOpen] = useState(false);
+  const rubricEditing = !!rubricDraft;
+
+  useEffect(() => {
+    if (isNew || !host?.id) { setRubricLoaded(true); return; }
+    let cancelled = false;
+    getActiveTalentRubric(clientId, host.id).then(r => {
+      if (cancelled) return;
+      setRubric(r);
+      setRubricLoaded(true);
+    });
+    return () => { cancelled = true; };
+  }, [clientId, host?.id, isNew]);
+
+  const composedArchetype = (() => {
+    const cat = HOST_ARCHETYPE_BY_ID[draft.archetypeId];
+    if (cat) {
+      return draft.archetypeRefinement.trim()
+        ? `${cat.label} — ${draft.archetypeRefinement.trim()}`
+        : cat.label;
+    }
+    return draft.archetypeRefinement.trim() || null;
+  })();
+
+  const handleSave = async () => {
+    setBusy(true);
+    const patch = {
+      name: draft.name.trim() || null,
+      archetype: composedArchetype,
+      voice_tone_refinement: draft.voice_tone_refinement.trim() || null,
+      series_label: draft.series_label.trim() || null,
+      notes: draft.notes.trim() || null,
+    };
+    try {
+      if (isNew) {
+        await onCreate?.(patch);
+      } else {
+        const r = await updateHost(host.id, patch);
+        if (!r.ok) window.alert(`Save failed: ${r.error}`);
+        else {
+          setEditing(false);
+          await onChanged?.();
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!host?.id) return;
+    if (!window.confirm(`Delete host "${host.name || 'Untitled'}"? This also deletes the host's saved rubric. Cannot be undone.`)) return;
+    await deleteHost(host.id);
+    await onChanged?.();
+  };
+
+  // Rubric handlers — scoped per-host
+  const handleGenerateRubric = async () => {
+    if (!host?.id) return;
+    setRubricGenerating(true);
+    setRubricError(null);
+    try {
+      const r = await generateTalentAuditionRubric(clientId, { clientName, host });
+      if (!r.ok) setRubricError(r.error);
+      else setRubricDraft({ criteria: r.criteria, introNote: r.introNote || '', sourceSpineFingerprint: r.sourceSpineFingerprint });
+    } catch (e) {
+      setRubricError(e.message || 'Generation failed');
+    } finally {
+      setRubricGenerating(false);
+    }
+  };
+
+  const handleSaveRubric = async () => {
+    if (!rubricDraft || !host?.id || rubricSaving) return;
+    setRubricSaving(true);
+    setRubricError(null);
+    try {
+      const r = await saveTalentAuditionRubric(clientId, { ...rubricDraft, hostId: host.id });
+      if (!r.ok) setRubricError(r.error);
+      else {
+        setRubric(r.rubric);
+        setRubricDraft(null);
+      }
+    } finally {
+      setRubricSaving(false);
+    }
+  };
+
+  const handleEditRubric = () => {
+    if (!rubric) return;
+    setRubricDraft({
+      criteria: rubric.criteria || [],
+      introNote: rubric.intro_note || '',
+      sourceSpineFingerprint: rubric.source_spine_fingerprint || null,
+    });
+  };
+
+  const accent = '#a78bfa';
+
+  return (
+    <div style={{ background: '#15151a', border: `1px solid #232328`, borderLeft: `3px solid ${accent}`, borderRadius: 8, padding: '14px 16px' }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
+            {host?.name || draft.name || <span style={{ color: '#666', fontStyle: 'italic' }}>Untitled host</span>}
+          </div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>
+            {(host?.archetype || composedArchetype) && <span>{host?.archetype || composedArchetype}</span>}
+            {host?.series_label && <span> · <span style={{ color: '#a8a8b0' }}>{host.series_label}</span></span>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {editing ? (
+            <>
+              <button onClick={handleSave} disabled={busy} style={primaryBtn}>
+                {busy ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={12} />}
+                {busy ? 'Saving…' : (isNew ? 'Add' : 'Save')}
+              </button>
+              <button onClick={() => { isNew ? onCancelCreate?.() : setEditing(false); }} style={ghostBtn}>
+                <XIcon size={12} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => setEditing(true)} style={ghostBtn} title="Edit host profile">
+                <Edit2 size={12} /> Edit
+              </button>
+              {!isNew && (
+                <button onClick={handleDelete} style={ghostBtnSmall} title="Delete host">
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {editing && (
+        <div style={{ marginTop: 6 }}>
+          <label style={fieldLabel}>Name (or "TBD" if pre-casting)</label>
+          <input
+            value={draft.name}
+            onChange={e => setDraft({ ...draft, name: e.target.value })}
+            placeholder="e.g. Sarah Lin, TBD, Casting in progress"
+            style={inputStyle}
+          />
+
+          <label style={fieldLabel}>Series this host fronts</label>
+          <input
+            value={draft.series_label}
+            onChange={e => setDraft({ ...draft, series_label: e.target.value })}
+            placeholder='e.g. "Doctrine deep-dives", "Daily Q&A", "Field reports"'
+            style={inputStyle}
+          />
+
+          <label style={fieldLabel}>Archetype</label>
+          <select
+            value={draft.archetypeId}
+            onChange={e => setDraft({ ...draft, archetypeId: e.target.value })}
+            style={{ ...inputStyle, marginBottom: 6 }}
+          >
+            <option value="">— Pick from catalog —</option>
+            {HOST_ARCHETYPES.map(a => (
+              <option key={a.id} value={a.id}>{a.label} — {a.description}</option>
+            ))}
+          </select>
+          <input
+            value={draft.archetypeRefinement}
+            onChange={e => setDraft({ ...draft, archetypeRefinement: e.target.value })}
+            placeholder={draft.archetypeId ? "Optional: refinement note appended to the archetype label" : "Or describe a custom archetype here"}
+            style={inputStyle}
+          />
+
+          <label style={fieldLabel}>Voice + tone refinement (overlay on channel voice)</label>
+          <textarea
+            value={draft.voice_tone_refinement}
+            onChange={e => setDraft({ ...draft, voice_tone_refinement: e.target.value })}
+            placeholder="What this specific host's voice does that the channel default doesn't — pace, register, signature moves."
+            rows={3}
+            style={textareaStyle}
+          />
+
+          <label style={fieldLabel}>Notes</label>
+          <textarea
+            value={draft.notes}
+            onChange={e => setDraft({ ...draft, notes: e.target.value })}
+            placeholder="Casting status, audition outcomes, anything off-template."
+            rows={2}
+            style={textareaStyle}
+          />
+        </div>
+      )}
+
+      {/* Rubric block — only for existing hosts (need host.id to scope rubric) */}
+      {!editing && !isNew && (
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid #232328` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+              Audition rubric
+              {rubric && <span style={{ color: '#666', fontWeight: 500, textTransform: 'none', marginLeft: 6 }}>· {(rubric.criteria || []).length} criteria · saved {formatRelative(rubric.generated_at)}</span>}
+              {!rubric && rubricLoaded && <span style={{ color: '#666', fontWeight: 500, textTransform: 'none', marginLeft: 6 }}>· not generated</span>}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {rubricEditing ? (
+                <>
+                  <button onClick={handleSaveRubric} disabled={rubricSaving} style={primaryBtn}>
+                    {rubricSaving ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={12} />}
+                    {rubricSaving ? 'Saving…' : 'Save rubric'}
+                  </button>
+                  <button onClick={() => { setRubricDraft(null); setRubricError(null); }} style={ghostBtn}><XIcon size={12} /></button>
+                </>
+              ) : rubric ? (
+                <>
+                  <button onClick={() => setPrintOpen(true)} style={primaryBtn} title="Open the printable scorecard for this host">
+                    <Printer size={12} /> Scorecard
+                  </button>
+                  <button onClick={handleEditRubric} style={ghostBtn} title="Edit criteria"><Edit2 size={12} /> Edit</button>
+                  <button onClick={handleGenerateRubric} disabled={rubricGenerating} style={ghostBtn} title="Regenerate from current spine + this host's profile">
+                    {rubricGenerating
+                      ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> …</>
+                      : <><Sparkles size={12} /> Regen</>}
+                  </button>
+                </>
+              ) : (
+                <button onClick={handleGenerateRubric} disabled={rubricGenerating} style={primaryBtn}>
+                  {rubricGenerating
+                    ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Generating…</>
+                    : <><Sparkles size={12} /> Generate rubric</>}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {rubricError && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 8 }}>{rubricError}</div>}
+
+          {rubricEditing ? (
+            <RubricEditor
+              criteria={rubricDraft.criteria}
+              introNote={rubricDraft.introNote}
+              onUpdateCriterion={(i, patch) => setRubricDraft(d => ({ ...d, criteria: d.criteria.map((c, idx) => idx === i ? { ...c, ...patch } : c) }))}
+              onRemoveCriterion={(i) => setRubricDraft(d => ({ ...d, criteria: d.criteria.filter((_, idx) => idx !== i) }))}
+              onAddCriterion={() => setRubricDraft(d => ({
+                ...d,
+                criteria: [...d.criteria, { name: '', what_excellence_looks_like: '', disqualifier: '', scoring_anchors: { 1: '', 3: '', 5: '' }, weight: 'medium' }],
+              }))}
+              onChangeIntro={(v) => setRubricDraft(d => ({ ...d, introNote: v }))}
+            />
+          ) : rubric ? (
+            <RubricView rubric={rubric} />
+          ) : null}
+        </div>
+      )}
+
+      {printOpen && rubric && (
+        <TalentRubricPrintModal
+          rubric={rubric}
+          clientName={`${clientName}${host?.series_label ? ` · ${host.series_label}` : ''}${host?.name ? ` · ${host.name}` : ''}`}
+          onClose={() => setPrintOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function matchArchetypeId(value) {
+  if (!value) return '';
+  const match = HOST_ARCHETYPES.find(a => value.trim().startsWith(a.label));
+  return match?.id || '';
+}
+function extractArchetypeRefinement(value) {
+  if (!value) return '';
+  const match = HOST_ARCHETYPES.find(a => value.trim().startsWith(a.label));
+  if (!match) return value;
+  const suffix = value.trim().slice(match.label.length).trim();
+  return suffix.startsWith('—') ? suffix.slice(1).trim() : suffix;
 }
 
 // ────────────────────────────────────────────────────────────

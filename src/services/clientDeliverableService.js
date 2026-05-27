@@ -15,7 +15,8 @@
 
 import { supabase } from './supabaseClient';
 import { getSpine } from './strategySpineService';
-import { getActiveTalentRubric } from './talentRubricService';
+import { listActiveTalentRubrics } from './talentRubricService';
+import { listHosts } from './clientHostsService';
 import { getActiveDemandSignals } from './demandSignalService';
 import {
   getActiveProductionSignalsForChannels,
@@ -48,7 +49,8 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
   const [
     clientChannel,
     spine,
-    rubric,
+    hosts,
+    rubricsByKey,
     demandRow,
     productionSignalsByChannel,
     channels,
@@ -59,7 +61,8 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
   ] = await Promise.all([
     supabase.from('channels').select('id, name, subscriber_count, total_view_count').eq('id', clientId).maybeSingle().then(r => r.data || null).catch(() => null),
     getSpine(clientId).catch(() => null),
-    getActiveTalentRubric(clientId).catch(() => null),
+    listHosts(clientId).catch(() => []),
+    listActiveTalentRubrics(clientId).catch(() => ({})),
     getActiveDemandSignals(clientId).catch(() => null),
     getActiveProductionSignalsForChannels(productionLookupIds).catch(() => ({})),
     fetchLandscapeChannels(scope).catch(() => []),
@@ -69,6 +72,19 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
     computeAudienceSignals(clientId, { days: 90 }).catch(() => null),
   ]);
 
+  // Decorate each host with its active rubric (rubricsByKey is keyed
+  // 'host_id' or 'client' for legacy unscoped). Hosts without a rubric
+  // get null; the renderer handles that.
+  const hostsWithRubrics = (hosts || []).map(h => ({
+    ...h,
+    rubric: rubricsByKey?.[h.id] || null,
+  }));
+
+  // Legacy unscoped rubric (host_id NULL) — kept for backward compat
+  // when an old client has a rubric but no hosts yet. Renderer falls
+  // back to this when hostsWithRubrics is empty.
+  const legacyRubric = rubricsByKey?.['client'] || null;
+
   // Briefing is dependent on diagnostic — chained.
   const briefing = diagnostic ? await loadOrGenerateBriefing(diagnostic).catch(() => null) : null;
 
@@ -76,7 +92,8 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
     ok: true,
     clientChannel,
     spine,
-    rubric,
+    hosts: hostsWithRubrics,
+    legacyRubric,
     demandRow,
     productionSignalsByChannel,
     clientProductionRow: productionSignalsByChannel?.[clientId] || null,
