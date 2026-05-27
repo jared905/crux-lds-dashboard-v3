@@ -249,11 +249,17 @@ async function syncChannel(channel, apiKey) {
     })
     .eq('id', channel.id);
 
-  // Fetch and update videos
+  // Fetch and update videos. Window is wider for client channels: a
+  // competitor's 2019 archive is noise for the cohort analysis, but
+  // the client's own history IS the baseline for production-approach +
+  // audience-signal extraction. Without this, a client that's gone
+  // dormant for 90+ days returns zero videos from sync and looks
+  // pre-launch to the deliverable.
   let videos = [];
   let videosToUpsert = [];
   if (channelDetails.uploads_playlist_id) {
-    videos = await fetchChannelVideos(channelDetails.uploads_playlist_id, apiKey);
+    const windowDays = channel.is_client ? 1825 : 90;  // 5 years for clients, 90 days for competitors
+    videos = await fetchChannelVideos(channelDetails.uploads_playlist_id, apiKey, { windowDays });
 
     // Detect Shorts via HEAD requests (server-side, no CORS issue)
     const shortsMap = await checkShortsBatch(videos);

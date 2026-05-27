@@ -231,33 +231,24 @@ function DeliverablePages({ data, clientName, mode = MODE_FULL }) {
         coverage={coverage}
       />
 
-      {mode === MODE_AUDIT ? (
-        <WhatWeFoundPage
-          clientName={displayName}
-          channels={channels}
-          patternsResult={patternsResult}
-          whiteSpaceResult={whiteSpaceResult}
-          productionSignalsByChannel={productionSignalsByChannel}
-          demandRow={demandRow}
-        />
-      ) : (
-        <SynthesisPage
-          clientName={displayName}
-          spine={spine}
-          hosts={hosts}
-          mode={mode}
-          synthesisData={buildSynthesis({
-            spine,
-            hosts,
-            channels,
-            patternsResult,
-            whiteSpaceResult,
-            productionSignalsByChannel,
-            demandRow,
-            mode,
-          })}
-        />
-      )}
+      <WhereWeAre
+        clientName={displayName}
+        mode={mode}
+        spine={spine}
+        hosts={hosts}
+        ctx={(() => {
+          const ctx = computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow });
+          return ctx;
+        })()}
+        findings={buildAuditFindings({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })}
+        decisions={buildDecisions(
+          spine,
+          hosts,
+          mode,
+          computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })
+        )}
+        actions={buildNextActions({ spine, hosts, mode, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })}
+      />
 
       <PartCallout
         number="01"
@@ -313,8 +304,6 @@ function DeliverablePages({ data, clientName, mode = MODE_FULL }) {
           />
         </>
       )}
-
-      {mode === MODE_AUDIT && <AuditClosingCTA clientName={displayName} />}
 
       <Footer />
     </>
@@ -419,6 +408,254 @@ function WhatWeFoundPage({ clientName, channels, patternsResult, whiteSpaceResul
       </div>
     </section>
   );
+}
+
+// Unified synthesis page. Replaces the moves-based "Where this lands"
+// and the audit-mode "What we found" with one structure that evolves
+// across engagement stages: past (Learned) → present (Decide) →
+// future (Do). The same skeleton serves every mode — the Decide
+// column compresses as decisions get made, the Do column expands
+// as the strategy gets concrete.
+function WhereWeAre({ clientName, mode, spine, hosts, ctx, findings, decisions, actions }) {
+  const synthRef = React.useRef(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!synthRef.current) return;
+    try {
+      await navigator.clipboard.writeText(synthRef.current.innerText.trim());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch { /* fallback covered by Print */ }
+  };
+
+  const stateLine = describeWhereWeAre(mode, decisions);
+  const openDecisions = decisions.filter(d => !d.resolved).length;
+  const totalDecisions = decisions.length;
+
+  if (!findings.length && !decisions.length && !actions.length) return null;
+
+  return (
+    <section className="cd-page cd-wherewe">
+      <div className="cd-synthesis-head">
+        <div>
+          <div className="cd-synthesis-kicker">Where we are</div>
+          <h2 className="cd-synthesis-title">{clientName}{stateLine ? ` · ${stateLine}` : ''}</h2>
+        </div>
+        <button onClick={handleCopy} className="cd-copy-btn" title="Copy this page to clipboard">
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+
+      <div ref={synthRef}>
+        {findings.length > 0 && (
+          <div className="cd-wherewe-block cd-wherewe-learned">
+            <div className="cd-wherewe-block-head">
+              <div className="cd-wherewe-block-num">01</div>
+              <div className="cd-wherewe-block-label">What we've learned</div>
+            </div>
+            <ol className="cd-wherewe-list">
+              {findings.map((f, i) => (
+                <li key={i} className="cd-wherewe-item">
+                  <div className="cd-wherewe-item-num">{String(i + 1).padStart(2, '0')}</div>
+                  <div className="cd-wherewe-item-body">
+                    <div className="cd-wherewe-item-label">{f.label}</div>
+                    <E className="cd-wherewe-item-text">{f.text}</E>
+                    {f.evidence && (
+                      <div className="cd-wherewe-item-evidence">
+                        <span className="cd-wherewe-evidence-tag">Why</span>
+                        <E tag="span">{f.evidence}</E>
+                      </div>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
+        {decisions.length > 0 && (
+          <div className="cd-wherewe-block cd-wherewe-decide">
+            <div className="cd-wherewe-block-head">
+              <div className="cd-wherewe-block-num">02</div>
+              <div className="cd-wherewe-block-label">
+                What we want to decide
+                {totalDecisions > 0 && (
+                  <span className="cd-wherewe-block-meta">{totalDecisions - openDecisions}/{totalDecisions} resolved</span>
+                )}
+              </div>
+            </div>
+            <ol className="cd-wherewe-list">
+              {decisions.map((d, i) => (
+                <li key={i} className={`cd-wherewe-item cd-wherewe-decision ${d.resolved ? 'is-resolved' : 'is-open'}`}>
+                  <div className="cd-wherewe-decision-status">
+                    {d.resolved ? <Check size={14} /> : <span className="cd-wherewe-open-dot">?</span>}
+                  </div>
+                  <div className="cd-wherewe-item-body">
+                    <div className="cd-wherewe-item-label">{d.label}</div>
+                    {d.resolved ? (
+                      <E className="cd-wherewe-decision-resolved">{d.resolvedValue}</E>
+                    ) : (
+                      <>
+                        <E className="cd-wherewe-decision-open">{d.openQuestion}</E>
+                        {d.context && (
+                          <div className="cd-wherewe-item-evidence">
+                            <span className="cd-wherewe-evidence-tag">Context</span>
+                            <E tag="span">{d.context}</E>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
+        {actions.length > 0 && (
+          <div className="cd-wherewe-block cd-wherewe-do">
+            <div className="cd-wherewe-block-head">
+              <div className="cd-wherewe-block-num">03</div>
+              <div className="cd-wherewe-block-label">What we'll do next</div>
+            </div>
+            <ol className="cd-wherewe-do-list">
+              {actions.map((a, i) => <E key={i} tag="li">{a}</E>)}
+            </ol>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// Build the "What we want to decide" list. Each entry is either RESOLVED
+// (with the actual value from the spine) or OPEN (with the question we
+// need to answer in the next working session). The label + question
+// stay constant; the resolved value comes directly from the spine.
+function buildDecisions(spine, hosts, mode, ctx) {
+  const decisions = [];
+
+  // Positioning: the headline articulation
+  const positioningResolved = !!(spine?.positioning_oneliner?.trim());
+  decisions.push({
+    label: 'Positioning',
+    resolved: positioningResolved,
+    resolvedValue: spine?.positioning_oneliner?.trim() || null,
+    openQuestion: 'What angle does this channel take in the field?',
+    context: ctx?.topOpportunity?.title
+      ? <>The audit's strongest unclaimed slot is <strong>{ctx.topOpportunity.title}</strong> — a candidate angle worth pressure-testing in the working session.</>
+      : null,
+  });
+
+  // Editorial POV: what the channel argues
+  const povResolved = !!(spine?.editorial_pov?.trim());
+  decisions.push({
+    label: 'Editorial POV',
+    resolved: povResolved,
+    resolvedValue: spine?.editorial_pov?.trim() || null,
+    openQuestion: 'What does this channel argue, and why does it exist?',
+    context: <>The conviction every script tests against. Distinct from positioning (competitive) — this is the editorial soul.</>,
+  });
+
+  // Voice + tone: how the channel sounds
+  const voiceResolved = !!(spine?.voice_tone?.trim());
+  decisions.push({
+    label: 'Voice + tone',
+    resolved: voiceResolved,
+    resolvedValue: spine?.voice_tone?.trim() || null,
+    openQuestion: 'What register does the channel sound in?',
+    context: <>The style sheet talent reads before takes and producers reference during edits.</>,
+  });
+
+  // Host: only surfaces in full mode (premature in audit/direction)
+  if (mode === MODE_FULL) {
+    const hostResolved = (hosts && hosts.length > 0) || !!spine?.host_archetype?.trim();
+    let resolvedText = null;
+    if (hosts && hosts.length > 0) {
+      resolvedText = hosts.map(h => {
+        const parts = [h.archetype || 'Host'];
+        if (h.series_label) parts.push(`(${h.series_label})`);
+        return parts.join(' ');
+      }).join(' · ');
+    } else if (spine?.host_archetype?.trim()) {
+      resolvedText = spine.host_archetype.trim();
+    }
+    decisions.push({
+      label: hosts?.length > 1 ? `Hosts (${hosts.length})` : 'Host',
+      resolved: hostResolved,
+      resolvedValue: resolvedText,
+      openQuestion: 'Who is on screen — and for which series?',
+      context: <>Anchors casting + the audition rubric. In multi-series channels, each series can carry its own host archetype.</>,
+    });
+  }
+
+  return decisions;
+}
+
+// Mode-aware action list — the Do block of WhereWeAre. For audit
+// mode, leads with the Strategy Direction working session CTA;
+// for direction/full modes, leads with operational starters.
+function buildNextActions({ spine, hosts, mode, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow }) {
+  const ctx = computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow });
+  const actions = [];
+
+  // Audit mode opens with the conversion CTA — the working session is
+  // the next phase, everything else is supporting.
+  if (mode === MODE_AUDIT) {
+    if (ctx.topOpportunity?.title) {
+      actions.push(<>Schedule the <strong>Strategy Direction working session</strong>. Bring <strong>{ctx.topOpportunity.title}</strong> — the audit's strongest unclaimed slot — as the lead candidate to pressure-test.</>);
+    } else {
+      actions.push(<>Schedule the <strong>Strategy Direction working session</strong> to translate the audit findings into a defined positioning, voice, and host plan.</>);
+    }
+  }
+
+  if (ctx.topSlot) {
+    const verb = mode === MODE_AUDIT ? 'Pilot a single upload' : 'Schedule the first 3 uploads';
+    actions.push(<>{verb} in <strong>{ctx.topSlot.slot}</strong> — the cohort's strongest statistical slot at +{ctx.topSlot.liftPct}% lift ({ctx.topSlot.count} reference uploads).</>);
+  }
+
+  if (ctx.statisticalPatterns.length >= 1) {
+    const stack = ctx.statisticalPatterns.slice(0, 2).map(p => p.label).join(' + ');
+    actions.push(<>Test the <strong>{stack}</strong> title pattern{ctx.statisticalPatterns.length > 1 ? ' stack' : ''} on the next 4 uploads — clears the statistical threshold in the cohort.</>);
+  }
+
+  if (ctx.bestBucket && ctx.longBeatsShortBy && ctx.longBeatsShortBy >= 3) {
+    actions.push(<>Produce one <strong>{ctx.bestBucket.label}</strong> anchor video — long-form's median in this length is roughly {ctx.longBeatsShortBy}× the Shorts median.</>);
+  }
+
+  // Host audition action — full mode only
+  if (mode === MODE_FULL) {
+    if (hosts?.length > 0) {
+      actions.push(<>Run the <strong>Talent audition rubric</strong> on 3–5 candidates {hosts.length > 1 ? `for each of the ${hosts.length} hosts` : 'against the host archetype'} this month.</>);
+    } else if (spine?.host_archetype) {
+      actions.push(<>Generate the <strong>Talent audition rubric</strong> from the Strategy Spine and start scoring on-camera candidates.</>);
+    }
+  } else if (mode === MODE_DIRECTION) {
+    actions.push(<>Compress the <strong>Voice + tone</strong> field into a 200-word style sheet — register, signature moves, what to avoid. Producers + AI prompts reference it on every edit.</>);
+  }
+
+  // Storyboard the top opportunity — skip in audit mode (already named in the CTA)
+  if (ctx.topOpportunity?.title && mode !== MODE_AUDIT && actions.length < 5) {
+    actions.push(<>Storyboard one pilot against the <strong>{ctx.topOpportunity.title}</strong> opportunity — the audit's strongest unclaimed direction.</>);
+  }
+
+  return actions.slice(0, 5);
+}
+
+// One-line state description that gets appended to the page title.
+// Reads off the decision-resolution count + mode. Honest about state
+// rather than performative.
+function describeWhereWeAre(mode, decisions) {
+  const total = decisions.length;
+  const open = decisions.filter(d => !d.resolved).length;
+  if (open === 0 && total > 0) return 'strategy locked, ready to execute';
+  if (open === total) {
+    if (mode === MODE_AUDIT) return 'audit complete, strategy to decide';
+    return 'positioning open, working session next';
+  }
+  return `${total - open} of ${total} decisions resolved`;
 }
 
 // Closing CTA for audit-only mode. Sits where "First 30 days" would in
@@ -2394,6 +2631,144 @@ function PrintStyles() {
       .cd-subtitle {
         font-size: 22px; font-weight: 700; color: ${INK_SOFT};
         margin: 0; letter-spacing: -0.3px;
+      }
+
+      /* WhereWeAre — unified Learned / Decide / Do synthesis page.
+         Three blocks staged across a temporal arc: warm surface for
+         past (Learned), deeper warm surface for present (Decide),
+         navy accent for future (Do). Same skeleton renders across
+         all three modes; the Decide column compresses as decisions
+         get resolved. */
+      .cd-wherewe {
+        background: ${brand.colors.background};
+        padding: 56px 64px;
+      }
+      .cd-wherewe-block {
+        margin-bottom: 24px;
+        border-radius: 10px;
+        padding: 24px 28px;
+        break-inside: avoid;
+      }
+      .cd-wherewe-block:last-child { margin-bottom: 0; }
+      .cd-wherewe-learned {
+        background: ${SURFACE};
+      }
+      .cd-wherewe-decide {
+        background: ${SURFACE_DEEP};
+      }
+      .cd-wherewe-do {
+        background: ${ACCENT};
+        color: #fff;
+      }
+      .cd-wherewe-block-head {
+        display: flex; align-items: baseline; gap: 14px;
+        margin-bottom: 18px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(0,0,0,0.08);
+      }
+      .cd-wherewe-do .cd-wherewe-block-head {
+        border-bottom-color: rgba(255,255,255,0.18);
+      }
+      .cd-wherewe-block-num {
+        font-size: 22px; font-weight: 800;
+        color: ${ACCENT};
+        line-height: 1; min-width: 32px;
+        font-variant-numeric: tabular-nums;
+      }
+      .cd-wherewe-do .cd-wherewe-block-num { color: #fff; opacity: 0.7; }
+      .cd-wherewe-block-label {
+        font-size: 14px; font-weight: 800;
+        color: ${INK}; text-transform: uppercase;
+        letter-spacing: 1.4px;
+        display: flex; align-items: baseline; gap: 12px;
+      }
+      .cd-wherewe-do .cd-wherewe-block-label { color: #fff; }
+      .cd-wherewe-block-meta {
+        font-size: 10px; font-weight: 700;
+        letter-spacing: 1px; color: ${MUTED};
+        text-transform: uppercase;
+      }
+      .cd-wherewe-list {
+        list-style: none; padding: 0; margin: 0;
+        display: flex; flex-direction: column; gap: 18px;
+      }
+      .cd-wherewe-item {
+        display: flex; gap: 16px;
+        break-inside: avoid;
+      }
+      .cd-wherewe-item-num {
+        font-size: 18px; font-weight: 700;
+        color: ${INK_SOFT};
+        line-height: 1.25; min-width: 32px; flex-shrink: 0;
+        font-variant-numeric: tabular-nums;
+        opacity: 0.45;
+      }
+      .cd-wherewe-item-body { flex: 1; min-width: 0; }
+      .cd-wherewe-item-label {
+        font-size: 10px; font-weight: 700;
+        color: ${MUTED}; text-transform: uppercase;
+        letter-spacing: 1.2px; margin-bottom: 4px;
+      }
+      .cd-wherewe-item-text {
+        font-size: 16px; font-weight: 700;
+        color: ${INK}; line-height: 1.4;
+        margin-bottom: 8px;
+      }
+      .cd-wherewe-item-evidence {
+        display: flex; gap: 10px; align-items: flex-start;
+        font-size: 13px; color: ${MUTED};
+        line-height: 1.55;
+      }
+      .cd-wherewe-evidence-tag {
+        font-size: 9px; font-weight: 800;
+        color: ${ACCENT}; text-transform: uppercase;
+        letter-spacing: 1.4px; padding-top: 3px;
+        flex-shrink: 0; min-width: 50px;
+      }
+
+      /* Decisions — resolved vs open get distinct visual treatments */
+      .cd-wherewe-decision-status {
+        min-width: 28px; padding-top: 2px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+      }
+      .cd-wherewe-decision.is-resolved .cd-wherewe-decision-status {
+        color: #16a34a;
+      }
+      .cd-wherewe-decision.is-open .cd-wherewe-decision-status {
+        color: ${ACCENT};
+      }
+      .cd-wherewe-open-dot {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 18px; height: 18px; border-radius: 50%;
+        background: ${ACCENT}; color: #fff;
+        font-size: 11px; font-weight: 800;
+      }
+      .cd-wherewe-decision-resolved {
+        font-size: 14px; color: ${INK}; line-height: 1.5;
+        white-space: pre-wrap;
+      }
+      .cd-wherewe-decision-open {
+        font-size: 16px; font-weight: 600;
+        color: ${INK}; line-height: 1.4;
+        font-style: italic;
+        margin-bottom: 8px;
+      }
+
+      /* Do block — accent-tinted numbered action list */
+      .cd-wherewe-do-list {
+        margin: 0; padding-left: 22px;
+        font-size: 13.5px; line-height: 1.55;
+        color: #fff;
+      }
+      .cd-wherewe-do-list li { margin-bottom: 10px; }
+      .cd-wherewe-do-list li:last-child { margin-bottom: 0; }
+      .cd-wherewe-do-list li strong { color: #fff; font-weight: 700; }
+
+      @media print {
+        .cd-wherewe { break-after: page; padding: 0.7in 0.8in !important; }
+        .cd-wherewe-block { break-inside: avoid; }
+        .cd-wherewe-item { break-inside: avoid; }
       }
 
       /* Synthesis page — "Where this lands". Consulting-deck pattern:
