@@ -15,9 +15,8 @@
  */
 
 import React, { useEffect, useState, useContext, createContext } from 'react';
-import { Printer, X as XIcon, Loader, Download, Copy, Check, Edit3, RotateCcw } from 'lucide-react';
+import { Printer, X as XIcon, Loader, Copy, Check, Edit3, RotateCcw } from 'lucide-react';
 import { loadDeliverableData } from '../../services/clientDeliverableService.js';
-import { generateAuditPack, downloadMarkdown } from '../../services/auditPackService.js';
 import { brand } from '../../config/brand.js';
 
 // Session-scoped edit mode. When on, certain prose elements become
@@ -107,7 +106,6 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
   const [editMode, setEditMode] = useState(false);
   // resetKey bumps when the strategist clicks Reset — re-mounts the
   // document so all contentEditable edits are wiped back to defaults.
@@ -115,6 +113,11 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
   // Mode auto-initialized once data loads; strategist can override down
   // via the toolbar dropdown.
   const [modeOverride, setModeOverride] = useState(null);
+  // (Markdown export was removed in Step 17 — the .md output had
+  // diverged significantly from the rendered deliverable since Step 8,
+  // making it actively misleading to send. The strategist's raw
+  // working-notes markdown still lives on the Research v2 page's
+  // "Download audit pack" button, which is a different artifact.)
 
   useEffect(() => {
     let cancelled = false;
@@ -138,19 +141,6 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
   const validOverrides = availableModes(detectedMode);
   const mode = modeOverride && validOverrides.includes(modeOverride) ? modeOverride : detectedMode;
 
-  const handleExportMarkdown = async () => {
-    if (exporting) return;
-    setExporting(true);
-    try {
-      const md = await generateAuditPack({ clientId, tiers: ['priority', 'tracked'], windowDays: 30 });
-      const date = new Date().toISOString().split('T')[0];
-      downloadMarkdown(md, `deliverable-${(clientName || 'client').replace(/\s+/g, '-').toLowerCase()}-${date}.md`);
-    } catch (e) {
-      console.error('[deliverable] export failed:', e);
-    } finally {
-      setExporting(false);
-    }
-  };
 
   return (
     <div className="cd-overlay" role="dialog" aria-modal="true">
@@ -184,10 +174,6 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
         )}
         <button onClick={() => window.print()} disabled={!data} className="cd-btn cd-btn-primary">
           <Printer size={13} /> Print / Save as PDF
-        </button>
-        <button onClick={handleExportMarkdown} disabled={!data || exporting} className="cd-btn">
-          {exporting ? <Loader size={13} className="cd-spin" /> : <Download size={13} />}
-          {exporting ? 'Generating…' : 'Markdown'}
         </button>
         <button onClick={onClose} className="cd-btn"><XIcon size={13} /> Close</button>
       </div>
@@ -2583,27 +2569,32 @@ function PrintStyles() {
       }
 
       /* SoWhat — strategic-implication closer at the bottom of each
-         Part 01 data section. Reads the data, names the move. Distinct
-         visual treatment from InPractice (Part 02) — accent-bordered
-         box rather than dashed-top footer, because SoWhat is the
-         section's payoff, not its operational footnote. */
+         Part 01 data section. Distinct from EvidenceLead (Part 02
+         "Why"): SoWhat reads as a section's PAYOFF — surface-tone
+         background, heavier left rule, bolder body, the data section's
+         own strategic conclusion. EvidenceLead is the evidence chain
+         supporting a positioning RECOMMENDATION, not the conclusion
+         of a data section. The reader's eye learns the two layers
+         this way: Part 01 SoWhat = warm tone, Part 02 EvidenceLead
+         = cool tone (accent-soft). */
       .cd-sowhat {
         display: flex; gap: 12px;
         margin-top: 16px;
-        padding: 12px 14px;
-        background: ${ACCENT_SOFT};
+        padding: 14px 16px;
+        background: ${SURFACE};
         border-radius: 6px;
-        border-left: 3px solid ${ACCENT};
+        border-left: 4px solid ${INK_SOFT};
       }
       .cd-sowhat-tag {
         font-size: 10px; font-weight: 800;
-        color: ${ACCENT}; text-transform: uppercase;
+        color: ${INK_SOFT}; text-transform: uppercase;
         letter-spacing: 1.4px; padding-top: 3px;
         flex-shrink: 0; min-width: 56px;
       }
       .cd-sowhat-body {
-        font-size: 13px; color: ${INK}; line-height: 1.55;
+        font-size: 13.5px; color: ${INK}; line-height: 1.55;
         flex: 1; min-width: 0;
+        font-weight: 500;
       }
 
       /* InPractice — operational implication at the bottom. Closes the
