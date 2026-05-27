@@ -247,7 +247,10 @@ async function loadOrGenerateBrief({ scopeChannelIds, scopeLabel, windowDays, to
     businessContext = data || null;
   }
   const bizKey = businessContext?.id || 'no-biz';
-  const cacheKey = `whitespace_brief:${hashIds(scopeChannelIds)}:${windowDays}:${bizKey}`;
+  // Prompt version — bump when the brief prompt changes substantively
+  // so stale briefs generated under older rules get re-generated.
+  const BRIEF_PROMPT_VERSION = 'v2-brand-exclusivity';
+  const cacheKey = `whitespace_brief:${BRIEF_PROMPT_VERSION}:${hashIds(scopeChannelIds)}:${windowDays}:${bizKey}`;
   const cached = await loadCache(cacheKey);
   if (cached) return cached;
 
@@ -296,6 +299,13 @@ Generate 3-5 numbered opportunities. Each opportunity should be:
 - Tagged with one of: "topic gap", "format gap", "cadence gap", "audience gap"
 ${businessContext?.products_not_offered ? '- WITHIN this client\'s product/service offer. If a cohort gap is in a category the client does NOT sell, do not recommend it — say so explicitly if the strongest gaps are out-of-scope.' : ''}
 
+BRAND NAME RULE (CRITICAL — applies to BOTH the opportunity TITLE and the BODY text):
+- DO NOT name specific competitor product brands by name anywhere in the opportunity. This applies to ALL competitor brands including those mentioned in cohort data (Ring, Nest, Nest Cam, Vivint, SimpliSafe, Brinks, ADT, Wyze, Arlo, Blink, eufy, Lorex, etc.).
+- Refer to product CATEGORIES generically: "video doorbell," "outdoor security camera," "smart lock," "professionally-monitored alarm system," "indoor camera."
+- WRONG: "showcase how Nest Cam detects motion," "compare to Ring Pro features," "alternative to SimpliSafe."
+- RIGHT: "showcase how a professional-grade doorbell detects motion," "compare against DIY equipment in the same category," "the case for professional monitoring vs DIY equivalents."
+- The ONLY brand name you may mention is the client's own brand (taken from the business context above, if any). Mentioning a competitor by name — even as an example or analogy — counts as a violation.
+
 Avoid platitudes. Each opportunity must point at something concrete and absent. If the data doesn't support 5 opportunities, return fewer.
 
 Return ONLY valid JSON:
@@ -306,7 +316,7 @@ Return ONLY valid JSON:
 - Cite specific numbers from the input.
 - One concrete example is worth more than three abstractions.
 - If a category is truly well-covered, say so — don't manufacture gaps.
-- Treat the client's business context as a HARD constraint: never recommend content in categories the client does not sell.
+- Treat the client's business context as a HARD constraint: never recommend content in categories the client does not sell, AND never name specific competitor product brands in body text — refer to product categories generically instead.
 Return ONLY valid JSON.`;
 
     const result = await claudeAPI.call(prompt, systemPrompt, 'whitespace_brief', 2000);
