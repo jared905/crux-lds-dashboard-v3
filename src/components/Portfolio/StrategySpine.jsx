@@ -12,6 +12,7 @@ import {
   ArrowLeft, Loader, Edit2, Check, X as XIcon, Plus, Trash2,
   RefreshCw, Calendar, ExternalLink, ChevronDown, ChevronRight,
   Camera, History, Sparkles, Printer, ClipboardList, FileText,
+  Briefcase, Globe,
 } from 'lucide-react';
 import ClientDeliverable from '../ClientDeliverable/ClientDeliverable.jsx';
 import {
@@ -43,6 +44,14 @@ import {
   updateHost,
   deleteHost,
 } from '../../services/clientHostsService.js';
+import {
+  getActiveBusinessContext,
+  getLatestDraft,
+  auditWebsite,
+  updateBusinessContext,
+  confirmBusinessContext,
+  discardDraft,
+} from '../../services/clientBusinessContextService.js';
 
 export default function StrategySpine({ client, onBack }) {
   const [spine, setSpine] = useState(null);
@@ -54,6 +63,8 @@ export default function StrategySpine({ client, onBack }) {
   const [snapshotCaptureBusy, setSnapshotCaptureBusy] = useState(false);
   const [viewingSnapshot, setViewingSnapshot] = useState(null);
   const [hosts, setHosts] = useState([]);
+  const [businessActive, setBusinessActive] = useState(null);
+  const [businessDraft, setBusinessDraft] = useState(null);
   const [deliverableOpen, setDeliverableOpen] = useState(false);
 
   useEffect(() => {
@@ -63,11 +74,15 @@ export default function StrategySpine({ client, onBack }) {
       getSpine(client.id),
       listSpineSnapshots(client.id),
       listHosts(client.id),
-    ]).then(([row, snaps, hostRows]) => {
+      getActiveBusinessContext(client.id),
+      getLatestDraft(client.id),
+    ]).then(([row, snaps, hostRows, activeBiz, draftBiz]) => {
       if (!cancelled) {
         setSpine(row);
         setSnapshots(snaps);
         setHosts(hostRows);
+        setBusinessActive(activeBiz);
+        setBusinessDraft(draftBiz);
         setLoading(false);
       }
     });
@@ -168,6 +183,20 @@ export default function StrategySpine({ client, onBack }) {
           onClose={() => setDeliverableOpen(false)}
         />
       )}
+
+      <BusinessContextSection
+        clientId={client.id}
+        active={businessActive}
+        draft={businessDraft}
+        onChanged={async () => {
+          const [a, d] = await Promise.all([
+            getActiveBusinessContext(client.id),
+            getLatestDraft(client.id),
+          ]);
+          setBusinessActive(a);
+          setBusinessDraft(d);
+        }}
+      />
 
       <Section
         title="Guardrails — do not recommend"
@@ -485,6 +514,229 @@ function SnapshotViewer({ snapshot, onClose }) {
 // ────────────────────────────────────────────────────────────
 // Editable text section (positioning, audience)
 // ────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────
+// Business context — what the client offers / doesn't offer
+// ────────────────────────────────────────────────────────────
+// Grounds AI recommendations in client reality. Without this, the
+// opportunity-brief generator happily recommends categories the
+// client doesn't sell. Lifecycle: strategist runs a website audit →
+// Claude extracts → strategist reviews + confirms → flows into all
+// downstream AI prompts (spineContextService, whiteSpaceService).
+function BusinessContextSection({ clientId, active, draft, onChanged }) {
+  const current = draft || active;
+  const showingDraft = !!draft && (!active || draft.id !== active.id);
+
+  const [auditUrl, setAuditUrl] = useState(active?.source_url || '');
+  const [auditing, setAuditing] = useState(false);
+  const [error, setError] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState(null);
+
+  const handleAudit = async (e) => {
+    e?.preventDefault?.();
+    if (auditing || !auditUrl.trim()) return;
+    setError(null);
+    setAuditing(true);
+    try {
+      const r = await auditWebsite(clientId, auditUrl.trim());
+      if (!r.ok) setError(r.error);
+      else await onChanged?.();
+    } catch (e) {
+      setError(e.message || 'Audit failed');
+    } finally {
+      setAuditing(false);
+    }
+  };
+
+  const handleStartEdit = () => {
+    if (!current) return;
+    setEditDraft({
+      one_line_summary: current.one_line_summary || '',
+      products_offered: current.products_offered || '',
+      products_not_offered: current.products_not_offered || '',
+      target_market: current.target_market || '',
+    });
+    setEditing(true);
+    setError(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!current?.id || !editDraft) return;
+    const r = await updateBusinessContext(current.id, editDraft);
+    if (!r.ok) { setError(r.error); return; }
+    setEditing(false);
+    setEditDraft(null);
+    await onChanged?.();
+  };
+
+  const handleConfirm = async () => {
+    if (!draft?.id) return;
+    const r = await confirmBusinessContext(draft.id);
+    if (!r.ok) { setError(r.error); return; }
+    await onChanged?.();
+  };
+
+  const handleDiscard = async () => {
+    if (!draft?.id) return;
+    if (!window.confirm('Discard this draft? You\'ll need to re-audit or fill in manually.')) return;
+    await discardDraft(draft.id);
+    await onChanged?.();
+  };
+
+  const accent = showingDraft ? '#fbbf24' : (active ? '#34d399' : '#a78bfa');
+  const statusBadge = showingDraft
+    ? <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', background: 'rgba(251,191,36,0.12)', padding: '2px 7px', borderRadius: 10, textTransform: 'uppercase', letterSpacing: 0.6 }}>Draft · awaiting confirm</span>
+    : active
+      ? <span style={{ fontSize: 10, fontWeight: 700, color: '#34d399', background: 'rgba(52,211,153,0.12)', padding: '2px 7px', borderRadius: 10, textTransform: 'uppercase', letterSpacing: 0.6 }}>Confirmed</span>
+      : null;
+
+  const action = editing ? (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <button onClick={handleSaveEdit} style={primaryBtn}><Check size={12} /> Save</button>
+      <button onClick={() => { setEditing(false); setEditDraft(null); }} style={ghostBtn}><XIcon size={12} /></button>
+    </div>
+  ) : showingDraft ? (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <button onClick={handleConfirm} style={primaryBtn} title="Confirm this draft as the active business context. Once active, it filters AI recommendations."><Check size={12} /> Confirm</button>
+      <button onClick={handleStartEdit} style={ghostBtn}><Edit2 size={12} /> Edit</button>
+      <button onClick={handleDiscard} style={ghostBtn} title="Discard this draft"><Trash2 size={12} /></button>
+    </div>
+  ) : current ? (
+    <button onClick={handleStartEdit} style={ghostBtn}><Edit2 size={12} /> Edit</button>
+  ) : null;
+
+  return (
+    <SectionShell
+      title={<><Briefcase size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: -2 }} />Business context {statusBadge && <span style={{ marginLeft: 6 }}>{statusBadge}</span>}</>}
+      subtitle="What this client offers — and doesn't. Filters AI-generated recommendations so the deliverable stops proposing categories the client can't reproduce. Run a website audit, review the extraction, confirm to activate."
+      updatedAt={current?.confirmed_at || current?.updated_at}
+      accent={accent}
+      action={action}
+    >
+      {error && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 10 }}>{error}</div>}
+
+      {!current && !auditing && (
+        <form onSubmit={handleAudit}>
+          <label style={fieldLabel}>Client website URL</label>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+            <input
+              type="url"
+              value={auditUrl}
+              onChange={e => setAuditUrl(e.target.value)}
+              placeholder="https://safestreets.com"
+              style={{ ...inputStyle, marginBottom: 0, flex: 1 }}
+              required
+            />
+            <button type="submit" disabled={!auditUrl.trim() || auditing} style={primaryBtn}>
+              <Globe size={12} /> Audit website
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: '#666', lineHeight: 1.5 }}>
+            We'll fetch the homepage server-side, run Claude over the content, and draft a structured summary of what this company offers and doesn't. You'll review before it goes active.
+          </div>
+        </form>
+      )}
+
+      {auditing && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', color: '#aaa', fontSize: 13 }}>
+          <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
+          Fetching site, extracting context… this can take 10–20 seconds.
+        </div>
+      )}
+
+      {current && !editing && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {current.source_url && (
+            <div style={{ fontSize: 11, color: '#666', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Globe size={11} /> {current.source_url}
+              {current.source_fetched_at && <span style={{ color: '#555' }}>· fetched {formatRelative(current.source_fetched_at)}</span>}
+            </div>
+          )}
+          {current.one_line_summary && (
+            <BizField label="Summary" value={current.one_line_summary} />
+          )}
+          {current.products_offered && (
+            <BizField label="Offers" value={current.products_offered} />
+          )}
+          {current.products_not_offered && (
+            <BizField label="Does NOT offer" value={current.products_not_offered} accent="#f87171" />
+          )}
+          {current.target_market && (
+            <BizField label="Target market" value={current.target_market} />
+          )}
+
+          {!active && (
+            <div style={{ marginTop: 4, padding: '8px 10px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 4, fontSize: 12, color: '#fbbf24', lineHeight: 1.5 }}>
+              This is a draft. Click <strong>Confirm</strong> to activate it. AI prompts won't see this context until you do.
+            </div>
+          )}
+
+          {/* Re-audit affordance when active */}
+          {active && !showingDraft && (
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: 'pointer', fontSize: 12, color: '#888' }}>Re-audit with a different URL</summary>
+              <form onSubmit={handleAudit} style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                <input
+                  type="url"
+                  value={auditUrl}
+                  onChange={e => setAuditUrl(e.target.value)}
+                  placeholder="https://..."
+                  style={{ ...inputStyle, marginBottom: 0, flex: 1 }}
+                  required
+                />
+                <button type="submit" disabled={!auditUrl.trim() || auditing} style={primaryBtn}>
+                  <Globe size={12} /> Re-audit
+                </button>
+              </form>
+            </details>
+          )}
+        </div>
+      )}
+
+      {current && editing && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={fieldLabel}>Summary (one sentence)</label>
+          <input
+            value={editDraft.one_line_summary}
+            onChange={e => setEditDraft({ ...editDraft, one_line_summary: e.target.value })}
+            style={inputStyle}
+          />
+          <label style={fieldLabel}>Offers</label>
+          <textarea
+            value={editDraft.products_offered}
+            onChange={e => setEditDraft({ ...editDraft, products_offered: e.target.value })}
+            rows={4}
+            style={textareaStyle}
+          />
+          <label style={fieldLabel}>Does NOT offer (the recommendation filter)</label>
+          <textarea
+            value={editDraft.products_not_offered}
+            onChange={e => setEditDraft({ ...editDraft, products_not_offered: e.target.value })}
+            rows={4}
+            style={textareaStyle}
+          />
+          <label style={fieldLabel}>Target market</label>
+          <textarea
+            value={editDraft.target_market}
+            onChange={e => setEditDraft({ ...editDraft, target_market: e.target.value })}
+            rows={2}
+            style={textareaStyle}
+          />
+        </div>
+      )}
+    </SectionShell>
+  );
+}
+
+function BizField({ label, value, accent }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: accent || '#888', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 13, color: '#d4d4d8', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{value}</div>
+    </div>
+  );
+}
+
 // ────────────────────────────────────────────────────────────
 // Positioning one-liner — the headline of the deliverable
 // ────────────────────────────────────────────────────────────

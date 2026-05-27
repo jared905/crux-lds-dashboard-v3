@@ -33,13 +33,53 @@ const PLAY_STATUS_LABELS = {
  */
 export async function buildSpineContext(clientId, { clientName } = {}) {
   if (!supabase || !clientId) return '';
-  const { data: spine } = await supabase
-    .from('client_strategy_spine')
-    .select('positioning_oneliner, positioning_hypothesis, audience_read, quarterly_stance, quarterly_stance_label, active_plays, guardrails, competitive_posture, editorial_pov, voice_tone, host_archetype')
-    .eq('client_id', clientId)
-    .maybeSingle();
-  if (!spine) return '';
-  return formatSpineForPrompt(spine, { clientName });
+  const [spineRes, businessRes] = await Promise.all([
+    supabase
+      .from('client_strategy_spine')
+      .select('positioning_oneliner, positioning_hypothesis, audience_read, quarterly_stance, quarterly_stance_label, active_plays, guardrails, competitive_posture, editorial_pov, voice_tone, host_archetype')
+      .eq('client_id', clientId)
+      .maybeSingle(),
+    supabase
+      .from('client_business_context')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('status', 'active')
+      .maybeSingle(),
+  ]);
+
+  const spine = spineRes.data;
+  const businessContext = businessRes.data;
+  if (!spine && !businessContext) return '';
+
+  // Business context leads when present — what the company DOES bounds
+  // every downstream recommendation. Without this, the AI happily
+  // proposes content categories the client doesn't operate in.
+  const parts = [];
+  if (businessContext) {
+    const businessBlock = formatBusinessForPrompt(businessContext);
+    if (businessBlock) parts.push(businessBlock);
+  }
+  if (spine) {
+    const spineBlock = formatSpineForPrompt(spine, { clientName });
+    if (spineBlock) parts.push(spineBlock);
+  }
+  return parts.join('\n\n');
+}
+
+// Internal — same shape as the formatter exported from
+// clientBusinessContextService.js, but duplicated here to keep this
+// module dependency-free of the business-context service (avoids a
+// circular import: businessContext → spine → businessContext).
+function formatBusinessForPrompt(row) {
+  if (!row) return '';
+  const parts = [];
+  if (row.one_line_summary?.trim()) parts.push(`BUSINESS SUMMARY:\n${row.one_line_summary.trim()}`);
+  if (row.products_offered?.trim()) parts.push(`PRODUCTS / SERVICES OFFERED:\n${row.products_offered.trim()}`);
+  if (row.products_not_offered?.trim()) {
+    parts.push(`PRODUCTS / SERVICES NOT OFFERED (do not recommend content in these categories):\n${row.products_not_offered.trim()}`);
+  }
+  if (row.target_market?.trim()) parts.push(`TARGET MARKET:\n${row.target_market.trim()}`);
+  return parts.length ? `=== CLIENT BUSINESS CONTEXT ===\n${parts.join('\n\n')}\n=== END CLIENT BUSINESS CONTEXT ===` : '';
 }
 
 /**

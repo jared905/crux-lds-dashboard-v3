@@ -67,7 +67,7 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
     getActiveProductionSignalsForChannels(productionLookupIds).catch(() => ({})),
     fetchLandscapeChannels(scope).catch(() => []),
     analyzePatterns({ scopeChannelIds, windowDays: 90 }).catch(() => null),
-    analyzeWhiteSpace({ scopeChannelIds, windowDays: 90, scopeLabel: `Client: ${clientId}` }).catch(() => null),
+    analyzeWhiteSpace({ scopeChannelIds, windowDays: 90, scopeLabel: `Client: ${clientId}`, clientId }).catch(() => null),
     computeClientDiagnostic({ clientId, scopeChannelIds, windowDays: 90 }).catch(() => null),
     computeAudienceSignals(clientId, { days: 90 }).catch(() => null),
   ]);

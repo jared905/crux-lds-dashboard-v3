@@ -36,7 +36,7 @@ const BRIEF_CACHE_HOURS = 24 * 7; // refresh weekly
  * Run the full White Space analysis for a scope.
  * Returns topic coverage, format gaps, cadence gaps, and an opportunity brief.
  */
-export async function analyzeWhiteSpace({ scopeChannelIds, windowDays = 90, scopeLabel = 'this scope' }) {
+export async function analyzeWhiteSpace({ scopeChannelIds, windowDays = 90, scopeLabel = 'this scope', clientId = null }) {
   if (!scopeChannelIds?.length) {
     return { empty: true };
   }
@@ -63,6 +63,7 @@ export async function analyzeWhiteSpace({ scopeChannelIds, windowDays = 90, scop
   const brief = await loadOrGenerateBrief({
     scopeChannelIds, scopeLabel, windowDays,
     topicCoverage, formatGaps, cadenceGaps, videos,
+    clientId,
   });
 
   return {
@@ -232,8 +233,21 @@ Return ONLY valid JSON in this shape:
 // ──────────────────────────────────────────────────
 // Opportunity brief — Claude synthesis
 // ──────────────────────────────────────────────────
-async function loadOrGenerateBrief({ scopeChannelIds, scopeLabel, windowDays, topicCoverage, formatGaps, cadenceGaps, videos }) {
-  const cacheKey = `whitespace_brief:${hashIds(scopeChannelIds)}:${windowDays}`;
+async function loadOrGenerateBrief({ scopeChannelIds, scopeLabel, windowDays, topicCoverage, formatGaps, cadenceGaps, videos, clientId = null }) {
+  // Load business context first so it's part of the cache key — a
+  // context update should invalidate a stale brief.
+  let businessContext = null;
+  if (clientId) {
+    const { data } = await supabase
+      .from('client_business_context')
+      .select('id, products_offered, products_not_offered, target_market, one_line_summary, confirmed_at')
+      .eq('client_id', clientId)
+      .eq('status', 'active')
+      .maybeSingle();
+    businessContext = data || null;
+  }
+  const bizKey = businessContext?.id || 'no-biz';
+  const cacheKey = `whitespace_brief:${hashIds(scopeChannelIds)}:${windowDays}:${bizKey}`;
   const cached = await loadCache(cacheKey);
   if (cached) return cached;
 
@@ -254,6 +268,14 @@ async function loadOrGenerateBrief({ scopeChannelIds, scopeLabel, windowDays, to
     const morningPct = totalUploads > 0 ? (morningUploads / totalUploads) * 100 : 0;
     const cadenceSummary = `Total uploads: ${totalUploads} over ${windowDays} days. Morning slot (6am–12pm MT) uploads: ${morningUploads} (${morningPct.toFixed(1)}%). Most-empty time blocks should be called out as cadence gaps.`;
 
+    // Business-context block — the offer/not-offer fields constrain
+    // which opportunities the brief can recommend. Without this, the
+    // brief happily suggests categories the client doesn't sell.
+    const businessBlock = businessContext
+      ? `\n\nCLIENT BUSINESS CONTEXT (HARD CONSTRAINT — recommendations MUST fit within what this client offers):
+${businessContext.one_line_summary ? `Summary: ${businessContext.one_line_summary}\n` : ''}${businessContext.products_offered ? `OFFERS:\n${businessContext.products_offered}\n` : ''}${businessContext.products_not_offered ? `DOES NOT OFFER (do NOT recommend content in these categories):\n${businessContext.products_not_offered}\n` : ''}${businessContext.target_market ? `Target market: ${businessContext.target_market}` : ''}`
+      : '';
+
     const prompt = `You are writing a pitch-deck-ready opportunity brief for a client interested in the "${scopeLabel}" space.
 
 Scope: ${scopeChannelIds.length} channels · ${videos.length} videos analyzed · last ${windowDays} days.
@@ -265,13 +287,14 @@ Format coverage:
 ${formatSummary}
 
 Cadence:
-${cadenceSummary}
+${cadenceSummary}${businessBlock}
 
 Generate 3-5 numbered opportunities. Each opportunity should be:
 - A specific, defensible angle a new entrant could own (or a current channel could expand into)
 - Backed by the data above (cite specific numbers, formats, topics, or time slots)
 - Written in 2-4 sentences total
 - Tagged with one of: "topic gap", "format gap", "cadence gap", "audience gap"
+${businessContext?.products_not_offered ? '- WITHIN this client\'s product/service offer. If a cohort gap is in a category the client does NOT sell, do not recommend it — say so explicitly if the strongest gaps are out-of-scope.' : ''}
 
 Avoid platitudes. Each opportunity must point at something concrete and absent. If the data doesn't support 5 opportunities, return fewer.
 
@@ -283,6 +306,7 @@ Return ONLY valid JSON:
 - Cite specific numbers from the input.
 - One concrete example is worth more than three abstractions.
 - If a category is truly well-covered, say so — don't manufacture gaps.
+- Treat the client's business context as a HARD constraint: never recommend content in categories the client does not sell.
 Return ONLY valid JSON.`;
 
     const result = await claudeAPI.call(prompt, systemPrompt, 'whitespace_brief', 2000);
