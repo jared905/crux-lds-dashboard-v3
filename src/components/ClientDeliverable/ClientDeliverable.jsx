@@ -1435,13 +1435,27 @@ function CohortEngagementSummary({ channels, patternsResult }) {
 // the formula saturates. Renders the top 4-5 breakouts and 2-3 rank
 // changes, compressed and sorted by recency.
 function MovementSummary({ alerts }) {
+  // Alerts come from movementService.loadAlerts. The real shape is:
+  //   { id, channel_id, video_id, alert_type, payload, generated_at,
+  //     _channelName, _channelYoutubeId, _videoThumbnail }
+  // Earlier version of this component read non-existent fields
+  // (channel_name, body, title, detected_at, youtube_video_id) and
+  // rendered "Unknown" everywhere. Match the schema:
+  //   - timestamp:    generated_at
+  //   - channel name: _channelName (attached by attachThumbnails)
+  //   - video title:  payload.video_title
+  //   - multiplier:   payload.multiplier
+  //   - youtube id:   payload.youtube_video_id
+  //   - rank delta:   payload.pct_change + payload.direction
+  const named = (a) => !!(a._channelName && a._channelName.trim() && a._channelName !== 'Unknown');
+
   const breakouts = (alerts || [])
-    .filter(a => a.alert_type === 'breakout')
-    .sort((a, b) => new Date(b.detected_at || 0) - new Date(a.detected_at || 0))
+    .filter(a => a.alert_type === 'breakout' && named(a))
+    .sort((a, b) => new Date(b.generated_at || 0) - new Date(a.generated_at || 0))
     .slice(0, 5);
   const rankChanges = (alerts || [])
-    .filter(a => a.alert_type === 'rank_change')
-    .sort((a, b) => new Date(b.detected_at || 0) - new Date(a.detected_at || 0))
+    .filter(a => a.alert_type === 'rank_change' && named(a))
+    .sort((a, b) => new Date(b.generated_at || 0) - new Date(a.generated_at || 0))
     .slice(0, 3);
 
   if (!breakouts.length && !rankChanges.length) return null;
@@ -1459,16 +1473,19 @@ function MovementSummary({ alerts }) {
           <p style={{ marginBottom: 8 }}><strong>Breakouts</strong> — videos hitting unusual multipliers off their channel's baseline:</p>
           <ul className="cd-list">
             {breakouts.map((b, i) => {
-              const multi = b.body?.match(/(\d+\.?\d*)×/)?.[1];
+              const p = b.payload || {};
+              const multi = p.multiplier != null ? Number(p.multiplier).toFixed(1) : null;
+              const videoTitle = p.video_title;
+              const ytId = p.youtube_video_id;
               return (
                 <li key={i}>
-                  <strong>{b.channel_name || 'Unknown'}</strong>
+                  <strong>{b._channelName}</strong>
                   {multi && <span style={{ color: MUTED }}> · {multi}× channel median</span>}
-                  {b.title && <div className="cd-quote">"{b.title}"</div>}
+                  {videoTitle && <div className="cd-quote">"{videoTitle}"</div>}
                   <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
-                    {fmtDate(b.detected_at)}
-                    {b.youtube_video_id && (
-                      <> · <a href={`https://youtu.be/${b.youtube_video_id}`} target="_blank" rel="noreferrer" style={{ color: ACCENT, textDecoration: 'none' }}>watch</a></>
+                    {fmtDate(b.generated_at)}
+                    {ytId && (
+                      <> · <a href={`https://youtu.be/${ytId}`} target="_blank" rel="noreferrer" style={{ color: ACCENT, textDecoration: 'none' }}>watch</a></>
                     )}
                   </div>
                 </li>
@@ -1482,13 +1499,25 @@ function MovementSummary({ alerts }) {
         <>
           <p style={{ marginTop: 14, marginBottom: 8 }}><strong>Rank changes</strong> — channels whose recent average shifted meaningfully:</p>
           <ul className="cd-list">
-            {rankChanges.map((r, i) => (
-              <li key={i}>
-                <strong>{r.channel_name || 'Unknown'}</strong>
-                {r.body && <span style={{ color: MUTED }}> — {r.body.replace(/[*_`]/g, '')}</span>}
-                <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>{fmtDate(r.detected_at)}</div>
-              </li>
-            ))}
+            {rankChanges.map((r, i) => {
+              const p = r.payload || {};
+              const pct = p.pct_change != null ? Math.round(Math.abs(p.pct_change)) : null;
+              const arrow = (p.pct_change || 0) >= 0 ? '↑' : '↓';
+              const prev = p.prev_velocity != null ? Number(p.prev_velocity).toLocaleString() : null;
+              const curr = p.curr_velocity != null ? Number(p.curr_velocity).toLocaleString() : null;
+              return (
+                <li key={i}>
+                  <strong>{r._channelName}</strong>
+                  {pct != null && (
+                    <span style={{ color: MUTED }}>
+                      {' '}— avg views {arrow} <strong>{pct}%</strong>
+                      {prev && curr && <span> ({prev}/day → {curr}/day)</span>}
+                    </span>
+                  )}
+                  <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>{fmtDate(r.generated_at)}</div>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}
