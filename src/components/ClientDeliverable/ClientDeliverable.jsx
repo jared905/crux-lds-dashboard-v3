@@ -15,15 +15,22 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Printer, X as XIcon, Loader, Download } from 'lucide-react';
+import { Printer, X as XIcon, Loader, Download, Copy, Check } from 'lucide-react';
 import { loadDeliverableData } from '../../services/clientDeliverableService.js';
 import { generateAuditPack, downloadMarkdown } from '../../services/auditPackService.js';
+import { brand } from '../../config/brand.js';
 
-const PINK = '#ec4899';
-const CREAM = '#faf3e1';
-const CREAM_DEEP = '#f5ead0';
-const INK = '#1a1a1a';
-const MUTED = '#5a5a5a';
+// Pull palette from brand config so a brand swap is one file edit.
+const ACCENT = brand.colors.accent;
+const ACCENT_SOFT = brand.colors.accentSoft;
+const SURFACE = brand.colors.surface;
+const SURFACE_DEEP = brand.colors.surfaceDeep;
+const INK = brand.colors.ink;
+const INK_SOFT = brand.colors.inkSoft;
+const MUTED = brand.colors.muted;
+const BORDER = brand.colors.border;
+const DANGER = brand.colors.danger;
+const FONT_STACK = brand.fontStack;
 
 export default function ClientDeliverable({ clientId, clientName, onClose }) {
   const [data, setData] = useState(null);
@@ -100,11 +107,32 @@ function DeliverablePages({ data, clientName }) {
   const displayName = clientName || clientChannel?.name || 'Client';
   const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
+  // Pre-launch detection: client exists but no usable performance data
+  // anywhere. Their channel either hasn't been synced yet OR they're
+  // pre-publication. The deliverable reframes Part 01 to lean on the
+  // competitive landscape rather than the client's own (empty) signals.
+  const isPreLaunch = !audienceSignals && !clientProductionRow && !demandRow;
+
   return (
     <>
-      <Cover clientName={displayName} dateStr={dateStr} oneliner={spine?.positioning_oneliner} />
+      <Cover
+        clientName={displayName}
+        dateStr={dateStr}
+        oneliner={spine?.positioning_oneliner}
+        isPreLaunch={isPreLaunch}
+      />
 
-      <PartCallout number="01" title="YouTube Category Audit" description="Competitive landscape, with deep-dives (content types, cadence, production approach, performance patterns), audience behavior analysis, and content gap identification." />
+      <PartCallout
+        number="01"
+        title="YouTube Category Audit"
+        description={
+          isPreLaunch
+            ? 'The field this channel is entering: who occupies it, how they post, what they look like, and where the openings are.'
+            : 'Competitive landscape, with deep-dives (content types, cadence, production approach, performance patterns), audience behavior analysis, and content gap identification.'
+        }
+      />
+
+      {isPreLaunch && <PreLaunchFraming clientName={displayName} />}
 
       <PartOneContent
         clientName={displayName}
@@ -117,6 +145,7 @@ function DeliverablePages({ data, clientName }) {
         clientProductionRow={clientProductionRow}
         demandRow={demandRow}
         audienceSignals={audienceSignals}
+        isPreLaunch={isPreLaunch}
       />
 
       <PartCallout number="02" title="Positioning Recommendation" description="The channel's one-line articulation, editorial POV and mission, voice and tone guardrails, and the host archetype definition that feeds directly into a talent audition rubric." />
@@ -143,10 +172,18 @@ function DeliverablePages({ data, clientName }) {
 // Cover + section callouts
 // ──────────────────────────────────────────────────
 
-function Cover({ clientName, dateStr, oneliner }) {
+function Cover({ clientName, dateStr, oneliner, isPreLaunch }) {
   return (
     <section className="cd-page cd-cover">
-      <div className="cd-cover-label">YouTube Audit + Positioning Recommendation</div>
+      {brand.logoUrl ? (
+        <img src={brand.logoUrl} alt={brand.studio || brand.name} className="cd-cover-logo" />
+      ) : (
+        <div className="cd-cover-wordmark">{brand.studio || brand.name}</div>
+      )}
+      <div className="cd-cover-label">
+        {brand.productLabel}
+        {isPreLaunch && <span className="cd-cover-tag">Pre-launch</span>}
+      </div>
       <h1 className="cd-cover-title">{clientName}</h1>
       <div className="cd-cover-date">{dateStr}</div>
       {oneliner && (
@@ -156,7 +193,30 @@ function Cover({ clientName, dateStr, oneliner }) {
           <span className="cd-cover-oneliner-mark">”</span>
         </div>
       )}
-      <div className="cd-cover-footer">Prepared by Full View · CRUX</div>
+      <div className="cd-cover-footer">{brand.footerNote || `Prepared by ${brand.studio || brand.name}`}</div>
+    </section>
+  );
+}
+
+// Brief framing block that sits between the "01" callout and Part 01
+// content when the client has no published video data. Sets reader
+// expectations and replaces the "your channel" data we don't have.
+function PreLaunchFraming({ clientName }) {
+  return (
+    <section className="cd-page cd-prelaunch">
+      <div className="cd-prelaunch-kicker">Why this deliverable looks different</div>
+      <h3 className="cd-prelaunch-title">{clientName} hasn't published yet — so we're reading the field, not the channel.</h3>
+      <div className="cd-prelaunch-body">
+        <p>
+          When a channel has a year of uploads behind it, an audit reads the channel: what's worked, what's flatlined, where the audience is leaning. This deliverable can't do that yet — and shouldn't pretend to.
+        </p>
+        <p>
+          Instead, the audit below describes the <strong>category</strong> {clientName} is entering: who occupies it today, how those channels post, what they look like, and where the field has open ground. The Positioning Recommendation that follows is calibrated against that landscape — so the channel can launch into a defined slot rather than discover one mid-flight.
+        </p>
+        <p>
+          The performance-feedback layer (what your audience watches, what they comment on, what time slots win for your content specifically) will populate after the first 90 days of uploads. We'll regenerate this document then with the channel's own signal layered on top of the landscape.
+        </p>
+      </div>
     </section>
   );
 }
@@ -174,11 +234,38 @@ function PartCallout({ number, title, description }) {
 }
 
 function SubSection({ title, kicker, children }) {
+  const bodyRef = React.useRef(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!bodyRef.current) return;
+    // innerText gives a readable plaintext version that pastes cleanly
+    // into Google Slides / Keynote / Notion. Tables come through with
+    // tab-separated columns; lists keep one-item-per-line.
+    const text = `${title}\n\n${bodyRef.current.innerText.trim()}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      // Clipboard API denied (likely insecure context). Silent fail —
+      // the markdown export button is still available as the fallback.
+    }
+  };
+
   return (
     <div className="cd-subsection">
-      {kicker && <div className="cd-kicker">{kicker}</div>}
-      <h3 className="cd-subtitle">{title}</h3>
-      <div className="cd-body">{children}</div>
+      <div className="cd-subsection-head">
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {kicker && <div className="cd-kicker">{kicker}</div>}
+          <h3 className="cd-subtitle">{title}</h3>
+        </div>
+        <button onClick={handleCopy} className="cd-copy-btn" title="Copy this section to clipboard (paste into your deck)">
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <div className="cd-body" ref={bodyRef}>{children}</div>
     </div>
   );
 }
@@ -187,7 +274,7 @@ function SubSection({ title, kicker, children }) {
 // Part 01 sub-sections (client-facing curation)
 // ──────────────────────────────────────────────────
 
-function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, clientProductionRow, demandRow, audienceSignals }) {
+function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, clientProductionRow, demandRow, audienceSignals, isPreLaunch }) {
   const titlePatterns = patternsResult?.scope?.titlePatterns || [];
   const opportunities = whiteSpaceResult?.brief?.opportunities || [];
   const cadenceGaps = whiteSpaceResult?.cadenceGaps || null;
@@ -241,18 +328,14 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
         )}
       </SubSection>
 
-      {(competitorProdSignals.length > 0 || clientProductionRow) && (
+      {competitorProdSignals.length > 0 && (
         <SubSection title="Production approach" kicker="How the cohort looks">
-          {competitorProdSignals.length > 0 && (
-            <>
-              <p style={{ marginBottom: 12 }}>
-                <strong>Cohort production tiers</strong>{' '}
-                <span style={{ color: MUTED, fontSize: 12 }}>({competitorProdSignals.length} competitors analyzed)</span>
-              </p>
-              <ProductionTierBar rollup={tierRollup} />
-            </>
-          )}
-          {clientProductionRow?.signals?.summary && (
+          <p style={{ marginBottom: 12 }}>
+            <strong>Cohort production tiers</strong>{' '}
+            <span style={{ color: MUTED, fontSize: 12 }}>({competitorProdSignals.length} competitors analyzed)</span>
+          </p>
+          <ProductionTierBar rollup={tierRollup} />
+          {clientProductionRow?.signals?.summary && !isPreLaunch && (
             <div className="cd-callout-inline">
               <div className="cd-callout-inline-label">Your channel</div>
               <p style={{ margin: 0 }}>{clientProductionRow.signals.summary}</p>
@@ -274,13 +357,13 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
         </SubSection>
       )}
 
-      {audienceSignals && (
+      {!isPreLaunch && audienceSignals && (
         <SubSection title="What this audience watches" kicker="Audience behavior · format + duration">
           <AudienceFormatSummary audienceSignals={audienceSignals} />
         </SubSection>
       )}
 
-      {(unservedRequests.length > 0 || recurringThemes.length > 0) && (
+      {!isPreLaunch && (unservedRequests.length > 0 || recurringThemes.length > 0) && (
         <SubSection title="What this audience asks for" kicker="Audience behavior · mined from comments">
           {unservedRequests.length > 0 && (
             <>
@@ -358,7 +441,7 @@ function AudienceFormatSummary({ audienceSignals }) {
                   <td>{f.format}</td>
                   <td className="cd-num">{fmtNum(f._computed.avg_views)}</td>
                   <td className="cd-num">{f._computed.vs_channel_avg}×</td>
-                  <td className="cd-num" style={{ color: f.signal_strength === 'strong' ? PINK : MUTED }}>{f.signal_strength}</td>
+                  <td className="cd-num" style={{ color: f.signal_strength === 'strong' ? ACCENT : MUTED }}>{f.signal_strength}</td>
                 </tr>
               ))}
             </tbody>
@@ -423,7 +506,7 @@ function TitlePatternBars({ patterns }) {
         const width = (Math.abs(lift) / (2 * maxAbs)) * barAreaWidth;
         const x = lift >= 0 ? zeroX : zeroX - width;
         const isDirectional = p.confidence === 'directional';
-        const color = lift >= 0 ? PINK : '#9ca3af';
+        const color = lift >= 0 ? ACCENT : '#9ca3af';
         return (
           <g key={i}>
             <text x={labelWidth - 8} y={y + 13} textAnchor="end" fontSize="11.5" fill={INK} style={{ fontWeight: 500 }}>
@@ -499,7 +582,7 @@ function CadenceHeatmap({ cadenceGaps }) {
                   <rect
                     x={x + 2} y={y + 2} width={cellW - 4} height={cellH - 4}
                     fill={cellFill(lift)}
-                    stroke={isDirectional ? '#d9cfb1' : (lift != null && lift >= 1.15 ? PINK : '#e8e2d0')}
+                    stroke={isDirectional ? '#d9cfb1' : (lift != null && lift >= 1.15 ? ACCENT : '#e8e2d0')}
                     strokeWidth={isDirectional ? 1 : (lift != null && lift >= 1.15 ? 1.2 : 0.7)}
                     strokeDasharray={isDirectional ? '3 2' : 'none'}
                     rx={2}
@@ -543,7 +626,7 @@ function ProductionTierBar({ rollup }) {
   const total = Object.values(rollup).reduce((s, n) => s + n, 0);
   if (total === 0) return null;
   const order = ['high', 'medium', 'mixed', 'low'];
-  const tierColor = { high: PINK, medium: '#a78bfa', mixed: '#fbbf24', low: '#9ca3af' };
+  const tierColor = { high: ACCENT, medium: '#a78bfa', mixed: '#fbbf24', low: '#9ca3af' };
   return (
     <div>
       <div style={{ display: 'flex', width: '100%', height: 20, borderRadius: 4, overflow: 'hidden', border: '1px solid #e8e2d0' }}>
@@ -751,7 +834,7 @@ function Footer() {
   return (
     <section className="cd-page cd-final">
       <div style={{ color: MUTED, fontSize: 11, marginTop: 60, textAlign: 'center' }}>
-        Prepared by Full View · CRUX Media · {new Date().getFullYear()}
+        {brand.footerNote || `Prepared by ${brand.studio || brand.name}`} · {new Date().getFullYear()}
       </div>
     </section>
   );
@@ -819,7 +902,7 @@ function PrintStyles() {
 
       .cd-doc {
         max-width: 840px; margin: 32px auto 80px;
-        font-family: ui-sans-serif, system-ui, -apple-system, 'Inter', sans-serif;
+        font-family: ${FONT_STACK};
         color: ${INK};
         line-height: 1.55;
       }
@@ -840,17 +923,33 @@ function PrintStyles() {
 
       /* Cover */
       .cd-cover {
-        background: ${CREAM};
+        background: ${SURFACE};
         text-align: left;
         min-height: 540px;
         display: flex; flex-direction: column; justify-content: center;
         padding: 96px 80px;
       }
+      .cd-cover-logo {
+        max-height: 36px; max-width: 200px; margin-bottom: 32px;
+        object-fit: contain; object-position: left;
+      }
+      .cd-cover-wordmark {
+        font-size: 13px; font-weight: 800;
+        color: ${INK}; text-transform: uppercase;
+        letter-spacing: 2px; margin-bottom: 32px;
+      }
       .cd-cover-label {
         font-size: 11px; font-weight: 700;
-        color: ${PINK}; text-transform: uppercase;
+        color: ${ACCENT}; text-transform: uppercase;
         letter-spacing: 1.2px;
         margin-bottom: 24px;
+        display: flex; align-items: center; gap: 10px;
+      }
+      .cd-cover-tag {
+        font-size: 9px; font-weight: 700;
+        background: ${ACCENT}; color: #fff;
+        padding: 3px 8px; border-radius: 99px;
+        letter-spacing: 0.8px;
       }
       .cd-cover-title {
         font-size: 56px; font-weight: 800; color: ${INK};
@@ -863,11 +962,11 @@ function PrintStyles() {
         font-size: 22px; font-weight: 500; color: ${INK};
         line-height: 1.4; max-width: 580px;
         font-style: italic; padding-left: 18px;
-        border-left: 3px solid ${PINK};
+        border-left: 3px solid ${ACCENT};
         margin-bottom: 96px;
       }
       .cd-cover-oneliner-mark {
-        color: ${PINK}; font-weight: 700; font-style: normal;
+        color: ${ACCENT}; font-weight: 700; font-style: normal;
       }
       .cd-cover-footer {
         font-size: 11px; color: ${MUTED};
@@ -880,14 +979,14 @@ function PrintStyles() {
         margin-bottom: 20px;
       }
       .cd-callout {
-        background: ${CREAM};
+        background: ${SURFACE};
         border-radius: 12px;
         padding: 48px 56px;
         position: relative;
       }
       .cd-callout-number {
         font-size: 28px; font-weight: 800;
-        color: ${PINK};
+        color: ${ACCENT};
         line-height: 1; margin-bottom: 14px;
       }
       .cd-callout-title {
@@ -904,18 +1003,55 @@ function PrintStyles() {
       .cd-subsection {
         margin-bottom: 36px;
         padding-bottom: 28px;
-        border-bottom: 1px solid #e8e2d0;
+        border-bottom: 1px solid ${BORDER};
       }
       .cd-subsection:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+      .cd-subsection-head {
+        display: flex; align-items: flex-start; gap: 14px;
+        margin-bottom: 14px;
+      }
+      .cd-copy-btn {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 5px 10px; border-radius: 5px;
+        background: transparent; color: ${MUTED};
+        border: 1px solid ${BORDER};
+        font-size: 11px; font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: all 0.15s;
+      }
+      .cd-copy-btn:hover { color: ${ACCENT}; border-color: ${ACCENT}; }
       .cd-kicker {
         font-size: 10px; font-weight: 700;
-        color: ${PINK}; text-transform: uppercase;
+        color: ${ACCENT}; text-transform: uppercase;
         letter-spacing: 1.2px; margin-bottom: 6px;
       }
       .cd-subtitle {
-        font-size: 22px; font-weight: 700; color: ${INK};
-        margin: 0 0 14px; letter-spacing: -0.3px;
+        font-size: 22px; font-weight: 700; color: ${INK_SOFT};
+        margin: 0; letter-spacing: -0.3px;
       }
+
+      /* Pre-launch framing block — sits between the 01 callout and Part 01
+         content for clients with no published video data */
+      .cd-prelaunch {
+        background: ${SURFACE_DEEP};
+        padding: 40px 56px;
+      }
+      .cd-prelaunch-kicker {
+        font-size: 10px; font-weight: 700;
+        color: ${ACCENT}; text-transform: uppercase;
+        letter-spacing: 1.2px; margin-bottom: 10px;
+      }
+      .cd-prelaunch-title {
+        font-size: 22px; font-weight: 700; color: ${INK};
+        margin: 0 0 18px; letter-spacing: -0.3px; line-height: 1.3;
+      }
+      .cd-prelaunch-body p {
+        margin: 0 0 12px; font-size: 14px; line-height: 1.6;
+      }
+      .cd-prelaunch-body p:last-child { margin-bottom: 0; }
       .cd-body {
         font-size: 14px; color: ${INK};
       }
@@ -957,21 +1093,21 @@ function PrintStyles() {
       .cd-num { text-align: right; font-variant-numeric: tabular-nums; }
 
       .cd-callout-inline {
-        background: ${CREAM_DEEP};
+        background: ${SURFACE_DEEP};
         border-radius: 6px;
         padding: 14px 16px;
         margin-top: 12px;
-        border-left: 3px solid ${PINK};
+        border-left: 3px solid ${ACCENT};
       }
       .cd-callout-inline-label {
         font-size: 10px; font-weight: 700;
-        color: ${PINK}; text-transform: uppercase;
+        color: ${ACCENT}; text-transform: uppercase;
         letter-spacing: 1px; margin-bottom: 6px;
       }
 
       /* Part 02 one-liner panel */
       .cd-oneliner-panel {
-        background: ${CREAM};
+        background: ${SURFACE};
         border-radius: 8px;
         padding: 40px 48px;
         margin-bottom: 36px;
@@ -979,7 +1115,7 @@ function PrintStyles() {
       }
       .cd-oneliner-mark {
         font-size: 60px; line-height: 1;
-        color: ${PINK}; font-weight: 800;
+        color: ${ACCENT}; font-weight: 800;
       }
       .cd-oneliner-text {
         font-size: 24px; font-weight: 600;
@@ -996,14 +1132,14 @@ function PrintStyles() {
       /* Rationale callout — "Why this" card under each Part 02 field */
       .cd-rationale {
         margin-top: 14px;
-        background: ${CREAM_DEEP};
+        background: ${SURFACE_DEEP};
         border-radius: 6px;
         padding: 12px 14px;
-        border-left: 3px solid ${PINK};
+        border-left: 3px solid ${ACCENT};
       }
       .cd-rationale-kicker {
         font-size: 9px; font-weight: 700;
-        color: ${PINK}; text-transform: uppercase;
+        color: ${ACCENT}; text-transform: uppercase;
         letter-spacing: 1.4px; margin-bottom: 4px;
       }
       .cd-rationale-body {
@@ -1018,7 +1154,7 @@ function PrintStyles() {
 
       .cd-final {
         padding: 40px 72px;
-        background: ${CREAM};
+        background: ${SURFACE};
       }
 
       /* Print rules — hide app chrome, output only the deliverable pages */
@@ -1042,6 +1178,8 @@ function PrintStyles() {
         .cd-callout { border-radius: 0; padding: 0.7in 0.8in !important; min-height: 4in; }
         .cd-cover { min-height: 9in; padding: 1.2in 1in !important; }
         .cd-subsection { break-inside: avoid; }
+        .cd-copy-btn { display: none !important; }
+        .cd-prelaunch { break-after: page; }
       }
     `}</style>
   );
