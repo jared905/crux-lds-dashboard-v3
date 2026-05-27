@@ -91,13 +91,24 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
   // Briefing is dependent on diagnostic — chained.
   const briefing = diagnostic ? await loadOrGenerateBriefing(diagnostic).catch(() => null) : null;
 
-  // Per-channel format mix — Shorts vs long-form split over the cadence
-  // window. Powers the Upload tempo section so each channel's volume
-  // can be read alongside its format strategy. Without this the
-  // 25-uploads-a-week eufy bar looks comparable to Smart Home Solver's
-  // monthly 30-minute essay, which it isn't.
-  const channelIdsForTempo = (channels || []).map(c => c.id).filter(Boolean);
-  const formatMixByChannel = await fetchPerChannelFormatMix(channelIdsForTempo, 90).catch(() => ({}));
+  // Per-channel format mix comes pre-computed on every landscape
+  // channel row (formatMix, uploadsPerWeekShort, uploadsPerWeekLong)
+  // using the same 30-day window and the same duration-based detection
+  // that uploadsPerWeek uses. The earlier per-channel query was using
+  // a 90-day window AND video_type-column detection, which produced
+  // a bar where length and split disagreed on what counts as a Short.
+  // We just key the existing data by channel id for the renderer.
+  const formatMixByChannel = {};
+  for (const c of (channels || [])) {
+    if (!c.id || !c.formatMix) continue;
+    formatMixByChannel[c.id] = {
+      shorts: c.uploadsPerWeekShort || 0,
+      longs: c.uploadsPerWeekLong || 0,
+      total: c.uploadsPerWeek || 0,
+      shortsShare: c.formatMix.short ?? null,
+      longsShare: c.formatMix.long ?? null,
+    };
+  }
 
   return {
     ok: true,
@@ -128,28 +139,5 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
   };
 }
 
-/**
- * Per-channel Shorts vs long-form counts over a recent window. Returns
- * `{ [channelId]: { shorts, longs, total } }`. Used by the deliverable's
- * Upload tempo section so volume reads alongside format strategy.
- */
-async function fetchPerChannelFormatMix(channelIds, windowDays = 90) {
-  if (!supabase || !Array.isArray(channelIds) || !channelIds.length) return {};
-  const cutoff = new Date(Date.now() - windowDays * 86400_000).toISOString();
-  const { data } = await supabase
-    .from('videos')
-    .select('channel_id, video_type')
-    .in('channel_id', channelIds)
-    .gte('published_at', cutoff);
-  const byChannel = {};
-  for (const v of (data || [])) {
-    if (!byChannel[v.channel_id]) byChannel[v.channel_id] = { shorts: 0, longs: 0, total: 0 };
-    const bucket = byChannel[v.channel_id];
-    bucket.total++;
-    if (v.video_type === 'short') bucket.shorts++;
-    else bucket.longs++;
-  }
-  return byChannel;
-}
 
 export default { loadDeliverableData };

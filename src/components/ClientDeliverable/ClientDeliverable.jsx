@@ -1393,19 +1393,21 @@ function TopSlotsCallout({ cadenceGaps }) {
 // long-form share — so eufy's 25/wk reads as "Shorts pumping" and
 // Smart Home Solver's 0.2/wk reads as "long-form essays" at a glance.
 function UploadTempo({ channels, formatMixByChannel }) {
-  // Normalize to a per-channel object with weekly upload rate + shorts share.
+  // Format mix + tempo come from the SAME source (researchV2Service's
+  // landscape query) with the SAME 30-day window and the SAME
+  // duration-based Shorts detection. The bar length (uploadsPerWeek)
+  // and the bar split (shortsShare) are now mathematically coherent.
   const rows = (channels || [])
     .filter(c => c.uploadsPerWeek != null && c.uploadsPerWeek > 0)
     .map(c => {
       const mix = formatMixByChannel?.[c.id];
-      const total = mix?.total || 0;
-      const shortsShare = total > 0 ? mix.shorts / total : null;
+      const shortsShare = mix?.shortsShare != null ? mix.shortsShare : null;
       return {
         id: c.id,
         name: c.name,
         uploadsPerWeek: c.uploadsPerWeek,
-        shortsShare, // null when unknown
-        formatKnown: total > 0,
+        shortsShare, // null when unknown (channel has no videos in window)
+        formatKnown: shortsShare != null,
       };
     })
     .sort((a, b) => b.uploadsPerWeek - a.uploadsPerWeek);
