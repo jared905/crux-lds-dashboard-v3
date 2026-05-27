@@ -69,7 +69,7 @@ async function attachThumbnails(alerts) {
 
   const [chRes, vidRes] = await Promise.all([
     channelIds.length
-      ? supabase.from('channels').select('id, thumbnail_url, youtube_channel_id').in('id', channelIds)
+      ? supabase.from('channels').select('id, name, thumbnail_url, youtube_channel_id').in('id', channelIds)
       : Promise.resolve({ data: [] }),
     videoIds.length
       ? supabase.from('videos').select('id, thumbnail_url, youtube_video_id').in('id', videoIds)
@@ -83,6 +83,7 @@ async function attachThumbnails(alerts) {
 
   for (const a of alerts) {
     const ch = chMap.get(a.channel_id);
+    a._channelName = ch?.name || null;
     a._channelThumbnail = ch?.thumbnail_url || null;
     a._channelYoutubeId = ch?.youtube_channel_id || null;
     if (a.video_id) {

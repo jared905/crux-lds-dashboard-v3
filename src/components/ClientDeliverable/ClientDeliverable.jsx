@@ -444,13 +444,33 @@ function buildUnclaimedTerritory(whiteSpaceResult) {
 function buildHowCohortShowsUp(ctx, channels) {
   const items = [];
 
-  if (ctx.velocityLeader && ctx.velocityMultiplier) {
+  // Upload cadence — use REAL upload-per-week data, not view velocity.
+  // Surface landscape context (median + range + distribution) AND the
+  // outlier so the strategist sees both "what's typical" and "who's
+  // unattainable."
+  const cadenceRows = (channels || [])
+    .filter(c => typeof c.uploadsPerWeek === 'number' && c.uploadsPerWeek > 0);
+  if (cadenceRows.length >= 3) {
+    const sorted = [...cadenceRows].sort((a, b) => b.uploadsPerWeek - a.uploadsPerWeek);
+    const leader = sorted[0];
+    const median = sorted[Math.floor(sorted.length / 2)].uploadsPerWeek;
+    const bottom = sorted[sorted.length - 1].uploadsPerWeek;
+    // Distribution buckets
+    const mostlyLight = sorted.filter(c => c.uploadsPerWeek >= 1 && c.uploadsPerWeek < 4).length;
+    const heavy = sorted.filter(c => c.uploadsPerWeek >= 7).length;
+    const leaderMult = Math.round(leader.uploadsPerWeek / median);
+    const tempoFmt = (perWeek) => perWeek >= 1 ? `${perWeek.toFixed(1)}/wk` : `${(perWeek * 30 / 7).toFixed(1)}/mo`;
     items.push({
       label: 'Upload cadence',
-      text: <><strong>{ctx.velocityLeader.name}</strong> sets the pace at roughly {ctx.velocityMultiplier}× the cohort median. The field is publishing aggressively — competing on volume against the leader isn't a viable lane.</>,
+      text: <>
+        Cohort tempo runs from <strong>{tempoFmt(bottom)}</strong> at the bottom to <strong>{tempoFmt(leader.uploadsPerWeek)}</strong> at the top, with a <strong>{tempoFmt(median)} median</strong>. {mostlyLight}/{sorted.length} channels post in the moderate 1–4/wk band — the realistic target range for a new entrant.
+        {leaderMult >= 4 && (
+          <> <strong>{leader.name}</strong> sits {leaderMult}× the median ({heavy >= 2 ? `${heavy} channels run at 7+/wk` : 'a content-factory pace'}); not a comparable lane unless the client commits to that production volume.</>
+        )}
+      </>,
     });
   } else {
-    items.push({ label: 'Upload cadence', text: <>Cohort tempo is moderate; no single channel is dominating by volume.</> });
+    items.push({ label: 'Upload cadence', text: <>Not enough channels with upload data to call cohort tempo confidently.</> });
   }
 
   if (ctx.dominantTier && ctx.totalTiered >= 3) {
@@ -490,75 +510,124 @@ function buildHowCohortShowsUp(ctx, channels) {
   return items;
 }
 
-// What's moving now — the time-sensitive layer. Pulls from cohort
-// alerts (last 30 days) to surface what just popped vs the static
-// landscape. Three items: active formulas (channels stacking
-// breakouts), format pivots (channels shifting format mix), rank
-// changes (channels gaining/fading on the leaderboard).
+// What's moving now — the time-sensitive layer. Reads real movement
+// data from alerts: channel_name comes from the join (_channelName),
+// structured details come from alert.payload (video_title, multiplier,
+// prev_format/curr_format, pct_change). Skips items entirely when the
+// data is too thin rather than rendering a soft 'A cohort channel' line.
 function buildWhatsMovingNow(alerts) {
   const items = [];
   const list = Array.isArray(alerts) ? alerts : [];
 
-  // 1. Active formulas — group breakouts by channel, pick the
-  //    channel with the most recent activity. A channel stacking
-  //    multiple breakouts is running a formula worth watching.
-  const breakouts = list.filter(a => a.alert_type === 'breakout');
+  // Helpers: only count rows that have a real channel name AND
+  // structured payload data. Anything missing both gets filtered out.
+  const named = (a) => !!(a._channelName && a._channelName.trim() && a._channelName !== 'Unknown');
+
+  // 1. Active formulas — group breakouts by channel, pick the channel
+  //    with the most. A channel stacking breakouts is running a formula
+  //    worth watching INSIDE the saturation window.
+  const breakouts = list.filter(a => a.alert_type === 'breakout' && named(a));
   const byChannel = {};
   for (const b of breakouts) {
-    const key = b.channel_id || b.channel_name || 'unknown';
-    if (!byChannel[key]) byChannel[key] = { name: b.channel_name || 'Unknown', count: 0, sample: null, latest: null };
+    const key = b.channel_id;
+    if (!byChannel[key]) byChannel[key] = { name: b._channelName, count: 0, sample: null, latest: null };
     byChannel[key].count++;
-    if (!byChannel[key].latest || new Date(b.detected_at) > new Date(byChannel[key].latest)) {
-      byChannel[key].latest = b.detected_at;
+    const ts = b.generated_at || b.detected_at;
+    if (!byChannel[key].latest || new Date(ts) > new Date(byChannel[key].latest)) {
+      byChannel[key].latest = ts;
       byChannel[key].sample = b;
     }
   }
   const topActive = Object.values(byChannel).sort((a, b) => b.count - a.count)[0];
   if (topActive && topActive.count >= 2) {
+    const sampleTitle = topActive.sample?.payload?.video_title;
+    const sampleMult = topActive.sample?.payload?.multiplier;
     items.push({
       label: 'Active formulas',
-      text: <><strong>{topActive.name}</strong> is stacking breakouts — {topActive.count} in the last 30 days{topActive.sample?.title ? <>, most recently <em>"{compressText(topActive.sample.title, 80)}"</em></> : ''}. A formula gaining traction inside the saturation window — react in the next 2–3 weeks before the rest of the cohort catches up.</>,
+      text: <>
+        <strong>{topActive.name}</strong> is stacking breakouts — <strong>{topActive.count}</strong> in the last 30 days
+        {sampleTitle ? <>, most recently <em>"{compressText(sampleTitle, 80)}"</em>{sampleMult ? <> at {Number(sampleMult).toFixed(1)}× channel median</> : ''}</> : ''}.
+        A formula gaining traction inside the saturation window — react in the next 2–3 weeks before the cohort catches up.
+      </>,
     });
   } else if (topActive) {
+    const sampleTitle = topActive.sample?.payload?.video_title;
+    const sampleMult = topActive.sample?.payload?.multiplier;
     items.push({
       label: 'Active formulas',
-      text: <><strong>{topActive.name}</strong> just had a breakout{topActive.sample?.title ? <> on <em>"{compressText(topActive.sample.title, 80)}"</em></> : ''}. Single-shot signal, worth watching to see if it repeats.</>,
+      text: <>
+        <strong>{topActive.name}</strong> just had a single breakout
+        {sampleTitle ? <> on <em>"{compressText(sampleTitle, 80)}"</em>{sampleMult ? <> ({Number(sampleMult).toFixed(1)}× channel median)</> : ''}</> : ''}.
+        One-shot signal — worth watching to see if it repeats.
+      </>,
     });
   } else {
-    items.push({ label: 'Active formulas', text: <>No breakout activity in the cohort over the last 30 days. The field is steady-state — opportunities live in unclaimed territory, not in reacting to momentum.</> });
+    items.push({ label: 'Active formulas', text: <>No named-channel breakout activity in the cohort over the last 30 days. The field is steady-state; opportunities live in unclaimed territory, not in reacting to momentum.</> });
   }
 
-  // 2. Format pivots — channels shifting format mix. Less common,
-  //    higher signal: a channel pivoting from long-form to Shorts
-  //    (or vice versa) suggests the format won't work for them.
-  const pivots = list.filter(a => a.alert_type === 'format_shift' || a.alert_type === 'format_pivot');
+  // 2. Format pivots — read from payload.prev_format → payload.curr_format
+  //    with percentages. Skip if no named pivots exist.
+  const pivots = list
+    .filter(a => (a.alert_type === 'format_shift' || a.alert_type === 'format_pivot') && named(a))
+    .sort((a, b) => new Date(b.generated_at || b.detected_at) - new Date(a.generated_at || a.detected_at));
   if (pivots.length > 0) {
-    const top = pivots.sort((a, b) => new Date(b.detected_at) - new Date(a.detected_at))[0];
+    const top = pivots[0];
+    const p = top.payload || {};
+    const direction = p.prev_format && p.curr_format
+      ? <>shifted from <strong>{readableFormat(p.prev_format)}</strong>{p.prev_pct != null ? ` (${Math.round(p.prev_pct)}%)` : ''} to <strong>{readableFormat(p.curr_format)}</strong>{p.curr_pct != null ? ` (${Math.round(p.curr_pct)}%)` : ''}</>
+      : <>shifted format mix</>;
     items.push({
       label: 'Format pivots',
-      text: <><strong>{top.channel_name || 'A cohort channel'}</strong> {top.body ? <>just {compressText(top.body.replace(/[*_`]/g, ''), 200)}</> : <>shifted format mix in the last 30 days</>}. Format pivots signal where the cohort thinks the audience IS or ISN'T responding — read against the gaps below before you commit to your own mix.</>,
+      text: <><strong>{top._channelName}</strong> {direction}. Format pivots signal where a competitor thinks the audience IS or ISN'T responding — read this against the gaps before you commit to your own mix.</>,
     });
   } else {
     items.push({ label: 'Format pivots', text: <>No cohort format pivots in the last 30 days. The field's format mix is steady, which gives you cleaner data to anchor your own format decisions against.</> });
   }
 
-  // 3. Rank changes — channels whose avg views shifted meaningfully.
-  //    Up or down both matter: up = something's working, down =
-  //    something stopped working.
-  const rankChanges = list.filter(a => a.alert_type === 'rank_change');
+  // 3. Rank changes — read pct_change from payload. Show top mover by
+  //    magnitude (up or down) + a second mover if available.
+  const rankChanges = list
+    .filter(a => a.alert_type === 'rank_change' && named(a))
+    .sort((a, b) => Math.abs(b.payload?.pct_change || 0) - Math.abs(a.payload?.pct_change || 0));
   if (rankChanges.length > 0) {
-    const sorted = rankChanges.sort((a, b) => new Date(b.detected_at) - new Date(a.detected_at));
-    const top = sorted[0];
-    const others = sorted.slice(1, 3);
+    const top = rankChanges[0];
+    const p = top.payload || {};
+    const pct = Math.round(Math.abs(p.pct_change || 0));
+    const arrow = (p.pct_change || 0) >= 0 ? 'up' : 'down';
+    const others = rankChanges.slice(1, 3).filter(r => r._channelName);
     items.push({
       label: 'Rank changes',
-      text: <><strong>{top.channel_name || 'A cohort channel'}</strong>{top.body ? <> — {compressText(top.body.replace(/[*_`]/g, ''), 150)}</> : <> shifted on the leaderboard</>}.{others.length > 0 && <> Also moving: {others.map((o, i) => <span key={i}>{i > 0 ? ', ' : ''}<strong>{o.channel_name}</strong></span>)}.</>} Movement on the leaderboard is the cohort's early indicator of what's working vs cooling.</>,
+      text: <>
+        <strong>{top._channelName}</strong> {arrow} <strong>{pct}%</strong> on average views in the last 30 days
+        {p.prev_velocity && p.curr_velocity ? <> ({fmtNum(p.prev_velocity)}/day → {fmtNum(p.curr_velocity)}/day)</> : ''}.
+        {others.length > 0 && <> Also moving: {others.map((o, i) => {
+          const oPct = Math.round(Math.abs(o.payload?.pct_change || 0));
+          const oArrow = (o.payload?.pct_change || 0) >= 0 ? '↑' : '↓';
+          return <span key={i}>{i > 0 ? ', ' : ''}<strong>{o._channelName}</strong> {oArrow}{oPct}%</span>;
+        })}.</>}
+        {' '}Movement on the leaderboard is the cohort's early indicator of what's working vs cooling.
+      </>,
     });
   } else {
     items.push({ label: 'Rank changes', text: <>No meaningful rank shifts in the last 30 days. Cohort positions are stable — your entry won't be reacting to turmoil, which is good for clean testing.</> });
   }
 
   return items;
+}
+
+// Map raw format codes from payloads ('lf_8_15', 'shorts') to readable
+// labels. Default to the raw code if unknown so the sentence still parses.
+function readableFormat(code) {
+  if (!code) return '';
+  const map = {
+    'shorts': 'Shorts',
+    'lf_0_3': 'short long-form (0–3 min)',
+    'lf_3_8': 'short long-form (3–8 min)',
+    'lf_8_15': 'mid long-form (8–15 min)',
+    'lf_15_25': 'long-form (15–25 min)',
+    'lf_25_plus': 'long-form (25+ min)',
+  };
+  return map[code] || code;
 }
 
 // The three audit next-steps. Hardcoded — they map to the strategist's
