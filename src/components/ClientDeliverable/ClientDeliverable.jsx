@@ -231,32 +231,15 @@ function DeliverablePages({ data, clientName, mode = MODE_FULL }) {
         coverage={coverage}
       />
 
-      {mode === MODE_AUDIT ? (
-        <AuditTopSheet
-          clientName={displayName}
-          channels={channels}
-          patternsResult={patternsResult}
-          whiteSpaceResult={whiteSpaceResult}
-          productionSignalsByChannel={productionSignalsByChannel}
-          demandRow={demandRow}
-        />
-      ) : (
-        <WhereWeAre
-          clientName={displayName}
-          mode={mode}
-          spine={spine}
-          hosts={hosts}
-          ctx={computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })}
-          findings={buildAuditFindings({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })}
-          decisions={buildDecisions(
-            spine,
-            hosts,
-            mode,
-            computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })
-          )}
-          actions={buildNextActions({ spine, hosts, mode, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })}
-        />
-      )}
+      <AuditTopSheet
+        clientName={displayName}
+        channels={channels}
+        patternsResult={patternsResult}
+        whiteSpaceResult={whiteSpaceResult}
+        productionSignalsByChannel={productionSignalsByChannel}
+        demandRow={demandRow}
+        alerts={alerts}
+      />
 
       <PartCallout
         number="01"
@@ -368,13 +351,13 @@ function Cover({ clientName, dateStr, oneliner, isPreLaunch, mode = MODE_FULL, c
 // strategist's hand-drawn spec (per Step 22):
 //   - Unclaimed Territory: top 3 white-space opportunities
 //   - How the Cohort Shows Up: cadence / production / engagement
-//   - Where the Gap Is: upload day-time / format-mix-to-test / how-we-win
+//   - What's Moving Now: active formulas / format pivots / rank changes
 //   - Next Steps: content strategy / pillar development / reconvene pitch
-function AuditTopSheet({ clientName, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow }) {
+function AuditTopSheet({ clientName, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow, alerts }) {
   const ctx = computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow });
   const unclaimed = buildUnclaimedTerritory(whiteSpaceResult);
   const cohortBehavior = buildHowCohortShowsUp(ctx, channels);
-  const gaps = buildWhereTheGapIs(ctx);
+  const movement = buildWhatsMovingNow(alerts);
   const nextSteps = buildAuditNextSteps();
 
   const synthRef = React.useRef(null);
@@ -404,7 +387,7 @@ function AuditTopSheet({ clientName, channels, patternsResult, whiteSpaceResult,
       <div ref={synthRef}>
         <TopsheetGroup label="Unclaimed territory" items={unclaimed} accent={brand.colors.accent} />
         <TopsheetGroup label="How the cohort shows up" items={cohortBehavior} accent={brand.colors.inkSoft} />
-        <TopsheetGroup label="Where the gap is" items={gaps} accent={brand.colors.accent} />
+        <TopsheetGroup label="What's moving now" items={movement} accent={brand.colors.accent} />
 
         <div className="cd-audit-divider" />
 
@@ -507,45 +490,72 @@ function buildHowCohortShowsUp(ctx, channels) {
   return items;
 }
 
-// Where the gap is — three actionable testing zones: upload window,
-// format mix, and the strategic angle to lean into.
-function buildWhereTheGapIs(ctx) {
+// What's moving now — the time-sensitive layer. Pulls from cohort
+// alerts (last 30 days) to surface what just popped vs the static
+// landscape. Three items: active formulas (channels stacking
+// breakouts), format pivots (channels shifting format mix), rank
+// changes (channels gaining/fading on the leaderboard).
+function buildWhatsMovingNow(alerts) {
   const items = [];
+  const list = Array.isArray(alerts) ? alerts : [];
 
-  if (ctx.topSlot) {
+  // 1. Active formulas — group breakouts by channel, pick the
+  //    channel with the most recent activity. A channel stacking
+  //    multiple breakouts is running a formula worth watching.
+  const breakouts = list.filter(a => a.alert_type === 'breakout');
+  const byChannel = {};
+  for (const b of breakouts) {
+    const key = b.channel_id || b.channel_name || 'unknown';
+    if (!byChannel[key]) byChannel[key] = { name: b.channel_name || 'Unknown', count: 0, sample: null, latest: null };
+    byChannel[key].count++;
+    if (!byChannel[key].latest || new Date(b.detected_at) > new Date(byChannel[key].latest)) {
+      byChannel[key].latest = b.detected_at;
+      byChannel[key].sample = b;
+    }
+  }
+  const topActive = Object.values(byChannel).sort((a, b) => b.count - a.count)[0];
+  if (topActive && topActive.count >= 2) {
     items.push({
-      label: 'Upload day/time',
-      text: <><strong>{ctx.topSlot.slot}</strong> wins at +{ctx.topSlot.liftPct}% lift in the cohort ({ctx.topSlot.count} reference uploads, statistical). The clearest reproducible scheduling lever.</>,
+      label: 'Active formulas',
+      text: <><strong>{topActive.name}</strong> is stacking breakouts — {topActive.count} in the last 30 days{topActive.sample?.title ? <>, most recently <em>"{compressText(topActive.sample.title, 80)}"</em></> : ''}. A formula gaining traction inside the saturation window — react in the next 2–3 weeks before the rest of the cohort catches up.</>,
+    });
+  } else if (topActive) {
+    items.push({
+      label: 'Active formulas',
+      text: <><strong>{topActive.name}</strong> just had a breakout{topActive.sample?.title ? <> on <em>"{compressText(topActive.sample.title, 80)}"</em></> : ''}. Single-shot signal, worth watching to see if it repeats.</>,
     });
   } else {
-    items.push({ label: 'Upload day/time', text: <>No single time slot clears the statistical threshold — sample sizes are still thin or the cohort posts evenly.</> });
+    items.push({ label: 'Active formulas', text: <>No breakout activity in the cohort over the last 30 days. The field is steady-state — opportunities live in unclaimed territory, not in reacting to momentum.</> });
   }
 
-  if (ctx.bestBucket && ctx.longBeatsShortBy && ctx.longBeatsShortBy >= 2) {
+  // 2. Format pivots — channels shifting format mix. Less common,
+  //    higher signal: a channel pivoting from long-form to Shorts
+  //    (or vice versa) suggests the format won't work for them.
+  const pivots = list.filter(a => a.alert_type === 'format_shift' || a.alert_type === 'format_pivot');
+  if (pivots.length > 0) {
+    const top = pivots.sort((a, b) => new Date(b.detected_at) - new Date(a.detected_at))[0];
     items.push({
-      label: 'Format mix to test',
-      text: <>Long-form <strong>{ctx.bestBucket.label}</strong> videos earn roughly {ctx.longBeatsShortBy}× the Shorts median in the cohort. Test pairing rapid Shorts cadence with one anchor long-form per cycle.</>,
+      label: 'Format pivots',
+      text: <><strong>{top.channel_name || 'A cohort channel'}</strong> {top.body ? <>just {compressText(top.body.replace(/[*_`]/g, ''), 200)}</> : <>shifted format mix in the last 30 days</>}. Format pivots signal where the cohort thinks the audience IS or ISN'T responding — read against the gaps below before you commit to your own mix.</>,
     });
   } else {
-    items.push({
-      label: 'Format mix to test',
-      text: <>Cohort splits volume on Shorts but long-form holds higher median views — a multi-cut pillar (long-form anchor + derivative Shorts) likely captures both gates.</>,
-    });
+    items.push({ label: 'Format pivots', text: <>No cohort format pivots in the last 30 days. The field's format mix is steady, which gives you cleaner data to anchor your own format decisions against.</> });
   }
 
-  if (ctx.topOpportunity?.title) {
+  // 3. Rank changes — channels whose avg views shifted meaningfully.
+  //    Up or down both matter: up = something's working, down =
+  //    something stopped working.
+  const rankChanges = list.filter(a => a.alert_type === 'rank_change');
+  if (rankChanges.length > 0) {
+    const sorted = rankChanges.sort((a, b) => new Date(b.detected_at) - new Date(a.detected_at));
+    const top = sorted[0];
+    const others = sorted.slice(1, 3);
     items.push({
-      label: 'How we win',
-      text: <>The cohort's strongest unclaimed angle is <strong>{ctx.topOpportunity.title}</strong>. This is the position to lean into during pillar development — earliest test should pressure-test whether the channel can own this slot.</>,
-    });
-  } else if (ctx.statisticalPatterns.length > 0) {
-    const top = ctx.statisticalPatterns[0];
-    items.push({
-      label: 'How we win',
-      text: <>The strongest reproducible lever is <strong>{top.label}</strong> titles at +{Math.round(top.viewsLift)}% lift. Combine with the slot above for compound effects.</>,
+      label: 'Rank changes',
+      text: <><strong>{top.channel_name || 'A cohort channel'}</strong>{top.body ? <> — {compressText(top.body.replace(/[*_`]/g, ''), 150)}</> : <> shifted on the leaderboard</>}.{others.length > 0 && <> Also moving: {others.map((o, i) => <span key={i}>{i > 0 ? ', ' : ''}<strong>{o.channel_name}</strong></span>)}.</>} Movement on the leaderboard is the cohort's early indicator of what's working vs cooling.</>,
     });
   } else {
-    items.push({ label: 'How we win', text: <>No single dominant lever — winning here means differentiation on positioning, not on a tactical pattern.</> });
+    items.push({ label: 'Rank changes', text: <>No meaningful rank shifts in the last 30 days. Cohort positions are stable — your entry won't be reacting to turmoil, which is good for clean testing.</> });
   }
 
   return items;
