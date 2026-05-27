@@ -654,19 +654,26 @@ function ContentMix({ formatBreakdown }) {
         </div>
       </div>
 
-      {buckets.length > 0 && (
+      {buckets.length > 0 && longsFreq > 0 && (
         <>
           <div style={{ fontSize: 11, fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>Length sweet spots (long-form only)</div>
           <table className="cd-table">
             <thead><tr><th>Length</th><th className="cd-num">Share of long-form</th><th className="cd-num">Median views</th></tr></thead>
             <tbody>
-              {buckets.map((b, i) => (
-                <tr key={i}>
-                  <td>{b.label}</td>
-                  <td className="cd-num">{Math.round((b.freq || 0) * 100)}%</td>
-                  <td className="cd-num">{fmtNum(b.medianViews)}</td>
-                </tr>
-              ))}
+              {buckets.map((b, i) => {
+                // formatBreakdown.buckets[].freq is share-of-cohort.
+                // Rebase to share-of-long-form so the column reads as
+                // "of the long-form videos this cohort produces, where's
+                // the volume" — and the four rows sum to 100%.
+                const shareOfLong = (b.freq || 0) / longsFreq;
+                return (
+                  <tr key={i}>
+                    <td>{b.label}</td>
+                    <td className="cd-num">{Math.round(shareOfLong * 100)}%</td>
+                    <td className="cd-num">{fmtNum(b.medianViews)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </>
