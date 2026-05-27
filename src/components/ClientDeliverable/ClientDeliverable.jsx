@@ -57,6 +57,52 @@ const BORDER = brand.colors.border;
 const DANGER = brand.colors.danger;
 const FONT_STACK = brand.fontStack;
 
+// Deliverable modes — three artifacts collapsed into one component,
+// each appropriate to a different stage in the strategist's
+// engagement with a client.
+//
+//   audit     — "Audit & Landscape Report." Part 01 only. Premature
+//               to talk positioning, voice, or host. Closes with a
+//               CTA to schedule a Strategy Direction working session.
+//   direction — "Audit + Strategy Direction." Adds positioning +
+//               voice + editorial POV in Part 02. No hosts/rubric
+//               (those come later in the engagement).
+//   full      — "Audit + Positioning Recommendation." Everything,
+//               including hosts and audition rubric.
+//
+// Mode is auto-detected from spine state, with strategist override.
+const MODE_AUDIT = 'audit';
+const MODE_DIRECTION = 'direction';
+const MODE_FULL = 'full';
+
+const MODE_LABEL = {
+  [MODE_AUDIT]: 'Audit & Landscape Report',
+  [MODE_DIRECTION]: 'Audit + Strategy Direction',
+  [MODE_FULL]: 'Audit + Positioning Recommendation',
+};
+
+function detectMode(spine, hosts) {
+  const hasPositioning = !!(
+    spine?.positioning_oneliner?.trim()
+    || spine?.positioning_hypothesis?.trim()
+    || spine?.editorial_pov?.trim()
+    || spine?.voice_tone?.trim()
+  );
+  const hasHosts = (hosts || []).length > 0 || !!spine?.host_archetype?.trim();
+  if (!hasPositioning) return MODE_AUDIT;
+  if (!hasHosts) return MODE_DIRECTION;
+  return MODE_FULL;
+}
+
+// The override can only go DOWN from the auto-detected mode (you can't
+// render "Full" if hosts aren't authored). Returns the modes available
+// in the dropdown given what's actually authored.
+function availableModes(detected) {
+  if (detected === MODE_AUDIT) return [MODE_AUDIT];
+  if (detected === MODE_DIRECTION) return [MODE_DIRECTION, MODE_AUDIT];
+  return [MODE_FULL, MODE_DIRECTION, MODE_AUDIT];
+}
+
 export default function ClientDeliverable({ clientId, clientName, onClose }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -66,6 +112,9 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
   // resetKey bumps when the strategist clicks Reset — re-mounts the
   // document so all contentEditable edits are wiped back to defaults.
   const [resetKey, setResetKey] = useState(0);
+  // Mode auto-initialized once data loads; strategist can override down
+  // via the toolbar dropdown.
+  const [modeOverride, setModeOverride] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,6 +130,13 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [clientId]);
+
+  // Compute the effective mode once data loads. Default to auto-detected;
+  // the strategist's override (if any) takes precedence as long as it's
+  // achievable given what's actually authored.
+  const detectedMode = data ? detectMode(data.spine, data.hosts) : MODE_FULL;
+  const validOverrides = availableModes(detectedMode);
+  const mode = modeOverride && validOverrides.includes(modeOverride) ? modeOverride : detectedMode;
 
   const handleExportMarkdown = async () => {
     if (exporting) return;
@@ -101,6 +157,18 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
       <PrintStyles />
 
       <div className="cd-toolbar">
+        {data && validOverrides.length > 1 && (
+          <select
+            value={mode}
+            onChange={e => setModeOverride(e.target.value)}
+            className="cd-mode-select"
+            title="Choose which artifact to render. You can only render at or below the level your spine supports."
+          >
+            {validOverrides.map(m => (
+              <option key={m} value={m}>{MODE_LABEL[m]}</option>
+            ))}
+          </select>
+        )}
         <button
           onClick={() => setEditMode(e => !e)}
           disabled={!data}
@@ -145,14 +213,14 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
               <strong>Couldn't load deliverable:</strong> {error}
             </div>
           )}
-          {data && <DeliverablePages data={data} clientName={clientName} />}
+          {data && <DeliverablePages data={data} clientName={clientName} mode={mode} />}
         </div>
       </EditCtx.Provider>
     </div>
   );
 }
 
-function DeliverablePages({ data, clientName }) {
+function DeliverablePages({ data, clientName, mode = MODE_FULL }) {
   const { clientChannel, spine, hosts, legacyRubric, demandRow, productionSignalsByChannel, clientProductionRow, channels, patternsResult, whiteSpaceResult, diagnostic, briefing, audienceSignals, formatMixByChannel } = data;
   const displayName = clientName || clientChannel?.name || 'Client';
   const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
@@ -163,29 +231,46 @@ function DeliverablePages({ data, clientName }) {
   // competitive landscape rather than the client's own (empty) signals.
   const isPreLaunch = !audienceSignals && !clientProductionRow && !demandRow;
 
+  const showPart2 = mode !== MODE_AUDIT;
+  const showHosts = mode === MODE_FULL;
+
   return (
     <>
       <Cover
         clientName={displayName}
         dateStr={dateStr}
-        oneliner={spine?.positioning_oneliner}
+        oneliner={mode === MODE_AUDIT ? null : spine?.positioning_oneliner}
         isPreLaunch={isPreLaunch}
+        mode={mode}
       />
 
-      <SynthesisPage
-        clientName={displayName}
-        spine={spine}
-        hosts={hosts}
-        synthesisData={buildSynthesis({
-          spine,
-          hosts,
-          channels,
-          patternsResult,
-          whiteSpaceResult,
-          productionSignalsByChannel,
-          demandRow,
-        })}
-      />
+      {mode === MODE_AUDIT ? (
+        <WhatWeFoundPage
+          clientName={displayName}
+          channels={channels}
+          patternsResult={patternsResult}
+          whiteSpaceResult={whiteSpaceResult}
+          productionSignalsByChannel={productionSignalsByChannel}
+          demandRow={demandRow}
+        />
+      ) : (
+        <SynthesisPage
+          clientName={displayName}
+          spine={spine}
+          hosts={hosts}
+          mode={mode}
+          synthesisData={buildSynthesis({
+            spine,
+            hosts,
+            channels,
+            patternsResult,
+            whiteSpaceResult,
+            productionSignalsByChannel,
+            demandRow,
+            mode,
+          })}
+        />
+      )}
 
       <PartCallout
         number="01"
@@ -214,21 +299,34 @@ function DeliverablePages({ data, clientName }) {
         isPreLaunch={isPreLaunch}
       />
 
-      <PartCallout number="02" title="Positioning Recommendation" description="The channel's one-line articulation, editorial POV and mission, voice and tone guardrails, and the host archetype definition that feeds directly into a talent audition rubric." />
+      {showPart2 && (
+        <>
+          <PartCallout
+            number="02"
+            title={showHosts ? 'Positioning Recommendation' : 'Strategy Direction'}
+            description={showHosts
+              ? 'The channel\'s one-line articulation, editorial POV and mission, voice and tone guardrails, and the host archetype definition that feeds directly into a talent audition rubric.'
+              : 'The channel\'s one-line articulation, editorial POV and mission, and voice and tone guardrails. Casting and the talent audition rubric come in a later phase, after the positioning lands.'
+            }
+          />
 
-      <PartTwoContent
-        spine={spine}
-        hosts={hosts || []}
-        legacyRubric={legacyRubric}
-        rationales={buildRationales({
-          channels,
-          patternsResult,
-          whiteSpaceResult,
-          productionSignalsByChannel,
-          clientProductionRow,
-          demandRow,
-        })}
-      />
+          <PartTwoContent
+            spine={spine}
+            hosts={showHosts ? (hosts || []) : []}
+            legacyRubric={showHosts ? legacyRubric : null}
+            rationales={buildRationales({
+              channels,
+              patternsResult,
+              whiteSpaceResult,
+              productionSignalsByChannel,
+              clientProductionRow,
+              demandRow,
+            })}
+          />
+        </>
+      )}
+
+      {mode === MODE_AUDIT && <AuditClosingCTA clientName={displayName} />}
 
       <Footer />
     </>
@@ -239,7 +337,12 @@ function DeliverablePages({ data, clientName }) {
 // Cover + section callouts
 // ──────────────────────────────────────────────────
 
-function Cover({ clientName, dateStr, oneliner, isPreLaunch }) {
+function Cover({ clientName, dateStr, oneliner, isPreLaunch, mode = MODE_FULL }) {
+  // Cover label adapts to mode so the artifact's identity is clear from
+  // the first page — "Audit & Landscape Report" is a different document
+  // from "Audit + Positioning Recommendation" and the cover sets the
+  // reader's expectation.
+  const label = MODE_LABEL[mode] || brand.productLabel;
   return (
     <section className="cd-page cd-cover">
       {brand.logoUrl ? (
@@ -248,7 +351,7 @@ function Cover({ clientName, dateStr, oneliner, isPreLaunch }) {
         <div className="cd-cover-wordmark">{brand.studio || brand.name}</div>
       )}
       <div className="cd-cover-label">
-        {brand.productLabel}
+        {label}
         {isPreLaunch && <span className="cd-cover-tag">Pre-launch</span>}
       </div>
       <h1 className="cd-cover-title">{clientName}</h1>
@@ -263,6 +366,139 @@ function Cover({ clientName, dateStr, oneliner, isPreLaunch }) {
       <div className="cd-cover-footer">{brand.footerNote || `Prepared by ${brand.studio || brand.name}`}</div>
     </section>
   );
+}
+
+// "What we found" — the audit-only mode's first-page synthesis.
+// Replaces "Where this lands" (which is a positioning summary, premature
+// in audit-only mode). Surfaces 3-4 top findings from the audit data
+// with a closing pointer to the Strategy Direction working session.
+function WhatWeFoundPage({ clientName, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow }) {
+  const findings = buildAuditFindings({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow });
+  if (!findings.length) return null;
+
+  const synthRef = React.useRef(null);
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    if (!synthRef.current) return;
+    try {
+      await navigator.clipboard.writeText(synthRef.current.innerText.trim());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch { /* clipboard denied — markdown export covers it */ }
+  };
+
+  return (
+    <section className="cd-page cd-synthesis">
+      <div className="cd-synthesis-head">
+        <div>
+          <div className="cd-synthesis-kicker">What we found</div>
+          <h2 className="cd-synthesis-title">The {findings.length} biggest reads in {clientName}'s category</h2>
+        </div>
+        <button onClick={handleCopy} className="cd-copy-btn" title="Copy the findings to clipboard">
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+
+      <div ref={synthRef}>
+        <ol className="cd-synthesis-moves">
+          {findings.map((f, i) => (
+            <li className="cd-synthesis-move" key={i}>
+              <div className="cd-synthesis-move-num">{String(i + 1).padStart(2, '0')}</div>
+              <div className="cd-synthesis-move-body">
+                <div className="cd-synthesis-move-label">{f.label}</div>
+                <E className="cd-synthesis-move-text">{f.text}</E>
+                {f.evidence && (
+                  <div className="cd-synthesis-move-evidence">
+                    <span className="cd-synthesis-evidence-tag">Why</span>
+                    <E tag="span">{f.evidence}</E>
+                  </div>
+                )}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+// Closing CTA for audit-only mode. Sits where "First 30 days" would in
+// the full deliverable. Tells the client what comes next — explicitly
+// names the Strategy Direction session as the conversion event.
+function AuditClosingCTA({ clientName }) {
+  return (
+    <section className="cd-page cd-synthesis cd-audit-cta-page">
+      <div className="cd-synthesis-kicker">Next</div>
+      <h2 className="cd-synthesis-title" style={{ marginBottom: 16 }}>From landscape to direction</h2>
+      <div style={{ fontSize: 15, lineHeight: 1.6, marginBottom: 18 }}>
+        This document maps the field {clientName} is entering. The next phase translates the findings above into a defined position: <strong>what this channel competes on, who it speaks to, and how it sounds</strong>.
+      </div>
+      <div style={{ background: brand.colors.accent, color: '#fff', borderRadius: 6, padding: '20px 24px', fontSize: 14, lineHeight: 1.55 }}>
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 8, opacity: 0.85 }}>What comes next</div>
+        <E>Schedule a Strategy Direction working session. We'll translate the strongest opportunities above into a positioning one-liner, an editorial POV, and a voice + tone style sheet — the foundation any future content or talent decisions get built on.</E>
+      </div>
+    </section>
+  );
+}
+
+// Builds the audit-only "What we found" findings list. Picks 3-4
+// highest-signal observations from the data: top opportunity, top
+// performance pattern, dominant cohort posture (production tier or
+// host visibility), top unserved audience demand.
+function buildAuditFindings({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow }) {
+  const findings = [];
+  const ctx = computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow });
+
+  // Finding 1: the strongest unclaimed opening
+  if (ctx.topOpportunity?.title) {
+    findings.push({
+      label: 'The unclaimed slot',
+      text: ctx.topOpportunity.title,
+      evidence: ctx.topOpportunity.body
+        ? (ctx.topOpportunity.body.length > 200 ? ctx.topOpportunity.body.slice(0, 197) + '…' : ctx.topOpportunity.body)
+        : <>The single strongest cohort gap — content that audiences in this category aren't being served and no competitor is naming clearly.</>,
+    });
+  }
+
+  // Finding 2: top statistical title pattern
+  if (ctx.statisticalPatterns.length >= 1) {
+    const top = ctx.statisticalPatterns[0];
+    findings.push({
+      label: 'What earns views in this category',
+      text: <><strong>{top.label}</strong> titles win by +{Math.round(top.viewsLift)}% vs. the cohort median (n={top.count}, statistical).</>,
+      evidence: ctx.statisticalPatterns.length >= 2
+        ? <>Multiple patterns clear the statistical threshold; this one tops the list. Stack with the next strongest ({ctx.statisticalPatterns[1].label}, +{Math.round(ctx.statisticalPatterns[1].viewsLift)}%) for compound effect.</>
+        : <>The clearest reproducible lever in this category — pattern-tested across the cohort, not a one-video fluke.</>,
+    });
+  }
+
+  // Finding 3: cohort visual posture (production tier)
+  if (ctx.totalTiered >= 3 && ctx.dominantTier) {
+    const tierReads = {
+      high: <>The cohort competes on production polish. Differentiation has to be vertical (aesthetic identity, point of view) — outspending isn't a real lane.</>,
+      medium: <>Production is reachable. Most competitors are competent but not distinctive — a coherent visual system is the differentiator the cohort hasn't locked in.</>,
+      low: <>The cohort runs raw production. Polish is an immediate differentiator if executed; even moderate craft reads premium against this baseline.</>,
+      mixed: <>The cohort is visually inconsistent. The bar for differentiation isn't height, it's consistency — a coherent system reads professional by default.</>,
+    };
+    findings.push({
+      label: 'How the cohort presents itself',
+      text: <>Cohort skews <strong>{ctx.dominantTier}-tier production</strong> ({ctx.dominantTierCount}/{ctx.totalTiered} competitors).</>,
+      evidence: tierReads[ctx.dominantTier],
+    });
+  }
+
+  // Finding 4: cadence — when the category gets seen
+  if (ctx.topSlot) {
+    findings.push({
+      label: 'When this category gets seen',
+      text: <><strong>{ctx.topSlot.slot}</strong> leads at +{ctx.topSlot.liftPct}% lift across {ctx.topSlot.count} reference uploads (statistical).</>,
+      evidence: <>The cohort's strongest reproducible posting window. Anchor any test schedule to this slot rather than guessing on launch day timing.</>,
+    });
+  }
+
+  // Cap at 4 to keep the page legible
+  return findings.slice(0, 4);
 }
 
 // Brief framing block that sits between the "01" callout and Part 01
@@ -400,20 +636,19 @@ function SynthesisPage({ clientName, spine, hosts, synthesisData }) {
 // not opinion-led. Each move also gets a concrete "next move" action so
 // the deliverable closes the loop from "what is this channel?" to
 // "what does the team do this week?"
-function buildSynthesis({ spine, hosts, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow }) {
-  // Always emit all three move slots so missing fields render as
-  // explicit "not yet authored" placeholders rather than silently
-  // shuffling smaller moves into the lead position.
+function buildSynthesis({ spine, hosts, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow, mode = MODE_FULL }) {
+  // Always emit move slots for the modes that include them. Direction
+  // mode drops the Host move entirely (premature for that stage).
   const positioningText = compressForSynthesis(spine?.positioning_hypothesis) || spine?.positioning_oneliner;
   const voiceText = firstSentence(spine?.voice_tone);
   const primaryHost = (hosts || [])[0];
   const hostText = primaryHost?.archetype || spine?.host_archetype;
   const hostLabel = (hosts || []).length > 1 ? `Hosts (${hosts.length})` : 'Host';
 
-  // Pre-compute the data slices each move's evidence pulls from.
   const ctx = computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow });
+  const includeHost = mode === MODE_FULL;
 
-  const moves = [
+  const baseMoves = [
     {
       label: 'Positioning',
       missingHint: 'Author the positioning one-liner or positioning hypothesis on the Strategy Spine.',
@@ -428,14 +663,19 @@ function buildSynthesis({ spine, hosts, channels, patternsResult, whiteSpaceResu
       evidence: composeVoiceEvidence(ctx),
       nextMove: 'Compress this voice description into a 200-word style sheet — register, signature moves, pacing, what to avoid. Share with anyone writing scripts. Producers reference it on every edit; AI-generated copy gets rejected if it drifts from the register.',
     },
-    {
+  ];
+
+  if (includeHost) {
+    baseMoves.push({
       label: hostLabel,
       missingHint: 'Add a host profile on the Strategy Spine (or fill in host_archetype on the legacy field).',
       text: hostText,
       evidence: composeHostEvidence(ctx, hosts),
       nextMove: composeHostAction(hosts),
-    },
-  ].map(m => ({ ...m, missing: !m.text }));
+    });
+  }
+
+  const moves = baseMoves.map(m => ({ ...m, missing: !m.text }));
 
   const antiStance = (spine?.guardrails || '')
     .split(/[\n\.]+/)
@@ -443,7 +683,7 @@ function buildSynthesis({ spine, hosts, channels, patternsResult, whiteSpaceResu
     .filter(s => s.length > 6)
     .slice(0, 4);
 
-  const first30 = buildFirst30Days({ ctx, hosts, spine });
+  const first30 = buildFirst30Days({ ctx, hosts, spine, mode });
 
   return {
     oneliner: spine?.positioning_oneliner || null,
@@ -604,8 +844,9 @@ function composeHostAction(hosts) {
   return 'Run the audition rubric against 3–5 candidates in the next 30 days. The strongest match anchors the series; the runners-up become the bench for spin-off formats.';
 }
 
-function buildFirst30Days({ ctx, hosts, spine }) {
+function buildFirst30Days({ ctx, hosts, spine, mode = MODE_FULL }) {
   const actions = [];
+  const includeHostActions = mode === MODE_FULL;
 
   if (ctx.topSlot) {
     actions.push(<>Schedule the first 3 uploads in <strong>{ctx.topSlot.slot}</strong> — the cohort's strongest statistical slot at +{ctx.topSlot.liftPct}% lift ({ctx.topSlot.count} reference uploads).</>);
@@ -620,10 +861,20 @@ function buildFirst30Days({ ctx, hosts, spine }) {
     actions.push(<>Produce one <strong>{ctx.bestBucket.label}</strong> anchor video — long-form's median in this length is roughly {ctx.longBeatsShortBy}× the Shorts median.</>);
   }
 
-  if (hosts?.length > 0) {
-    actions.push(<>Run the <strong>Talent audition rubric</strong> on 3–5 candidates {hosts.length > 1 ? `for each of the ${hosts.length} hosts` : 'against the host archetype'} this month.</>);
-  } else if (spine?.host_archetype) {
-    actions.push(<>Generate the <strong>Talent audition rubric</strong> from the Strategy Spine and start scoring on-camera candidates.</>);
+  // Host-related actions only appear in full mode. In direction mode the
+  // strategist hasn't committed to casting yet, so audition-prep
+  // actions are premature.
+  if (includeHostActions) {
+    if (hosts?.length > 0) {
+      actions.push(<>Run the <strong>Talent audition rubric</strong> on 3–5 candidates {hosts.length > 1 ? `for each of the ${hosts.length} hosts` : 'against the host archetype'} this month.</>);
+    } else if (spine?.host_archetype) {
+      actions.push(<>Generate the <strong>Talent audition rubric</strong> from the Strategy Spine and start scoring on-camera candidates.</>);
+    }
+  } else {
+    // Direction-mode substitute: tighten the voice spec, which is what
+    // belongs in the strategist's next-30-days when casting hasn't
+    // been opened yet.
+    actions.push(<>Compress the <strong>Voice + tone</strong> field into a 200-word style sheet producers and AI prompts reference on every script and edit.</>);
   }
 
   if (ctx.topOpportunity?.title && actions.length < 5) {
@@ -1884,6 +2135,20 @@ function PrintStyles() {
       }
       .cd-btn:disabled { opacity: 0.5; cursor: wait; }
       .cd-btn-primary { background: #1e3a5f; color: #dbeafe; border-color: #2a4f7f; }
+
+      /* Mode dropdown — lets the strategist render below the
+         auto-detected mode (e.g., generate "Audit & Landscape Report"
+         even when positioning fields are authored). */
+      .cd-mode-select {
+        padding: 7px 10px; border-radius: 6px;
+        background: #18181c; color: #d4d4d8;
+        border: 1px solid #232328;
+        font-size: 12px; font-weight: 600; font-family: inherit;
+        cursor: pointer;
+        margin-right: auto;  /* push everything else right */
+      }
+      .cd-mode-select:focus { outline: none; border-color: ${ACCENT}; }
+      @media print { .cd-mode-select { display: none !important; } }
       .cd-spin { animation: cd-spin 1s linear infinite; }
       @keyframes cd-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 
