@@ -122,6 +122,21 @@ function DeliverablePages({ data, clientName }) {
         isPreLaunch={isPreLaunch}
       />
 
+      <SynthesisPage
+        clientName={displayName}
+        spine={spine}
+        hosts={hosts}
+        synthesisData={buildSynthesis({
+          spine,
+          hosts,
+          channels,
+          patternsResult,
+          whiteSpaceResult,
+          productionSignalsByChannel,
+          demandRow,
+        })}
+      />
+
       <PartCallout
         number="01"
         title="YouTube Category Audit"
@@ -220,6 +235,176 @@ function PreLaunchFraming({ clientName }) {
       </div>
     </section>
   );
+}
+
+// ──────────────────────────────────────────────────
+// Synthesis page — "Where this lands"
+// ──────────────────────────────────────────────────
+// Consulting-deck pattern: lead with outcome, back with evidence.
+// Sits between cover and the "01" callout. One page synthesis that
+// compresses the whole positioning recommendation into one-liner +
+// three moves (positioning / voice / host) + the data anchor for each
+// + the explicit anti-stance pulled from guardrails. A reader can stop
+// after this page and still know the bet.
+function SynthesisPage({ clientName, spine, hosts, synthesisData }) {
+  const { moves, antiStance, oneliner } = synthesisData;
+  const synthRef = React.useRef(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!synthRef.current) return;
+    try {
+      await navigator.clipboard.writeText(synthRef.current.innerText.trim());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch { /* fallback: markdown export covers it */ }
+  };
+
+  if (!oneliner && !moves.length && !antiStance.length) return null;
+
+  return (
+    <section className="cd-page cd-synthesis">
+      <div className="cd-synthesis-head">
+        <div>
+          <div className="cd-synthesis-kicker">Where this lands</div>
+          <h2 className="cd-synthesis-title">{clientName}'s play, in {moves.length} {moves.length === 1 ? 'move' : 'moves'}</h2>
+        </div>
+        <button onClick={handleCopy} className="cd-copy-btn" title="Copy the synthesis to clipboard">
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+
+      <div ref={synthRef}>
+        {oneliner && (
+          <div className="cd-synthesis-oneliner">
+            <span className="cd-synthesis-oneliner-mark">“</span>
+            {oneliner}
+            <span className="cd-synthesis-oneliner-mark">”</span>
+          </div>
+        )}
+
+        {moves.length > 0 && (
+          <ol className="cd-synthesis-moves">
+            {moves.map((m, i) => (
+              <li className="cd-synthesis-move" key={i}>
+                <div className="cd-synthesis-move-num">{String(i + 1).padStart(2, '0')}</div>
+                <div className="cd-synthesis-move-body">
+                  <div className="cd-synthesis-move-label">{m.label}</div>
+                  <div className="cd-synthesis-move-text">{m.text}</div>
+                  {m.evidence && (
+                    <div className="cd-synthesis-move-evidence">
+                      <span className="cd-synthesis-evidence-tag">Why</span>
+                      <span>{m.evidence}</span>
+                    </div>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+
+        {antiStance.length > 0 && (
+          <div className="cd-synthesis-anti">
+            <div className="cd-synthesis-anti-label">What this isn't</div>
+            <ul className="cd-synthesis-anti-list">
+              {antiStance.map((a, i) => <li key={i}>{a}</li>)}
+            </ul>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// Compute the synthesis content. Each move's text comes from a spine
+// field; each move's evidence comes from the same per-field rationale
+// builder used in Part 02 (kept in sync so the synthesis and the
+// deeper section agree on the "why").
+function buildSynthesis({ spine, hosts, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow }) {
+  const rationales = buildRationales({
+    channels,
+    patternsResult,
+    whiteSpaceResult,
+    productionSignalsByChannel,
+    clientProductionRow: null,
+    demandRow,
+  });
+
+  const moves = [];
+
+  // Move 1: Positioning — compressed from positioning_hypothesis
+  const positioningText = compressForSynthesis(spine?.positioning_hypothesis) || spine?.positioning_oneliner;
+  if (positioningText) {
+    moves.push({
+      label: 'Positioning',
+      text: positioningText,
+      evidence: extractEvidenceText(rationales.editorial_pov || rationales.oneliner),
+    });
+  }
+
+  // Move 2: Voice — first sentence of voice_tone
+  const voiceText = firstSentence(spine?.voice_tone);
+  if (voiceText) {
+    moves.push({
+      label: 'Voice',
+      text: voiceText,
+      evidence: extractEvidenceText(rationales.voice_tone),
+    });
+  }
+
+  // Move 3: Host — primary host archetype (multi-host) or spine.host_archetype
+  const primaryHost = (hosts || [])[0];
+  const hostText = primaryHost?.archetype || spine?.host_archetype;
+  if (hostText) {
+    const label = (hosts || []).length > 1 ? `Hosts (${hosts.length})` : 'Host';
+    moves.push({
+      label,
+      text: hostText,
+      evidence: extractEvidenceText(rationales.host_archetype),
+    });
+  }
+
+  // Anti-stance — pulled from guardrails. Split into individual constraints.
+  const antiStance = (spine?.guardrails || '')
+    .split(/[\n\.]+/)
+    .map(s => s.trim().replace(/^[-*•]\s*/, ''))
+    .filter(s => s.length > 6)
+    .slice(0, 4);
+
+  return {
+    oneliner: spine?.positioning_oneliner || null,
+    moves,
+    antiStance,
+  };
+}
+
+// Strip leading boilerplate ("We position [client] as...") so the
+// synthesis reads as a tight statement rather than a paragraph opener.
+function compressForSynthesis(text) {
+  if (!text || typeof text !== 'string') return null;
+  const trimmed = text.trim();
+  const first = firstSentence(trimmed);
+  if (!first) return null;
+  return first.length <= 180 ? first : `${first.slice(0, 177)}…`;
+}
+
+function firstSentence(text) {
+  if (!text || typeof text !== 'string') return null;
+  const trimmed = text.trim();
+  const match = trimmed.match(/^[^.!?]+[.!?]/);
+  return match ? match[0].trim() : trimmed.slice(0, 200);
+}
+
+// Rationale strings produced by buildRationales are React elements
+// (with <strong> tags etc.). For the synthesis page we want a flat
+// text string. Walk the element tree and concatenate text.
+function extractEvidenceText(node) {
+  if (node == null) return null;
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(extractEvidenceText).filter(Boolean).join('');
+  if (node.props?.children) return extractEvidenceText(node.props.children);
+  return null;
 }
 
 function PartCallout({ number, title, description }) {
@@ -677,27 +862,19 @@ function PartTwoContent({ spine, hosts = [], legacyRubric, rationales = {} }) {
 
   return (
     <section className="cd-page">
-      {spine?.positioning_oneliner && (
-        <>
-          <div className="cd-oneliner-panel">
-            <div className="cd-oneliner-mark">“</div>
-            <div className="cd-oneliner-text">{spine.positioning_oneliner}</div>
-          </div>
-          {rationales.oneliner && <Rationale>{rationales.oneliner}</Rationale>}
-        </>
-      )}
-
       {spine?.editorial_pov && (
         <SubSection title="Editorial POV + mission" kicker="What this channel believes">
-          <p>{spine.editorial_pov}</p>
-          {rationales.editorial_pov && <Rationale>{rationales.editorial_pov}</Rationale>}
+          {rationales.editorial_pov && <EvidenceLead>{rationales.editorial_pov}</EvidenceLead>}
+          <p className="cd-recommendation">{spine.editorial_pov}</p>
+          <InPractice>Every script and brief is tested against this POV — if a video doesn't argue or stand for something in this frame, it doesn't ship.</InPractice>
         </SubSection>
       )}
 
       {spine?.voice_tone && (
         <SubSection title="Voice + tone" kicker="How this channel sounds">
-          <p>{spine.voice_tone}</p>
-          {rationales.voice_tone && <Rationale>{rationales.voice_tone}</Rationale>}
+          {rationales.voice_tone && <EvidenceLead>{rationales.voice_tone}</EvidenceLead>}
+          <p className="cd-recommendation">{spine.voice_tone}</p>
+          <InPractice>This is the style sheet talent reads before takes and producers reference during edits — generated copy and scripts match this register or get rejected.</InPractice>
         </SubSection>
       )}
 
@@ -706,19 +883,25 @@ function PartTwoContent({ spine, hosts = [], legacyRubric, rationales = {} }) {
           title={hostsToRender.length === 1 ? 'Host' : `Hosts (${hostsToRender.length})`}
           kicker={hostsToRender.length === 1 ? 'Who is on screen' : 'Series-specific on-camera personas'}
         >
+          {rationales.host_archetype && <EvidenceLead>{rationales.host_archetype}</EvidenceLead>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {hostsToRender.map((h, i) => (
               <HostBlock key={h.id || i} host={h} />
             ))}
           </div>
-          {rationales.host_archetype && <Rationale>{rationales.host_archetype}</Rationale>}
+          <InPractice>
+            {hostsToRender.length === 1
+              ? 'Auditions score candidates against the rubric tied to this archetype. Producers brief on-camera takes against the archetype\'s specifics.'
+              : 'Each series casts and briefs against its own host rubric. Producers don\'t move talent between series without re-auditioning against the target archetype.'}
+          </InPractice>
         </SubSection>
       )}
 
       {spine?.guardrails && (
-        <SubSection title="Guardrails" kicker="What this channel must NOT do">
+        <SubSection title="What this isn't" kicker="Explicit anti-stances">
+          {rationales.guardrails && <EvidenceLead>{rationales.guardrails}</EvidenceLead>}
           <div className="cd-guardrails">{spine.guardrails}</div>
-          {rationales.guardrails && <Rationale>{rationales.guardrails}</Rationale>}
+          <InPractice>AI generations, producer briefs, and content pitches explicitly exclude these stances. A pitch that drifts into them gets pulled before production.</InPractice>
         </SubSection>
       )}
 
@@ -797,16 +980,28 @@ function HostBlock({ host }) {
   );
 }
 
-// Rationale callout — small "Why this" card under a Part 02 field.
-// Computed deterministically from Part 01 findings — no LLM call. Cites
-// the data the positioning is anchored to so the recommendation reads
-// as evidence-based, not opinion.
-function Rationale({ children }) {
+// EvidenceLead — the data chain that ANCHORS each Part 02 recommendation.
+// Sits ABOVE the spine field (not below it as a sidebar) so the reader
+// sees the evidence before the conclusion. Computed deterministically
+// from Part 01 findings — no LLM call.
+function EvidenceLead({ children }) {
   return (
-    <aside className="cd-rationale">
-      <div className="cd-rationale-kicker">Why this</div>
-      <div className="cd-rationale-body">{children}</div>
-    </aside>
+    <div className="cd-evidence">
+      <div className="cd-evidence-tag">Why</div>
+      <div className="cd-evidence-body">{children}</div>
+    </div>
+  );
+}
+
+// InPractice — the operational implication at the bottom of each Part 02
+// field. Names what the strategist/team actually does with the
+// recommendation. Closes the loop: why → what → how.
+function InPractice({ children }) {
+  return (
+    <div className="cd-in-practice">
+      <div className="cd-in-practice-tag">In practice</div>
+      <div className="cd-in-practice-body">{children}</div>
+    </div>
   );
 }
 
@@ -1097,6 +1292,92 @@ function PrintStyles() {
         margin: 0; letter-spacing: -0.3px;
       }
 
+      /* Synthesis page — "Where this lands". Consulting-deck pattern:
+         lead with outcome + three moves + evidence + anti-stance. */
+      .cd-synthesis {
+        background: ${SURFACE};
+        padding: 56px 64px;
+      }
+      .cd-synthesis-head {
+        display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+        margin-bottom: 24px;
+      }
+      .cd-synthesis-kicker {
+        font-size: 11px; font-weight: 700;
+        color: ${ACCENT}; text-transform: uppercase;
+        letter-spacing: 1.4px; margin-bottom: 8px;
+      }
+      .cd-synthesis-title {
+        font-size: 32px; font-weight: 800;
+        color: ${INK}; letter-spacing: -0.8px;
+        margin: 0; line-height: 1.15;
+      }
+      .cd-synthesis-oneliner {
+        font-size: 22px; font-weight: 600;
+        color: ${INK}; line-height: 1.4;
+        font-style: italic;
+        max-width: 620px;
+        padding: 16px 0 24px;
+        border-bottom: 1px solid ${BORDER};
+        margin-bottom: 28px;
+      }
+      .cd-synthesis-oneliner-mark {
+        color: ${ACCENT}; font-weight: 700; font-style: normal;
+        margin: 0 4px;
+      }
+      .cd-synthesis-moves {
+        list-style: none; padding: 0; margin: 0 0 28px;
+        display: flex; flex-direction: column; gap: 22px;
+      }
+      .cd-synthesis-move {
+        display: flex; gap: 18px;
+        break-inside: avoid;
+      }
+      .cd-synthesis-move-num {
+        font-size: 28px; font-weight: 800;
+        color: ${ACCENT};
+        line-height: 1; min-width: 48px; flex-shrink: 0;
+        font-variant-numeric: tabular-nums;
+      }
+      .cd-synthesis-move-body { flex: 1; min-width: 0; }
+      .cd-synthesis-move-label {
+        font-size: 10px; font-weight: 700;
+        color: ${MUTED}; text-transform: uppercase;
+        letter-spacing: 1.2px; margin-bottom: 4px;
+      }
+      .cd-synthesis-move-text {
+        font-size: 17px; font-weight: 700;
+        color: ${INK}; line-height: 1.4;
+        margin-bottom: 8px;
+      }
+      .cd-synthesis-move-evidence {
+        display: flex; gap: 10px; align-items: flex-start;
+        font-size: 13px; color: ${MUTED};
+        line-height: 1.5;
+      }
+      .cd-synthesis-evidence-tag {
+        font-size: 9px; font-weight: 800;
+        color: ${ACCENT}; text-transform: uppercase;
+        letter-spacing: 1.4px; padding-top: 3px;
+        flex-shrink: 0; min-width: 26px;
+      }
+      .cd-synthesis-anti {
+        margin-top: 28px; padding: 18px 22px;
+        background: ${SURFACE_DEEP};
+        border-radius: 6px;
+      }
+      .cd-synthesis-anti-label {
+        font-size: 11px; font-weight: 800;
+        color: ${INK}; text-transform: uppercase;
+        letter-spacing: 1.6px; margin-bottom: 10px;
+      }
+      .cd-synthesis-anti-list {
+        margin: 0; padding-left: 18px;
+        font-size: 13px; line-height: 1.55;
+      }
+      .cd-synthesis-anti-list li { margin-bottom: 6px; }
+      .cd-synthesis-anti-list li:last-child { margin-bottom: 0; }
+
       /* Pre-launch framing block — sits between the 01 callout and Part 01
          content for clients with no published video data */
       .cd-prelaunch {
@@ -1193,21 +1474,53 @@ function PrintStyles() {
         white-space: pre-wrap;
       }
 
-      /* Rationale callout — "Why this" card under each Part 02 field */
-      .cd-rationale {
-        margin-top: 14px;
-        background: ${SURFACE_DEEP};
-        border-radius: 6px;
+      /* EvidenceLead — sits ABOVE each Part 02 recommendation so the
+         reader sees the data chain before the conclusion. Mirrors the
+         consulting-deck pattern: lead with evidence, then the call. */
+      .cd-evidence {
+        display: flex; gap: 12px;
+        margin-bottom: 14px;
         padding: 12px 14px;
+        background: ${ACCENT_SOFT};
+        border-radius: 6px;
         border-left: 3px solid ${ACCENT};
       }
-      .cd-rationale-kicker {
-        font-size: 9px; font-weight: 700;
+      .cd-evidence-tag {
+        font-size: 10px; font-weight: 800;
         color: ${ACCENT}; text-transform: uppercase;
-        letter-spacing: 1.4px; margin-bottom: 4px;
+        letter-spacing: 1.4px; padding-top: 3px;
+        flex-shrink: 0; min-width: 28px;
       }
-      .cd-rationale-body {
-        font-size: 12px; color: ${INK}; line-height: 1.5;
+      .cd-evidence-body {
+        font-size: 13px; color: ${INK}; line-height: 1.55;
+        flex: 1; min-width: 0;
+      }
+
+      /* The recommendation itself — the spine field content. Visually
+         the centerpiece between evidence (above) and in-practice (below). */
+      .cd-recommendation {
+        font-size: 15px; line-height: 1.6;
+        color: ${INK}; font-weight: 500;
+        margin: 0 0 14px;
+      }
+
+      /* InPractice — operational implication at the bottom. Closes the
+         loop from "why" through "what" to "how this gets used." */
+      .cd-in-practice {
+        display: flex; gap: 12px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px dashed ${BORDER};
+      }
+      .cd-in-practice-tag {
+        font-size: 10px; font-weight: 800;
+        color: ${MUTED}; text-transform: uppercase;
+        letter-spacing: 1.4px; padding-top: 2px;
+        flex-shrink: 0; min-width: 80px;
+      }
+      .cd-in-practice-body {
+        font-size: 12px; color: ${MUTED}; line-height: 1.55;
+        flex: 1; font-style: italic;
       }
 
       /* SVG chart container */
@@ -1244,6 +1557,8 @@ function PrintStyles() {
         .cd-subsection { break-inside: avoid; }
         .cd-copy-btn { display: none !important; }
         .cd-prelaunch { break-after: page; }
+        .cd-synthesis { break-after: page; padding: 0.7in 0.8in !important; }
+        .cd-synthesis-move { break-inside: avoid; }
       }
     `}</style>
   );
