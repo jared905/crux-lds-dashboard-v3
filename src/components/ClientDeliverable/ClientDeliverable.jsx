@@ -298,7 +298,7 @@ function PreLaunchFraming({ clientName }) {
 // + the explicit anti-stance pulled from guardrails. A reader can stop
 // after this page and still know the bet.
 function SynthesisPage({ clientName, spine, hosts, synthesisData }) {
-  const { moves, antiStance, oneliner } = synthesisData;
+  const { moves, antiStance, oneliner, first30 = [] } = synthesisData;
   const synthRef = React.useRef(null);
   const [copied, setCopied] = useState(false);
 
@@ -359,6 +359,12 @@ function SynthesisPage({ clientName, spine, hosts, synthesisData }) {
                           <E tag="span">{m.evidence}</E>
                         </div>
                       )}
+                      {m.nextMove && (
+                        <div className="cd-synthesis-move-next">
+                          <span className="cd-synthesis-next-tag">Next</span>
+                          <E tag="span">{m.nextMove}</E>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -375,68 +381,266 @@ function SynthesisPage({ clientName, spine, hosts, synthesisData }) {
             </ul>
           </div>
         )}
+
+        {first30.length > 0 && (
+          <div className="cd-synthesis-first30">
+            <div className="cd-synthesis-first30-label">First 30 days</div>
+            <ol className="cd-synthesis-first30-list">
+              {first30.map((a, i) => <E key={i} tag="li">{a}</E>)}
+            </ol>
+          </div>
+        )}
       </div>
     </section>
   );
 }
 
-// Compute the synthesis content. Each move's text comes from a spine
-// field; each move's evidence comes from the same per-field rationale
-// builder used in Part 02 (kept in sync so the synthesis and the
-// deeper section agree on the "why").
+// Compute the synthesis content. Each move's evidence COMPOUNDS multiple
+// Part 01 findings (not just one) so the page reads as evidence-led,
+// not opinion-led. Each move also gets a concrete "next move" action so
+// the deliverable closes the loop from "what is this channel?" to
+// "what does the team do this week?"
 function buildSynthesis({ spine, hosts, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow }) {
-  const rationales = buildRationales({
-    channels,
-    patternsResult,
-    whiteSpaceResult,
-    productionSignalsByChannel,
-    clientProductionRow: null,
-    demandRow,
-  });
-
   // Always emit all three move slots so missing fields render as
   // explicit "not yet authored" placeholders rather than silently
-  // shuffling smaller moves into the lead position. Strategist sees
-  // the gap directly and knows what to author next.
+  // shuffling smaller moves into the lead position.
   const positioningText = compressForSynthesis(spine?.positioning_hypothesis) || spine?.positioning_oneliner;
   const voiceText = firstSentence(spine?.voice_tone);
   const primaryHost = (hosts || [])[0];
   const hostText = primaryHost?.archetype || spine?.host_archetype;
   const hostLabel = (hosts || []).length > 1 ? `Hosts (${hosts.length})` : 'Host';
 
+  // Pre-compute the data slices each move's evidence pulls from.
+  const ctx = computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow });
+
   const moves = [
     {
       label: 'Positioning',
       missingHint: 'Author the positioning one-liner or positioning hypothesis on the Strategy Spine.',
       text: positioningText,
-      evidence: extractEvidenceText(rationales.editorial_pov || rationales.oneliner),
+      evidence: composePositioningEvidence(ctx),
+      nextMove: composePositioningAction(ctx, hosts),
     },
     {
       label: 'Voice',
       missingHint: 'Author the voice + tone field on the Strategy Spine.',
       text: voiceText,
-      evidence: extractEvidenceText(rationales.voice_tone),
+      evidence: composeVoiceEvidence(ctx),
+      nextMove: 'Compress this voice description into a 200-word style sheet — register, signature moves, pacing, what to avoid. Share with anyone writing scripts. Producers reference it on every edit; AI-generated copy gets rejected if it drifts from the register.',
     },
     {
       label: hostLabel,
       missingHint: 'Add a host profile on the Strategy Spine (or fill in host_archetype on the legacy field).',
       text: hostText,
-      evidence: extractEvidenceText(rationales.host_archetype),
+      evidence: composeHostEvidence(ctx, hosts),
+      nextMove: composeHostAction(hosts),
     },
   ].map(m => ({ ...m, missing: !m.text }));
 
-  // Anti-stance — pulled from guardrails. Split into individual constraints.
   const antiStance = (spine?.guardrails || '')
     .split(/[\n\.]+/)
     .map(s => s.trim().replace(/^[-*•]\s*/, ''))
     .filter(s => s.length > 6)
     .slice(0, 4);
 
+  const first30 = buildFirst30Days({ ctx, hosts, spine });
+
   return {
     oneliner: spine?.positioning_oneliner || null,
     moves,
     antiStance,
+    first30,
   };
+}
+
+// Pre-computes the Part 01 data slices that synthesis evidence + actions
+// read from. Keeps the compose* functions clean and readable.
+function computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow }) {
+  // Production tier rollup across competitors
+  const competitorSignals = (channels || [])
+    .map(c => productionSignalsByChannel?.[c.id]?.signals)
+    .filter(Boolean);
+  const tiers = { high: 0, medium: 0, low: 0, mixed: 0 };
+  for (const s of competitorSignals) {
+    if (s.production_tier && tiers[s.production_tier] != null) tiers[s.production_tier]++;
+  }
+  const totalTiered = Object.values(tiers).reduce((s, n) => s + n, 0);
+  const dominantTier = totalTiered > 0
+    ? Object.entries(tiers).sort(([, a], [, b]) => b - a)[0][0]
+    : null;
+  const dominantTierCount = totalTiered > 0 ? tiers[dominantTier] : 0;
+
+  // Cohort host visibility average
+  const hostVisibilityAvg = competitorSignals.length
+    ? Math.round(mean(competitorSignals.map(s => parseFloat(s.host_framing?.host_visible_pct) || 0)))
+    : null;
+  const faceDrivenAvg = competitorSignals.length
+    ? Math.round(mean(competitorSignals.map(s => parseFloat(s.visual_treatment?.face_pct) || 0)))
+    : null;
+
+  // Top white-space opportunity
+  const topOpportunity = whiteSpaceResult?.brief?.opportunities?.[0] || null;
+  // Top demand signal
+  const topUnserved = demandRow?.signals?.unserved_requests?.[0] || null;
+
+  // Top title patterns (statistical winners only, sorted by lift)
+  const statisticalPatterns = (patternsResult?.scope?.titlePatterns || [])
+    .filter(p => p.viewsLift != null && p.viewsLift >= 15 && p.confidence === 'statistical')
+    .sort((a, b) => b.viewsLift - a.viewsLift);
+
+  // Top cadence slot
+  const cadenceGaps = whiteSpaceResult?.cadenceGaps;
+  let topSlot = null;
+  if (cadenceGaps?.liftGrid && cadenceGaps?.labels) {
+    const { liftGrid, confidenceGrid, grid, labels } = cadenceGaps;
+    const winners = [];
+    for (let d = 0; d < 7; d++) {
+      for (let b = 0; b < (labels.blocks?.length || 0); b++) {
+        const lift = liftGrid?.[d]?.[b];
+        if (lift == null || lift < 1.15) continue;
+        if (confidenceGrid?.[d]?.[b] !== 'statistical') continue;
+        winners.push({
+          slot: `${labels.days?.[d]} ${labels.blocks?.[b]}`.trim(),
+          liftPct: Math.round((lift - 1) * 100),
+          count: grid[d][b],
+        });
+      }
+    }
+    winners.sort((a, b) => b.liftPct - a.liftPct);
+    topSlot = winners[0] || null;
+  }
+
+  // Best long-form length bucket by median views
+  const buckets = patternsResult?.scope?.formatBreakdown?.buckets || [];
+  const bestBucket = [...buckets].sort((a, b) => (b.medianViews || 0) - (a.medianViews || 0))[0] || null;
+  const shortsMedian = patternsResult?.scope?.formatBreakdown?.shortsMedianViews || 0;
+  const longBeatsShortBy = bestBucket?.medianViews && shortsMedian
+    ? Math.round(bestBucket.medianViews / shortsMedian)
+    : null;
+
+  // Cohort velocity leader vs median
+  const byVelocity = (channels || []).filter(c => c.viewVelocity != null).sort((a, b) => b.viewVelocity - a.viewVelocity);
+  const velocityLeader = byVelocity[0] || null;
+  const velocityMedian = byVelocity[Math.floor(byVelocity.length / 2)]?.viewVelocity || 0;
+  const velocityMultiplier = velocityLeader && velocityMedian
+    ? Math.round(velocityLeader.viewVelocity / velocityMedian)
+    : null;
+
+  return {
+    competitorCount: (channels || []).length,
+    tiers, totalTiered, dominantTier, dominantTierCount,
+    hostVisibilityAvg, faceDrivenAvg,
+    topOpportunity, topUnserved,
+    statisticalPatterns,
+    topSlot,
+    bestBucket, longBeatsShortBy,
+    velocityLeader, velocityMultiplier,
+  };
+}
+
+function composePositioningEvidence(ctx) {
+  const parts = [];
+  if (ctx.topOpportunity?.title) {
+    parts.push(<>The cohort's biggest unclaimed opening is <strong>{ctx.topOpportunity.title}</strong></>);
+  }
+  if (ctx.topUnserved?.topic) {
+    parts.push(<>audiences keep asking for <strong>{ctx.topUnserved.topic}</strong>{ctx.topUnserved.mentions ? ` (${ctx.topUnserved.mentions} mentions)` : ''} with no one in the cohort answering it cleanly</>);
+  }
+  if (ctx.velocityLeader && ctx.velocityMultiplier && ctx.velocityMultiplier >= 3) {
+    parts.push(<>and <strong>{ctx.velocityLeader.name}</strong> dominates by reach (~{ctx.velocityMultiplier}× median view velocity), so volume isn't a viable lane</>);
+  }
+  if (!parts.length) return null;
+  return <>{joinFragments(parts)}. <strong>Therefore:</strong> the positioning has to name an unclaimed slot, not describe the crowded center.</>;
+}
+
+function composePositioningAction(ctx, hosts) {
+  if (ctx.topOpportunity?.title) {
+    return <>Pilot the <strong>{ctx.topOpportunity.title}</strong> direction with 2–3 videos in the first month. Treat them as positioning probes — measure whether the audience returns, not just whether they show up.</>;
+  }
+  return 'Pick the single sharpest positioning angle from the audit\'s opportunity brief and pilot 2–3 videos against it. Treat them as positioning probes — measure return rate, not first-view counts.';
+}
+
+function composeVoiceEvidence(ctx) {
+  const parts = [];
+  if (ctx.dominantTier && ctx.totalTiered >= 3) {
+    const counter = ctx.dominantTier === 'high'
+      ? 'polish is table stakes — voice has to carry differentiation'
+      : ctx.dominantTier === 'low'
+        ? 'craft is rare — a consistent voice reads premium against the field'
+        : 'voice is the differentiator the cohort hasn\'t locked in';
+    parts.push(<>Cohort skews <strong>{ctx.dominantTier}-tier production</strong> ({ctx.dominantTierCount}/{ctx.totalTiered} competitors), so {counter}</>);
+  }
+  if (ctx.statisticalPatterns.length >= 2) {
+    const top = ctx.statisticalPatterns[0];
+    parts.push(<><strong>{top.label}</strong> titles win by +{Math.round(top.viewsLift)}%, showing the audience responds to personality-led framing</>);
+  }
+  if (!parts.length) return null;
+  return <>{joinFragments(parts)}. <strong>Therefore:</strong> the voice has to be instantly identifiable across every script and edit — not a vibe, a locked-in register.</>;
+}
+
+function composeHostEvidence(ctx, hosts) {
+  const parts = [];
+  if (ctx.hostVisibilityAvg != null && ctx.totalTiered >= 3) {
+    if (ctx.hostVisibilityAvg < 30) {
+      parts.push(<>Cohort runs <strong>host-light</strong> ({ctx.hostVisibilityAvg}% average host visibility) — a recurring on-camera anchor is a structural break</>);
+    } else if (ctx.hostVisibilityAvg > 70) {
+      parts.push(<>Cohort is <strong>host-heavy</strong> ({ctx.hostVisibilityAvg}% average visibility) — the archetype must be a distinct personality, not "a person on camera"</>);
+    } else {
+      parts.push(<>Cohort is mixed on host presence ({ctx.hostVisibilityAvg}% visibility, {ctx.faceDrivenAvg}% face-driven thumbnails) — no settled convention to copy or break</>);
+    }
+  }
+  if (hosts && hosts.length > 1) {
+    parts.push(<>this channel runs <strong>{hosts.length} hosts</strong> across different series, so the rubric has to score each archetype distinctly</>);
+  }
+  if (!parts.length) return null;
+  return <>{joinFragments(parts)}. <strong>Therefore:</strong> the host archetype isn't a casting preference — it's a structural decision that compounds every other recommendation.</>;
+}
+
+function composeHostAction(hosts) {
+  const n = hosts?.length || 1;
+  if (n > 1) {
+    return <>Run the audition rubric for <strong>each of the {n} hosts</strong> against 3–5 candidates per role. Don't share talent across series — each archetype scores against its own rubric.</>;
+  }
+  return 'Run the audition rubric against 3–5 candidates in the next 30 days. The strongest match anchors the series; the runners-up become the bench for spin-off formats.';
+}
+
+function buildFirst30Days({ ctx, hosts, spine }) {
+  const actions = [];
+
+  if (ctx.topSlot) {
+    actions.push(<>Schedule the first 3 uploads in <strong>{ctx.topSlot.slot}</strong> — the cohort's strongest statistical slot at +{ctx.topSlot.liftPct}% lift ({ctx.topSlot.count} reference uploads).</>);
+  }
+
+  if (ctx.statisticalPatterns.length >= 1) {
+    const stack = ctx.statisticalPatterns.slice(0, 2).map(p => p.label).join(' + ');
+    actions.push(<>Test the <strong>{stack}</strong> title pattern{ctx.statisticalPatterns.length > 1 ? ' stack' : ''} on the next 4 uploads — both clear statistical thresholds in the cohort.</>);
+  }
+
+  if (ctx.bestBucket && ctx.longBeatsShortBy && ctx.longBeatsShortBy >= 3) {
+    actions.push(<>Produce one <strong>{ctx.bestBucket.label}</strong> anchor video — long-form's median in this length is roughly {ctx.longBeatsShortBy}× the Shorts median.</>);
+  }
+
+  if (hosts?.length > 0) {
+    actions.push(<>Run the <strong>Talent audition rubric</strong> on 3–5 candidates {hosts.length > 1 ? `for each of the ${hosts.length} hosts` : 'against the host archetype'} this month.</>);
+  } else if (spine?.host_archetype) {
+    actions.push(<>Generate the <strong>Talent audition rubric</strong> from the Strategy Spine and start scoring on-camera candidates.</>);
+  }
+
+  if (ctx.topOpportunity?.title && actions.length < 5) {
+    actions.push(<>Storyboard one pilot against the <strong>{ctx.topOpportunity.title}</strong> opportunity — the audit's strongest unclaimed direction.</>);
+  }
+
+  return actions.slice(0, 5);
+}
+
+// Tiny helper for joining a list of React fragments with " AND " between
+// them and a sentence-ending period left to the caller.
+function joinFragments(parts) {
+  return parts.reduce((acc, p, i) => {
+    if (i === 0) return [p];
+    const sep = i === parts.length - 1 ? <> AND </> : <>, </>;
+    return [...acc, sep, p];
+  }, []);
 }
 
 // Strip leading boilerplate ("We position [client] as...") so the
@@ -1928,6 +2132,24 @@ function PrintStyles() {
         letter-spacing: 1.4px; padding-top: 3px;
         flex-shrink: 0; min-width: 26px;
       }
+      /* Next-move action under each synthesis move — concrete first step.
+         Distinct from Why (evidence above) with a darker accent tag so
+         the eye can scan the page as why → recommendation → action. */
+      .cd-synthesis-move-next {
+        display: flex; gap: 10px; align-items: flex-start;
+        font-size: 13px; color: ${INK};
+        line-height: 1.5; margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px dashed ${BORDER};
+        font-weight: 500;
+      }
+      .cd-synthesis-next-tag {
+        font-size: 9px; font-weight: 800;
+        color: ${ACCENT}; text-transform: uppercase;
+        letter-spacing: 1.4px; padding-top: 3px;
+        flex-shrink: 0; min-width: 26px;
+      }
+
       .cd-synthesis-anti {
         margin-top: 28px; padding: 18px 22px;
         background: ${SURFACE_DEEP};
@@ -1944,6 +2166,30 @@ function PrintStyles() {
       }
       .cd-synthesis-anti-list li { margin-bottom: 6px; }
       .cd-synthesis-anti-list li:last-child { margin-bottom: 0; }
+
+      /* First 30 days footer — concrete operational starters. Stands out
+         visually as an action band, accent-tinted, numbered. The reader
+         leaves this page with a list of things they can schedule. */
+      .cd-synthesis-first30 {
+        margin-top: 24px; padding: 18px 22px;
+        background: ${ACCENT};
+        color: #fff;
+        border-radius: 6px;
+      }
+      .cd-synthesis-first30-label {
+        font-size: 11px; font-weight: 800;
+        color: #fff; text-transform: uppercase;
+        letter-spacing: 1.6px; margin-bottom: 10px;
+        opacity: 0.85;
+      }
+      .cd-synthesis-first30-list {
+        margin: 0; padding-left: 22px;
+        font-size: 13.5px; line-height: 1.55;
+        color: #fff;
+      }
+      .cd-synthesis-first30-list li { margin-bottom: 8px; }
+      .cd-synthesis-first30-list li:last-child { margin-bottom: 0; }
+      .cd-synthesis-first30-list li strong { color: #fff; font-weight: 700; }
 
       /* Pre-launch framing block — sits between the 01 callout and Part 01
          content for clients with no published video data */
