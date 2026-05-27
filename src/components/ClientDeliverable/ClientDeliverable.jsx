@@ -522,6 +522,7 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
             </tbody>
           </table>
         )}
+        <SoWhat>{soWhatCompetitiveLandscape(channels)}</SoWhat>
       </SubSection>
 
       {competitorProdSignals.length > 0 && (
@@ -537,6 +538,7 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
               <p style={{ margin: 0 }}>{clientProductionRow.signals.summary}</p>
             </div>
           )}
+          <SoWhat>{soWhatProductionApproach(channels, productionSignalsByChannel)}</SoWhat>
         </SubSection>
       )}
 
@@ -544,18 +546,21 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
         <SubSection title="Performance patterns" kicker="What's working">
           <p>Title patterns sorted by views lift (vs. cohort median):</p>
           <TitlePatternBars patterns={titlePatterns} />
+          <SoWhat>{soWhatPerformancePatterns(patternsResult)}</SoWhat>
         </SubSection>
       )}
 
       {patternsResult?.scope?.formatBreakdown && (
         <SubSection title="Content mix" kicker="Format split + length sweet spots">
           <ContentMix formatBreakdown={patternsResult.scope.formatBreakdown} />
+          <SoWhat>{soWhatContentMix(patternsResult.scope.formatBreakdown)}</SoWhat>
         </SubSection>
       )}
 
       {channels?.length > 0 && (
         <SubSection title="Upload tempo" kicker="What we're up against, by volume">
           <UploadTempo channels={channels} formatMixByChannel={formatMixByChannel} />
+          <SoWhat>{soWhatUploadTempo(channels)}</SoWhat>
         </SubSection>
       )}
 
@@ -569,6 +574,7 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
       {isPreLaunch && channels?.length > 0 && (
         <SubSection title="How the category engages" kicker="Cohort-level audience behavior">
           <CohortEngagementSummary channels={channels} patternsResult={patternsResult} />
+          <SoWhat>{soWhatCategoryEngagement(channels)}</SoWhat>
         </SubSection>
       )}
 
@@ -1318,6 +1324,136 @@ function HostBlock({ host }) {
   );
 }
 
+// SoWhat — the strategic-implication closer at the bottom of each
+// Part 01 data section. Mirrors the consulting-deck habit of turning
+// "here's the data" into "here's what it means for our approach." Not
+// the same as Part 02's InPractice (which is operational what-to-do);
+// SoWhat is data-level strategic reading.
+function SoWhat({ children }) {
+  if (!children) return null;
+  return (
+    <div className="cd-sowhat">
+      <div className="cd-sowhat-tag">So what</div>
+      <div className="cd-sowhat-body">{children}</div>
+    </div>
+  );
+}
+
+// Per-section synthesis builders. All deterministic — read the
+// section's data and apply a strategic frame. No LLM call. Each
+// returns a React fragment, or null when the data is too thin for a
+// confident read.
+function soWhatCompetitiveLandscape(channels) {
+  if (!channels?.length) return null;
+  const sorted = [...channels].filter(c => c.viewVelocity != null).sort((a, b) => b.viewVelocity - a.viewVelocity);
+  if (sorted.length < 3) return null;
+  const top = sorted[0];
+  const median = sorted[Math.floor(sorted.length / 2)];
+  if (!top.viewVelocity || !median.viewVelocity) return null;
+  const multiplier = Math.round(top.viewVelocity / median.viewVelocity);
+  if (multiplier >= 3) {
+    return <>Cohort is led by <strong>{top.name}</strong> at roughly <strong>{multiplier}×</strong> the median view velocity. The math doesn't favor matching that volume — differentiation has to be vertical (positioning, voice, host), not horizontal (frequency, reach for reach's sake).</>;
+  }
+  return <>Cohort is broadly distributed — no single channel dominates by reach. Plenty of room to enter, but no single competitor to define against. Your <strong>positioning</strong> IS the differentiation, not your reach math.</>;
+}
+
+function soWhatProductionApproach(channels, productionSignalsByChannel) {
+  const tiers = { high: 0, medium: 0, low: 0, mixed: 0 };
+  const competitorSignals = (channels || [])
+    .map(c => productionSignalsByChannel?.[c.id]?.signals)
+    .filter(Boolean);
+  for (const s of competitorSignals) {
+    if (s.production_tier && tiers[s.production_tier] != null) tiers[s.production_tier]++;
+  }
+  const total = competitorSignals.length;
+  if (total < 3) return null;
+  const sortedTiers = Object.entries(tiers).sort(([, a], [, b]) => b - a);
+  const dominant = sortedTiers[0][0];
+  if (dominant === 'high') {
+    return <>Cohort skews <strong>high-tier polish</strong> ({tiers.high}/{total} competitors). Outspending the field on production isn't a real lane — differentiate through <strong>aesthetic identity</strong> (a recognizable visual system) rather than raw production budget.</>;
+  }
+  if (dominant === 'medium') {
+    return <>Cohort skews <strong>medium-tier polish</strong> ({tiers.medium}/{total} competitors). The bar is reachable. Match medium-tier production but invest in <strong>a sharper visual identity</strong> than the field — most channels here are competent but not distinctive.</>;
+  }
+  if (dominant === 'low') {
+    return <>Cohort skews <strong>low-tier production</strong> ({tiers.low}/{total} competitors). Polish is an immediate differentiator if you can execute it — even moderate craft reads premium against this baseline.</>;
+  }
+  return <>Cohort is <strong>visually inconsistent</strong> ({tiers.mixed} mixed-tier channels). A coherent aesthetic system reads as professional by default — the bar for differentiation isn't height, it's consistency.</>;
+}
+
+function soWhatPerformancePatterns(patternsResult) {
+  const patterns = (patternsResult?.scope?.titlePatterns || [])
+    .filter(p => p.viewsLift != null && p.viewsLift > 0)
+    .sort((a, b) => b.viewsLift - a.viewsLift);
+  if (!patterns.length) return null;
+  const statistical = patterns.filter(p => p.confidence === 'statistical' && p.viewsLift >= 15);
+  if (statistical.length >= 2) {
+    const top = statistical.slice(0, 3);
+    return <>Multiple title patterns show statistical lift: {top.map((p, i) => (
+      <span key={i}>{i > 0 ? ', ' : ''}<strong>{p.label}</strong> (+{Math.round(p.viewsLift)}%)</span>
+    ))}. These compound — a title combining two or three of these patterns leverages each. Default titles toward this stack unless you're explicitly testing alternatives.</>;
+  }
+  if (statistical.length === 1) {
+    const p = statistical[0];
+    return <><strong>{p.label}</strong> shows statistical lift (+{Math.round(p.viewsLift)}%). Default titles toward this pattern unless you're explicitly testing alternatives — the rest of the patterns are noise or directional.</>;
+  }
+  return <>No title patterns clear the statistical threshold yet. Don't lock title strategy to small-sample patterns — pick one or two directional candidates to test, leave the rest alone until volume builds.</>;
+}
+
+function soWhatContentMix(formatBreakdown) {
+  if (!formatBreakdown) return null;
+  const shortsFreq = formatBreakdown.shortsFreq || 0;
+  const longsFreq = 1 - shortsFreq;
+  const shortsMedian = formatBreakdown.shortsMedianViews || 0;
+  const longsMedian = formatBreakdown.longsMedianViews || 0;
+  if (shortsFreq < 0.05 && longsFreq < 0.05) return null;
+
+  // Find the best-performing long-form bucket
+  const buckets = formatBreakdown.buckets || [];
+  const bestBucket = [...buckets].sort((a, b) => (b.medianViews || 0) - (a.medianViews || 0))[0];
+
+  const longBeatsShort = longsMedian > shortsMedian * 1.5;
+  if (longBeatsShort && bestBucket) {
+    return <>Cohort posts mostly Shorts ({Math.round(shortsFreq * 100)}%) but <strong>long-form earns {Math.round(longsMedian / shortsMedian)}× the views</strong> ({fmtNum(longsMedian)} vs {fmtNum(shortsMedian)} median). Specifically <strong>{bestBucket.label}</strong> videos at {fmtNum(bestBucket.medianViews)} median are the sweet spot. Use Shorts for volume + reach; long-form for retention + the bigger views.</>;
+  }
+  if (shortsFreq > 0.7) {
+    return <>Cohort is <strong>{Math.round(shortsFreq * 100)}% Shorts</strong>. The category has chosen its format — don't try to invent a long-form-only strategy unless you're explicitly differentiating against the field. Mix Shorts heavily with selective long-form anchors.</>;
+  }
+  return <>Cohort posts <strong>{Math.round(shortsFreq * 100)}% Shorts and {Math.round(longsFreq * 100)}% long-form</strong>. Both formats earn meaningful views — running a balanced split matches the category baseline and gives you reach + retention.</>;
+}
+
+function soWhatUploadTempo(channels) {
+  const rows = (channels || []).filter(c => c.uploadsPerWeek != null && c.uploadsPerWeek > 0);
+  if (rows.length < 3) return null;
+  const sorted = [...rows].sort((a, b) => b.uploadsPerWeek - a.uploadsPerWeek);
+  const top = sorted[0];
+  const median = sorted[Math.floor(sorted.length / 2)].uploadsPerWeek;
+  const ratio = top.uploadsPerWeek / median;
+  if (ratio >= 5) {
+    return <><strong>{top.name}</strong> posts at {top.uploadsPerWeek.toFixed(1)}/wk — roughly <strong>{Math.round(ratio)}×</strong> the cohort median. Volume is a losing lane against that. Compete on <strong>depth or differentiation</strong> (sharper positioning, distinct voice, higher-craft individual videos), not frequency.</>;
+  }
+  if (median < 1.5) {
+    return <>Cohort tempo is moderate at <strong>{median.toFixed(1)}/wk median</strong>. No one is dominating by frequency. A consistent <strong>2–3/wk cadence</strong> is enough to stay in the conversation — focus craft on each upload rather than chasing volume.</>;
+  }
+  return <>Cohort tempo varies widely from <strong>{top.uploadsPerWeek.toFixed(1)}/wk</strong> at the top to under <strong>1/wk</strong> at the bottom. Match the median (~{median.toFixed(1)}/wk) to stay in the conversation; chasing the top isn't realistic and isn't necessary to be in the field.</>;
+}
+
+function soWhatCategoryEngagement(channels) {
+  const ranked = (channels || []).filter(c => typeof c.engagementRate === 'number').sort((a, b) => b.engagementRate - a.engagementRate);
+  if (ranked.length < 4) return null;
+  const top = ranked[0];
+  const median = ranked[Math.floor(ranked.length / 2)];
+  // Top engagement vs top view velocity — are they the same channel?
+  const byVelocity = [...channels].filter(c => c.viewVelocity != null).sort((a, b) => b.viewVelocity - a.viewVelocity);
+  const topReach = byVelocity[0];
+  const engagementLeaderIsReachLeader = top.id && topReach.id && top.id === topReach.id;
+  if (!engagementLeaderIsReachLeader && top.engagementRate && median.engagementRate) {
+    const mult = (top.engagementRate / median.engagementRate).toFixed(1);
+    return <><strong>{top.name}</strong> leads engagement at {(top.engagementRate * 100).toFixed(1)}% ({mult}× cohort median) — but doesn't lead on reach. Engagement and reach decouple in this category. Build the engagement layer first; reach compounds from it, not the other way around.</>;
+  }
+  return <>Engagement leaders ({(top.engagementRate * 100).toFixed(1)}% at the top) cluster around <strong>{(median.engagementRate * 100).toFixed(1)}% median</strong>. Match the cohort baseline to feel native; exceed it to feel beloved.</>;
+}
+
 // EvidenceLead — the data chain that ANCHORS each Part 02 recommendation.
 // Sits ABOVE the spine field (not below it as a sidebar) so the reader
 // sees the evidence before the conclusion. Computed deterministically
@@ -1853,6 +1989,30 @@ function PrintStyles() {
         font-size: 15px; line-height: 1.6;
         color: ${INK}; font-weight: 500;
         margin: 0 0 14px;
+      }
+
+      /* SoWhat — strategic-implication closer at the bottom of each
+         Part 01 data section. Reads the data, names the move. Distinct
+         visual treatment from InPractice (Part 02) — accent-bordered
+         box rather than dashed-top footer, because SoWhat is the
+         section's payoff, not its operational footnote. */
+      .cd-sowhat {
+        display: flex; gap: 12px;
+        margin-top: 16px;
+        padding: 12px 14px;
+        background: ${ACCENT_SOFT};
+        border-radius: 6px;
+        border-left: 3px solid ${ACCENT};
+      }
+      .cd-sowhat-tag {
+        font-size: 10px; font-weight: 800;
+        color: ${ACCENT}; text-transform: uppercase;
+        letter-spacing: 1.4px; padding-top: 3px;
+        flex-shrink: 0; min-width: 56px;
+      }
+      .cd-sowhat-body {
+        font-size: 13px; color: ${INK}; line-height: 1.55;
+        flex: 1; min-width: 0;
       }
 
       /* InPractice — operational implication at the bottom. Closes the
