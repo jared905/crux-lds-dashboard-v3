@@ -91,14 +91,22 @@ function computeFormatGaps(videos) {
   ];
 
   const total = videos.length;
+  const allViews = videos.map(v => v.view_count || 0).filter(v => v > 0);
+  const scopeMedian = allViews.length ? trimmedMedian(allViews) : null;
+
   return buckets.map(b => {
     const matched = videos.filter(v => (v.duration_seconds || 0) >= b.min && (v.duration_seconds || 0) <= b.max);
     const freq = matched.length / total;
+    const views = matched.map(v => v.view_count || 0).filter(v => v > 0);
+    const medianViews = views.length >= 5 ? trimmedMedian(views) : null;
+    const viewsLift = (medianViews && scopeMedian) ? medianViews / scopeMedian : null;
     return {
       id: b.id,
       label: b.label,
       count: matched.length,
       freq,
+      medianViews,
+      viewsLift,
       // Flag as gap if <8% of videos in this length bucket
       isGap: freq < 0.08,
     };
@@ -171,6 +179,39 @@ function computeCadenceGaps(videos) {
     },
     total: videos.length,
   };
+}
+
+// ──────────────────────────────────────────────────
+// Cadence hotspots — slots where median performance runs above the
+// scope baseline but supply is thin. The brief uses these to anchor
+// "performs X% better but no one is consistently producing it" claims.
+// ──────────────────────────────────────────────────
+function extractCadenceHotspots(cadenceGaps) {
+  if (!cadenceGaps || !cadenceGaps.liftGrid) return [];
+  const { grid, liftGrid, medianGrid, confidenceGrid, labels } = cadenceGaps;
+  const hotspots = [];
+  for (let d = 0; d < 7; d++) {
+    for (let b = 0; b < 4; b++) {
+      const lift = liftGrid[d]?.[b];
+      const conf = confidenceGrid[d]?.[b];
+      const uploads = grid[d]?.[b] || 0;
+      // High-lift = ≥1.3× scope median. Under-supplied = uploads are
+      // a minority of supply. Skip insufficient-sample cells so we
+      // don't anchor recommendations to 1-video noise.
+      if (lift != null && lift >= 1.3 && conf !== 'insufficient' && uploads > 0) {
+        hotspots.push({
+          day: labels.days[d],
+          block: labels.blocks[b],
+          uploads,
+          lift,
+          medianViews: medianGrid[d]?.[b] || null,
+          confidence: conf,
+        });
+      }
+    }
+  }
+  hotspots.sort((a, b) => b.lift - a.lift);
+  return hotspots;
 }
 
 // ──────────────────────────────────────────────────
@@ -255,7 +296,7 @@ async function loadOrGenerateBrief({ scopeChannelIds, scopeLabel, windowDays, to
   const bizKey = businessContext?.id || 'no-biz';
   // Prompt version — bump when the brief prompt changes substantively
   // so stale briefs generated under older rules get re-generated.
-  const BRIEF_PROMPT_VERSION = 'v3-series-concepts';
+  const BRIEF_PROMPT_VERSION = 'v4-evidence-findings';
   const cacheKey = `whitespace_brief:${BRIEF_PROMPT_VERSION}:${hashIds(scopeChannelIds)}:${windowDays}:${bizKey}`;
   const cached = await loadCache(cacheKey);
   if (cached) return cached;
@@ -263,19 +304,31 @@ async function loadOrGenerateBrief({ scopeChannelIds, scopeLabel, windowDays, to
   try {
     const claudeAPI = (await import('./claudeAPI')).default;
 
-    // Compact gap summary for Claude
+    // Topic coverage with explicit gap/saturated split so Claude can
+    // anchor "opportunity to own X" claims to specific themes.
     const topicSummary = topicCoverage.map(t =>
       `${t.coverage.toUpperCase()}: ${t.name} (${t.count} titles)`
     ).join('\n');
 
-    const formatSummary = formatGaps.map(b =>
-      `${b.isGap ? 'GAP' : 'OK'}: ${b.label} — ${b.count} videos (${(b.freq * 100).toFixed(1)}%)`
-    ).join('\n');
+    // Format summary now includes median views + lift vs scope median
+    // so Claude can write "format X performs Y% above the scope median
+    // but is only Z% of supply" — the user's "performing X% better but
+    // no one is consistently producing it" pattern.
+    const formatSummary = formatGaps.map(b => {
+      const liftStr = b.viewsLift != null
+        ? ` — median views ${b.medianViews?.toLocaleString()} (${b.viewsLift >= 1 ? '+' : ''}${((b.viewsLift - 1) * 100).toFixed(0)}% vs scope median)`
+        : '';
+      return `${b.isGap ? 'GAP' : 'OK'}: ${b.label} — ${b.count} videos (${(b.freq * 100).toFixed(1)}% of supply)${liftStr}`;
+    }).join('\n');
 
+    // Cadence: include lift hotspots so Claude can cite specific slots
+    // where median views run high but supply is thin.
     const totalUploads = cadenceGaps.total;
-    const morningUploads = cadenceGaps.grid.reduce((s, day) => s + day[1], 0);
-    const morningPct = totalUploads > 0 ? (morningUploads / totalUploads) * 100 : 0;
-    const cadenceSummary = `Total uploads: ${totalUploads} over ${windowDays} days. Morning slot (6am–12pm MT) uploads: ${morningUploads} (${morningPct.toFixed(1)}%). Most-empty time blocks should be called out as cadence gaps.`;
+    const cadenceHotspots = extractCadenceHotspots(cadenceGaps).slice(0, 4);
+    const hotspotLines = cadenceHotspots.length
+      ? cadenceHotspots.map(h => `- ${h.day} ${h.block}: ${h.uploads} upload(s), median views ${h.medianViews?.toLocaleString()} (+${Math.round((h.lift - 1) * 100)}% vs scope median)`).join('\n')
+      : '- (no slots meet sufficient-sample threshold)';
+    const cadenceSummary = `Total uploads in window: ${totalUploads} over ${windowDays} days.\nHigh-lift / under-supplied slots (where uploads land above scope median view performance but the slot is thinly covered):\n${hotspotLines}`;
 
     // Business-context block — the offer/not-offer fields constrain
     // which opportunities the brief can recommend. Without this, the
@@ -285,7 +338,7 @@ async function loadOrGenerateBrief({ scopeChannelIds, scopeLabel, windowDays, to
 ${businessContext.one_line_summary ? `Summary: ${businessContext.one_line_summary}\n` : ''}${businessContext.products_offered ? `OFFERS:\n${businessContext.products_offered}\n` : ''}${businessContext.products_not_offered ? `DOES NOT OFFER (do NOT recommend content in these categories):\n${businessContext.products_not_offered}\n` : ''}${businessContext.target_market ? `Target market: ${businessContext.target_market}` : ''}`
       : '';
 
-    const prompt = `You are proposing YouTube SERIES CONCEPTS for a channel entering the "${scopeLabel}" space. The audit data below names unclaimed topical territory + format/cadence gaps. Your job: translate those gaps into specific, pitchable YouTube show ideas — not abstract content angles or memo-style positioning headers.
+    const prompt = `You are writing the "Unclaimed Territory" section of a competitive audit for a channel entering the "${scopeLabel}" space. The audience is a strategist who will turn these findings into content pillars later — they do NOT need pitchable show ideas. They need clear, evidence-led observations about where the cohort is thin, where performance is high, and where leadership is available.
 
 Scope: ${scopeChannelIds.length} channels · ${videos.length} videos analyzed · last ${windowDays} days.
 
@@ -298,47 +351,44 @@ ${formatSummary}
 Cadence:
 ${cadenceSummary}${businessBlock}
 
-Generate 3-5 numbered SERIES CONCEPTS. Each concept must read as a YouTube show someone could actually pitch in a meeting — a viewer would recognize it as a series, click on episode 1, and know what to expect from episode 2.
+Generate 3-5 numbered findings. Each finding should read as one of these three observation patterns:
 
-For each series concept:
-- TITLE: the series name as it would appear in a viewer's feed or a thumbnail. Punchy, recognizable, curiosity-driven. 2–6 words is the sweet spot.
-  WRONG: "Emergency Response Proof Points" (slide-deck header, no viewer would click this)
-  WRONG: "Network Reliability Deep Dives" (B2B blog post, not YouTube)
-  WRONG: "Afternoon Installation Explainers" (descriptive but flat)
-  RIGHT: "Saves of the Week" / "When the System Worked" / "Inside the Install" / "Why It Broke" / "30 Years on the Truck"
+PATTERN A — Topic ownership opportunity:
+"There is opportunity to own [creative category / topic / angle]." Cite the specific gap themes from the topic coverage data (saturation level + title count). When multiple gap themes cluster around a single ownable position, name that position.
+Example: "There is opportunity to own the long-form 'install diagnostics' category — only 4 of 247 titles in the cohort touch it, and none of the 12 channels covers it consistently."
 
-- BODY (4–6 sentences, in this order):
-    1. What the series IS — one sentence on format + concept (e.g., "A weekly long-form series shot ride-along with a professional installer on real customer visits.")
-    2. The HOOK — why viewers click episode 1. The emotional or curiosity payoff. ("Watching someone with 30 years on the job explain what 80% of homeowners miss when they DIY their setup.")
-    3. The intended AUDIENCE — who the viewer is + the interest-axis position (entertainment ↔ thought leadership).
-    4. The DATA ANCHOR — cite the specific cohort gap, format absence, or cadence opening this series claims. Use actual numbers from the input above.
+PATTERN B — Performance gap with no consistent producer:
+"No channel is consistently producing [format / topic / cadence type] but that same content is performing [X]% better than others." Anchor to the format-bucket lift numbers or cadence hotspots above. The point of this pattern is to surface where supply is thin but demand (median views) is high.
+Example: "No channel in the cohort consistently produces 15–25 minute long-form content, yet the videos that do hit that length perform 87% above the scope median view count."
 
-- TAGS: one or more of "topic gap", "format gap", "cadence gap", "audience gap" — which space this series claims.
+PATTERN C — Leadership / first-mover opportunity:
+"There is opportunity to lead this space in [specific angle / cadence / format / tone]." Use this when topic + format + cadence converge — when a clear positioning is unclaimed and the data backs it as a winnable axis.
+Example: "There is opportunity to lead this space in evening-cadence long-form — the Mon/Tue 6pm–12am slot performs 2.1× the scope median but is supplied by only 3 of the cohort's 247 videos."
+
+EACH FINDING MUST INCLUDE:
+- TITLE: 2-7 word headline naming what the opportunity IS. Plain English, no jargon. Examples: "Own DIY install guidance" / "Lead the 15-25 minute long-form slot" / "Mid-week evening cadence is unclaimed".
+- BODY: 1-2 sentences in one of the patterns above. MUST cite specific numbers from the input (title counts, format frequencies, lift percentages, cadence slot uploads). Use the exact numbers above — do not invent or round heavily.
 
 REQUIREMENTS:
-- Each concept is BACKED BY the data (cite specific numbers, format buckets, or topic counts from the input).
-${businessContext?.products_not_offered ? '- Each concept fits WITHIN this client\'s product/service offer. If a cohort gap sits in a category the client does NOT sell, skip it — do not propose a series in an out-of-scope category.' : ''}
-- Skip any concept that would require demonstrating competitor products.
-- Each concept feels like a real YouTube show. If it reads like a slide-deck section title, the title is wrong — rewrite it.
+- Always return 3-5 findings. If topic data is thin, lean on format and cadence. If cadence data is thin, lean on topics. The data above has enough across the three dimensions to support 3 findings; produce them.
+- Each finding is one of patterns A / B / C above. Mix patterns when possible.
+${businessContext?.products_not_offered ? '- Each finding must point at territory the client could actually claim given their offer. If the only unclaimed topic theme is a category the client does NOT sell, find a different finding (lean on format or cadence) rather than pointing at out-of-scope topics.' : ''}
+- Findings are OBSERVATIONS, not pitches. Do NOT propose specific shows, episode formats, or content series titles. The strategist turns these into pillars later.
 
-BRAND NAME RULE (CRITICAL — applies to TITLE and BODY):
-- DO NOT name specific competitor product brands anywhere. This applies to ALL competitor brands including those mentioned in cohort data (Ring, Nest, Nest Cam, Vivint, SimpliSafe, Brinks, ADT, Wyze, Arlo, Blink, eufy, Lorex, etc.).
-- Refer to product CATEGORIES generically: "video doorbell," "outdoor security camera," "smart lock," "professionally-monitored alarm system," "indoor camera."
-- WRONG: "showcase how Nest Cam detects motion," "compare to Ring Pro features," "alternative to SimpliSafe."
-- RIGHT: "showcase how a professional-grade doorbell detects motion," "compare against DIY equipment in the same category."
-- The ONLY brand name allowed is the client's own (from business context above). Mentioning a competitor by name — even as analogy — is a violation.
-
-If the data doesn't support 5 series concepts, return fewer. Better to give 3 strong concepts than pad with weak ones.
+BRAND NAME RULE (CRITICAL):
+- DO NOT name specific competitor product brands anywhere in title or body. This applies to ALL competitor brands in the cohort data.
+- Refer to product CATEGORIES generically (e.g., "video doorbells," "outdoor security cameras," "professionally-monitored alarm systems").
+- The ONLY brand name allowed is the client's own.
 
 Return ONLY valid JSON:
-{ "opportunities": [ { "title": "string — series name as it appears in feed", "body": "4-6 sentence series concept covering what it IS, the HOOK, the AUDIENCE, the DATA anchor", "tags": ["topic gap"] } ] }`;
+{ "opportunities": [ { "title": "2-7 word opportunity headline", "body": "1-2 sentence observation with specific numbers from the input", "pattern": "A" | "B" | "C", "tags": ["topic gap" | "format gap" | "cadence gap"] } ] }`;
 
-    const systemPrompt = `You propose YouTube series concepts for a strategist pitching a channel direction. Your concepts must read as pitchable shows, not as analyst opportunities or strategic positioning angles. A viewer should be able to read your title and know what the series is; a strategist should be able to take your title + body straight into a pitch meeting without rewriting the framing.
-- Lead with the show, not the analysis. The data is evidence backing why the show works, not the show itself.
-- One concrete series with a clear hook beats three abstract "explore this space" pitches.
-- If a category is truly well-covered, say so — don't manufacture series concepts.
-- Treat the client's business context as a HARD constraint: never propose a series in a category the client does not sell, AND never name specific competitor product brands in title or body — refer to product categories generically instead.
-- Test every title against the question: "Would a viewer scroll past this or click it?" If the answer is scroll, rewrite.
+    const systemPrompt = `You write the Unclaimed Territory section of a competitive audit. Output is for a strategist who will turn your findings into content pillars later. Findings are OBSERVATIONS anchored in specific numbers from the input — not pitch ideas, not series concepts, not memo headers, and not abstract positioning angles.
+- Write in one of three patterns: "there is opportunity to own X," "no one consistently produces X but X performs Y% better," or "there is opportunity to lead this space in X."
+- Always cite specific numbers (title counts, format frequencies, lift percentages, slot uploads). A finding with no numbers is a violation.
+- Always return 3-5 findings. The input always has enough signal across topic / format / cadence to produce at least 3.
+- Never name competitor product brands; refer to product categories generically.
+- If business context is provided, only point at territory the client could claim within their offer.
 Return ONLY valid JSON.`;
 
     const result = await claudeAPI.call(prompt, systemPrompt, 'whitespace_brief', 2000);

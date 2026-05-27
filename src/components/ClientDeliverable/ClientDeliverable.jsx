@@ -385,9 +385,24 @@ function AuditTopSheet({ clientName, channels, patternsResult, whiteSpaceResult,
       </div>
 
       <div ref={synthRef}>
-        <TopsheetGroup label="Unclaimed territory" items={unclaimed} accent={brand.colors.accent} />
-        <TopsheetGroup label="How the cohort shows up" items={cohortBehavior} accent={brand.colors.inkSoft} />
-        <TopsheetGroup label="What's moving now" items={movement} accent={brand.colors.accent} />
+        <TopsheetGroup
+          label="Unclaimed territory"
+          items={unclaimed}
+          accent={brand.colors.accent}
+          emptyText="Opportunity brief is still generating or returned no findings under the current business-context constraints. Re-run the deliverable to retry; if it stays empty, loosen the business-context offer list or widen the analysis window."
+        />
+        <TopsheetGroup
+          label="How the cohort shows up"
+          items={cohortBehavior}
+          accent={brand.colors.inkSoft}
+          emptyText="Cohort data is too thin to characterize cadence, production, or engagement signals."
+        />
+        <TopsheetGroup
+          label="What's moving now"
+          items={movement}
+          accent={brand.colors.accent}
+          emptyText="No named-channel movement in the cohort over the last 30 days — the field is steady-state."
+        />
 
         <div className="cd-audit-divider" />
 
@@ -407,23 +422,32 @@ function AuditTopSheet({ clientName, channels, patternsResult, whiteSpaceResult,
 }
 
 // One of the three audit-topsheet groups. Heading + numbered list of
-// 3 items, each with a short label and a body sentence.
-function TopsheetGroup({ label, items, accent }) {
-  if (!items?.length) return null;
+// 3 items, each with a short label and a body sentence. Renders the
+// group with an explicit empty-state line when items is empty so the
+// audit topsheet always shows 3 groups (a silent vanish is worse than
+// a visible "no findings" placeholder).
+function TopsheetGroup({ label, items, accent, emptyText }) {
+  const hasItems = !!items?.length;
   return (
     <div className="cd-topsheet-group">
       <div className="cd-topsheet-group-label" style={{ color: accent }}>{label}</div>
-      <ol className="cd-topsheet-list">
-        {items.map((item, i) => (
-          <li key={i} className="cd-topsheet-item">
-            <div className="cd-topsheet-item-num">{i + 1}</div>
-            <div className="cd-topsheet-item-body">
-              {item.label && <div className="cd-topsheet-item-label">{item.label}</div>}
-              <E className="cd-topsheet-item-text">{item.text}</E>
-            </div>
-          </li>
-        ))}
-      </ol>
+      {hasItems ? (
+        <ol className="cd-topsheet-list">
+          {items.map((item, i) => (
+            <li key={i} className="cd-topsheet-item">
+              <div className="cd-topsheet-item-num">{i + 1}</div>
+              <div className="cd-topsheet-item-body">
+                {item.label && <div className="cd-topsheet-item-label">{item.label}</div>}
+                <E className="cd-topsheet-item-text">{item.text}</E>
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <div className="cd-topsheet-empty">
+          <E tag="span">{emptyText || 'No findings to show.'}</E>
+        </div>
+      )}
     </div>
   );
 }
@@ -2577,6 +2601,11 @@ function PrintStyles() {
       .cd-topsheet-item-text {
         font-size: 14px; color: ${INK};
         line-height: 1.55;
+      }
+      .cd-topsheet-empty {
+        font-size: 13px; color: ${INK_SOFT};
+        line-height: 1.5; font-style: italic;
+        padding: 6px 0 0 28px;
       }
 
       .cd-audit-divider {
