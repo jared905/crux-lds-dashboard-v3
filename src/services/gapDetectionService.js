@@ -1,8 +1,32 @@
 /**
- * Gap Detection Service
- * Compares competitor video data against client videos to surface
- * formats, patterns, topics, and strategies the client is underusing.
- * Purely algorithmic — no AI API calls.
+ * Gap Detection Service — purely algorithmic competitor-vs-client gap finder.
+ *
+ * Surfaces formats, patterns, topics, and strategies the client is
+ * underusing relative to competitors. No AI API calls; deterministic
+ * regex/heuristic engine.
+ *
+ * ──────────────────────────────────────────────────
+ * SCOPE: when to use this vs. whiteSpaceService
+ * ──────────────────────────────────────────────────
+ *
+ * **Use gapDetectionService for**:
+ *   - The standalone Gap Detection tab (src/components/Research/GapDetection.jsx)
+ *   - NextUpPanel (Strategy/NextUpPanel.jsx) — quick algorithmic gaps
+ *   - AudienceWhiteSpaceTab (Research/CommandCenter/AudienceWhiteSpaceTab.jsx)
+ *   - Anywhere you need synchronous, no-budget, raw gap analysis from
+ *     the current rows already loaded in memory.
+ *
+ * **Use whiteSpaceService for**:
+ *   - The audit pack pipeline (sectionTopics, sectionOpportunityBrief)
+ *   - Research v2 White Space lens
+ *   - Client deliverable (clientDeliverableService)
+ *   - Anywhere you want Claude-augmented opportunity briefs cached
+ *     per scope hash, with format/topic/cadence gap synthesis pre-baked.
+ *
+ * They are not redundant — gap detection is the deterministic baseline
+ * engine; white space is the strategist-facing brief synthesized on top.
+ * Don't migrate one to the other without intent; they serve different
+ * surfaces with different latency budgets.
  */
 
 // ─── Title pattern / format detection (mirrors competitorDatabase.js) ──────

@@ -96,7 +96,7 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
 }
 
 function DeliverablePages({ data, clientName }) {
-  const { clientChannel, spine, rubric, demandRow, productionSignalsByChannel, clientProductionRow, channels, patternsResult, whiteSpaceResult, diagnostic, briefing } = data;
+  const { clientChannel, spine, rubric, demandRow, productionSignalsByChannel, clientProductionRow, channels, patternsResult, whiteSpaceResult, diagnostic, briefing, audienceSignals } = data;
   const displayName = clientName || clientChannel?.name || 'Client';
   const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -116,11 +116,23 @@ function DeliverablePages({ data, clientName }) {
         productionSignalsByChannel={productionSignalsByChannel}
         clientProductionRow={clientProductionRow}
         demandRow={demandRow}
+        audienceSignals={audienceSignals}
       />
 
       <PartCallout number="02" title="Positioning Recommendation" description="The channel's one-line articulation, editorial POV and mission, voice and tone guardrails, and the host archetype definition that feeds directly into a talent audition rubric." />
 
-      <PartTwoContent spine={spine} rubric={rubric} />
+      <PartTwoContent
+        spine={spine}
+        rubric={rubric}
+        rationales={buildRationales({
+          channels,
+          patternsResult,
+          whiteSpaceResult,
+          productionSignalsByChannel,
+          clientProductionRow,
+          demandRow,
+        })}
+      />
 
       <Footer />
     </>
@@ -175,7 +187,7 @@ function SubSection({ title, kicker, children }) {
 // Part 01 sub-sections (client-facing curation)
 // ──────────────────────────────────────────────────
 
-function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, clientProductionRow, demandRow }) {
+function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, clientProductionRow, demandRow, audienceSignals }) {
   const titlePatterns = patternsResult?.scope?.titlePatterns || [];
   const opportunities = whiteSpaceResult?.brief?.opportunities || [];
   const cadenceGaps = whiteSpaceResult?.cadenceGaps || null;
@@ -232,11 +244,13 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
       {(competitorProdSignals.length > 0 || clientProductionRow) && (
         <SubSection title="Production approach" kicker="How the cohort looks">
           {competitorProdSignals.length > 0 && (
-            <p>
-              <strong>Cohort tiers:</strong>{' '}
-              {Object.entries(tierRollup).filter(([, n]) => n > 0).map(([t, n]) => `${t} ${n}`).join(' · ')}
-              {' '}({competitorProdSignals.length} competitors analyzed)
-            </p>
+            <>
+              <p style={{ marginBottom: 12 }}>
+                <strong>Cohort production tiers</strong>{' '}
+                <span style={{ color: MUTED, fontSize: 12 }}>({competitorProdSignals.length} competitors analyzed)</span>
+              </p>
+              <ProductionTierBar rollup={tierRollup} />
+            </>
           )}
           {clientProductionRow?.signals?.summary && (
             <div className="cd-callout-inline">
@@ -250,33 +264,27 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
       {titlePatterns.length > 0 && (
         <SubSection title="Performance patterns" kicker="What's working">
           <p>Title patterns sorted by views lift (vs. cohort median):</p>
-          <table className="cd-table">
-            <thead><tr><th>Pattern</th><th className="cd-num">Frequency</th><th className="cd-num">Median views</th><th className="cd-num">Lift</th></tr></thead>
-            <tbody>
-              {titlePatterns.slice(0, 6).map((p, i) => (
-                <tr key={i}>
-                  <td>{p.pattern}</td>
-                  <td className="cd-num">{fmtPct(p.frequency)} (n={p.sampleSize ?? p.n ?? '—'})</td>
-                  <td className="cd-num">{fmtNum(p.medianViews)}</td>
-                  <td className="cd-num">{fmtLift(p.viewsLift, p.confidence)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TitlePatternBars patterns={titlePatterns} />
         </SubSection>
       )}
 
-      {cadenceGaps && (
+      {cadenceGaps?.grid && (
         <SubSection title="Cadence" kicker="When the cohort gets seen">
-          <CadenceSummary cadenceGaps={cadenceGaps} />
+          <CadenceHeatmap cadenceGaps={cadenceGaps} />
+        </SubSection>
+      )}
+
+      {audienceSignals && (
+        <SubSection title="What this audience watches" kicker="Audience behavior · format + duration">
+          <AudienceFormatSummary audienceSignals={audienceSignals} />
         </SubSection>
       )}
 
       {(unservedRequests.length > 0 || recurringThemes.length > 0) && (
-        <SubSection title="Audience behavior" kicker="What this audience is actually asking for">
+        <SubSection title="What this audience asks for" kicker="Audience behavior · mined from comments">
           {unservedRequests.length > 0 && (
             <>
-              <p><strong>Unserved requests</strong> (mined from your own comments):</p>
+              <p><strong>Unserved requests</strong> (top topics commenters keep raising on your channel):</p>
               <ul className="cd-list">
                 {unservedRequests.slice(0, 4).map((r, i) => (
                   <li key={i}>
@@ -320,27 +328,246 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
   );
 }
 
-function CadenceSummary({ cadenceGaps }) {
-  const longForm = (cadenceGaps.long_form || cadenceGaps.slots || []).filter(s => s && !s.release_slot_caveat);
-  const shorts = (cadenceGaps.shorts || []).filter(s => s && !s.release_slot_caveat);
-  const top = (slots) => slots.slice(0, 3).map(s => {
-    const day = s.day || s.weekday;
-    const block = s.block || s.time_block;
-    const lift = s.lift_pct != null ? `+${Math.round(s.lift_pct)}%` : (s.lift ? `+${Math.round((s.lift - 1) * 100)}%` : '');
-    return `${day} ${block}${lift ? ` (${lift})` : ''}`;
-  });
+// Audience format summary — reads from audienceSignalService output
+// (high_engagement_formats + _computed.optimal_duration + subscriber_drivers).
+// Picks the highest-signal slices for a client-facing read.
+function AudienceFormatSummary({ audienceSignals }) {
+  const formats = (audienceSignals.high_engagement_formats || []).filter(f => f._computed?.count >= 2);
+  const sweetSpots = audienceSignals._computed?.optimal_duration?.sweet_spots || [];
+  const subDrivers = audienceSignals._computed?.subscriber_drivers || null;
+
+  if (!formats.length && !sweetSpots.length) {
+    return <p style={{ color: MUTED, fontStyle: 'italic' }}>Not enough video history on this channel yet to call audience behavior with confidence.</p>;
+  }
+
+  // Filter formats to the most informative — top by composite score, max 3
+  const topFormats = [...formats]
+    .sort((a, b) => (b._computed.composite_score ?? 0) - (a._computed.composite_score ?? 0))
+    .slice(0, 3);
+
   return (
     <>
-      {longForm.length > 0 && (
-        <p><strong>Long-form top slots:</strong> {top(longForm).join(' · ')}</p>
+      {topFormats.length > 0 && (
+        <>
+          <p><strong>Top formats by engagement</strong> (vs. this channel's average):</p>
+          <table className="cd-table">
+            <thead><tr><th>Format</th><th className="cd-num">Avg views</th><th className="cd-num">vs. avg</th><th className="cd-num">Signal</th></tr></thead>
+            <tbody>
+              {topFormats.map((f, i) => (
+                <tr key={i}>
+                  <td>{f.format}</td>
+                  <td className="cd-num">{fmtNum(f._computed.avg_views)}</td>
+                  <td className="cd-num">{f._computed.vs_channel_avg}×</td>
+                  <td className="cd-num" style={{ color: f.signal_strength === 'strong' ? PINK : MUTED }}>{f.signal_strength}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
-      {shorts.length > 0 && (
-        <p><strong>Shorts top slots:</strong> {top(shorts).join(' · ')}</p>
+      {sweetSpots.length > 0 && (
+        <>
+          <p style={{ marginTop: 14 }}><strong>Duration sweet spots:</strong></p>
+          <ul className="cd-list">
+            {sweetSpots.slice(0, 3).map((b, i) => (
+              <li key={i}>
+                <strong>{b.range}</strong> · {fmtNum(b.avg_views)} avg views ({b.vs_channel_avg}× this channel's average)
+                <span style={{ color: MUTED, fontSize: 12 }}> · {b.count} videos</span>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
-      {!longForm.length && !shorts.length && (
-        <p style={{ color: MUTED, fontStyle: 'italic' }}>Not enough upload volume to call cadence slots yet.</p>
+      {subDrivers?.top_drivers?.length > 0 && (
+        <p style={{ marginTop: 14, fontSize: 13, color: MUTED }}>
+          <strong style={{ color: INK }}>What drives subs:</strong> {subDrivers.top_drivers.slice(0, 2).map(d => d.title || d.label || d.format).filter(Boolean).join(' · ')}
+        </p>
       )}
     </>
+  );
+}
+
+// ──────────────────────────────────────────────────
+// Charts (inline SVG — no library, print-friendly)
+// ──────────────────────────────────────────────────
+
+// Horizontal bar chart for title-pattern lifts. Bars proportional to
+// absolute lift; positive lifts pink, negative lifts gray. Directional
+// confidence shown as a hatched fill, statistical as solid.
+function TitlePatternBars({ patterns }) {
+  // Sort by lift desc, cap at 8 to keep the chart legible.
+  const rows = [...patterns]
+    .sort((a, b) => (b.viewsLift ?? -Infinity) - (a.viewsLift ?? -Infinity))
+    .slice(0, 8)
+    .filter(p => p.viewsLift != null);
+
+  if (!rows.length) return null;
+
+  // Scale: max abs lift sets the bar length scale. Cap at +250% so a
+  // single outlier doesn't dwarf the rest.
+  const maxAbs = Math.min(250, Math.max(...rows.map(r => Math.abs(r.viewsLift)), 50));
+  const labelWidth = 220;
+  const valueWidth = 70;
+  const barAreaWidth = 460;
+  const rowHeight = 26;
+  const height = rows.length * rowHeight + 18;
+  const zeroX = labelWidth + (barAreaWidth * (maxAbs / (2 * maxAbs)));  // center the zero line
+
+  return (
+    <svg className="cd-chart" viewBox={`0 0 ${labelWidth + barAreaWidth + valueWidth} ${height}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', maxWidth: 760 }}>
+      {/* Zero line */}
+      <line x1={zeroX} x2={zeroX} y1={4} y2={height - 6} stroke="#d9cfb1" strokeWidth={1} strokeDasharray="2 2" />
+      {rows.map((p, i) => {
+        const y = i * rowHeight + 8;
+        const lift = Math.max(-maxAbs, Math.min(maxAbs, p.viewsLift));
+        const width = (Math.abs(lift) / (2 * maxAbs)) * barAreaWidth;
+        const x = lift >= 0 ? zeroX : zeroX - width;
+        const isDirectional = p.confidence === 'directional';
+        const color = lift >= 0 ? PINK : '#9ca3af';
+        return (
+          <g key={i}>
+            <text x={labelWidth - 8} y={y + 13} textAnchor="end" fontSize="11.5" fill={INK} style={{ fontWeight: 500 }}>
+              {p.label}
+            </text>
+            <rect x={x} y={y + 4} width={width} height={14} fill={color} opacity={isDirectional ? 0.45 : 0.92} rx={2} />
+            <text x={labelWidth + barAreaWidth + 6} y={y + 13} fontSize="11" fill={INK} style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 600 }}>
+              {lift >= 0 ? '+' : ''}{Math.round(p.viewsLift)}%{isDirectional ? '*' : ''}
+            </text>
+          </g>
+        );
+      })}
+      <text x={labelWidth + barAreaWidth + valueWidth} y={height - 1} textAnchor="end" fontSize="9" fill={MUTED}>
+        * directional (small sample)
+      </text>
+    </svg>
+  );
+}
+
+// Heatmap of cadence performance. 7 cols × N blocks. Cells filled by
+// lift (green = positive, neutral = around 1, faint red = negative).
+// Cells with no uploads render empty. Confidence shown by border style.
+function CadenceHeatmap({ cadenceGaps }) {
+  const { grid, liftGrid, confidenceGrid, labels } = cadenceGaps;
+  if (!grid || !labels) return null;
+  const days = labels.days || ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const blocks = labels.blocks || [];
+  const cellW = 86;
+  const cellH = 38;
+  const headerH = 22;
+  const labelW = 100;
+  const W = labelW + days.length * cellW + 8;
+  const H = headerH + blocks.length * cellH + 24;
+
+  // Lift→color. Positive lift uses the pink brand at varying opacity.
+  // Negative uses muted gray. ~1.0 (no lift) renders very pale.
+  function cellFill(lift) {
+    if (lift == null) return '#f5f0df';
+    if (lift >= 1.05) {
+      const intensity = Math.min(1, (lift - 1) / 1.5);  // saturates at +150%
+      return `rgba(236, 72, 153, ${0.18 + intensity * 0.6})`;
+    }
+    if (lift <= 0.85) {
+      const intensity = Math.min(1, (1 - lift) / 0.7);
+      return `rgba(120, 113, 108, ${0.15 + intensity * 0.35})`;
+    }
+    return '#f5f0df';
+  }
+
+  return (
+    <div>
+      <svg className="cd-chart" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', maxWidth: 760 }}>
+        {/* Day headers */}
+        {days.map((d, i) => (
+          <text key={d} x={labelW + i * cellW + cellW / 2} y={headerH - 6} textAnchor="middle" fontSize="10" fontWeight="700" fill={MUTED} style={{ textTransform: 'uppercase', letterSpacing: 0.6 }}>{d}</text>
+        ))}
+        {/* Row labels + cells */}
+        {blocks.map((block, b) => (
+          <g key={block}>
+            <text x={labelW - 8} y={headerH + b * cellH + cellH / 2 + 4} textAnchor="end" fontSize="11" fill={INK} fontWeight="600">{block}</text>
+            {days.map((d, dIdx) => {
+              const count = grid[dIdx]?.[b] ?? 0;
+              const lift = liftGrid?.[dIdx]?.[b];
+              const conf = confidenceGrid?.[dIdx]?.[b];
+              const isDirectional = conf === 'directional';
+              const x = labelW + dIdx * cellW;
+              const y = headerH + b * cellH;
+              const liftLabel = lift != null
+                ? `${lift >= 1 ? '+' : ''}${Math.round((lift - 1) * 100)}%`
+                : '';
+              return (
+                <g key={dIdx}>
+                  <rect
+                    x={x + 2} y={y + 2} width={cellW - 4} height={cellH - 4}
+                    fill={cellFill(lift)}
+                    stroke={isDirectional ? '#d9cfb1' : (lift != null && lift >= 1.15 ? PINK : '#e8e2d0')}
+                    strokeWidth={isDirectional ? 1 : (lift != null && lift >= 1.15 ? 1.2 : 0.7)}
+                    strokeDasharray={isDirectional ? '3 2' : 'none'}
+                    rx={2}
+                  />
+                  {count > 0 && (
+                    <>
+                      <text x={x + cellW / 2} y={y + cellH / 2 - 2} textAnchor="middle" fontSize="11" fontWeight="700" fill={INK}>
+                        {liftLabel || `${count}`}
+                      </text>
+                      <text x={x + cellW / 2} y={y + cellH / 2 + 11} textAnchor="middle" fontSize="9" fill={MUTED}>
+                        n={count}
+                      </text>
+                    </>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+        ))}
+        {/* Legend */}
+        <g transform={`translate(${labelW}, ${headerH + blocks.length * cellH + 8})`}>
+          <rect x={0} y={0} width={14} height={10} fill="rgba(236, 72, 153, 0.7)" rx={2} />
+          <text x={20} y={9} fontSize="10" fill={MUTED}>+lift (statistical)</text>
+          <rect x={150} y={0} width={14} height={10} fill="rgba(236, 72, 153, 0.4)" stroke="#d9cfb1" strokeDasharray="3 2" rx={2} />
+          <text x={170} y={9} fontSize="10" fill={MUTED}>directional</text>
+          <rect x={290} y={0} width={14} height={10} fill="rgba(120, 113, 108, 0.4)" rx={2} />
+          <text x={310} y={9} fontSize="10" fill={MUTED}>under-performing</text>
+        </g>
+      </svg>
+      {cadenceGaps.total != null && (
+        <div style={{ fontSize: 11, color: MUTED, marginTop: 8 }}>
+          {cadenceGaps.total} uploads in window · Mountain Time · Lift vs cohort median
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Small horizontal stacked bar showing cohort production tier distribution.
+function ProductionTierBar({ rollup }) {
+  const total = Object.values(rollup).reduce((s, n) => s + n, 0);
+  if (total === 0) return null;
+  const order = ['high', 'medium', 'mixed', 'low'];
+  const tierColor = { high: PINK, medium: '#a78bfa', mixed: '#fbbf24', low: '#9ca3af' };
+  return (
+    <div>
+      <div style={{ display: 'flex', width: '100%', height: 20, borderRadius: 4, overflow: 'hidden', border: '1px solid #e8e2d0' }}>
+        {order.map(t => {
+          const n = rollup[t];
+          if (!n) return null;
+          const pct = (n / total) * 100;
+          return (
+            <div key={t} title={`${t}: ${n}`} style={{ width: `${pct}%`, background: tierColor[t], display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {pct >= 12 ? `${t} ${n}` : n}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
+        {order.map(t => rollup[t] > 0 && (
+          <span key={t} style={{ fontSize: 11, color: INK, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 10, height: 10, background: tierColor[t], borderRadius: 2, display: 'inline-block' }} />
+            <span style={{ textTransform: 'capitalize' }}>{t}</span>
+            <span style={{ color: MUTED }}>{rollup[t]}</span>
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -348,37 +575,44 @@ function CadenceSummary({ cadenceGaps }) {
 // Part 02 sub-sections (positioning)
 // ──────────────────────────────────────────────────
 
-function PartTwoContent({ spine, rubric }) {
+function PartTwoContent({ spine, rubric, rationales = {} }) {
   return (
     <section className="cd-page">
       {spine?.positioning_oneliner && (
-        <div className="cd-oneliner-panel">
-          <div className="cd-oneliner-mark">“</div>
-          <div className="cd-oneliner-text">{spine.positioning_oneliner}</div>
-        </div>
+        <>
+          <div className="cd-oneliner-panel">
+            <div className="cd-oneliner-mark">“</div>
+            <div className="cd-oneliner-text">{spine.positioning_oneliner}</div>
+          </div>
+          {rationales.oneliner && <Rationale>{rationales.oneliner}</Rationale>}
+        </>
       )}
 
       {spine?.editorial_pov && (
         <SubSection title="Editorial POV + mission" kicker="What this channel believes">
           <p>{spine.editorial_pov}</p>
+          {rationales.editorial_pov && <Rationale>{rationales.editorial_pov}</Rationale>}
         </SubSection>
       )}
 
       {spine?.voice_tone && (
         <SubSection title="Voice + tone" kicker="How this channel sounds">
           <p>{spine.voice_tone}</p>
+          {rationales.voice_tone && <Rationale>{rationales.voice_tone}</Rationale>}
         </SubSection>
       )}
 
       {spine?.host_archetype && (
         <SubSection title="Host archetype" kicker="Who is on screen">
           <p>{spine.host_archetype}</p>
+          {rationales.host_archetype && <Rationale>{rationales.host_archetype}</Rationale>}
         </SubSection>
       )}
 
       {spine?.guardrails && (
         <SubSection title="Guardrails" kicker="What this channel must NOT do">
           <div className="cd-guardrails">{spine.guardrails}</div>
+          {rationales.guardrails && <Rationale>{rationales.guardrails}</Rationale>}
         </SubSection>
       )}
 
@@ -414,6 +648,103 @@ function PartTwoContent({ spine, rubric }) {
       )}
     </section>
   );
+}
+
+// Rationale callout — small "Why this" card under a Part 02 field.
+// Computed deterministically from Part 01 findings — no LLM call. Cites
+// the data the positioning is anchored to so the recommendation reads
+// as evidence-based, not opinion.
+function Rationale({ children }) {
+  return (
+    <aside className="cd-rationale">
+      <div className="cd-rationale-kicker">Why this</div>
+      <div className="cd-rationale-body">{children}</div>
+    </aside>
+  );
+}
+
+// Build per-field rationales from Part 01 data. Each returns a React
+// fragment or string, or null when no evidence supports it. Sources are
+// woven into the rationale text — no separate citation list to clutter
+// the deliverable.
+function buildRationales({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, clientProductionRow, demandRow }) {
+  const out = {};
+
+  const competitorSignals = (channels || [])
+    .map(c => productionSignalsByChannel?.[c.id]?.signals)
+    .filter(Boolean);
+  const tierRollup = { high: 0, medium: 0, low: 0, mixed: 0 };
+  for (const s of competitorSignals) {
+    if (s.production_tier && tierRollup[s.production_tier] != null) tierRollup[s.production_tier]++;
+  }
+  const totalTiered = Object.values(tierRollup).reduce((s, n) => s + n, 0);
+  const dominantTier = totalTiered > 0
+    ? Object.entries(tierRollup).sort(([, a], [, b]) => b - a)[0][0]
+    : null;
+  const cohortFaceDriven = competitorSignals.length
+    ? Math.round(mean(competitorSignals.map(s => parseFloat(s.visual_treatment?.face_pct) || 0)))
+    : null;
+  const cohortHostVisible = competitorSignals.length
+    ? Math.round(mean(competitorSignals.map(s => parseFloat(s.host_framing?.host_visible_pct) || 0)))
+    : null;
+
+  const topOpportunity = whiteSpaceResult?.brief?.opportunities?.[0];
+  const topUnserved = demandRow?.signals?.unserved_requests?.[0];
+
+  const topPattern = (patternsResult?.scope?.titlePatterns || [])
+    .filter(p => p.viewsLift != null)
+    .sort((a, b) => b.viewsLift - a.viewsLift)[0];
+  const worstPattern = (patternsResult?.scope?.titlePatterns || [])
+    .filter(p => p.viewsLift != null && p.viewsLift < -30 && p.confidence === 'statistical')
+    .sort((a, b) => a.viewsLift - b.viewsLift)[0];
+
+  // One-liner: anchored to the white-space opportunity or an unserved request.
+  if (topOpportunity?.title) {
+    out.oneliner = <>The headline names the field's clearest opening — <strong>{topOpportunity.title}</strong> — so the channel's articulation matches an unclaimed slot rather than describing the crowded center.</>;
+  } else if (topUnserved?.topic) {
+    out.oneliner = <>The headline responds to the audience's most-repeated unserved ask — <strong>"{topUnserved.topic}"</strong> ({topUnserved.mentions || 'multiple'} mentions) — so it speaks to a known appetite, not a guessed one.</>;
+  }
+
+  // Editorial POV — anchored to the gap or unserved demand
+  if (topUnserved?.topic) {
+    out.editorial_pov = <>This POV exists because the audience keeps asking for <strong>{topUnserved.topic}</strong> and no one in the cohort is answering it cleanly. The mission statement should be readable as a direct response to that ask.</>;
+  } else if (topOpportunity?.title) {
+    out.editorial_pov = <>The cohort's biggest gap — <strong>{topOpportunity.title}</strong> — frames why this POV is needed. The mission should make that connection legible.</>;
+  }
+
+  // Voice + tone — anchored to cohort production tier and visual conventions
+  if (dominantTier && totalTiered >= 3) {
+    const tierCount = tierRollup[dominantTier];
+    const counterMove = dominantTier === 'high'
+      ? 'lean warmth or imperfection — the cohort is already polished, so polish stops differentiating'
+      : dominantTier === 'low'
+        ? 'lean polish and design discipline — the cohort defaults to raw, so craft becomes the differentiator'
+        : 'lean a consistent, recognizable register — the cohort is mixed, so an instantly identifiable voice is the edge';
+    out.voice_tone = <>The cohort skews <strong>{dominantTier}-tier production</strong> ({tierCount}/{totalTiered} competitors). To stand out, {counterMove}.</>;
+  }
+
+  // Host archetype — anchored to cohort host visibility
+  if (cohortHostVisible != null && totalTiered >= 3) {
+    if (cohortHostVisible < 30) {
+      out.host_archetype = <>The cohort runs <strong>host-light</strong> ({cohortHostVisible}% average host visibility across competitors). Putting a recurring human anchor on screen is a structural break from the field.</>;
+    } else if (cohortHostVisible > 70) {
+      out.host_archetype = <>The cohort is <strong>host-heavy</strong> ({cohortHostVisible}% average host visibility). To differentiate, the host archetype must be a distinct personality — not just "a person on camera."</>;
+    } else if (cohortFaceDriven != null) {
+      out.host_archetype = <>The cohort is mixed on host presence ({cohortHostVisible}% visibility, {cohortFaceDriven}% face-driven thumbnails). The archetype choice should be deliberate — the cohort hasn't settled into one convention.</>;
+    }
+  }
+
+  // Guardrails — anchored to patterns with negative lift or the audit's worst-performing slots
+  if (worstPattern?.label) {
+    out.guardrails = <>The cohort data shows <strong>"{worstPattern.label}"</strong> titles under-perform by {Math.round(Math.abs(worstPattern.viewsLift))}% vs. median. Guardrails should keep that pattern off the production schedule.</>;
+  }
+
+  return out;
+}
+
+function mean(arr) {
+  if (!arr.length) return 0;
+  return arr.reduce((s, v) => s + v, 0) / arr.length;
 }
 
 function Footer() {
@@ -660,6 +991,29 @@ function PrintStyles() {
         padding: 14px 16px; border-radius: 4px;
         font-size: 13px; line-height: 1.55;
         white-space: pre-wrap;
+      }
+
+      /* Rationale callout — "Why this" card under each Part 02 field */
+      .cd-rationale {
+        margin-top: 14px;
+        background: ${CREAM_DEEP};
+        border-radius: 6px;
+        padding: 12px 14px;
+        border-left: 3px solid ${PINK};
+      }
+      .cd-rationale-kicker {
+        font-size: 9px; font-weight: 700;
+        color: ${PINK}; text-transform: uppercase;
+        letter-spacing: 1.4px; margin-bottom: 4px;
+      }
+      .cd-rationale-body {
+        font-size: 12px; color: ${INK}; line-height: 1.5;
+      }
+
+      /* SVG chart container */
+      .cd-chart {
+        display: block;
+        margin: 12px 0 4px;
       }
 
       .cd-final {

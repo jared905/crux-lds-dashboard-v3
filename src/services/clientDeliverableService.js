@@ -24,6 +24,7 @@ import { fetchLandscapeChannels } from './researchV2Service.js';
 import { analyzePatterns, resolveScopeToChannelIds } from './patternsService.js';
 import { analyzeWhiteSpace } from './whiteSpaceService.js';
 import { computeClientDiagnostic, loadOrGenerateBriefing } from './clientDiagnosticService';
+import { computeAudienceSignals } from './audienceSignalService';
 
 /**
  * Load every data slot the deliverable needs. Heavy — parallelizes all
@@ -54,6 +55,7 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
     patternsResult,
     whiteSpaceResult,
     diagnostic,
+    audienceSignals,
   ] = await Promise.all([
     supabase.from('channels').select('id, name, subscriber_count, total_view_count').eq('id', clientId).maybeSingle().then(r => r.data || null).catch(() => null),
     getSpine(clientId).catch(() => null),
@@ -64,6 +66,7 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
     analyzePatterns({ scopeChannelIds, windowDays: 90 }).catch(() => null),
     analyzeWhiteSpace({ scopeChannelIds, windowDays: 90, scopeLabel: `Client: ${clientId}` }).catch(() => null),
     computeClientDiagnostic({ clientId, scopeChannelIds, windowDays: 90 }).catch(() => null),
+    computeAudienceSignals(clientId, { days: 90 }).catch(() => null),
   ]);
 
   // Briefing is dependent on diagnostic — chained.
@@ -82,6 +85,7 @@ export async function loadDeliverableData(clientId, { windowDays = 30 } = {}) {
     whiteSpaceResult,
     diagnostic,
     briefing,
+    audienceSignals,
     generatedAt: new Date().toISOString(),
   };
 }

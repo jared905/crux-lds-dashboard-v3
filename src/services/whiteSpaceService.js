@@ -1,5 +1,6 @@
 /**
- * White Space service — finds gaps in a category's content coverage.
+ * White Space service — finds gaps in a category's content coverage,
+ * augmented with a Claude-synthesized opportunity brief.
  *
  * Operates on public-data signals only:
  *   - Topic coverage from title + description text (Claude extraction, cached)
@@ -7,8 +8,17 @@
  *   - Cadence gaps from posting-time density
  *   - AI opportunity brief synthesizing the gaps for pitch decks
  *
- * Briefs are cached per scope hash in the existing competitor_intelligence_cache table
- * so we don't re-call Claude on every page load.
+ * Briefs are cached per scope hash in the existing competitor_intelligence_cache
+ * table so we don't re-call Claude on every page load.
+ *
+ * ──────────────────────────────────────────────────
+ * Sibling: gapDetectionService
+ * ──────────────────────────────────────────────────
+ * whiteSpaceService is the strategist-facing brief layer (Claude-augmented,
+ * cached, audit-pack and deliverable-bound). gapDetectionService is the
+ * deterministic algorithmic engine that powers the standalone Gap Detection
+ * tab and NextUpPanel — synchronous, no-budget, no AI. They're not
+ * redundant; see gapDetectionService.js for the boundary.
  */
 
 import { supabase } from './supabaseClient';
