@@ -231,24 +231,32 @@ function DeliverablePages({ data, clientName, mode = MODE_FULL }) {
         coverage={coverage}
       />
 
-      <WhereWeAre
-        clientName={displayName}
-        mode={mode}
-        spine={spine}
-        hosts={hosts}
-        ctx={(() => {
-          const ctx = computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow });
-          return ctx;
-        })()}
-        findings={buildAuditFindings({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })}
-        decisions={buildDecisions(
-          spine,
-          hosts,
-          mode,
-          computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })
-        )}
-        actions={buildNextActions({ spine, hosts, mode, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })}
-      />
+      {mode === MODE_AUDIT ? (
+        <AuditTopSheet
+          clientName={displayName}
+          channels={channels}
+          patternsResult={patternsResult}
+          whiteSpaceResult={whiteSpaceResult}
+          productionSignalsByChannel={productionSignalsByChannel}
+          demandRow={demandRow}
+        />
+      ) : (
+        <WhereWeAre
+          clientName={displayName}
+          mode={mode}
+          spine={spine}
+          hosts={hosts}
+          ctx={computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })}
+          findings={buildAuditFindings({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })}
+          decisions={buildDecisions(
+            spine,
+            hosts,
+            mode,
+            computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })
+          )}
+          actions={buildNextActions({ spine, hosts, mode, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow })}
+        />
+      )}
 
       <PartCallout
         number="01"
@@ -353,6 +361,214 @@ function Cover({ clientName, dateStr, oneliner, isPreLaunch, mode = MODE_FULL, c
       <div className="cd-cover-footer">{brand.footerNote || `Prepared by ${brand.studio || brand.name}`}</div>
     </section>
   );
+}
+
+// Audit top sheet — the audit-mode synthesis page. Three groups of
+// three findings + a closing Next Steps block. Structure matches the
+// strategist's hand-drawn spec (per Step 22):
+//   - Unclaimed Territory: top 3 white-space opportunities
+//   - How the Cohort Shows Up: cadence / production / engagement
+//   - Where the Gap Is: upload day-time / format-mix-to-test / how-we-win
+//   - Next Steps: content strategy / pillar development / reconvene pitch
+function AuditTopSheet({ clientName, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow }) {
+  const ctx = computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow });
+  const unclaimed = buildUnclaimedTerritory(whiteSpaceResult);
+  const cohortBehavior = buildHowCohortShowsUp(ctx, channels);
+  const gaps = buildWhereTheGapIs(ctx);
+  const nextSteps = buildAuditNextSteps();
+
+  const synthRef = React.useRef(null);
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    if (!synthRef.current) return;
+    try {
+      await navigator.clipboard.writeText(synthRef.current.innerText.trim());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch { /* fallback covered by Print */ }
+  };
+
+  return (
+    <section className="cd-page cd-audit-topsheet">
+      <div className="cd-synthesis-head">
+        <div>
+          <div className="cd-synthesis-kicker">Audit summary</div>
+          <h2 className="cd-synthesis-title">What we've learned about {clientName}'s category</h2>
+        </div>
+        <button onClick={handleCopy} className="cd-copy-btn" title="Copy this page to clipboard">
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+
+      <div ref={synthRef}>
+        <TopsheetGroup label="Unclaimed territory" items={unclaimed} accent={brand.colors.accent} />
+        <TopsheetGroup label="How the cohort shows up" items={cohortBehavior} accent={brand.colors.inkSoft} />
+        <TopsheetGroup label="Where the gap is" items={gaps} accent={brand.colors.accent} />
+
+        <div className="cd-audit-divider" />
+
+        <div className="cd-audit-nextsteps">
+          <div className="cd-audit-nextsteps-label">Next steps</div>
+          <ol className="cd-audit-nextsteps-list">
+            {nextSteps.map((step, i) => (
+              <li key={i}>
+                <E tag="span">{step}</E>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// One of the three audit-topsheet groups. Heading + numbered list of
+// 3 items, each with a short label and a body sentence.
+function TopsheetGroup({ label, items, accent }) {
+  if (!items?.length) return null;
+  return (
+    <div className="cd-topsheet-group">
+      <div className="cd-topsheet-group-label" style={{ color: accent }}>{label}</div>
+      <ol className="cd-topsheet-list">
+        {items.map((item, i) => (
+          <li key={i} className="cd-topsheet-item">
+            <div className="cd-topsheet-item-num">{i + 1}</div>
+            <div className="cd-topsheet-item-body">
+              {item.label && <div className="cd-topsheet-item-label">{item.label}</div>}
+              <E className="cd-topsheet-item-text">{item.text}</E>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+// Unclaimed territory — top 3 white-space opportunities. Each one is
+// a candidate position the channel could own; the strategist picks
+// which to lean into during pillar development.
+function buildUnclaimedTerritory(whiteSpaceResult) {
+  const opps = whiteSpaceResult?.brief?.opportunities || [];
+  return opps.slice(0, 3).map(o => ({
+    label: o.title,
+    text: o.body ? compressText(o.body, 220) : <em style={{ color: '#888' }}>Detail TK</em>,
+  }));
+}
+
+// How the cohort shows up — three dimensions of cohort behavior:
+// cadence, production, engagement. One sentence per dimension.
+function buildHowCohortShowsUp(ctx, channels) {
+  const items = [];
+
+  if (ctx.velocityLeader && ctx.velocityMultiplier) {
+    items.push({
+      label: 'Upload cadence',
+      text: <><strong>{ctx.velocityLeader.name}</strong> sets the pace at roughly {ctx.velocityMultiplier}× the cohort median. The field is publishing aggressively — competing on volume against the leader isn't a viable lane.</>,
+    });
+  } else {
+    items.push({ label: 'Upload cadence', text: <>Cohort tempo is moderate; no single channel is dominating by volume.</> });
+  }
+
+  if (ctx.dominantTier && ctx.totalTiered >= 3) {
+    const tierReads = {
+      high: <>Cohort skews <strong>high-tier production</strong> ({ctx.dominantTierCount}/{ctx.totalTiered} competitors). Polish is table stakes — differentiation has to be aesthetic identity, not budget.</>,
+      medium: <>Cohort skews <strong>medium-tier production</strong> ({ctx.dominantTierCount}/{ctx.totalTiered} competitors). The bar is reachable; most channels here are competent without being distinctive.</>,
+      low: <>Cohort skews <strong>low-tier production</strong> ({ctx.dominantTierCount}/{ctx.totalTiered} competitors). Even moderate craft reads premium against the baseline.</>,
+      mixed: <>Cohort is <strong>visually inconsistent</strong> ({ctx.dominantTierCount} mixed-tier channels). A coherent system reads professional by default.</>,
+    };
+    items.push({ label: 'Production', text: tierReads[ctx.dominantTier] });
+  } else {
+    items.push({ label: 'Production', text: <>Not enough production-signal data yet to call cohort tier confidently.</> });
+  }
+
+  const ranked = (channels || []).filter(c => typeof c.engagementRate === 'number').sort((a, b) => b.engagementRate - a.engagementRate);
+  if (ranked.length >= 3) {
+    const top = ranked[0];
+    const median = ranked[Math.floor(ranked.length / 2)];
+    const topByVel = [...channels].filter(c => c.viewVelocity != null).sort((a, b) => b.viewVelocity - a.viewVelocity)[0];
+    const sameLeader = top.id === topByVel?.id;
+    if (!sameLeader && top.engagementRate && median.engagementRate) {
+      const mult = (top.engagementRate / median.engagementRate).toFixed(1);
+      items.push({
+        label: 'Engagement',
+        text: <><strong>{top.name}</strong> leads engagement ({(top.engagementRate * 100).toFixed(1)}%, ~{mult}× median) but doesn't lead reach — engagement and reach decouple in this category.</>,
+      });
+    } else {
+      items.push({
+        label: 'Engagement',
+        text: <>Engagement clusters around <strong>{(median.engagementRate * 100).toFixed(1)}% median</strong>. Match the baseline to feel native; exceed to feel beloved.</>,
+      });
+    }
+  } else {
+    items.push({ label: 'Engagement', text: <>Not enough engagement data across the cohort to call meaningful divergence.</> });
+  }
+
+  return items;
+}
+
+// Where the gap is — three actionable testing zones: upload window,
+// format mix, and the strategic angle to lean into.
+function buildWhereTheGapIs(ctx) {
+  const items = [];
+
+  if (ctx.topSlot) {
+    items.push({
+      label: 'Upload day/time',
+      text: <><strong>{ctx.topSlot.slot}</strong> wins at +{ctx.topSlot.liftPct}% lift in the cohort ({ctx.topSlot.count} reference uploads, statistical). The clearest reproducible scheduling lever.</>,
+    });
+  } else {
+    items.push({ label: 'Upload day/time', text: <>No single time slot clears the statistical threshold — sample sizes are still thin or the cohort posts evenly.</> });
+  }
+
+  if (ctx.bestBucket && ctx.longBeatsShortBy && ctx.longBeatsShortBy >= 2) {
+    items.push({
+      label: 'Format mix to test',
+      text: <>Long-form <strong>{ctx.bestBucket.label}</strong> videos earn roughly {ctx.longBeatsShortBy}× the Shorts median in the cohort. Test pairing rapid Shorts cadence with one anchor long-form per cycle.</>,
+    });
+  } else {
+    items.push({
+      label: 'Format mix to test',
+      text: <>Cohort splits volume on Shorts but long-form holds higher median views — a multi-cut pillar (long-form anchor + derivative Shorts) likely captures both gates.</>,
+    });
+  }
+
+  if (ctx.topOpportunity?.title) {
+    items.push({
+      label: 'How we win',
+      text: <>The cohort's strongest unclaimed angle is <strong>{ctx.topOpportunity.title}</strong>. This is the position to lean into during pillar development — earliest test should pressure-test whether the channel can own this slot.</>,
+    });
+  } else if (ctx.statisticalPatterns.length > 0) {
+    const top = ctx.statisticalPatterns[0];
+    items.push({
+      label: 'How we win',
+      text: <>The strongest reproducible lever is <strong>{top.label}</strong> titles at +{Math.round(top.viewsLift)}% lift. Combine with the slot above for compound effects.</>,
+    });
+  } else {
+    items.push({ label: 'How we win', text: <>No single dominant lever — winning here means differentiation on positioning, not on a tactical pattern.</> });
+  }
+
+  return items;
+}
+
+// The three audit next-steps. Hardcoded — they map to the strategist's
+// defined post-audit phases (content strategy → pillar development →
+// reconvene pitch meeting).
+function buildAuditNextSteps() {
+  return [
+    <><strong>Content strategy.</strong> Develop the working strategy doc anchored on the gaps named above.</>,
+    <><strong>Pillar development.</strong> Draft 5 pillar candidates spanning long-form, Shorts, and multi-cut formats.</>,
+    <><strong>Reconvene pitch meeting.</strong> Present the pillar slate for greenlight on 1–3 to start producing.</>,
+  ];
+}
+
+// Compress a long string on word boundary + append ellipsis. Used for
+// opportunity bodies which can run long; top sheet has limited space.
+function compressText(text, maxChars) {
+  if (!text || text.length <= maxChars) return text;
+  const slice = text.slice(0, maxChars);
+  const lastSpace = slice.lastIndexOf(' ');
+  return (lastSpace > maxChars * 0.7 ? slice.slice(0, lastSpace) : slice) + '…';
 }
 
 function WhereWeAre({ clientName, mode, spine, hosts, ctx, findings, decisions, actions }) {
@@ -2238,6 +2454,77 @@ function PrintStyles() {
       .cd-subtitle {
         font-size: 22px; font-weight: 700; color: ${INK_SOFT};
         margin: 0; letter-spacing: -0.3px;
+      }
+
+      /* Audit top sheet — Step 22. Three groups of three findings +
+         Next Steps. Matches the strategist's hand-drawn structure. */
+      .cd-audit-topsheet {
+        background: ${brand.colors.background};
+        padding: 56px 64px;
+      }
+      .cd-topsheet-group {
+        margin-bottom: 28px;
+        break-inside: avoid;
+      }
+      .cd-topsheet-group:last-of-type { margin-bottom: 0; }
+      .cd-topsheet-group-label {
+        font-size: 11px; font-weight: 800;
+        text-transform: uppercase; letter-spacing: 1.6px;
+        margin-bottom: 14px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid ${BORDER};
+      }
+      .cd-topsheet-list {
+        list-style: none; padding: 0; margin: 0;
+        display: flex; flex-direction: column; gap: 14px;
+      }
+      .cd-topsheet-item {
+        display: flex; gap: 14px;
+        break-inside: avoid;
+      }
+      .cd-topsheet-item-num {
+        font-size: 16px; font-weight: 700;
+        color: ${INK_SOFT};
+        line-height: 1.4; min-width: 24px; flex-shrink: 0;
+        font-variant-numeric: tabular-nums;
+        opacity: 0.5;
+      }
+      .cd-topsheet-item-body { flex: 1; min-width: 0; }
+      .cd-topsheet-item-label {
+        font-size: 13px; font-weight: 700;
+        color: ${INK_SOFT}; margin-bottom: 4px;
+        letter-spacing: -0.1px;
+      }
+      .cd-topsheet-item-text {
+        font-size: 14px; color: ${INK};
+        line-height: 1.55;
+      }
+
+      .cd-audit-divider {
+        height: 1px; background: ${INK};
+        margin: 32px 0 28px;
+        opacity: 0.65;
+      }
+      .cd-audit-nextsteps {
+        break-inside: avoid;
+      }
+      .cd-audit-nextsteps-label {
+        font-size: 12px; font-weight: 800;
+        color: ${INK}; text-transform: uppercase;
+        letter-spacing: 1.6px; margin-bottom: 14px;
+      }
+      .cd-audit-nextsteps-list {
+        list-style: decimal; padding-left: 24px; margin: 0;
+        font-size: 14px; line-height: 1.6; color: ${INK};
+      }
+      .cd-audit-nextsteps-list li { margin-bottom: 8px; }
+      .cd-audit-nextsteps-list li:last-child { margin-bottom: 0; }
+
+      @media print {
+        .cd-audit-topsheet { break-after: page; padding: 0.7in 0.8in !important; }
+        .cd-topsheet-group { break-inside: avoid; }
+        .cd-topsheet-item { break-inside: avoid; }
+        .cd-audit-nextsteps { break-inside: avoid; }
       }
 
       /* WhereWeAre — unified Learned / Decide / Do synthesis page.
