@@ -871,6 +871,21 @@ function TitlePatternBars({ patterns }) {
 // Top-slots callout — extracts the highest-lift slots from the heatmap
 // data and renders them as plain English above the grid. Lets the
 // strategist take action without reading 28 cells.
+//
+// Math rules:
+//   - Statistical wins (full confidence) — include ALL that cross +15%
+//     lift, capped at 5. We never hide a slot the heatmap flags
+//     statistical: the callout and the grid must agree on what's a
+//     reproducible win.
+//   - Directional wins (small sample) — only "respectable" lifts make
+//     the callout, currently +15% to +200%. Above +200%, a single
+//     viral video in a small-sample cell distorts the median and the
+//     slot itself isn't reproducible. The heatmap still shows the raw
+//     number (with its dashed border + small n=) for transparency, but
+//     the callout shouldn't recommend it as a scheduling target.
+const DIRECTIONAL_MAX_LIFT_PCT = 200;
+const STATISTICAL_CAP = 5;
+
 function TopSlotsCallout({ cadenceGaps }) {
   const { grid, liftGrid, confidenceGrid, labels } = cadenceGaps;
   if (!grid || !labels) return null;
@@ -887,17 +902,19 @@ function TopSlotsCallout({ cadenceGaps }) {
       });
     }
   }
-  // Statistical wins ranked first; tie-break by lift magnitude.
-  winners.sort((a, b) => {
-    const aS = a.confidence === 'statistical' ? 1 : 0;
-    const bS = b.confidence === 'statistical' ? 1 : 0;
-    if (aS !== bS) return bS - aS;
-    return b.liftPct - a.liftPct;
-  });
-  const statistical = winners.filter(w => w.confidence === 'statistical').slice(0, 3);
-  const directional = winners.filter(w => w.confidence === 'directional').slice(0, 2);
+  // Sort by lift desc within each confidence tier.
+  winners.sort((a, b) => b.liftPct - a.liftPct);
 
-  if (!statistical.length && !directional.length) {
+  const statistical = winners
+    .filter(w => w.confidence === 'statistical')
+    .slice(0, STATISTICAL_CAP);
+  const directionalAll = winners.filter(w => w.confidence === 'directional');
+  const directional = directionalAll
+    .filter(w => w.liftPct <= DIRECTIONAL_MAX_LIFT_PCT)
+    .slice(0, 2);
+  const directionalOutliers = directionalAll.filter(w => w.liftPct > DIRECTIONAL_MAX_LIFT_PCT);
+
+  if (!statistical.length && !directional.length && !directionalOutliers.length) {
     return <p style={{ marginBottom: 14, color: MUTED, fontStyle: 'italic' }}>No slots show meaningful lift in the current window. Upload distribution is essentially flat across the week.</p>;
   }
 
@@ -908,13 +925,13 @@ function TopSlotsCallout({ cadenceGaps }) {
         {statistical.length > 0 ? (
           <>
             <strong>{statistical[0].slot}</strong> leads at <strong>+{statistical[0].liftPct}%</strong>{' '}
-            (n={statistical[0].count}, statistical).
+            <span style={{ color: MUTED }}>(n={statistical[0].count}, statistical)</span>.
             {statistical.length > 1 && (
-              <>{' '}{statistical.slice(1).map((w, i) => (
+              <> Followed by {statistical.slice(1).map((w, i) => (
                 <span key={i}>
-                  {i > 0 ? ' / ' : ''}<strong>{w.slot}</strong> follows at <strong>+{w.liftPct}%</strong>{i === statistical.slice(1).length - 1 ? '.' : ''}
+                  {i > 0 ? ', ' : ''}<strong>{w.slot}</strong> (+{w.liftPct}%)
                 </span>
-              ))}</>
+              ))}.</>
             )}
           </>
         ) : (
@@ -926,6 +943,13 @@ function TopSlotsCallout({ cadenceGaps }) {
               Directional flags worth testing once (small sample): {directional.map((w, i) => (
                 <span key={i}>{i > 0 ? ', ' : ''}{w.slot} (+{w.liftPct}%)</span>
               ))}.
+            </span>
+          </>
+        )}
+        {directionalOutliers.length > 0 && (
+          <>
+            {' '}<span style={{ color: MUTED, fontStyle: 'italic' }}>
+              {directionalOutliers.length} slot{directionalOutliers.length === 1 ? '' : 's'} show{directionalOutliers.length === 1 ? 's' : ''} extreme directional lift ({directionalOutliers.map(w => w.slot).join(', ')}) but with very small samples — likely outlier-driven by individual viral videos, not a reproducible scheduling win. See heatmap for raw numbers.
             </span>
           </>
         )}
