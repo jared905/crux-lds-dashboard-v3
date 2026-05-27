@@ -12,7 +12,7 @@ import {
   ArrowLeft, Loader, Edit2, Check, X as XIcon, Plus, Trash2,
   RefreshCw, Calendar, ExternalLink, ChevronDown, ChevronRight,
   Camera, History, Sparkles, Printer, ClipboardList, FileText,
-  Briefcase, Globe,
+  Briefcase, Globe, Layers, ChevronUp,
 } from 'lucide-react';
 import ClientDeliverable from '../ClientDeliverable/ClientDeliverable.jsx';
 import {
@@ -48,6 +48,16 @@ import {
   suggestHostProfile,
 } from '../../services/clientHostsService.js';
 import {
+  listPillars,
+  createPillar,
+  updatePillar,
+  deletePillar,
+  activatePillar,
+  retirePillar,
+  PILLAR_FORMAT_LABELS,
+  PILLAR_TALENT_LABELS,
+} from '../../services/clientPillarsService.js';
+import {
   getActiveBusinessContext,
   getLatestDraft,
   auditWebsite,
@@ -66,6 +76,7 @@ export default function StrategySpine({ client, onBack }) {
   const [snapshotCaptureBusy, setSnapshotCaptureBusy] = useState(false);
   const [viewingSnapshot, setViewingSnapshot] = useState(null);
   const [hosts, setHosts] = useState([]);
+  const [pillars, setPillars] = useState([]);
   const [businessActive, setBusinessActive] = useState(null);
   const [businessDraft, setBusinessDraft] = useState(null);
   const [deliverableOpen, setDeliverableOpen] = useState(false);
@@ -77,13 +88,15 @@ export default function StrategySpine({ client, onBack }) {
       getSpine(client.id),
       listSpineSnapshots(client.id),
       listHosts(client.id),
+      listPillars(client.id),
       getActiveBusinessContext(client.id),
       getLatestDraft(client.id),
-    ]).then(([row, snaps, hostRows, activeBiz, draftBiz]) => {
+    ]).then(([row, snaps, hostRows, pillarRows, activeBiz, draftBiz]) => {
       if (!cancelled) {
         setSpine(row);
         setSnapshots(snaps);
         setHosts(hostRows);
+        setPillars(pillarRows);
         setBusinessActive(activeBiz);
         setBusinessDraft(draftBiz);
         setLoading(false);
@@ -263,6 +276,18 @@ export default function StrategySpine({ client, onBack }) {
         placeholder="e.g. Warm and unhurried. Speaks plainly, never preachily. Uses concrete imagery over abstraction. Lets silence breathe. Calls out tension before resolving it. Confident enough to admit doubt; never performs certainty."
         onSave={(v) => handleFieldSave('voice_tone', v)}
         onSuggest={() => suggestVoiceTone(client.id, { clientName: client.name })}
+      />
+
+      <PillarsPanel
+        clientId={client.id}
+        clientName={client.name}
+        spine={spine}
+        pillars={pillars}
+        hosts={hosts}
+        onPillarsChanged={async () => {
+          const refreshed = await listPillars(client.id);
+          setPillars(refreshed);
+        }}
       />
 
       <HostsPanel
@@ -1016,6 +1041,386 @@ function Section({ title, subtitle, value, updatedAt, placeholder, onSave, onSug
         </div>
       )}
     </SectionShell>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// Pillars panel — Step 21 (content pillars as primary unit)
+// ────────────────────────────────────────────────────────────
+// Pillars are the primary unit of channel strategy. Each pillar is a
+// repeatable creative series (title, format, talent model, audience,
+// budget). The strategist drafts pillar candidates here pre-meeting,
+// promotes 1-3 to active after greenlight, retires the weakest after
+// performance data. Hosts (when applicable) get linked per pillar.
+function PillarsPanel({ clientId, clientName, spine, pillars, hosts, onPillarsChanged }) {
+  const [adding, setAdding] = useState(false);
+
+  // Group by status so drafts (pitch candidates) lead, then active
+  // (in-rotation), then retired (history).
+  const drafts = pillars.filter(p => p.status === 'draft');
+  const active = pillars.filter(p => p.status === 'active');
+  const retired = pillars.filter(p => p.status === 'retired');
+
+  const handleCreate = async (patch) => {
+    const r = await createPillar(clientId, patch);
+    if (r.ok) {
+      setAdding(false);
+      await onPillarsChanged?.();
+    } else {
+      window.alert(`Add pillar failed: ${r.error}`);
+    }
+  };
+
+  return (
+    <SectionShell
+      title={<><Layers size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: -2 }} />Content pillars</>}
+      subtitle="Repeatable creative series — the unit you pitch in the vision-alignment meeting. Channels typically run 3 pillars in an A/B/C rotation; draft candidates here pre-meeting, promote 1-3 to active after greenlight."
+      accent="#34d399"
+      action={
+        <button onClick={() => setAdding(true)} disabled={adding} style={primaryBtn}>
+          <Plus size={12} /> Add pillar
+        </button>
+      }
+    >
+      {pillars.length === 0 && !adding && (
+        <div style={{ color: '#666', fontSize: 13, fontStyle: 'italic', lineHeight: 1.55 }}>
+          No pillars yet. Click <strong style={{ color: '#888' }}>Add pillar</strong> to draft your first candidate. Pillars come from your synthesis (the cohort's strongest opportunity, the client's existing series ideas, an unclaimed format you want to test).
+        </div>
+      )}
+
+      {drafts.length > 0 && (
+        <PillarGroup
+          label={`Drafts · ${drafts.length}`}
+          subtle="Pitch candidates — pre-meeting. Promote 1–3 to active after client greenlight."
+          accent="#fbbf24"
+        >
+          {drafts.map(p => (
+            <PillarCard
+              key={p.id}
+              pillar={p}
+              hosts={hosts}
+              clientId={clientId}
+              onChanged={onPillarsChanged}
+            />
+          ))}
+        </PillarGroup>
+      )}
+
+      {active.length > 0 && (
+        <PillarGroup
+          label={`Active rotation · ${active.length}`}
+          subtle={`Publishing in ${active.length}-pillar rotation. A=${active[0]?.rotation_position ?? 0}, B, C…`}
+          accent="#34d399"
+        >
+          {active.map(p => (
+            <PillarCard
+              key={p.id}
+              pillar={p}
+              hosts={hosts}
+              clientId={clientId}
+              onChanged={onPillarsChanged}
+            />
+          ))}
+        </PillarGroup>
+      )}
+
+      {retired.length > 0 && (
+        <PillarGroup
+          label={`Retired · ${retired.length}`}
+          subtle="Pillars dropped from rotation after performance data. Kept for history; never re-recommended without new evidence."
+          accent="#666"
+          defaultCollapsed
+        >
+          {retired.map(p => (
+            <PillarCard
+              key={p.id}
+              pillar={p}
+              hosts={hosts}
+              clientId={clientId}
+              onChanged={onPillarsChanged}
+            />
+          ))}
+        </PillarGroup>
+      )}
+
+      {adding && (
+        <div style={{ marginTop: 14 }}>
+          <PillarCard
+            pillar={null}
+            hosts={hosts}
+            clientId={clientId}
+            startEditing
+            onCreate={handleCreate}
+            onCancelCreate={() => setAdding(false)}
+            onChanged={onPillarsChanged}
+          />
+        </div>
+      )}
+    </SectionShell>
+  );
+}
+
+// Collapsible group of pillar cards. Drafts / Active / Retired each
+// render as a group so the strategist sees the lifecycle at a glance.
+function PillarGroup({ label, subtle, accent, children, defaultCollapsed = false }) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  return (
+    <div style={{ marginTop: 14 }}>
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 'none', padding: '6px 0', cursor: 'pointer', color: '#aaa', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: 'inherit', width: '100%', textAlign: 'left' }}
+      >
+        {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+        <span style={{ color: accent }}>{label}</span>
+        {subtle && <span style={{ color: '#666', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>· {subtle}</span>}
+      </button>
+      {!collapsed && <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>{children}</div>}
+    </div>
+  );
+}
+
+// Single pillar card. Compact summary when collapsed; full editor when
+// in edit mode. Inline status controls (activate / retire) on hover.
+function PillarCard({ pillar, hosts, clientId, startEditing = false, onCreate, onCancelCreate, onChanged }) {
+  const isNew = !pillar;
+  const [editing, setEditing] = useState(startEditing);
+  const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState({
+    title: pillar?.title || '',
+    creative_description: pillar?.creative_description || '',
+    intended_audience: pillar?.intended_audience || '',
+    format_type: pillar?.format_type || '',
+    talent_model: pillar?.talent_model || '',
+    host_id: pillar?.host_id || '',
+    budget_per_video_low: pillar?.budget_per_video_low ?? '',
+    budget_per_video_high: pillar?.budget_per_video_high ?? '',
+    source: pillar?.source || '',
+    example_concept: pillar?.example_concept || '',
+    notes: pillar?.notes || '',
+  });
+
+  const handleSave = async () => {
+    setBusy(true);
+    const patch = {
+      title: draft.title.trim(),
+      creative_description: draft.creative_description.trim() || null,
+      intended_audience: draft.intended_audience.trim() || null,
+      format_type: draft.format_type || null,
+      talent_model: draft.talent_model || null,
+      host_id: draft.host_id || null,
+      budget_per_video_low: draft.budget_per_video_low === '' ? null : Number(draft.budget_per_video_low),
+      budget_per_video_high: draft.budget_per_video_high === '' ? null : Number(draft.budget_per_video_high),
+      source: draft.source || null,
+      example_concept: draft.example_concept.trim() || null,
+      notes: draft.notes.trim() || null,
+    };
+    try {
+      if (isNew) {
+        await onCreate?.(patch);
+      } else {
+        const r = await updatePillar(pillar.id, patch);
+        if (!r.ok) window.alert(`Save failed: ${r.error}`);
+        else {
+          setEditing(false);
+          await onChanged?.();
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!pillar?.id) return;
+    if (!window.confirm(`Delete pillar "${pillar.title}"? This can't be undone.`)) return;
+    await deletePillar(pillar.id);
+    await onChanged?.();
+  };
+
+  const handleActivate = async () => {
+    if (!pillar?.id) return;
+    await activatePillar(pillar.id);
+    await onChanged?.();
+  };
+
+  const handleRetire = async () => {
+    if (!pillar?.id) return;
+    if (!window.confirm(`Retire "${pillar.title}" from the rotation? It stays in history but stops publishing.`)) return;
+    await retirePillar(pillar.id);
+    await onChanged?.();
+  };
+
+  const linkedHost = pillar?.host_id ? hosts.find(h => h.id === pillar.host_id) : null;
+  const accent = pillar?.status === 'active' ? '#34d399'
+    : pillar?.status === 'retired' ? '#666'
+    : '#fbbf24';
+
+  return (
+    <div style={{ background: '#15151a', border: '1px solid #232328', borderLeft: `3px solid ${accent}`, borderRadius: 8, padding: '14px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
+            {pillar?.title || draft.title || <span style={{ color: '#666', fontStyle: 'italic' }}>Untitled pillar</span>}
+          </div>
+          <div style={{ fontSize: 11, color: '#888', marginTop: 3, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {pillar?.format_type && <span>{PILLAR_FORMAT_LABELS[pillar.format_type]}</span>}
+            {pillar?.talent_model && <span>· {PILLAR_TALENT_LABELS[pillar.talent_model]}</span>}
+            {linkedHost && <span>· Host: {linkedHost.name || linkedHost.archetype || 'unnamed'}</span>}
+            {(pillar?.budget_per_video_low || pillar?.budget_per_video_high) && (
+              <span>· ${pillar.budget_per_video_low ?? '?'}–${pillar.budget_per_video_high ?? '?'}/video</span>
+            )}
+            {pillar?.status === 'active' && pillar.rotation_position != null && (
+              <span style={{ color: '#34d399', fontWeight: 700 }}>· Slot {String.fromCharCode(65 + pillar.rotation_position)}</span>
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {editing ? (
+            <>
+              <button onClick={handleSave} disabled={busy || !draft.title.trim()} style={{ ...primaryBtn, opacity: !draft.title.trim() ? 0.5 : 1, cursor: !draft.title.trim() ? 'not-allowed' : 'pointer' }}>
+                {busy ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={12} />}
+                {busy ? 'Saving…' : (isNew ? 'Add' : 'Save')}
+              </button>
+              <button onClick={() => { isNew ? onCancelCreate?.() : setEditing(false); }} style={ghostBtn}><XIcon size={12} /></button>
+            </>
+          ) : (
+            <>
+              {pillar?.status === 'draft' && (
+                <button onClick={handleActivate} style={primaryBtn} title="Promote to active rotation">
+                  <Check size={12} /> Activate
+                </button>
+              )}
+              {pillar?.status === 'active' && (
+                <button onClick={handleRetire} style={ghostBtn} title="Retire from rotation">
+                  <ChevronDown size={12} /> Retire
+                </button>
+              )}
+              <button onClick={() => setEditing(true)} style={ghostBtn}><Edit2 size={12} /> Edit</button>
+              {!isNew && (
+                <button onClick={handleDelete} style={ghostBtnSmall} title="Delete pillar"><Trash2 size={13} /></button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {!editing && pillar?.creative_description && (
+        <div style={{ fontSize: 12, color: '#d4d4d8', lineHeight: 1.55, marginTop: 6 }}>{pillar.creative_description}</div>
+      )}
+      {!editing && pillar?.intended_audience && (
+        <div style={{ fontSize: 11, color: '#888', marginTop: 4, fontStyle: 'italic' }}>Audience: {pillar.intended_audience}</div>
+      )}
+
+      {editing && (
+        <div style={{ marginTop: 6 }}>
+          <label style={fieldLabel}>Title</label>
+          <input
+            value={draft.title}
+            onChange={e => setDraft({ ...draft, title: e.target.value })}
+            placeholder='e.g. "Daily Q&A", "Installation Diaries", "Caught on Camera"'
+            style={inputStyle}
+            autoFocus
+          />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={fieldLabel}>Format</label>
+              <select value={draft.format_type} onChange={e => setDraft({ ...draft, format_type: e.target.value })} style={inputStyle}>
+                <option value="">— Pick —</option>
+                {Object.entries(PILLAR_FORMAT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={fieldLabel}>Talent model</label>
+              <select value={draft.talent_model} onChange={e => setDraft({ ...draft, talent_model: e.target.value })} style={inputStyle}>
+                <option value="">— Pick —</option>
+                {Object.entries(PILLAR_TALENT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {draft.talent_model === 'host' && hosts.length > 0 && (
+            <>
+              <label style={fieldLabel}>Linked host (optional)</label>
+              <select value={draft.host_id} onChange={e => setDraft({ ...draft, host_id: e.target.value })} style={inputStyle}>
+                <option value="">— Cast TBD —</option>
+                {hosts.map(h => (
+                  <option key={h.id} value={h.id}>
+                    {h.name || h.archetype || 'unnamed host'}{h.series_label ? ` (${h.series_label})` : ''}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+
+          <label style={fieldLabel}>Creative description (what the series IS, how it's defined, POV, topics covered)</label>
+          <textarea
+            value={draft.creative_description}
+            onChange={e => setDraft({ ...draft, creative_description: e.target.value })}
+            placeholder="e.g. Single-camera installer-POV documentary clips. Each episode shows one real install from doorbell to system check, narrated by the installer doing the work. No b-roll, no host explainers."
+            rows={3}
+            style={textareaStyle}
+          />
+
+          <label style={fieldLabel}>Intended audience (with interest-axis position — entertainment ↔ thought leadership)</label>
+          <textarea
+            value={draft.intended_audience}
+            onChange={e => setDraft({ ...draft, intended_audience: e.target.value })}
+            placeholder="e.g. Existing customers + considering-purchase homeowners. Interest axis: practitioner-curiosity (closer to thought leadership than entertainment)."
+            rows={2}
+            style={textareaStyle}
+          />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={fieldLabel}>Budget per video — low ($)</label>
+              <input
+                type="number" min="0" step="100"
+                value={draft.budget_per_video_low}
+                onChange={e => setDraft({ ...draft, budget_per_video_low: e.target.value })}
+                placeholder="e.g. 1500"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={fieldLabel}>Budget per video — high ($)</label>
+              <input
+                type="number" min="0" step="100"
+                value={draft.budget_per_video_high}
+                onChange={e => setDraft({ ...draft, budget_per_video_high: e.target.value })}
+                placeholder="e.g. 4000"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          <label style={fieldLabel}>Source</label>
+          <select value={draft.source} onChange={e => setDraft({ ...draft, source: e.target.value })} style={inputStyle}>
+            <option value="">— Pick —</option>
+            <option value="strategist">Strategist synthesis</option>
+            <option value="client_idea">Client idea</option>
+            <option value="existing_channel_pillar">Existing channel pillar</option>
+          </select>
+
+          <label style={fieldLabel}>Example concept (sample title or in-channel episode idea)</label>
+          <input
+            value={draft.example_concept}
+            onChange={e => setDraft({ ...draft, example_concept: e.target.value })}
+            placeholder='e.g. "Why this 30-year SafeStreets installer always checks the meter box first"'
+            style={inputStyle}
+          />
+
+          <label style={fieldLabel}>Notes</label>
+          <textarea
+            value={draft.notes}
+            onChange={e => setDraft({ ...draft, notes: e.target.value })}
+            placeholder="Strategist notes — anything off-template, status, references."
+            rows={2}
+            style={textareaStyle}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
