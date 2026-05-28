@@ -484,10 +484,16 @@ function Cover({ clientName, dateStr, oneliner, isPreLaunch, mode = MODE_FULL, c
   // reader's expectation.
   const label = MODE_LABEL[mode] || brand.productLabel;
 
-  // Data-coverage line. Signals rigor and surfaces a stale audit when
-  // the underlying sync is old. Shows only when we have real numbers.
-  const coverageLine = coverage && coverage.videoCount && coverage.channelCount
-    ? `Audit basis: ${fmtNum(coverage.videoCount)} videos across ${coverage.channelCount} channels · last ${coverage.windowDays || 90} days`
+  // Data-coverage stats. Signals rigor — surfaces what the audit was
+  // actually built from so the reader knows the basis at a glance.
+  // Rendered as a 3-stat row (videos / channels / window) with the
+  // numbers in Gotham Ultra and the labels in small caps.
+  const coverageStats = coverage && coverage.videoCount && coverage.channelCount
+    ? [
+        { num: fmtNum(coverage.videoCount), label: 'Videos analyzed' },
+        { num: String(coverage.channelCount), label: 'Channels in scope' },
+        { num: `${coverage.windowDays || 90}`, label: 'Day window', suffix: ' days' },
+      ]
     : null;
 
   return (
@@ -510,8 +516,18 @@ function Cover({ clientName, dateStr, oneliner, isPreLaunch, mode = MODE_FULL, c
           <span className="cd-cover-oneliner-mark">”</span>
         </div>
       )}
-      {coverageLine && (
-        <div className="cd-cover-coverage">{coverageLine}</div>
+      {coverageStats && (
+        <div className="cd-cover-stats">
+          <div className="cd-cover-stats-label">Audit basis</div>
+          <div className="cd-cover-stats-row">
+            {coverageStats.map((s, i) => (
+              <div key={i} className="cd-cover-stat">
+                <div className="cd-cover-stat-num">{s.num}</div>
+                <div className="cd-cover-stat-label">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
       <div className="cd-cover-footer">{brand.footerNote || `Prepared by ${brand.studio || brand.name}`}</div>
     </section>
@@ -2799,11 +2815,36 @@ function PrintStyles() {
       .cd-cover-oneliner-mark {
         color: ${ACCENT}; font-weight: 700; font-style: normal;
       }
-      .cd-cover-coverage {
-        font-size: 11px; color: ${MUTED};
-        font-style: italic; margin-bottom: 32px;
-        padding-top: 14px;
+      /* Audit-basis stats — 3-up row on the cover (videos, channels,
+         window). Numbers in Gotham Ultra so the rigor reads at a
+         glance; small-cap labels in Gotham Book underneath. */
+      .cd-cover-stats {
+        margin-bottom: 32px;
+        padding-top: 18px;
         border-top: 1px solid ${BORDER};
+      }
+      .cd-cover-stats-label {
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 10px; font-weight: 900;
+        color: ${MUTED}; text-transform: uppercase;
+        letter-spacing: 2px; margin-bottom: 12px;
+      }
+      .cd-cover-stats-row {
+        display: flex; gap: 40px;
+        align-items: flex-start;
+      }
+      .cd-cover-stat-num {
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 36px; font-weight: 900;
+        color: ${ACCENT};
+        line-height: 1; letter-spacing: 0;
+        margin-bottom: 6px;
+        font-variant-numeric: tabular-nums;
+      }
+      .cd-cover-stat-label {
+        font-size: 11px; color: ${INK_SOFT};
+        font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.8px;
       }
       .cd-cover-footer {
         font-family: ${FONT_HEAD_STACK};
