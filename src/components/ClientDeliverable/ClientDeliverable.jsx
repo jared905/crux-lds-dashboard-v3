@@ -3929,6 +3929,18 @@ function PrintStyles() {
           width: 100% !important;
         }
 
+        /* Kill the dashboard's full-screen satellite background + its
+           gradient overlay (index.css body::before / body::after).
+           These are pseudo-elements — not matched by "body *" and not
+           covered by the white body background — so with print-color-
+           adjust:exact they rendered the satellite image as a blank
+           first PDF page. */
+        body::before, body::after {
+          display: none !important;
+          content: none !important;
+          background: none !important;
+        }
+
         /* Hide everything; reveal only the deliverable overlay. */
         body * { visibility: hidden !important; }
         .cd-overlay, .cd-overlay * { visibility: visible !important; }
