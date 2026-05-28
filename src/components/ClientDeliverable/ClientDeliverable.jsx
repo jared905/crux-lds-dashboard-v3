@@ -1129,8 +1129,8 @@ function SubSection({ title, kicker, children }) {
     <div className="cd-subsection">
       <div className="cd-subsection-head">
         <div style={{ flex: 1, minWidth: 0 }}>
-          {kicker && <div className="cd-kicker">{kicker}</div>}
-          <h3 className="cd-subtitle">{title}</h3>
+          {kicker && <E className="cd-kicker">{kicker}</E>}
+          <E tag="h3" className="cd-subtitle">{title}</E>
         </div>
         <button onClick={handleCopy} className="cd-copy-btn" title="Copy this section to clipboard (paste into your deck)">
           {copied ? <Check size={13} /> : <Copy size={13} />}
@@ -2114,29 +2114,29 @@ function HostBlock({ host }) {
   return (
     <div style={{ border: `1px solid ${BORDER}`, borderRadius: 6, padding: '14px 16px', background: '#fdfcf8' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: INK }}>{label}</div>
+        <E style={{ fontSize: 16, fontWeight: 700, color: INK }}>{label}</E>
         {host.series_label && host.series_label !== label && (
-          <div style={{ fontSize: 11, fontWeight: 700, color: ACCENT, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+          <E style={{ fontSize: 11, fontWeight: 700, color: ACCENT, textTransform: 'uppercase', letterSpacing: 0.8 }}>
             {host.series_label}
-          </div>
+          </E>
         )}
       </div>
       {host.archetype && (
         <div style={{ fontSize: 13, color: INK, marginBottom: host.voice_tone_refinement ? 6 : 0 }}>
           <strong style={{ color: MUTED, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, marginRight: 6 }}>Archetype</strong>
-          {host.archetype}
+          <E tag="span">{host.archetype}</E>
         </div>
       )}
       {host.voice_tone_refinement && (
         <div style={{ fontSize: 13, color: INK, marginBottom: host.notes ? 6 : 0 }}>
           <strong style={{ color: MUTED, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, marginRight: 6 }}>Voice refinement</strong>
-          <span>{host.voice_tone_refinement}</span>
+          <E tag="span">{host.voice_tone_refinement}</E>
         </div>
       )}
       {host.notes && (
-        <div style={{ fontSize: 12, color: MUTED, fontStyle: 'italic', marginTop: 4 }}>
+        <E style={{ fontSize: 12, color: MUTED, fontStyle: 'italic', marginTop: 4 }}>
           {host.notes}
-        </div>
+        </E>
       )}
 
       {host.rubric?.criteria?.length > 0 && (
@@ -2145,18 +2145,18 @@ function HostBlock({ host }) {
             Audition rubric · {host.rubric.criteria.length} criteria
           </div>
           {host.rubric.intro_note && (
-            <div className="cd-quote" style={{ marginBottom: 8 }}>{host.rubric.intro_note}</div>
+            <E className="cd-quote" style={{ marginBottom: 8 }}>{host.rubric.intro_note}</E>
           )}
           <ol className="cd-list cd-list-numbered" style={{ marginTop: 6 }}>
             {host.rubric.criteria.map((c, i) => (
               <li key={i} style={{ marginBottom: 8 }}>
-                <strong>{c.name}</strong>{' '}
+                <E tag="strong">{c.name}</E>{' '}
                 <span style={{ color: MUTED, fontSize: 12 }}>· {c.weight || 'medium'} weight</span>
                 {c.what_excellence_looks_like && (
-                  <div style={{ marginTop: 3, fontSize: 13 }}><em>5/5:</em> {c.what_excellence_looks_like}</div>
+                  <div style={{ marginTop: 3, fontSize: 13 }}><em>5/5:</em> <E tag="span">{c.what_excellence_looks_like}</E></div>
                 )}
                 {c.disqualifier && (
-                  <div style={{ marginTop: 3, fontSize: 13 }}><em style={{ color: '#b91c1c' }}>Disqualifier:</em> {c.disqualifier}</div>
+                  <div style={{ marginTop: 3, fontSize: 13 }}><em style={{ color: '#b91c1c' }}>Disqualifier:</em> <E tag="span">{c.disqualifier}</E></div>
                 )}
               </li>
             ))}
@@ -2307,7 +2307,7 @@ function soWhatCategoryEngagement(channels) {
 function EvidenceLead({ children }) {
   return (
     <div className="cd-evidence">
-      <div className="cd-evidence-tag">Why</div>
+      <E className="cd-evidence-tag">Why</E>
       <E className="cd-evidence-body">{children}</E>
     </div>
   );
@@ -2319,7 +2319,7 @@ function EvidenceLead({ children }) {
 function InPractice({ children }) {
   return (
     <div className="cd-in-practice">
-      <div className="cd-in-practice-tag">In practice</div>
+      <E className="cd-in-practice-tag">In practice</E>
       <E className="cd-in-practice-body">{children}</E>
     </div>
   );
