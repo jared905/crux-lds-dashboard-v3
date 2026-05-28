@@ -574,8 +574,8 @@ function ChannelRoster({ channels, formatMixByChannel }) {
             <th className="cd-num">Subs</th>
             <th>Upload tempo</th>
             <th className="cd-num">Views/day</th>
+            <th className="cd-num">Med. views/video</th>
             <th className="cd-num">Engagement</th>
-            <th>Category</th>
           </tr>
         </thead>
         <tbody>
@@ -584,7 +584,6 @@ function ChannelRoster({ channels, formatMixByChannel }) {
             const shortsShare = mix?.shortsShare;
             const longsShare = mix?.longsShare;
             const hasSplit = shortsShare != null && longsShare != null && (shortsShare + longsShare) > 0;
-            const cat = c.categories?.[0]?.name || (c.tier ? c.tier.charAt(0).toUpperCase() + c.tier.slice(1) : '—');
             return (
               <tr key={c.id || i}>
                 <td>
@@ -606,13 +605,16 @@ function ChannelRoster({ channels, formatMixByChannel }) {
                   </div>
                 </td>
                 <td className="cd-num">{c.viewVelocity != null ? `${fmtNum(c.viewVelocity)}` : '—'}</td>
+                <td className="cd-num">{c.medianViews != null ? fmtNum(c.medianViews) : '—'}</td>
                 <td className="cd-num">{c.engagementRate != null ? `${(c.engagementRate * 100).toFixed(1)}%` : '—'}</td>
-                <td className="cd-roster-cat">{cat}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
+      <p style={{ marginTop: 12, fontSize: 11, color: MUTED, fontStyle: 'italic' }}>
+        Median views per video resists one-off spikes. A channel with high median views but low engagement is the paid-promotion tell — paid reach doesn't lift likes or comments. Read the two columns together.
+      </p>
     </section>
   );
 }
