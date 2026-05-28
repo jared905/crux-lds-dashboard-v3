@@ -650,7 +650,10 @@ function buildUnclaimedTerritory(whiteSpaceResult) {
   const opps = whiteSpaceResult?.brief?.opportunities || [];
   return opps.slice(0, 3).map(o => ({
     label: o.title,
-    text: o.body ? compressText(o.body, 220) : <em style={{ color: '#888' }}>Detail TK</em>,
+    // Full body — the brief prompt already constrains each finding to
+    // 1-2 sentences, so no truncation. (Was compressText(220), which
+    // cut findings mid-sentence with an ellipsis.)
+    text: o.body || <em style={{ color: '#888' }}>Detail TK</em>,
   }));
 }
 
@@ -3590,7 +3593,11 @@ function PrintStyles() {
 
       /* Paged-media page setup — Letter at 0.5in margin top/sides,
          0.7in bottom to leave room for the fixed footer. */
-      @page { size: letter; margin: 0.5in 0.5in 0.7in 0.5in; }
+      /* Full-bleed: no paper margin so colored pages (cover cream,
+         callout sage, audit-summary teal) fill the entire sheet edge-
+         to-edge, matching the on-screen card appearance. Content inset
+         comes from each .cd-page's own padding. */
+      @page { size: letter; margin: 0; }
 
       /* Print rules — produce a clean, color-accurate, paginated PDF
          from the on-screen deliverable. The deliverable lives inside a
@@ -3652,13 +3659,18 @@ function PrintStyles() {
           padding: 0 !important;
         }
 
-        /* Page boundaries — each .cd-page breaks to a new sheet, and
-           we protect interior content from splitting mid-block. */
+        /* Page boundaries — each .cd-page breaks to a new sheet and
+           fills the full sheet (min-height 100vh) so colored-page
+           backgrounds bleed edge-to-edge instead of floating in a
+           white margin. box-sizing keeps padding inside the 100vh so
+           the page doesn't overflow to a blank trailing sheet. */
         .cd-page {
           margin: 0 !important;
           border-radius: 0 !important;
           box-shadow: none !important;
-          padding: 0.55in 0.65in !important;
+          padding: 0.7in 0.75in !important;
+          min-height: 100vh;
+          box-sizing: border-box;
           page-break-after: always;
           break-after: page;
           page-break-inside: avoid;
@@ -3669,17 +3681,22 @@ function PrintStyles() {
           break-after: auto;
         }
 
-        .cd-callout-page { padding: 0 !important; }
+        .cd-callout-page { padding: 0 !important; min-height: 0 !important; }
         .cd-callout {
           border-radius: 0 !important;
-          padding: 0.7in 0.8in !important;
-          /* WAS min-height: 4in — that forced short callouts to occupy
-             4 vertical inches, producing artificially blank-looking
-             pages. Let the content size itself. */
-          min-height: auto !important;
+          padding: 1.2in 0.9in !important;
+          /* Fill the full sheet so the sage background bleeds edge-to-
+             edge, matching the on-screen card. The callout is the only
+             thing on its page, so 100vh is safe. */
+          min-height: 100vh;
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
         }
         .cd-cover {
-          min-height: 9.5in;
+          min-height: 100vh;
+          box-sizing: border-box;
           padding: 1.2in 1in !important;
         }
 
