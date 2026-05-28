@@ -101,6 +101,7 @@ const BORDER = brand.colors.border;
 const DANGER = brand.colors.danger;
 const FONT_STACK = brand.fontStack;
 const FONT_HEAD_STACK = brand.fontHeadStack || brand.fontStack;
+const FONT_ACCENT_STACK = brand.fontAccentStack || brand.fontStack;
 const ACCENT_BRIGHT = brand.colors.accentBright || brand.colors.accent;
 const ACCENT_WARM = brand.colors.accentWarm || brand.colors.accent;
 const ACCENT_VIVID = brand.colors.accentVivid || brand.colors.accent;
@@ -3377,11 +3378,13 @@ function PrintStyles() {
         border-left: 3px solid ${ACCENT};
       }
       .cd-evidence-tag {
-        font-family: ${FONT_HEAD_STACK};
-        font-size: 10px; font-weight: 900;
-        color: ${ACCENT}; text-transform: uppercase;
-        letter-spacing: 1.8px; padding-top: 3px;
-        flex-shrink: 0; min-width: 28px;
+        font-family: ${FONT_ACCENT_STACK};
+        font-size: 18px; font-weight: 400;
+        color: ${ACCENT};
+        letter-spacing: 0; padding-top: 0;
+        line-height: 1; flex-shrink: 0; min-width: 42px;
+        transform: rotate(-3deg);
+        transform-origin: left center;
       }
       .cd-evidence-body {
         font-size: 13px; color: ${INK}; line-height: 1.55;
@@ -3414,11 +3417,13 @@ function PrintStyles() {
         border-left: 4px solid ${INK};
       }
       .cd-sowhat-tag {
-        font-family: ${FONT_HEAD_STACK};
-        font-size: 10px; font-weight: 900;
-        color: ${INK_SOFT}; text-transform: uppercase;
-        letter-spacing: 1.8px; padding-top: 3px;
-        flex-shrink: 0; min-width: 56px;
+        font-family: ${FONT_ACCENT_STACK};
+        font-size: 18px; font-weight: 400;
+        color: ${INK};
+        letter-spacing: 0; padding-top: 0;
+        line-height: 1; flex-shrink: 0; min-width: 72px;
+        transform: rotate(-3deg);
+        transform-origin: left center;
       }
       .cd-sowhat-body {
         font-size: 13.5px; color: ${INK}; line-height: 1.55;
@@ -3435,11 +3440,13 @@ function PrintStyles() {
         border-top: 1px dashed ${BORDER};
       }
       .cd-in-practice-tag {
-        font-family: ${FONT_HEAD_STACK};
-        font-size: 10px; font-weight: 900;
-        color: ${MUTED}; text-transform: uppercase;
-        letter-spacing: 1.8px; padding-top: 2px;
-        flex-shrink: 0; min-width: 80px;
+        font-family: ${FONT_ACCENT_STACK};
+        font-size: 18px; font-weight: 400;
+        color: ${ACCENT};
+        letter-spacing: 0; padding-top: 0;
+        line-height: 1; flex-shrink: 0; min-width: 92px;
+        transform: rotate(-3deg);
+        transform-origin: left center;
       }
       .cd-in-practice-body {
         font-size: 12px; color: ${MUTED}; line-height: 1.55;

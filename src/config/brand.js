@@ -63,6 +63,11 @@ export const brand = {
   // close-cousins (Montserrat / Proxima Nova) to system sans.
   fontStack:      '"Gotham Book", "Gotham", "Proxima Nova", "Montserrat", ui-sans-serif, system-ui, -apple-system, sans-serif',
   fontHeadStack:  '"Gotham Ultra", "Gotham Black", "Gotham", "Proxima Nova", "Montserrat", ui-sans-serif, system-ui, -apple-system, sans-serif',
+  // Accent stack — handwritten zine voice. Used SPARINGLY (Why / In
+  // practice / So what tag labels, and the cover one-liner mark) so
+  // the doc gets editorial-magazine warmth without losing analytical
+  // seriousness. Don't apply to body, titles, or data labels.
+  fontAccentStack: '"VTG Move Zine", "Caveat", "Indie Flower", cursive',
 
   // Optional copy strings the deliverable surfaces. Keep them short.
   footerNote: 'Prepared by CRUX Media',
