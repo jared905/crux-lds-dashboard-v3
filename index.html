@@ -10,6 +10,27 @@
     <title>Full View Analytics || Crux</title>
     <meta name="version" content="2.2.1-cache-bust" />
     <style>
+      /* CRUX brand fonts — self-hosted from /public/fonts. Each face
+         tries .woff2 first (best compression, modern browsers) then
+         .otf as a fallback. If you only have one format, leave the
+         other line — the browser just skips the missing file. */
+      @font-face {
+        font-family: 'Gotham Book';
+        src: url('/fonts/Gotham-Book.woff2') format('woff2'),
+             url('/fonts/Gotham-Book.otf') format('opentype');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Gotham Ultra';
+        src: url('/fonts/Gotham-Ultra.woff2') format('woff2'),
+             url('/fonts/Gotham-Ultra.otf') format('opentype');
+        font-weight: 900;
+        font-style: normal;
+        font-display: swap;
+      }
+
       body {
         margin: 0;
         padding: 0;
