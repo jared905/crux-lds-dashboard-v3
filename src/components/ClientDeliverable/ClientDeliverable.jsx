@@ -573,22 +573,25 @@ function AuditTopSheet({ clientName, channels, patternsResult, whiteSpaceResult,
       </div>
 
       <div ref={synthRef}>
+        {/* Group labels all render in brand pink against the deep-teal
+            pull-page — a consistent, bold system. Inline styles so they
+            win over the page-level color override. */}
         <TopsheetGroup
           label="Unclaimed territory"
           items={unclaimed}
-          accent={brand.colors.accent}
+          accent={ACCENT_VIVID}
           emptyText="Opportunity brief is still generating or returned no findings under the current business-context constraints. Re-run the deliverable to retry; if it stays empty, loosen the business-context offer list or widen the analysis window."
         />
         <TopsheetGroup
           label="How the cohort shows up"
           items={cohortBehavior}
-          accent={brand.colors.inkSoft}
+          accent={ACCENT_VIVID}
           emptyText="Cohort data is too thin to characterize cadence, production, or engagement signals."
         />
         <TopsheetGroup
           label="What's moving now"
           items={movement}
-          accent={brand.colors.accent}
+          accent={ACCENT_VIVID}
           emptyText="No named-channel movement in the cohort over the last 30 days — the field is steady-state."
         />
 
