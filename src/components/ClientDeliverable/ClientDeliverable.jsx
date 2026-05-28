@@ -14,27 +14,72 @@
  * uppercase titles, editorial sans-serif body.
  */
 
-import React, { useEffect, useState, useContext, createContext } from 'react';
-import { Printer, X as XIcon, Loader, Copy, Check, Edit3, RotateCcw } from 'lucide-react';
+import React, { useEffect, useState, useContext, createContext, useRef } from 'react';
+import { Printer, X as XIcon, Loader, Copy, Check, Edit3, RotateCcw, Save } from 'lucide-react';
 import { loadDeliverableData } from '../../services/clientDeliverableService.js';
+import {
+  loadOverrides,
+  saveOverrides,
+  clearAllOverrides,
+} from '../../services/deliverableOverridesService.js';
 import { brand } from '../../config/brand.js';
 
 // Session-scoped edit mode. When on, certain prose elements become
-// contentEditable. Edits live in the DOM and survive Print / Save-as-PDF
-// / Copy actions; they're lost when the modal closes. No persistence —
-// the spine and business context remain the source of truth.
+// contentEditable. Edits to <E> instances tagged with a `path` prop
+// are PERSISTABLE — clicking "Save edits" in the toolbar upserts them
+// to client_deliverable_overrides. Edits to <E> instances WITHOUT a
+// path stay session-scoped (still print + copy with the document).
 const EditCtx = createContext(false);
 
+// Override context — carries the loaded { path → html } map at render
+// time AND a register/unregister API the path-tagged <E> elements use
+// to enroll their DOM nodes with the save handler. Plumbed through
+// from the top of ClientDeliverable so every <E> path is captured on
+// Save without manual wiring per call site.
+const OverrideCtx = createContext({
+  values: {},
+  register: () => {},
+  unregister: () => {},
+});
+
 // Editable wrapper. Renders a tag (default <div>) with contentEditable
-// toggled by context. Safe to use anywhere prose lives — tables,
-// charts, and numeric values stay out of this so data integrity isn't
-// at the strategist's typing speed.
-function E({ children, tag = 'div', className = '', style }) {
+// toggled by context. Path-tagged instances apply the saved override
+// (if any) at mount and enroll for Save capture; untagged instances
+// stay session-only.
+function E({ children, tag = 'div', className = '', style, path }) {
   const editMode = useContext(EditCtx);
+  const overrides = useContext(OverrideCtx);
+  const ref = useRef(null);
+  const overrideHtml = path ? overrides?.values?.[path] : undefined;
+
+  // Apply the saved override (if any) on mount. Only set innerHTML
+  // when an override exists — otherwise we let React render the
+  // default children. After this, the element is contentEditable;
+  // its innerHTML is captured on Save.
+  useEffect(() => {
+    if (overrideHtml != null && ref.current) {
+      ref.current.innerHTML = overrideHtml;
+    }
+    // Intentionally only re-run when the override value flips on/off
+    // — not when children change. The override IS the children once
+    // applied.
+  }, [overrideHtml]);
+
+  // Register with the OverrideCtx so the toolbar's Save handler can
+  // capture this element's innerHTML at save time. Skip if no path.
+  useEffect(() => {
+    if (!path || !ref.current) return undefined;
+    const el = ref.current;
+    overrides.register?.(path, el);
+    return () => overrides.unregister?.(path);
+  }, [path, overrides]);
+
   return React.createElement(
     tag,
     {
-      className: `${className} ${editMode ? 'cd-editable' : ''}`.trim(),
+      ref,
+      'data-edit-path': path || undefined,
+      className: `${className} ${editMode ? 'cd-editable' : ''} ${path && editMode ? 'cd-editable-persistable' : ''}`.trim(),
       contentEditable: editMode,
       suppressContentEditableWarning: true,
       spellCheck: editMode,
@@ -113,6 +158,17 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
   // Mode auto-initialized once data loads; strategist can override down
   // via the toolbar dropdown.
   const [modeOverride, setModeOverride] = useState(null);
+  // Persisted overrides — loaded from client_deliverable_overrides at
+  // mount and any time we save. The path-tagged <E> elements read from
+  // this map on render and enroll their nodes with the save handler.
+  const [overrides, setOverrides] = useState({ values: {}, lastEditedAt: null });
+  const [savingState, setSavingState] = useState('idle'); // idle | saving | saved | error
+  // Live registry of mounted path-tagged DOM nodes — keyed by path.
+  // Save handler reads innerHTML out of these refs.
+  const registryRef = useRef(new Map());
+  // Initial-load flag — used to suppress the Save button's "saved" toast
+  // on the very first render.
+  const initialOverridesLoaded = useRef(false);
   // (Markdown export was removed in Step 17 — the .md output had
   // diverged significantly from the rendered deliverable since Step 8,
   // making it actively misleading to send. The strategist's raw
@@ -123,16 +179,84 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    loadDeliverableData(clientId)
-      .then(r => {
+    // Load the deliverable data + any persisted overrides in parallel.
+    // Overrides apply on first render via the OverrideCtx, so the
+    // strategist sees their saved edits exactly as last saved.
+    Promise.all([
+      loadDeliverableData(clientId),
+      loadOverrides(clientId).catch(() => ({ values: {}, lastEditedAt: null })),
+    ])
+      .then(([r, ov]) => {
         if (cancelled) return;
         if (!r.ok) setError(r.error || 'Failed to load');
         else setData(r);
+        setOverrides(ov || { values: {}, lastEditedAt: null });
+        initialOverridesLoaded.current = true;
       })
       .catch(e => { if (!cancelled) setError(e.message || 'Failed to load'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [clientId]);
+
+  // Stable register/unregister functions that path-tagged <E> elements
+  // use to enroll their DOM nodes with the save handler. Stored in a
+  // ref-backed Map so we don't re-render on every mount.
+  const overrideCtxValue = React.useMemo(() => ({
+    values: overrides.values,
+    register: (path, el) => {
+      registryRef.current.set(path, el);
+    },
+    unregister: (path) => {
+      registryRef.current.delete(path);
+    },
+  }), [overrides.values]);
+
+  // Save handler — capture innerHTML of every currently-registered
+  // path-tagged element, diff against the loaded overrides, upsert
+  // the changes. Empty/whitespace-only content is treated as a
+  // deletion (the strategist erased their edit → revert to default).
+  const handleSaveEdits = React.useCallback(async () => {
+    if (!data || savingState === 'saving') return;
+    setSavingState('saving');
+    const captured = [];
+    for (const [path, el] of registryRef.current.entries()) {
+      const html = (el?.innerHTML || '').trim();
+      // Skip empties — strategist who clears the field wants the
+      // default back. (We delete the row server-side in that case.)
+      if (!html) continue;
+      // Skip if unchanged from the loaded override (no point re-saving).
+      if (overrides.values?.[path] === html) continue;
+      captured.push({ path, content: html, content_type: 'html' });
+    }
+    if (!captured.length) {
+      setSavingState('saved');
+      setTimeout(() => setSavingState('idle'), 1400);
+      return;
+    }
+    const res = await saveOverrides(clientId, captured);
+    if (!res.ok) {
+      setSavingState('error');
+      setTimeout(() => setSavingState('idle'), 2000);
+      return;
+    }
+    // Merge the captured edits into our overrides state so subsequent
+    // saves can detect changes correctly.
+    const nextValues = { ...overrides.values };
+    for (const e of captured) nextValues[e.path] = e.content;
+    setOverrides({ values: nextValues, lastEditedAt: res.lastEditedAt });
+    setSavingState('saved');
+    setTimeout(() => setSavingState('idle'), 1400);
+  }, [clientId, data, savingState, overrides.values]);
+
+  // Reset handler — wipe all persisted overrides AND the in-session
+  // contentEditable edits (the resetKey bump re-mounts the doc).
+  const handleResetEdits = React.useCallback(async () => {
+    if (!data) return;
+    if (!window.confirm('Reset ALL saved edits for this client? Auto-generated text replaces every override. This cannot be undone.')) return;
+    await clearAllOverrides(clientId);
+    setOverrides({ values: {}, lastEditedAt: null });
+    setResetKey(k => k + 1);
+  }, [clientId, data]);
 
   // Compute the effective mode once data loads. Default to auto-detected;
   // the strategist's override (if any) takes precedence as long as it's
@@ -163,14 +287,31 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
           onClick={() => setEditMode(e => !e)}
           disabled={!data}
           className={`cd-btn ${editMode ? 'cd-btn-primary' : ''}`}
-          title={editMode ? 'Exit edit mode' : 'Edit prose inline — edits print but do not save when you close'}
+          title={editMode ? 'Exit edit mode' : 'Edit prose inline — path-tagged elements (headers, rationales, host fields) can be saved'}
         >
           <Edit3 size={13} /> {editMode ? 'Editing — done' : 'Edit'}
         </button>
         {editMode && (
-          <button onClick={() => setResetKey(k => k + 1)} disabled={!data} className="cd-btn" title="Reset all inline edits back to the auto-generated text">
-            <RotateCcw size={13} /> Reset
-          </button>
+          <>
+            <button
+              onClick={handleSaveEdits}
+              disabled={!data || savingState === 'saving'}
+              className={`cd-btn ${savingState === 'saved' ? 'cd-btn-success' : 'cd-btn-primary'}`}
+              title="Save edits to highlighted (persistable) elements. Spine fields stay canonical; this layer is your prose overlay."
+            >
+              {savingState === 'saving'
+                ? <><Loader size={13} className="cd-spin" /> Saving…</>
+                : savingState === 'saved'
+                  ? <><Check size={13} /> Saved</>
+                  : savingState === 'error'
+                    ? <><Save size={13} /> Save failed — retry</>
+                    : <><Save size={13} /> Save edits</>
+              }
+            </button>
+            <button onClick={handleResetEdits} disabled={!data} className="cd-btn" title="Wipe ALL saved overrides for this client. Auto-generated text returns.">
+              <RotateCcw size={13} /> Reset saved
+            </button>
+          </>
         )}
         <button onClick={() => window.print()} disabled={!data} className="cd-btn cd-btn-primary">
           <Printer size={13} /> Print / Save as PDF
@@ -180,27 +321,34 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
 
       {editMode && data && (
         <div className="cd-edit-banner">
-          <strong>Edit mode.</strong> Click any highlighted prose to edit. Changes print + copy with the document but won't save when you close — the spine remains the source of truth. Use <strong>Reset</strong> to revert all edits.
+          <strong>Edit mode.</strong> Click any highlighted prose to edit. Elements with a <strong>dashed underline</strong> are persistable — <strong>Save edits</strong> writes those to this client. Unmarked edits print + copy with the document but reset on close. The spine remains source of truth for positioning data.
+          {overrides.lastEditedAt && (
+            <span style={{ marginLeft: 8, opacity: 0.7 }}>
+              · Last saved {new Date(overrides.lastEditedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+            </span>
+          )}
         </div>
       )}
 
       <EditCtx.Provider value={editMode}>
-        <div className="cd-doc" key={resetKey}>
-          {loading && (
-            <div className="cd-loading">
-              <Loader size={28} className="cd-spin" />
-              <div style={{ marginTop: 10, fontSize: 14, color: MUTED }}>
-                Loading deliverable… this can take 10–30 seconds — the briefing and white-space brief are AI-generated.
+        <OverrideCtx.Provider value={overrideCtxValue}>
+          <div className="cd-doc" key={resetKey}>
+            {loading && (
+              <div className="cd-loading">
+                <Loader size={28} className="cd-spin" />
+                <div style={{ marginTop: 10, fontSize: 14, color: MUTED }}>
+                  Loading deliverable… this can take 10–30 seconds — the briefing and white-space brief are AI-generated.
+                </div>
               </div>
-            </div>
-          )}
-          {error && (
-            <div className="cd-error">
-              <strong>Couldn't load deliverable:</strong> {error}
-            </div>
-          )}
-          {data && <DeliverablePages data={data} clientName={clientName} mode={mode} />}
-        </div>
+            )}
+            {error && (
+              <div className="cd-error">
+                <strong>Couldn't load deliverable:</strong> {error}
+              </div>
+            )}
+            {data && <DeliverablePages data={data} clientName={clientName} mode={mode} />}
+          </div>
+        </OverrideCtx.Provider>
       </EditCtx.Provider>
 
       {/* Print-only footer — hidden on screen, fixed to the bottom of
@@ -1105,7 +1253,7 @@ function PartCallout({ number, title, description }) {
   );
 }
 
-function SubSection({ title, kicker, children }) {
+function SubSection({ title, kicker, children, path }) {
   const bodyRef = React.useRef(null);
   const [copied, setCopied] = useState(false);
 
@@ -1129,8 +1277,8 @@ function SubSection({ title, kicker, children }) {
     <div className="cd-subsection">
       <div className="cd-subsection-head">
         <div style={{ flex: 1, minWidth: 0 }}>
-          {kicker && <E className="cd-kicker">{kicker}</E>}
-          <E tag="h3" className="cd-subtitle">{title}</E>
+          {kicker && <E className="cd-kicker" path={path ? `${path}.kicker` : undefined}>{kicker}</E>}
+          <E tag="h3" className="cd-subtitle" path={path ? `${path}.title` : undefined}>{title}</E>
         </div>
         <button onClick={handleCopy} className="cd-copy-btn" title="Copy this section to clipboard (paste into your deck)">
           {copied ? <Check size={13} /> : <Copy size={13} />}
@@ -2047,20 +2195,20 @@ function PartTwoContent({ spine, hosts = [], legacyRubric, rationales = {} }) {
   return (
     <section className="cd-page">
       {spine?.editorial_pov && (
-        <SubSection title="Editorial POV + mission" kicker="What this channel believes">
-          {rationales.whys?.editorial_pov && <EvidenceLead>{rationales.whys.editorial_pov}</EvidenceLead>}
-          <E tag="p" className="cd-recommendation">{spine.editorial_pov}</E>
-          <InPractice>
+        <SubSection title="Editorial POV + mission" kicker="What this channel believes" path="positioning.editorial_pov">
+          {rationales.whys?.editorial_pov && <EvidenceLead path="positioning.editorial_pov.why">{rationales.whys.editorial_pov}</EvidenceLead>}
+          <E tag="p" className="cd-recommendation" path="positioning.editorial_pov.body">{spine.editorial_pov}</E>
+          <InPractice path="positioning.editorial_pov.in_practice">
             {rationales.inPractice?.editorial_pov || <>Every script and brief is tested against this POV — if a video doesn't argue or stand for something in this frame, it doesn't ship.</>}
           </InPractice>
         </SubSection>
       )}
 
       {spine?.voice_tone && (
-        <SubSection title="Voice + tone" kicker="How this channel sounds">
-          {rationales.whys?.voice_tone && <EvidenceLead>{rationales.whys.voice_tone}</EvidenceLead>}
-          <E tag="p" className="cd-recommendation">{spine.voice_tone}</E>
-          <InPractice>
+        <SubSection title="Voice + tone" kicker="How this channel sounds" path="positioning.voice_tone">
+          {rationales.whys?.voice_tone && <EvidenceLead path="positioning.voice_tone.why">{rationales.whys.voice_tone}</EvidenceLead>}
+          <E tag="p" className="cd-recommendation" path="positioning.voice_tone.body">{spine.voice_tone}</E>
+          <InPractice path="positioning.voice_tone.in_practice">
             {rationales.inPractice?.voice_tone || <>This is the style sheet talent reads before takes and producers reference during edits — generated copy and scripts match this register or get rejected.</>}
           </InPractice>
         </SubSection>
@@ -2070,14 +2218,15 @@ function PartTwoContent({ spine, hosts = [], legacyRubric, rationales = {} }) {
         <SubSection
           title={hostsToRender.length === 1 ? 'Host' : `Hosts (${hostsToRender.length})`}
           kicker={hostsToRender.length === 1 ? 'Who is on screen' : 'Series-specific on-camera personas'}
+          path="positioning.host"
         >
-          {rationales.whys?.host_archetype && <EvidenceLead>{rationales.whys.host_archetype}</EvidenceLead>}
+          {rationales.whys?.host_archetype && <EvidenceLead path="positioning.host.why">{rationales.whys.host_archetype}</EvidenceLead>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {hostsToRender.map((h, i) => (
               <HostBlock key={h.id || i} host={h} />
             ))}
           </div>
-          <InPractice>
+          <InPractice path="positioning.host.in_practice">
             {rationales.inPractice?.host_archetype || (hostsToRender.length === 1
               ? <>Auditions score candidates against the rubric tied to this archetype. Producers brief on-camera takes against the archetype's specifics.</>
               : <>Each series casts and briefs against its own host rubric. Producers don't move talent between series without re-auditioning against the target archetype.</>)}
@@ -2086,10 +2235,10 @@ function PartTwoContent({ spine, hosts = [], legacyRubric, rationales = {} }) {
       )}
 
       {spine?.guardrails && (
-        <SubSection title="What this isn't" kicker="Explicit anti-stances">
-          {rationales.whys?.guardrails && <EvidenceLead>{rationales.whys.guardrails}</EvidenceLead>}
-          <E className="cd-guardrails">{spine.guardrails}</E>
-          <InPractice>
+        <SubSection title="What this isn't" kicker="Explicit anti-stances" path="positioning.guardrails">
+          {rationales.whys?.guardrails && <EvidenceLead path="positioning.guardrails.why">{rationales.whys.guardrails}</EvidenceLead>}
+          <E className="cd-guardrails" path="positioning.guardrails.body">{spine.guardrails}</E>
+          <InPractice path="positioning.guardrails.in_practice">
             {rationales.inPractice?.guardrails || <>AI generations, producer briefs, and content pitches explicitly exclude these stances. A pitch that drifts into them gets pulled before production.</>}
           </InPractice>
         </SubSection>
@@ -2111,12 +2260,17 @@ function PartTwoContent({ spine, hosts = [], legacyRubric, rationales = {} }) {
 // summary of what that scorecard scores against.
 function HostBlock({ host }) {
   const label = host.name || host.series_label || host.archetype || 'Host';
+  // Path prefix per host so each host's overrides are keyed independently.
+  // Hosts without a stable id (legacy seeded rows) fall back to their
+  // series label or array position — less durable but unblocks editing
+  // for those rows.
+  const pp = host.id ? `host.${host.id}` : null;
   return (
     <div style={{ border: `1px solid ${BORDER}`, borderRadius: 6, padding: '14px 16px', background: '#fdfcf8' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
-        <E style={{ fontSize: 16, fontWeight: 700, color: INK }}>{label}</E>
+        <E style={{ fontSize: 16, fontWeight: 700, color: INK }} path={pp ? `${pp}.name` : undefined}>{label}</E>
         {host.series_label && host.series_label !== label && (
-          <E style={{ fontSize: 11, fontWeight: 700, color: ACCENT, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+          <E style={{ fontSize: 11, fontWeight: 700, color: ACCENT, textTransform: 'uppercase', letterSpacing: 0.8 }} path={pp ? `${pp}.series_label` : undefined}>
             {host.series_label}
           </E>
         )}
@@ -2124,17 +2278,17 @@ function HostBlock({ host }) {
       {host.archetype && (
         <div style={{ fontSize: 13, color: INK, marginBottom: host.voice_tone_refinement ? 6 : 0 }}>
           <strong style={{ color: MUTED, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, marginRight: 6 }}>Archetype</strong>
-          <E tag="span">{host.archetype}</E>
+          <E tag="span" path={pp ? `${pp}.archetype` : undefined}>{host.archetype}</E>
         </div>
       )}
       {host.voice_tone_refinement && (
         <div style={{ fontSize: 13, color: INK, marginBottom: host.notes ? 6 : 0 }}>
           <strong style={{ color: MUTED, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, marginRight: 6 }}>Voice refinement</strong>
-          <E tag="span">{host.voice_tone_refinement}</E>
+          <E tag="span" path={pp ? `${pp}.voice_refinement` : undefined}>{host.voice_tone_refinement}</E>
         </div>
       )}
       {host.notes && (
-        <E style={{ fontSize: 12, color: MUTED, fontStyle: 'italic', marginTop: 4 }}>
+        <E style={{ fontSize: 12, color: MUTED, fontStyle: 'italic', marginTop: 4 }} path={pp ? `${pp}.notes` : undefined}>
           {host.notes}
         </E>
       )}
@@ -2145,18 +2299,18 @@ function HostBlock({ host }) {
             Audition rubric · {host.rubric.criteria.length} criteria
           </div>
           {host.rubric.intro_note && (
-            <E className="cd-quote" style={{ marginBottom: 8 }}>{host.rubric.intro_note}</E>
+            <E className="cd-quote" style={{ marginBottom: 8 }} path={pp ? `${pp}.rubric.intro_note` : undefined}>{host.rubric.intro_note}</E>
           )}
           <ol className="cd-list cd-list-numbered" style={{ marginTop: 6 }}>
             {host.rubric.criteria.map((c, i) => (
               <li key={i} style={{ marginBottom: 8 }}>
-                <E tag="strong">{c.name}</E>{' '}
+                <E tag="strong" path={pp ? `${pp}.rubric.criteria.${i}.name` : undefined}>{c.name}</E>{' '}
                 <span style={{ color: MUTED, fontSize: 12 }}>· {c.weight || 'medium'} weight</span>
                 {c.what_excellence_looks_like && (
-                  <div style={{ marginTop: 3, fontSize: 13 }}><em>5/5:</em> <E tag="span">{c.what_excellence_looks_like}</E></div>
+                  <div style={{ marginTop: 3, fontSize: 13 }}><em>5/5:</em> <E tag="span" path={pp ? `${pp}.rubric.criteria.${i}.excellence` : undefined}>{c.what_excellence_looks_like}</E></div>
                 )}
                 {c.disqualifier && (
-                  <div style={{ marginTop: 3, fontSize: 13 }}><em style={{ color: '#b91c1c' }}>Disqualifier:</em> <E tag="span">{c.disqualifier}</E></div>
+                  <div style={{ marginTop: 3, fontSize: 13 }}><em style={{ color: '#b91c1c' }}>Disqualifier:</em> <E tag="span" path={pp ? `${pp}.rubric.criteria.${i}.disqualifier` : undefined}>{c.disqualifier}</E></div>
                 )}
               </li>
             ))}
@@ -2304,11 +2458,11 @@ function soWhatCategoryEngagement(channels) {
 // Sits ABOVE the spine field (not below it as a sidebar) so the reader
 // sees the evidence before the conclusion. Computed deterministically
 // from Part 01 findings — no LLM call.
-function EvidenceLead({ children }) {
+function EvidenceLead({ children, path }) {
   return (
     <div className="cd-evidence">
-      <E className="cd-evidence-tag">Why</E>
-      <E className="cd-evidence-body">{children}</E>
+      <E className="cd-evidence-tag" path={path ? `${path}.label` : undefined}>Why</E>
+      <E className="cd-evidence-body" path={path ? `${path}.body` : undefined}>{children}</E>
     </div>
   );
 }
@@ -2316,11 +2470,11 @@ function EvidenceLead({ children }) {
 // InPractice — the operational implication at the bottom of each Part 02
 // field. Names what the strategist/team actually does with the
 // recommendation. Closes the loop: why → what → how.
-function InPractice({ children }) {
+function InPractice({ children, path }) {
   return (
     <div className="cd-in-practice">
-      <E className="cd-in-practice-tag">In practice</E>
-      <E className="cd-in-practice-body">{children}</E>
+      <E className="cd-in-practice-tag" path={path ? `${path}.label` : undefined}>In practice</E>
+      <E className="cd-in-practice-body" path={path ? `${path}.body` : undefined}>{children}</E>
     </div>
   );
 }
@@ -2501,6 +2655,17 @@ function PrintStyles() {
       }
       .cd-btn:disabled { opacity: 0.5; cursor: wait; }
       .cd-btn-primary { background: #1e3a5f; color: #dbeafe; border-color: #2a4f7f; }
+      .cd-btn-success { background: #14532d; color: #d1fae5; border-color: #166534; }
+
+      /* Persistable edits — dashed underline in edit mode so the
+         strategist can tell at a glance which clicks will SAVE vs.
+         which are session-only. Non-persistable editables keep the
+         default cd-editable highlight. */
+      .cd-editable-persistable {
+        text-decoration: underline dashed rgba(20, 83, 45, 0.5);
+        text-underline-offset: 4px;
+        text-decoration-thickness: 1.5px;
+      }
 
       /* Mode dropdown — lets the strategist render below the
          auto-detected mode (e.g., generate "Audit & Landscape Report"
