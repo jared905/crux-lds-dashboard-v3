@@ -15,6 +15,7 @@
  */
 
 import React, { useEffect, useState, useContext, createContext, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Printer, X as XIcon, Loader, Copy, Check, Edit3, RotateCcw, Save } from 'lucide-react';
 import { loadDeliverableData } from '../../services/clientDeliverableService.js';
 import {
@@ -271,7 +272,12 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
   const mode = modeOverride && validOverrides.includes(modeOverride) ? modeOverride : detectedMode;
 
 
-  return (
+  // Portal to document.body so the overlay is a DIRECT child of body.
+  // This lets the print CSS remove the rest of the app with display:none
+  // (which collapses its layout space). The previous visibility:hidden
+  // approach left the hidden app occupying ~6 pages of height, which
+  // pushed the cover to page 2 and stacked blank pages around the doc.
+  return createPortal(
     <div className="cd-overlay" role="dialog" aria-modal="true">
       <PrintStyles />
 
@@ -374,7 +380,8 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
           {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -3953,9 +3960,12 @@ function PrintStyles() {
           background: none !important;
         }
 
-        /* Hide everything; reveal only the deliverable overlay. */
-        body * { visibility: hidden !important; }
-        .cd-overlay, .cd-overlay * { visibility: visible !important; }
+        /* The overlay is portaled to document.body, so every OTHER
+           direct body child (the app's #root, etc.) can be removed with
+           display:none — which collapses its layout space. visibility:
+           hidden was leaving that space behind, producing a blank page
+           before the cover and a stack of blank pages after the doc. */
+        body > *:not(.cd-overlay) { display: none !important; }
 
         /* Flow the overlay as a normal block so its parents' layout
            doesn't create blank pages. */
