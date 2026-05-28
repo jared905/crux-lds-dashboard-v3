@@ -1130,9 +1130,9 @@ function buildAuditFindings({ channels, patternsResult, whiteSpaceResult, produc
     const top = ctx.statisticalPatterns[0];
     findings.push({
       label: 'What earns views in this category',
-      text: <><strong>{top.label}</strong> titles win by +{Math.round(top.viewsLift)}% vs. the cohort median (n={top.count}, statistical).</>,
+      text: <><strong>{top.label}</strong> titles win by +{Math.round((top.viewsLift - 1) * 100)}% vs. the cohort median (n={top.count}, statistical).</>,
       evidence: ctx.statisticalPatterns.length >= 2
-        ? <>Multiple patterns clear the statistical threshold; this one tops the list. Stack with the next strongest ({ctx.statisticalPatterns[1].label}, +{Math.round(ctx.statisticalPatterns[1].viewsLift)}%) for compound effect.</>
+        ? <>Multiple patterns clear the statistical threshold; this one tops the list. Stack with the next strongest ({ctx.statisticalPatterns[1].label}, +{Math.round((ctx.statisticalPatterns[1].viewsLift - 1) * 100)}%) for compound effect.</>
         : <>The clearest reproducible lever in this category — pattern-tested across the cohort, not a one-video fluke.</>,
     });
   }
@@ -1219,9 +1219,10 @@ function computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, p
   // Top demand signal
   const topUnserved = demandRow?.signals?.unserved_requests?.[0] || null;
 
-  // Top title patterns (statistical winners only, sorted by lift)
+  // Top title patterns (statistical winners only, sorted by lift).
+  // viewsLift is a RATIO (1.15 = +15% lift), not a percentage.
   const statisticalPatterns = (patternsResult?.scope?.titlePatterns || [])
-    .filter(p => p.viewsLift != null && p.viewsLift >= 15 && p.confidence === 'statistical')
+    .filter(p => p.viewsLift != null && p.viewsLift >= 1.15 && p.confidence === 'statistical')
     .sort((a, b) => b.viewsLift - a.viewsLift);
 
   // Top cadence slot
@@ -1573,7 +1574,7 @@ function CohortEngagementSummary({ channels, patternsResult }) {
   const titlePatterns = (patternsResult?.scope?.titlePatterns || [])
     .filter(p => p.avgEngagement != null && p.viewsLift != null && p.count >= 10);
   const engagementWinners = titlePatterns
-    .filter(p => p.avgEngagement > 0.02 && p.viewsLift < 0)
+    .filter(p => p.avgEngagement > 0.02 && p.viewsLift < 1)
     .sort((a, b) => b.avgEngagement - a.avgEngagement)
     .slice(0, 2);
 
@@ -1613,7 +1614,7 @@ function CohortEngagementSummary({ channels, patternsResult }) {
             {engagementWinners.map((p, i) => (
               <li key={i}>
                 <strong>{p.label}</strong> · {(p.avgEngagement * 100).toFixed(1)}% engagement
-                <span style={{ color: MUTED }}> · but views {Math.round(p.viewsLift)}% vs cohort median</span>
+                <span style={{ color: MUTED }}> · but views {Math.round((p.viewsLift - 1) * 100)}% vs cohort median</span>
               </li>
             ))}
           </ul>
@@ -1856,9 +1857,13 @@ function TitlePatternBars({ patterns }) {
 
   if (!rows.length) return null;
 
+  // viewsLift is a RATIO (2.54 = +154% lift). Convert to a signed
+  // percentage for display, scaling, and bar width.
+  const liftPct = (p) => (p.viewsLift - 1) * 100;
   // Scale: max abs lift sets the bar length scale. Cap at +250% so a
-  // single outlier doesn't dwarf the rest.
-  const maxAbs = Math.min(250, Math.max(...rows.map(r => Math.abs(r.viewsLift)), 50));
+  // single outlier doesn't dwarf the rest; floor at 50 so small fields
+  // don't render full-width bars off tiny lifts.
+  const maxAbs = Math.min(250, Math.max(...rows.map(r => Math.abs(liftPct(r))), 50));
   const labelWidth = 220;
   const valueWidth = 70;
   const barAreaWidth = 460;
@@ -1872,11 +1877,12 @@ function TitlePatternBars({ patterns }) {
       <line x1={zeroX} x2={zeroX} y1={4} y2={height - 6} stroke="#d9cfb1" strokeWidth={1} strokeDasharray="2 2" />
       {rows.map((p, i) => {
         const y = i * rowHeight + 8;
-        const lift = Math.max(-maxAbs, Math.min(maxAbs, p.viewsLift));
-        const width = (Math.abs(lift) / (2 * maxAbs)) * barAreaWidth;
-        const x = lift >= 0 ? zeroX : zeroX - width;
+        const pct = liftPct(p);
+        const clamped = Math.max(-maxAbs, Math.min(maxAbs, pct));
+        const width = (Math.abs(clamped) / (2 * maxAbs)) * barAreaWidth;
+        const x = clamped >= 0 ? zeroX : zeroX - width;
         const isDirectional = p.confidence === 'directional';
-        const color = lift >= 0 ? ACCENT : '#9ca3af';
+        const color = clamped >= 0 ? ACCENT : '#9ca3af';
         return (
           <g key={i}>
             <text x={labelWidth - 8} y={y + 13} textAnchor="end" fontSize="11.5" fill={INK} style={{ fontWeight: 500 }}>
@@ -1884,7 +1890,7 @@ function TitlePatternBars({ patterns }) {
             </text>
             <rect x={x} y={y + 4} width={width} height={14} fill={color} opacity={isDirectional ? 0.45 : 0.92} rx={2} />
             <text x={labelWidth + barAreaWidth + 6} y={y + 13} fontSize="11" fill={INK} style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 600 }}>
-              {lift >= 0 ? '+' : ''}{Math.round(p.viewsLift)}%{isDirectional ? '*' : ''}
+              {pct >= 0 ? '+' : ''}{Math.round(pct)}%{isDirectional ? '*' : ''}
             </text>
           </g>
         );
@@ -2418,20 +2424,21 @@ function soWhatProductionApproach(channels, productionSignalsByChannel) {
 }
 
 function soWhatPerformancePatterns(patternsResult) {
+  // viewsLift is a RATIO (1.15 = +15% lift). Positive lift = ratio > 1.
   const patterns = (patternsResult?.scope?.titlePatterns || [])
-    .filter(p => p.viewsLift != null && p.viewsLift > 0)
+    .filter(p => p.viewsLift != null && p.viewsLift > 1)
     .sort((a, b) => b.viewsLift - a.viewsLift);
   if (!patterns.length) return null;
-  const statistical = patterns.filter(p => p.confidence === 'statistical' && p.viewsLift >= 15);
+  const statistical = patterns.filter(p => p.confidence === 'statistical' && p.viewsLift >= 1.15);
   if (statistical.length >= 2) {
     const top = statistical.slice(0, 3);
     return <>Multiple title patterns show statistical lift: {top.map((p, i) => (
-      <span key={i}>{i > 0 ? ', ' : ''}<strong>{p.label}</strong> (+{Math.round(p.viewsLift)}%)</span>
+      <span key={i}>{i > 0 ? ', ' : ''}<strong>{p.label}</strong> (+{Math.round((p.viewsLift - 1) * 100)}%)</span>
     ))}. These compound — a title combining two or three of these patterns leverages each. Default titles toward this stack unless you're explicitly testing alternatives.</>;
   }
   if (statistical.length === 1) {
     const p = statistical[0];
-    return <><strong>{p.label}</strong> shows statistical lift (+{Math.round(p.viewsLift)}%). Default titles toward this pattern unless you're explicitly testing alternatives — the rest of the patterns are noise or directional.</>;
+    return <><strong>{p.label}</strong> shows statistical lift (+{Math.round((p.viewsLift - 1) * 100)}%). Default titles toward this pattern unless you're explicitly testing alternatives — the rest of the patterns are noise or directional.</>;
   }
   return <>No title patterns clear the statistical threshold yet. Don't lock title strategy to small-sample patterns — pick one or two directional candidates to test, leave the rest alone until volume builds.</>;
 }
