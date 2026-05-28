@@ -478,7 +478,7 @@ const BRIEFING_CACHE_HOURS = 24 * 3; // re-synthesize every 3 days
 
 // Bump when the prompt structure or hedging rules change — invalidates
 // every cached briefing so stale pre-hedging output stops being served.
-const BRIEFING_PROMPT_VERSION = 'v13-format-skew-caveat';
+const BRIEFING_PROMPT_VERSION = 'v14-no-peer-names';
 
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;
@@ -577,8 +577,12 @@ export async function loadOrGenerateBriefing(diagnostic) {
     const segments = archetypeBreakdown?.segments || [];
     const archetypeLines = segments
       .map(a => {
+        // Report the COUNT + top engagement magnitude, NOT the channel
+        // names — injecting competitor names here leaked them into the
+        // briefing ("Ring and ADT both hit 2.1%"), violating the
+        // brand-name rule. The signal is the magnitude, not the names.
         const outLine = a.outperformers?.length
-          ? `; outliers above segment median: ${a.outperformers.map(o => `${o.name} ${(o.engagement * 100).toFixed(1)}%`).join(', ')}`
+          ? `; ${a.outperformers.length} channel(s) run above the segment median (top engagement ${(a.outperformers[0].engagement * 100).toFixed(1)}%)`
           : '';
         return `- ${a.label}: ${a.channelCount} channels, ${a.videoCount} videos, median engagement ${a.medianEngagement != null ? (a.medianEngagement * 100).toFixed(1) + '%' : 'n/a'}, top patterns: ${(a.patterns || []).slice(0, 2).map(p => `${p.label} (+${Math.round((p.lift - 1) * 100)}%)`).join(', ') || 'none with significant lift'}${outLine}`;
       })

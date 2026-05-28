@@ -1486,7 +1486,7 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
 
       {titlePatterns.length > 0 && (
         <SubSection title="Performance patterns" kicker="What's working">
-          <p>Title patterns sorted by views lift (vs. cohort median):</p>
+          <p>Title patterns vs. cohort median — statistical winners first, then directional (small-sample, marked *):</p>
           <TitlePatternBars patterns={titlePatterns} />
           <SoWhat>{soWhatPerformancePatterns(patternsResult)}</SoWhat>
         </SubSection>
@@ -1943,11 +1943,22 @@ function formatSkewLabel(shortsShare) {
 }
 
 function TitlePatternBars({ patterns }) {
-  // Sort by lift desc, cap at 8 to keep the chart legible.
+  // Sort STATISTICAL patterns first, then by lift — matching the
+  // briefing's sortLift + the So-What. Sorting purely by raw lift
+  // floated a high directional pattern (e.g. "parenthetical +246%*")
+  // above the strongest statistical one (emoji +154%), which read as a
+  // contradiction against the briefing that leads with emoji. Now the
+  // top bar is the strongest RELIABLE pattern; directional bars (faded,
+  // marked *) sort below.
   const rows = [...patterns]
-    .sort((a, b) => (b.viewsLift ?? -Infinity) - (a.viewsLift ?? -Infinity))
-    .slice(0, 8)
-    .filter(p => p.viewsLift != null);
+    .filter(p => p.viewsLift != null)
+    .sort((a, b) => {
+      const aStat = a.confidence === 'statistical' ? 1 : 0;
+      const bStat = b.confidence === 'statistical' ? 1 : 0;
+      if (aStat !== bStat) return bStat - aStat;
+      return (b.viewsLift ?? -Infinity) - (a.viewsLift ?? -Infinity);
+    })
+    .slice(0, 8);
 
   if (!rows.length) return null;
 
