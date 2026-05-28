@@ -680,8 +680,6 @@ function AuditTopSheet({ clientName, channels, patternsResult, whiteSpaceResult,
           emptyText="No named-channel movement in the cohort over the last 30 days — the field is steady-state."
         />
 
-        <div className="cd-audit-divider" />
-
         <div className="cd-audit-nextsteps">
           <div className="cd-audit-nextsteps-label">Next steps</div>
           <ol className="cd-audit-nextsteps-list">
@@ -3195,8 +3193,17 @@ function PrintStyles() {
         margin: 32px 0 28px;
         opacity: 0.65;
       }
+      /* Next steps — contained "action block" on the teal pull-page.
+         Hairline cream border + faint tint sets it apart from the
+         findings above as the do-this-next panel, without the heavy
+         contrast of a filled card. */
       .cd-audit-nextsteps {
         break-inside: avoid;
+        margin-top: 28px;
+        padding: 22px 26px;
+        border: 1px solid rgba(255, 250, 241, 0.28);
+        border-radius: 10px;
+        background: rgba(255, 250, 241, 0.06);
       }
       .cd-audit-nextsteps-label {
         font-family: ${FONT_HEAD_STACK};
