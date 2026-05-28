@@ -33,7 +33,9 @@ export const brand = {
 
   // Logo. Renders on the cover hero and in the print footer. Image
   // file lives in /public so it's served as-is at /crux-logo.png.
-  logoUrl: '/crux-logo.png',
+  // Cache-bust suffix bumps when the file on disk changes — forces
+  // every browser to refetch instead of using its cached copy.
+  logoUrl: '/crux-logo.png?v=2',
 
   // Color palette. CRUX brand — editorial-magazine warmth (#FFFAF1
   // cream surface, #060707 ink) with #015661 deep teal as the primary
