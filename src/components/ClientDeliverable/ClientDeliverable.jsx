@@ -100,6 +100,10 @@ const MUTED = brand.colors.muted;
 const BORDER = brand.colors.border;
 const DANGER = brand.colors.danger;
 const FONT_STACK = brand.fontStack;
+const FONT_HEAD_STACK = brand.fontHeadStack || brand.fontStack;
+const ACCENT_BRIGHT = brand.colors.accentBright || brand.colors.accent;
+const ACCENT_WARM = brand.colors.accentWarm || brand.colors.accent;
+const ACCENT_VIVID = brand.colors.accentVivid || brand.colors.accent;
 
 // Deliverable modes — three artifacts collapsed into one component,
 // each appropriate to a different stage in the strategist's
@@ -356,7 +360,14 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
           visibility-visible rule catches it. */}
       <div className="cd-print-footer" aria-hidden="true">
         <div className="cd-print-footer-left">
-          {(clientName || 'Client')} · Competitive audit
+          {brand.logoUrl && (
+            <img
+              src={brand.logoUrl}
+              alt={brand.studio || brand.name}
+              className="cd-print-footer-logo"
+            />
+          )}
+          <span>{(clientName || 'Client')} · Competitive audit</span>
         </div>
         <div className="cd-print-footer-right">
           {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -2743,37 +2754,43 @@ function PrintStyles() {
         padding: 96px 80px;
       }
       .cd-cover-logo {
-        max-height: 36px; max-width: 200px; margin-bottom: 32px;
+        max-height: 44px; max-width: 240px; margin-bottom: 48px;
         object-fit: contain; object-position: left;
       }
       .cd-cover-wordmark {
-        font-size: 13px; font-weight: 800;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 14px; font-weight: 900;
         color: ${INK}; text-transform: uppercase;
-        letter-spacing: 2px; margin-bottom: 32px;
+        letter-spacing: 3px; margin-bottom: 40px;
       }
       .cd-cover-label {
-        font-size: 11px; font-weight: 700;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 11px; font-weight: 900;
         color: ${ACCENT}; text-transform: uppercase;
-        letter-spacing: 1.2px;
-        margin-bottom: 24px;
+        letter-spacing: 2px;
+        margin-bottom: 28px;
         display: flex; align-items: center; gap: 10px;
       }
       .cd-cover-tag {
-        font-size: 9px; font-weight: 700;
-        background: ${ACCENT}; color: #fff;
-        padding: 3px 8px; border-radius: 99px;
-        letter-spacing: 0.8px;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 9px; font-weight: 900;
+        background: ${ACCENT_VIVID}; color: #fff;
+        padding: 4px 9px; border-radius: 99px;
+        letter-spacing: 1.2px;
       }
       .cd-cover-title {
-        font-size: 56px; font-weight: 800; color: ${INK};
-        margin: 0 0 12px; letter-spacing: -1.5px; line-height: 1.05;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 64px; font-weight: 900; color: ${INK};
+        margin: 0 0 14px; letter-spacing: -2px; line-height: 1.0;
+        text-transform: uppercase;
       }
       .cd-cover-date {
         font-size: 14px; color: ${MUTED}; margin-bottom: 64px;
+        letter-spacing: 0.3px;
       }
       .cd-cover-oneliner {
-        font-size: 22px; font-weight: 500; color: ${INK};
-        line-height: 1.4; max-width: 580px;
+        font-size: 22px; font-weight: 400; color: ${INK};
+        line-height: 1.4; max-width: 600px;
         font-style: italic; padding-left: 18px;
         border-left: 3px solid ${ACCENT};
         margin-bottom: 96px;
@@ -2784,12 +2801,13 @@ function PrintStyles() {
       .cd-cover-coverage {
         font-size: 11px; color: ${MUTED};
         font-style: italic; margin-bottom: 32px;
-        padding-top: 12px;
+        padding-top: 14px;
         border-top: 1px solid ${BORDER};
       }
       .cd-cover-footer {
-        font-size: 11px; color: ${MUTED};
-        text-transform: uppercase; letter-spacing: 1px;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 11px; font-weight: 700; color: ${MUTED};
+        text-transform: uppercase; letter-spacing: 1.4px;
       }
 
       /* Section callouts (01 / 02 cards) */
@@ -2798,18 +2816,20 @@ function PrintStyles() {
         margin-bottom: 20px;
       }
       .cd-callout {
-        background: ${SURFACE};
+        background: ${SURFACE_DEEP};
         border-radius: 12px;
         padding: 48px 56px;
         position: relative;
       }
       .cd-callout-number {
-        font-size: 28px; font-weight: 800;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 32px; font-weight: 900;
         color: ${ACCENT};
         line-height: 1; margin-bottom: 14px;
       }
       .cd-callout-title {
-        font-size: 28px; font-weight: 800; color: ${INK};
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 32px; font-weight: 900; color: ${INK};
         text-transform: uppercase; letter-spacing: -0.3px;
         margin: 0 0 18px;
       }
@@ -2843,13 +2863,17 @@ function PrintStyles() {
       }
       .cd-copy-btn:hover { color: ${ACCENT}; border-color: ${ACCENT}; }
       .cd-kicker {
-        font-size: 10px; font-weight: 700;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 10px; font-weight: 900;
         color: ${ACCENT}; text-transform: uppercase;
-        letter-spacing: 1.2px; margin-bottom: 6px;
+        letter-spacing: 1.8px; margin-bottom: 6px;
       }
       .cd-subtitle {
-        font-size: 22px; font-weight: 700; color: ${INK_SOFT};
-        margin: 0; letter-spacing: -0.3px;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 26px; font-weight: 900; color: ${INK};
+        margin: 0; letter-spacing: -0.5px;
+        text-transform: uppercase;
+        line-height: 1.05;
       }
 
       /* Audit top sheet — Step 22. Three groups of three findings +
@@ -2864,8 +2888,9 @@ function PrintStyles() {
       }
       .cd-topsheet-group:last-of-type { margin-bottom: 0; }
       .cd-topsheet-group-label {
-        font-size: 11px; font-weight: 800;
-        text-transform: uppercase; letter-spacing: 1.6px;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 11px; font-weight: 900;
+        text-transform: uppercase; letter-spacing: 2px;
         margin-bottom: 14px;
         padding-bottom: 8px;
         border-bottom: 1px solid ${BORDER};
@@ -2910,9 +2935,10 @@ function PrintStyles() {
         break-inside: avoid;
       }
       .cd-audit-nextsteps-label {
-        font-size: 12px; font-weight: 800;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 12px; font-weight: 900;
         color: ${INK}; text-transform: uppercase;
-        letter-spacing: 1.6px; margin-bottom: 14px;
+        letter-spacing: 2px; margin-bottom: 14px;
       }
       .cd-audit-nextsteps-list {
         list-style: decimal; padding-left: 24px; margin: 0;
@@ -3077,14 +3103,17 @@ function PrintStyles() {
         margin-bottom: 24px;
       }
       .cd-synthesis-kicker {
-        font-size: 11px; font-weight: 700;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 11px; font-weight: 900;
         color: ${ACCENT}; text-transform: uppercase;
-        letter-spacing: 1.4px; margin-bottom: 8px;
+        letter-spacing: 2px; margin-bottom: 8px;
       }
       .cd-synthesis-title {
-        font-size: 32px; font-weight: 800;
-        color: ${INK}; letter-spacing: -0.8px;
-        margin: 0; line-height: 1.15;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 36px; font-weight: 900;
+        color: ${INK}; letter-spacing: -1px;
+        margin: 0; line-height: 1.05;
+        text-transform: uppercase;
       }
       .cd-synthesis-oneliner {
         font-size: 22px; font-weight: 600;
@@ -3348,9 +3377,10 @@ function PrintStyles() {
         border-left: 3px solid ${ACCENT};
       }
       .cd-evidence-tag {
-        font-size: 10px; font-weight: 800;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 10px; font-weight: 900;
         color: ${ACCENT}; text-transform: uppercase;
-        letter-spacing: 1.4px; padding-top: 3px;
+        letter-spacing: 1.8px; padding-top: 3px;
         flex-shrink: 0; min-width: 28px;
       }
       .cd-evidence-body {
@@ -3379,14 +3409,15 @@ function PrintStyles() {
         display: flex; gap: 12px;
         margin-top: 16px;
         padding: 14px 16px;
-        background: ${SURFACE};
+        background: ${SURFACE_DEEP};
         border-radius: 6px;
-        border-left: 4px solid ${INK_SOFT};
+        border-left: 4px solid ${INK};
       }
       .cd-sowhat-tag {
-        font-size: 10px; font-weight: 800;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 10px; font-weight: 900;
         color: ${INK_SOFT}; text-transform: uppercase;
-        letter-spacing: 1.4px; padding-top: 3px;
+        letter-spacing: 1.8px; padding-top: 3px;
         flex-shrink: 0; min-width: 56px;
       }
       .cd-sowhat-body {
@@ -3404,9 +3435,10 @@ function PrintStyles() {
         border-top: 1px dashed ${BORDER};
       }
       .cd-in-practice-tag {
-        font-size: 10px; font-weight: 800;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 10px; font-weight: 900;
         color: ${MUTED}; text-transform: uppercase;
-        letter-spacing: 1.4px; padding-top: 2px;
+        letter-spacing: 1.8px; padding-top: 2px;
         flex-shrink: 0; min-width: 80px;
       }
       .cd-in-practice-body {
@@ -3422,7 +3454,7 @@ function PrintStyles() {
 
       .cd-final {
         padding: 40px 72px;
-        background: ${SURFACE};
+        background: ${SURFACE_DEEP};
       }
 
       /* Print-only footer — hidden on screen, fixed to bottom in print
@@ -3655,16 +3687,26 @@ function PrintStyles() {
           bottom: 0.25in;
           left: 0.5in;
           right: 0.5in;
+          font-family: ${FONT_HEAD_STACK};
           font-size: 9px;
-          color: #777;
-          border-top: 1px solid #d4d4d8;
+          color: #555;
+          border-top: 1px solid ${BORDER};
           padding-top: 5px;
           justify-content: space-between;
-          letter-spacing: 0.3px;
+          align-items: center;
+          letter-spacing: 1px;
+          text-transform: uppercase;
         }
-        .cd-print-footer-left,
+        .cd-print-footer-left {
+          display: flex; align-items: center; gap: 8px;
+          font-weight: 700;
+        }
         .cd-print-footer-right {
-          font-weight: 600;
+          font-weight: 700;
+        }
+        .cd-print-footer-logo {
+          max-height: 14px; max-width: 70px;
+          object-fit: contain; object-position: left;
         }
       }
     `}</style>

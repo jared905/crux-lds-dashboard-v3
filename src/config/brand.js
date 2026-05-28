@@ -21,38 +21,51 @@
  * localStorage and override these defaults at runtime.
  */
 
+// CRUX brand applied 2026-05-27 — replaces the prior "intentionally
+// neutral" Anthropic-style cream-and-navy palette. Brand inputs
+// supplied directly by Jared: 7-color palette, Gotham typography,
+// crux-logo.png on cover + footer.
 export const brand = {
   // Identity strings — appear on cover + footer of the deliverable.
   name: 'Full View',
   studio: 'CRUX Media',
   productLabel: 'YouTube Audit + Positioning Recommendation',
 
-  // Logo. Set to a URL (https://...) or imported asset path. Leave null
-  // to render the studio name as a wordmark instead.
-  logoUrl: null,
+  // Logo. Renders on the cover hero and in the print footer. Image
+  // file lives in /public so it's served as-is at /crux-logo.png.
+  logoUrl: '/crux-logo.png',
 
-  // Color palette. All client-facing rendering pulls from these so a
-  // palette change is one file edit, not a hunt-and-replace.
+  // Color palette. CRUX brand — editorial-magazine warmth (#FFFAF1
+  // cream surface, #060707 ink) with #015661 deep teal as the primary
+  // accent. The pink (#EA73AC), brighter teal (#0A919B), and amber
+  // (#E8A82B) are reserved as occasional emphasis hits — they shouldn't
+  // be loaded everywhere or the system stops feeling editorial.
   colors: {
-    ink:          '#111111',  // primary text on light backgrounds
-    inkSoft:      '#1f2937',  // headings (slightly softer than pure black)
-    muted:        '#5b6470',  // secondary text, labels, captions
-    background:   '#ffffff',  // page background (clean white default)
-    surface:      '#f7f4ec',  // subtle warm panel — section cards, callouts
-    surfaceDeep:  '#ede4cf',  // deeper panel for emphasis (e.g. one-liner panel)
-    accent:       '#1e3a8a',  // primary accent — section numbers, accents
-    accentSoft:   '#e8edf7',  // very light accent tint — rationale callouts
-    border:       '#e8e2d0',  // dividers + table borders
-    danger:       '#b91c1c',  // guardrails / disqualifier accents
+    ink:          '#060707',  // primary text — near-black for editorial contrast
+    inkSoft:      '#1a1c1c',  // headings + secondary ink (slight lift from full black)
+    muted:        '#5e6262',  // secondary text, labels, captions
+    background:   '#FFFAF1',  // page background — Crux warm cream
+    surface:      '#FFFAF1',  // section cards + callouts share the page cream
+    surfaceDeep:  '#DEE3D4',  // pale sage — used for elevated panels (one-liner, callouts)
+    accent:       '#015661',  // primary accent — deep teal (section numbers, anchors)
+    accentSoft:   '#e6eef0',  // very light accent tint — rationale callouts
+    accentBright: '#0A919B',  // mid teal — secondary accent when the deep teal is too heavy
+    accentWarm:   '#E8A82B',  // mustard amber — occasional warmth / kicker emphasis
+    accentVivid:  '#EA73AC',  // pink — reserved for rare emphasis (movement, highlights)
+    border:       '#e8e2d0',  // dividers + table borders (subtle warm hairline)
+    danger:       '#b91c1c',  // guardrails / disqualifier accents (kept distinct)
   },
 
-  // Typography. Defaults to the system UI sans stack — readable, broad
-  // platform coverage, no extra network load. Override with a string
-  // like '"GT America", system-ui, sans-serif' if you've loaded a brand font.
-  fontStack: 'ui-sans-serif, system-ui, -apple-system, "Inter", sans-serif',
+  // Typography. CRUX uses Gotham Ultra for headers + Gotham Book for
+  // body. Gotham is commercial — the actual font files must be loaded
+  // separately (Adobe Fonts, Cloud.typography, or self-hosted with
+  // license). These stacks specify Gotham first and degrade through
+  // close-cousins (Montserrat / Proxima Nova) to system sans.
+  fontStack:      '"Gotham Book", "Gotham", "Proxima Nova", "Montserrat", ui-sans-serif, system-ui, -apple-system, sans-serif',
+  fontHeadStack:  '"Gotham Ultra", "Gotham Black", "Gotham", "Proxima Nova", "Montserrat", ui-sans-serif, system-ui, -apple-system, sans-serif',
 
   // Optional copy strings the deliverable surfaces. Keep them short.
-  footerNote: 'Prepared by Full View · CRUX Media',
+  footerNote: 'Prepared by CRUX Media',
 };
 
 export default brand;
