@@ -2034,7 +2034,7 @@ function UploadTempo({ channels, formatMixByChannel }) {
     <div>
       <p style={{ marginBottom: 12 }}>
         Cohort tempo ranges from <strong>{formatTempo(maxRate)}</strong> at the top to{' '}
-        <strong>{formatTempo(rows[rows.length - 1].uploadsPerWeek)}</strong> at the bottom. Bars split into Shorts (pink) and long-form (neutral) so volume reads alongside what kind of volume it is.
+        <strong>{formatTempo(rows[rows.length - 1].uploadsPerWeek)}</strong> at the bottom. Bars split into Shorts (amber) and long-form (teal) so volume reads alongside what kind of volume it is.
       </p>
       <svg className="cd-chart" viewBox={`0 0 ${labelWidth + barAreaWidth + valueWidth} ${height}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', maxWidth: 760 }}>
         {rows.map((r, i) => {
@@ -2054,8 +2054,8 @@ function UploadTempo({ channels, formatMixByChannel }) {
               </text>
               {r.shortsShare != null ? (
                 <>
-                  <rect x={labelWidth} y={y + 6} width={shortsW} height={14} fill={ACCENT} opacity={0.92} rx={2} />
-                  <rect x={labelWidth + shortsW} y={y + 6} width={longsW} height={14} fill="#cbd5e1" rx={2} />
+                  <rect x={labelWidth} y={y + 6} width={shortsW} height={14} fill={ACCENT_WARM} rx={2} />
+                  <rect x={labelWidth + shortsW} y={y + 6} width={longsW} height={14} fill={ACCENT} rx={2} />
                 </>
               ) : (
                 <rect x={labelWidth} y={y + 6} width={width} height={14} fill="#cbd5e1" rx={2} />
@@ -2070,10 +2070,10 @@ function UploadTempo({ channels, formatMixByChannel }) {
       </svg>
       <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11, color: MUTED }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-          <span style={{ width: 10, height: 10, background: ACCENT, borderRadius: 2 }} /> Shorts
+          <span style={{ width: 10, height: 10, background: ACCENT_WARM, borderRadius: 2 }} /> Shorts
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-          <span style={{ width: 10, height: 10, background: '#cbd5e1', borderRadius: 2 }} /> Long-form
+          <span style={{ width: 10, height: 10, background: ACCENT, borderRadius: 2 }} /> Long-form
         </span>
       </div>
     </div>
