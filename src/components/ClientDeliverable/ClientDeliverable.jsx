@@ -568,13 +568,21 @@ function ChannelRoster({ channels, formatMixByChannel }) {
         Every channel in the competitive set, by subscriber size. Tempo bars split Shorts (amber) from long-form (teal).
       </p>
       <table className="cd-table cd-roster-table">
+        <colgroup>
+          <col style={{ width: '29%' }} />
+          <col style={{ width: '11%' }} />
+          <col style={{ width: '20%' }} />
+          <col style={{ width: '13%' }} />
+          <col style={{ width: '14%' }} />
+          <col style={{ width: '13%' }} />
+        </colgroup>
         <thead>
           <tr>
             <th>Channel</th>
             <th className="cd-num">Subs</th>
             <th>Upload tempo</th>
             <th className="cd-num">Views/day</th>
-            <th className="cd-num">Med. views/video</th>
+            <th className="cd-num">Med. views</th>
             <th className="cd-num">Engagement</th>
           </tr>
         </thead>
@@ -3106,30 +3114,34 @@ function PrintStyles() {
 
       /* Channel roster — "who's in this audit" table. */
       .cd-roster { padding: 56px 64px; }
+      /* Fixed layout so columns are evenly distributed (widths set via
+         the colgroup) instead of auto-sizing and leaving a loose gap
+         after the tempo column. */
+      .cd-roster-table { table-layout: fixed; }
       .cd-roster-table th, .cd-roster-table td {
         vertical-align: middle;
       }
       .cd-roster-channel {
         display: flex; align-items: center; gap: 10px;
         font-weight: 600;
+        line-height: 1.25;
       }
+      .cd-roster-channel span { min-width: 0; }
       .cd-roster-tempo {
-        display: flex; align-items: center; gap: 10px;
+        display: flex; align-items: center; gap: 8px;
       }
       .cd-roster-tempo-num {
         font-variant-numeric: tabular-nums;
-        min-width: 52px;
+        width: 46px; flex-shrink: 0;
+        text-align: right;
       }
       .cd-roster-tempo-bar {
-        display: inline-flex; height: 8px; width: 80px;
+        display: inline-flex; height: 8px;
+        flex: 1; min-width: 0; max-width: 70px;
         border-radius: 2px; overflow: hidden;
         border: 1px solid ${BORDER};
       }
       .cd-roster-tempo-bar > span { display: block; height: 100%; }
-      .cd-roster-cat {
-        font-size: 11px; color: ${MUTED};
-        text-transform: uppercase; letter-spacing: 0.5px;
-      }
 
       /* Audit top sheet — Step 22. Three groups of three findings +
          Next Steps. Matches the strategist's hand-drawn structure.
