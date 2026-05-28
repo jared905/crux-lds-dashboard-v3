@@ -2920,10 +2920,57 @@ function PrintStyles() {
       }
 
       /* Audit top sheet — Step 22. Three groups of three findings +
-         Next Steps. Matches the strategist's hand-drawn structure. */
+         Next Steps. Matches the strategist's hand-drawn structure.
+         Editorial pull-page treatment: deep teal background, cream
+         text. Differentiates the strategic centerpiece from the
+         analytical body pages. All text overrides scoped under
+         .cd-audit-topsheet so other pages stay on the default
+         cream-on-ink palette. */
       .cd-audit-topsheet {
-        background: ${brand.colors.background};
+        background: ${brand.colors.accent};
         padding: 56px 64px;
+        color: ${brand.colors.background};
+      }
+      .cd-audit-topsheet .cd-synthesis-title,
+      .cd-audit-topsheet .cd-topsheet-group-label,
+      .cd-audit-topsheet .cd-topsheet-item-num,
+      .cd-audit-topsheet .cd-topsheet-item-label,
+      .cd-audit-topsheet .cd-topsheet-item-text,
+      .cd-audit-topsheet .cd-audit-nextsteps-label,
+      .cd-audit-topsheet .cd-audit-nextsteps-list,
+      .cd-audit-topsheet .cd-audit-nextsteps-list li {
+        color: ${brand.colors.background};
+      }
+      .cd-audit-topsheet .cd-synthesis-kicker {
+        color: ${brand.colors.accentVivid || brand.colors.accentWarm};
+      }
+      .cd-audit-topsheet .cd-topsheet-group-label {
+        border-bottom-color: rgba(255, 250, 241, 0.22);
+      }
+      .cd-audit-topsheet .cd-topsheet-item-num {
+        opacity: 0.45;
+      }
+      .cd-audit-topsheet .cd-topsheet-item-label {
+        color: ${brand.colors.accentWarm};
+      }
+      .cd-audit-topsheet .cd-topsheet-empty {
+        color: rgba(255, 250, 241, 0.6);
+      }
+      .cd-audit-topsheet .cd-audit-divider {
+        background: ${brand.colors.background};
+        opacity: 0.25;
+      }
+      /* Copy button on dark needs an inverted treatment so it doesn't
+         disappear into the teal. */
+      .cd-audit-topsheet .cd-copy-btn {
+        background: rgba(255, 250, 241, 0.08);
+        color: ${brand.colors.background};
+        border-color: rgba(255, 250, 241, 0.25);
+      }
+      .cd-audit-topsheet .cd-copy-btn:hover {
+        background: rgba(255, 250, 241, 0.16);
+        border-color: ${brand.colors.background};
+        color: ${brand.colors.background};
       }
       .cd-topsheet-group {
         margin-bottom: 28px;
@@ -3460,10 +3507,10 @@ function PrintStyles() {
       }
       .cd-sowhat-tag {
         font-family: ${FONT_ACCENT_STACK};
-        font-size: 18px; font-weight: 400;
-        color: ${INK};
+        font-size: 28px; font-weight: 400;
+        color: ${ACCENT_VIVID};
         letter-spacing: 0; padding-top: 0;
-        line-height: 1; flex-shrink: 0; min-width: 72px;
+        line-height: 1; flex-shrink: 0; min-width: 100px;
         transform: rotate(-3deg);
         transform-origin: left center;
       }
