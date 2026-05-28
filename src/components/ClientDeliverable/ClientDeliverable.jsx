@@ -202,6 +202,18 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
           {data && <DeliverablePages data={data} clientName={clientName} mode={mode} />}
         </div>
       </EditCtx.Provider>
+
+      {/* Print-only footer — hidden on screen, fixed to the bottom of
+          every printed page. Lives inside .cd-overlay so the print
+          visibility-visible rule catches it. */}
+      <div className="cd-print-footer" aria-hidden="true">
+        <div className="cd-print-footer-left">
+          {(clientName || 'Client')} · Competitive audit
+        </div>
+        <div className="cd-print-footer-right">
+          {new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -3217,33 +3229,247 @@ function PrintStyles() {
         background: ${SURFACE};
       }
 
-      /* Print rules — hide app chrome, output only the deliverable pages */
+      /* Print-only footer — hidden on screen, fixed to bottom in print
+         so the client name + date repeat on every printed page. */
+      .cd-print-footer { display: none; }
+
+      /* Paged-media page setup — Letter at 0.5in margin top/sides,
+         0.7in bottom to leave room for the fixed footer. */
+      @page { size: letter; margin: 0.5in 0.5in 0.7in 0.5in; }
+
+      /* Print rules — produce a clean, color-accurate, paginated PDF
+         from the on-screen deliverable. The deliverable lives inside a
+         nested .cd-overlay div (not a body child), so we keep the
+         visibility-hidden + un-hide pattern, but reset html/body and
+         flow the overlay naturally so layout doesn't introduce blank
+         pages. */
       @media print {
+        /* Preserve brand colors across every element — without this,
+           Chrome strips colored backgrounds and the deliverable prints
+           as black-on-white. */
+        *, *::before, *::after {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+
+        /* Reset the document to a clean print canvas. */
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          background: white !important;
+          height: auto !important;
+          overflow: visible !important;
+          width: 100% !important;
+        }
+
+        /* Hide everything; reveal only the deliverable overlay. */
         body * { visibility: hidden !important; }
         .cd-overlay, .cd-overlay * { visibility: visible !important; }
+
+        /* Flow the overlay as a normal block so its parents' layout
+           doesn't create blank pages. */
         .cd-overlay {
-          position: absolute; inset: 0; background: white;
-          padding: 0; margin: 0;
+          position: static !important;
+          inset: auto !important;
+          width: 100% !important;
+          height: auto !important;
+          overflow: visible !important;
+          background: white !important;
+          padding: 0 !important;
+          margin: 0 !important;
         }
-        .cd-toolbar { display: none !important; }
-        .cd-doc { max-width: none !important; margin: 0 !important; }
+
+        /* Strip all UI chrome and interactive controls. button is a
+           blanket safety-net: nothing interactive should print. */
+        .cd-toolbar,
+        .cd-toolbar *,
+        .cd-edit-banner,
+        .cd-edit-banner *,
+        .cd-copy-btn,
+        .cd-mode-select,
+        button {
+          display: none !important;
+        }
+
+        .cd-doc {
+          max-width: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        /* Page boundaries — each .cd-page breaks to a new sheet, and
+           we protect interior content from splitting mid-block. */
         .cd-page {
-          margin: 0 !important; border-radius: 0 !important;
+          margin: 0 !important;
+          border-radius: 0 !important;
           box-shadow: none !important;
+          padding: 0.55in 0.65in !important;
           page-break-after: always;
           break-after: page;
-          padding: 0.7in 0.8in !important;
+          page-break-inside: avoid;
+          break-inside: avoid;
         }
+        .cd-page:last-of-type {
+          page-break-after: auto;
+          break-after: auto;
+        }
+
         .cd-callout-page { padding: 0 !important; }
-        .cd-callout { border-radius: 0; padding: 0.7in 0.8in !important; min-height: 4in; }
-        .cd-cover { min-height: 9in; padding: 1.2in 1in !important; }
-        .cd-subsection { break-inside: avoid; }
-        .cd-copy-btn { display: none !important; }
-        .cd-prelaunch { break-after: page; }
-        .cd-synthesis { break-after: page; padding: 0.7in 0.8in !important; }
-        .cd-synthesis-move { break-inside: avoid; }
-        .cd-edit-banner { display: none !important; }
-        .cd-editable { outline: none !important; background: transparent !important; }
+        .cd-callout {
+          border-radius: 0 !important;
+          padding: 0.7in 0.8in !important;
+          /* WAS min-height: 4in — that forced short callouts to occupy
+             4 vertical inches, producing artificially blank-looking
+             pages. Let the content size itself. */
+          min-height: auto !important;
+        }
+        .cd-cover {
+          min-height: 9.5in;
+          padding: 1.2in 1in !important;
+        }
+
+        /* Internal break protection for known compound blocks. */
+        .cd-subsection,
+        .cd-synthesis-move,
+        .cd-wherewe-block,
+        .cd-topsheet-group,
+        .cd-audit-nextsteps,
+        .cd-movement-item {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+
+        .cd-prelaunch {
+          break-after: page;
+          page-break-after: always;
+        }
+        .cd-synthesis {
+          break-after: page;
+          page-break-after: always;
+          padding: 0.65in 0.7in !important;
+        }
+
+        /* Tables — repeat the header on continuation pages, never
+           split a row across pages. Both were missing entirely. */
+        .cd-table { page-break-inside: auto; }
+        .cd-table thead { display: table-header-group !important; }
+        .cd-table tbody { display: table-row-group !important; }
+        .cd-table tr,
+        .cd-table tfoot {
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+        .cd-table caption {
+          break-after: avoid;
+          page-break-after: avoid;
+        }
+
+        /* Charts + SVGs — flow to the printable area; never split. */
+        .cd-chart,
+        svg,
+        [class*="recharts"] {
+          max-width: 100% !important;
+          width: 100% !important;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+
+        img {
+          max-width: 100% !important;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+
+        /* Headings: never orphan a heading on the prior page. */
+        h1, h2, h3, h4 {
+          break-after: avoid;
+          page-break-after: avoid;
+        }
+
+        /* Long-string overflow guard — table cells and prose with
+           long unbroken strings (URLs, channel names) shouldn't
+           clip in print. */
+        .cd-page, .cd-table td, .cd-table th {
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+        }
+
+        /* Audit top sheet — must fit on a single printed page. Tighten
+           padding + scale type down so 3 groups + Next Steps fit. */
+        .cd-audit-topsheet {
+          padding: 0.5in 0.6in !important;
+          break-after: page;
+          page-break-after: always;
+        }
+        .cd-audit-topsheet .cd-synthesis-title {
+          font-size: 22px !important;
+          margin: 0 0 14px 0 !important;
+        }
+        .cd-audit-topsheet .cd-synthesis-kicker {
+          font-size: 10px !important;
+          margin-bottom: 2px !important;
+        }
+        .cd-topsheet-group {
+          margin-bottom: 12px !important;
+        }
+        .cd-topsheet-group-label {
+          font-size: 11px !important;
+          margin-bottom: 6px !important;
+        }
+        .cd-topsheet-item {
+          margin-bottom: 6px !important;
+        }
+        .cd-topsheet-item-text {
+          font-size: 12px !important;
+          line-height: 1.4 !important;
+        }
+        .cd-topsheet-item-label {
+          font-size: 11px !important;
+          margin-bottom: 2px !important;
+        }
+        .cd-topsheet-empty {
+          font-size: 11px !important;
+        }
+        .cd-audit-divider {
+          margin: 14px 0 12px !important;
+        }
+        .cd-audit-nextsteps-label {
+          font-size: 11px !important;
+        }
+        .cd-audit-nextsteps-list li {
+          font-size: 12px !important;
+          margin-bottom: 5px !important;
+          line-height: 1.4 !important;
+        }
+
+        /* Edit-mode affordances disabled — the prose still prints
+           with whatever the user typed, but no focus outlines or
+           contentEditable backgrounds leak into the PDF. */
+        .cd-editable {
+          outline: none !important;
+          background: transparent !important;
+        }
+
+        /* Show the print-only footer on every page. position: fixed
+           in print context repeats the element on each printed page
+           in Chrome/Safari (the typical user environment). */
+        .cd-print-footer {
+          display: flex !important;
+          position: fixed;
+          bottom: 0.25in;
+          left: 0.5in;
+          right: 0.5in;
+          font-size: 9px;
+          color: #777;
+          border-top: 1px solid #d4d4d8;
+          padding-top: 5px;
+          justify-content: space-between;
+          letter-spacing: 0.3px;
+        }
+        .cd-print-footer-left,
+        .cd-print-footer-right {
+          font-weight: 600;
+        }
       }
     `}</style>
   );
