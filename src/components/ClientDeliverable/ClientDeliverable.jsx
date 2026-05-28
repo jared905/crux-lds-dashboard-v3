@@ -2402,11 +2402,27 @@ function PartTwoContent({ spine, hosts = [], legacyRubric, rationales = {} }) {
   // Hosts to render — prefer the multi-host list. Fall back to a synthetic
   // single-host shape from the legacy spine.host_archetype + legacyRubric
   // if no multi-host rows exist yet.
-  const hostsToRender = hosts.length > 0
-    ? hosts
-    : (spine?.host_archetype || legacyRubric)
-      ? [{ id: 'legacy', name: null, archetype: spine?.host_archetype || null, series_label: null, voice_tone_refinement: null, rubric: legacyRubric }]
-      : [];
+  //
+  // A host counts as "authored" only when it carries real content (an
+  // archetype, name, series label, voice refinement, notes, or rubric
+  // criteria). Without this filter a stray empty legacyRubric synthesized
+  // a blank host and printed an empty "Host" box — so the whole subsection
+  // stays hidden until someone actually fills in the archetype.
+  const hostHasContent = (h) => !!(
+    h?.name?.trim()
+    || h?.archetype?.trim()
+    || h?.series_label?.trim()
+    || h?.voice_tone_refinement?.trim()
+    || h?.notes?.trim()
+    || (h?.rubric?.criteria?.length > 0)
+  );
+  const hostsToRender = (
+    hosts.length > 0
+      ? hosts
+      : (spine?.host_archetype?.trim() || legacyRubric?.criteria?.length > 0)
+        ? [{ id: 'legacy', name: null, archetype: spine?.host_archetype || null, series_label: null, voice_tone_refinement: null, rubric: legacyRubric }]
+        : []
+  ).filter(hostHasContent);
 
   const hasAnyPositioning =
     spine?.positioning_oneliner
