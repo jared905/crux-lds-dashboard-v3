@@ -660,47 +660,65 @@ function AuditTopSheet({ clientName, channels, patternsResult, whiteSpaceResult,
   };
 
   return (
-    <section className="cd-page cd-audit-topsheet">
-      <div className="cd-synthesis-head">
-        <div>
-          <div className="cd-synthesis-kicker">Audit summary</div>
-          <h2 className="cd-synthesis-title">What we've learned about {clientName}'s category</h2>
+    <>
+      {/* Page 1 of the audit summary — the three finding groups. Kept on
+          its own teal sheet so the findings fill the page with proper
+          bottom padding (no flush-to-edge text from a mid-element break). */}
+      <section className="cd-page cd-audit-topsheet cd-audit-findings">
+        <div className="cd-synthesis-head">
+          <div>
+            <div className="cd-synthesis-kicker">Audit summary</div>
+            <h2 className="cd-synthesis-title">What we've learned about {clientName}'s category</h2>
+          </div>
+          <button onClick={handleCopy} className="cd-copy-btn" title="Copy this page to clipboard">
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
         </div>
-        <button onClick={handleCopy} className="cd-copy-btn" title="Copy this page to clipboard">
-          {copied ? <Check size={13} /> : <Copy size={13} />}
-          {copied ? 'Copied' : 'Copy'}
-        </button>
-      </div>
 
-      <div ref={synthRef}>
-        {/* Group labels all render in brand pink against the deep-teal
-            pull-page — a consistent, bold system. Inline styles so they
-            win over the page-level color override. */}
-        <TopsheetGroup
-          label="Unclaimed territory"
-          items={unclaimed}
-          accent={ACCENT_VIVID}
-          emptyText="Opportunity brief is still generating or returned no findings under the current business-context constraints. Re-run the deliverable to retry; if it stays empty, loosen the business-context offer list or widen the analysis window."
-        />
-        <TopsheetGroup
-          label="How the cohort shows up"
-          items={cohortBehavior}
-          accent={ACCENT_VIVID}
-          emptyText="Cohort data is too thin to characterize cadence, production, or engagement signals."
-        />
-        <TopsheetGroup
-          label="What's moving now"
-          items={movement}
-          accent={ACCENT_VIVID}
-          emptyText="No named-channel movement in the cohort over the last 30 days — the field is steady-state."
-        />
-
-        <div className="cd-audit-nextsteps cd-audit-roadmap-block">
-          <div className="cd-audit-nextsteps-label">The road ahead</div>
-          <RoadmapStepper stages={roadmap} />
+        <div ref={synthRef} className="cd-findings-body">
+          {/* Group labels all render in brand pink against the deep-teal
+              pull-page — a consistent, bold system. Inline styles so they
+              win over the page-level color override. */}
+          <TopsheetGroup
+            label="Unclaimed territory"
+            items={unclaimed}
+            accent={ACCENT_VIVID}
+            emptyText="Opportunity brief is still generating or returned no findings under the current business-context constraints. Re-run the deliverable to retry; if it stays empty, loosen the business-context offer list or widen the analysis window."
+          />
+          <TopsheetGroup
+            label="How the cohort shows up"
+            items={cohortBehavior}
+            accent={ACCENT_VIVID}
+            emptyText="Cohort data is too thin to characterize cadence, production, or engagement signals."
+          />
+          <TopsheetGroup
+            label="What's moving now"
+            items={movement}
+            accent={ACCENT_VIVID}
+            emptyText="No named-channel movement in the cohort over the last 30 days — the field is steady-state."
+          />
         </div>
-      </div>
-    </section>
+      </section>
+
+      {/* Page 2 of the audit summary — the engagement roadmap on its own
+          teal sheet, vertically centered so it doesn't read as a thin
+          strip at the top of an otherwise empty page. Carries its own
+          head for visual parity with the findings page. */}
+      <section className="cd-page cd-audit-topsheet cd-audit-roadmap-page">
+        <div className="cd-roadmap-center">
+          <div className="cd-synthesis-head cd-roadmap-head">
+            <div>
+              <div className="cd-synthesis-kicker">What happens next</div>
+              <h2 className="cd-synthesis-title">The path from audit to on-air</h2>
+            </div>
+          </div>
+          <div className="cd-audit-nextsteps cd-audit-roadmap-block">
+            <RoadmapStepper stages={roadmap} />
+          </div>
+        </div>
+      </section>
+    </>
   );
 }
 
@@ -3286,6 +3304,16 @@ function PrintStyles() {
         padding: 0 !important;
         margin-top: 30px;
       }
+      /* Roadmap lives on its own teal sheet. Center the head + stepper
+         vertically so the page reads as an intentional full page, not a
+         thin strip pinned to the top. */
+      .cd-audit-roadmap-page {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .cd-roadmap-center { width: 100%; }
+      .cd-roadmap-head { margin-bottom: 8px; }
       .cd-roadmap {
         display: flex; align-items: stretch;
         margin-top: 6px;
@@ -4118,44 +4146,64 @@ function PrintStyles() {
           overflow-wrap: break-word;
         }
 
-        /* Audit top sheet — must fit on a single printed page. Tighten
-           padding + scale type down so 3 groups + Next Steps fit. */
+        /* Audit summary — now two teal sheets (findings + roadmap), so
+           each page has room to breathe. Generous padding; the findings
+           body flexes to fill the sheet so the three groups spread evenly
+           instead of bunching at the top with a flush-to-edge last line. */
         .cd-audit-topsheet {
-          padding: 0.5in 0.6in !important;
+          padding: 0.7in 0.75in !important;
           break-after: page;
           page-break-after: always;
         }
+        .cd-audit-findings {
+          display: flex;
+          flex-direction: column;
+        }
+        .cd-audit-findings .cd-findings-body {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
         .cd-audit-topsheet .cd-synthesis-title {
-          font-size: 22px !important;
-          margin: 0 0 14px 0 !important;
+          font-size: 26px !important;
+          margin: 0 0 18px 0 !important;
         }
         .cd-audit-topsheet .cd-synthesis-kicker {
           font-size: 10px !important;
-          margin-bottom: 2px !important;
+          margin-bottom: 3px !important;
         }
         .cd-topsheet-group {
-          margin-bottom: 12px !important;
+          margin-bottom: 0 !important;
         }
         .cd-topsheet-group-label {
-          font-size: 11px !important;
-          margin-bottom: 6px !important;
+          font-size: 12px !important;
+          margin-bottom: 10px !important;
         }
         .cd-topsheet-item {
-          margin-bottom: 6px !important;
+          margin-bottom: 10px !important;
         }
         .cd-topsheet-item-text {
-          font-size: 12px !important;
-          line-height: 1.4 !important;
+          font-size: 13px !important;
+          line-height: 1.5 !important;
         }
         .cd-topsheet-item-label {
-          font-size: 11px !important;
-          margin-bottom: 2px !important;
+          font-size: 12px !important;
+          margin-bottom: 3px !important;
         }
         .cd-topsheet-empty {
-          font-size: 11px !important;
+          font-size: 12px !important;
         }
-        .cd-audit-divider {
-          margin: 14px 0 12px !important;
+
+        /* Roadmap sheet — center the head + stepper vertically so the
+           page reads as intentional, not a thin strip pinned to the top. */
+        .cd-audit-roadmap-page {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+        .cd-audit-roadmap-page .cd-audit-roadmap-block {
+          margin-top: 0 !important;
         }
         .cd-audit-nextsteps-label {
           font-size: 11px !important;
