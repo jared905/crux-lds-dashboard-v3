@@ -1510,10 +1510,10 @@ function ContentMix({ formatBreakdown }) {
       </p>
 
       <div style={{ display: 'flex', width: '100%', height: 22, borderRadius: 4, overflow: 'hidden', border: `1px solid ${BORDER}`, marginBottom: 18 }}>
-        <div style={{ width: `${shortsFreq * 100}%`, background: ACCENT, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+        <div style={{ width: `${shortsFreq * 100}%`, background: ACCENT_WARM, color: INK, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>
           {shortsFreq >= 0.15 ? `Shorts ${Math.round(shortsFreq * 100)}%` : ''}
         </div>
-        <div style={{ width: `${longsFreq * 100}%`, background: '#cbd5e1', color: INK, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+        <div style={{ width: `${longsFreq * 100}%`, background: ACCENT, color: brand.colors.background, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>
           {longsFreq >= 0.15 ? `Long ${Math.round(longsFreq * 100)}%` : ''}
         </div>
       </div>
@@ -1648,12 +1648,14 @@ function ChannelAvatar({ name, url, size = 28 }) {
 // a long-form upload (those mean very different things creatively).
 function FormatTag({ kind }) {
   const isShort = kind === 'Short';
+  // Brand colors: Shorts = amber, Long-form = deep teal. Solid pill
+  // with high-contrast text reads cleanly at 10px.
   return (
     <span
       className="cd-format-tag"
       style={{
-        background: isShort ? '#fef3c7' : '#dbeafe',
-        color: isShort ? '#92400e' : '#1e40af',
+        background: isShort ? ACCENT_WARM : ACCENT,
+        color: isShort ? INK : brand.colors.background,
       }}
     >
       {kind}
