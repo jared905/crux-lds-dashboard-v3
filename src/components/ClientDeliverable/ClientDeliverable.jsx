@@ -1433,7 +1433,27 @@ function PartOneContent({ briefing, diagnostic, channels, patternsResult, whiteS
       {(briefing || diagnostic) && (
         <SubSection title="Where to start" kicker="The single highest-leverage move">
           {briefing?.headline && <E className="cd-headline">{briefing.headline}</E>}
-          {briefing?.body && <E tag="p">{briefing.body}</E>}
+          {/* Structured briefing: lead + supporting points + action.
+              Falls back to the flattened body for legacy cached
+              briefings that predate the v15 schema. */}
+          {briefing?.lead
+            ? <>
+                <E tag="p" className="cd-brief-lead">{briefing.lead}</E>
+                {briefing.points?.length > 0 && (
+                  <ul className="cd-brief-points">
+                    {briefing.points.map((pt, i) => (
+                      <li key={i}><E tag="span">{pt}</E></li>
+                    ))}
+                  </ul>
+                )}
+                {briefing.action && (
+                  <div className="cd-brief-action">
+                    <span className="cd-brief-action-tag">Do this week</span>
+                    <E tag="span" className="cd-brief-action-body">{briefing.action}</E>
+                  </div>
+                )}
+              </>
+            : briefing?.body && <E tag="p">{briefing.body}</E>}
           {!briefing && diagnostic && (
             <p style={{ color: MUTED, fontStyle: 'italic' }}>
               Briefing not yet generated. {diagnostic.cohort?.videoCount} cohort videos analyzed.
@@ -3535,6 +3555,46 @@ function PrintStyles() {
         font-size: 17px; font-weight: 700;
         color: ${INK}; line-height: 1.4;
         margin-bottom: 12px;
+      }
+
+      /* Structured briefing — lead sentence, supporting bullets, then a
+         visually distinct "do this week" action bar. */
+      .cd-brief-lead {
+        font-size: 15px; font-weight: 500;
+        color: ${INK}; line-height: 1.6;
+        margin: 0 0 14px;
+      }
+      .cd-brief-points {
+        list-style: none; margin: 0 0 16px; padding: 0;
+      }
+      .cd-brief-points li {
+        position: relative;
+        padding-left: 20px; margin-bottom: 9px;
+        font-size: 14px; line-height: 1.55; color: ${INK};
+      }
+      .cd-brief-points li::before {
+        content: ''; position: absolute;
+        left: 2px; top: 8px;
+        width: 6px; height: 6px; border-radius: 50%;
+        background: ${ACCENT};
+      }
+      .cd-brief-action {
+        display: flex; align-items: baseline; gap: 12px;
+        padding: 14px 16px;
+        background: ${ACCENT_SOFT};
+        border-left: 3px solid ${ACCENT};
+        border-radius: 6px;
+      }
+      .cd-brief-action-tag {
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 10px; font-weight: 900;
+        color: ${ACCENT}; text-transform: uppercase;
+        letter-spacing: 1.4px; flex-shrink: 0;
+        white-space: nowrap;
+      }
+      .cd-brief-action-body {
+        font-size: 14px; color: ${INK}; line-height: 1.5;
+        font-weight: 500;
       }
 
       .cd-list {

@@ -478,7 +478,7 @@ const BRIEFING_CACHE_HOURS = 24 * 3; // re-synthesize every 3 days
 
 // Bump when the prompt structure or hedging rules change — invalidates
 // every cached briefing so stale pre-hedging output stops being served.
-const BRIEFING_PROMPT_VERSION = 'v14-no-peer-names';
+const BRIEFING_PROMPT_VERSION = 'v15-structured-lead-points-action';
 
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;
@@ -622,10 +622,15 @@ CRITICAL RULES — read carefully:
 10. **BRAND NAME RULE (CRITICAL).** Never name specific competitor product brands anywhere in the briefing. Refer to product CATEGORIES generically ("video doorbell," "outdoor security camera," "professionally-monitored alarm system"). The ONLY brand name allowed is ${client.name}'s own. Even illustrative examples or analogies must use category names — "showcase how Nest Cam detects motion" is wrong; "showcase how a doorbell camera detects motion" is right. This applies to ALL competitor brands, including those that appear in the cohort data (Ring, Nest, Vivint, SimpliSafe, Brinks, ADT, Wyze, Arlo, Blink, eufy, Lorex, etc.).
 11. **FORMAT-SKEW CAVEAT.** Some pattern lines carry a "(NOTE: X% of these are Shorts/long-form — lift may reflect format)" tag. When you cite such a pattern, you MUST carry the caveat — say the lift may be a format effect, not the pattern itself (e.g., "emoji titles show +154%, but these are mostly Shorts, so the lift partly reflects format — test emoji on long-form before reading it as a title lever"). Never present a format-skewed lift as a clean pattern win.
 
-Output: 3-5 sentence briefing. First sentence = the single highest-leverage move (gap-led if a gap exists, otherwise the strongest statistical finding, otherwise an honest "data is too thin for confident recommendations"). Cite concrete numbers from the lines above. No platitudes.
+Output a STRUCTURED briefing in three parts so it scans cleanly:
+- "lead": 1-2 sentences naming the single highest-leverage move (gap-led if a gap exists, otherwise the strongest statistical finding, otherwise an honest "data is too thin for confident recommendations"). This is the headline insight.
+- "points": 2-4 short supporting bullets, each ONE sentence. Each bullet is a distinct piece of evidence (a peer-segment read, a length/format finding, a cadence window, a secondary pattern). Cite concrete numbers. Apply the same [STATISTICAL]/[DIRECTIONAL] hedging and format-skew caveats in the bullet text. Do NOT repeat the lead.
+- "action": ONE sentence — what to do this week, separating "act on" (statistical) from "test" (directional). This is the do-this-now line.
+
+All numbers must come from the data above. No platitudes. Each part stands alone — a reader should get the gist from the lead, the evidence from the bullets, and the next move from the action.
 
 Return ONLY valid JSON:
-{ "headline": "8-12 word punchy title", "body": "3-5 sentences" }`;
+{ "headline": "8-12 word punchy title", "lead": "1-2 sentence headline insight", "points": ["one-sentence supporting point", "..."], "action": "one-sentence do-this-week line" }`;
 
     const baseSystem = `You write executive briefings for YouTube channel operators. Your reputation depends on never claiming a confidently-wrong number. The audit data tags every finding as [STATISTICAL] or [DIRECTIONAL]; respect those tags rigorously — directional findings get hedged, statistical findings get cited with numbers. Gap analysis (frequency comparisons) is more reliable than view-count lifts and should lead when present. If the evidence is thin, say so plainly rather than fake conviction. When STRATEGIC CONTEXT is provided above, treat its GUARDRAILS as hard constraints and align recommendations to the stated stance — do not re-recommend plays already marked concluded. Return ONLY valid JSON.`;
     // Spine context (positioning, stance, plays, guardrails) is prepended
@@ -634,12 +639,23 @@ Return ONLY valid JSON:
     // authored fields, so concatenation is always safe.
     const systemPrompt = spineContext + baseSystem;
 
-    const result = await claudeAPI.call(prompt, systemPrompt, 'client_briefing', 600);
+    const result = await claudeAPI.call(prompt, systemPrompt, 'client_briefing', 700);
     const { parseClaudeJSON } = await import('../lib/parseClaudeJSON');
-    const parsed = parseClaudeJSON(result.text, { headline: '', body: '' });
+    const parsed = parseClaudeJSON(result.text, { headline: '', lead: '', points: [], action: '' });
+    // Structured shape: lead + points[] + action. `body` kept as a
+    // flattened fallback for any older renderer / export path that
+    // still reads a single string.
+    const points = Array.isArray(parsed.points)
+      ? parsed.points.map(p => (typeof p === 'string' ? p.trim() : '')).filter(Boolean)
+      : [];
+    const lead = (parsed.lead || parsed.body || '').trim();
+    const action = (parsed.action || '').trim();
     const briefing = {
       headline: parsed.headline || 'This week, here\'s where to push',
-      body: parsed.body || '',
+      lead,
+      points,
+      action,
+      body: [lead, ...points, action].filter(Boolean).join(' '),
       generatedAt: new Date().toISOString(),
       mode,
     };
