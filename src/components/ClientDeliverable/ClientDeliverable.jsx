@@ -403,6 +403,11 @@ function DeliverablePages({ data, clientName, mode = MODE_FULL }) {
         coverage={coverage}
       />
 
+      <ChannelRoster
+        channels={channels}
+        formatMixByChannel={formatMixByChannel}
+      />
+
       <AuditTopSheet
         clientName={displayName}
         channels={channels}
@@ -530,6 +535,84 @@ function Cover({ clientName, dateStr, oneliner, isPreLaunch, mode = MODE_FULL, c
         </div>
       )}
       <div className="cd-cover-footer">{brand.footerNote || `Prepared by ${brand.studio || brand.name}`}</div>
+    </section>
+  );
+}
+
+// Channel roster — "who's in this audit." One row per analyzed channel
+// with icon + high-level signals (subs, upload tempo with format split,
+// view velocity, engagement, category). Sits between the cover and the
+// audit summary so the presentation shows the spread of the cohort
+// before the synthesis. Sorted by subscriber count (biggest first).
+function ChannelRoster({ channels, formatMixByChannel }) {
+  const rows = (channels || [])
+    .filter(c => c.name)
+    .sort((a, b) => (b.subscriberCount || 0) - (a.subscriberCount || 0));
+  if (!rows.length) return null;
+
+  const fmtTempo = (perWeek) => {
+    if (perWeek == null) return '—';
+    if (perWeek >= 1) return `${perWeek.toFixed(1)}/wk`;
+    return `${(perWeek * 52 / 12).toFixed(1)}/mo`;
+  };
+
+  return (
+    <section className="cd-page cd-roster">
+      <div className="cd-synthesis-head">
+        <div>
+          <div className="cd-synthesis-kicker">The audit set</div>
+          <h2 className="cd-synthesis-title">{rows.length} channels analyzed</h2>
+        </div>
+      </div>
+      <p style={{ marginBottom: 16, color: MUTED, fontSize: 13 }}>
+        Every channel in the competitive set, by subscriber size. Tempo bars split Shorts (amber) from long-form (teal).
+      </p>
+      <table className="cd-table cd-roster-table">
+        <thead>
+          <tr>
+            <th>Channel</th>
+            <th className="cd-num">Subs</th>
+            <th>Upload tempo</th>
+            <th className="cd-num">Views/day</th>
+            <th className="cd-num">Engagement</th>
+            <th>Category</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((c, i) => {
+            const mix = formatMixByChannel?.[c.id];
+            const shortsShare = mix?.shortsShare;
+            const longsShare = mix?.longsShare;
+            const hasSplit = shortsShare != null && longsShare != null && (shortsShare + longsShare) > 0;
+            const cat = c.categories?.[0]?.name || (c.tier ? c.tier.charAt(0).toUpperCase() + c.tier.slice(1) : '—');
+            return (
+              <tr key={c.id || i}>
+                <td>
+                  <div className="cd-roster-channel">
+                    <ChannelAvatar name={c.name} url={c.thumbnail} size={24} />
+                    <span>{c.name}</span>
+                  </div>
+                </td>
+                <td className="cd-num">{c.subscriberCount != null ? fmtNum(c.subscriberCount) : '—'}</td>
+                <td>
+                  <div className="cd-roster-tempo">
+                    <span className="cd-roster-tempo-num">{fmtTempo(c.uploadsPerWeek)}</span>
+                    {hasSplit && (
+                      <span className="cd-roster-tempo-bar">
+                        <span style={{ width: `${Math.round(shortsShare * 100)}%`, background: ACCENT_WARM }} />
+                        <span style={{ width: `${Math.round(longsShare * 100)}%`, background: ACCENT }} />
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="cd-num">{c.viewVelocity != null ? `${fmtNum(c.viewVelocity)}` : '—'}</td>
+                <td className="cd-num">{c.engagementRate != null ? `${(c.engagementRate * 100).toFixed(1)}%` : '—'}</td>
+                <td className="cd-roster-cat">{cat}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </section>
   );
 }
@@ -2970,6 +3053,33 @@ function PrintStyles() {
         line-height: 1.1;
       }
 
+      /* Channel roster — "who's in this audit" table. */
+      .cd-roster { padding: 56px 64px; }
+      .cd-roster-table th, .cd-roster-table td {
+        vertical-align: middle;
+      }
+      .cd-roster-channel {
+        display: flex; align-items: center; gap: 10px;
+        font-weight: 600;
+      }
+      .cd-roster-tempo {
+        display: flex; align-items: center; gap: 10px;
+      }
+      .cd-roster-tempo-num {
+        font-variant-numeric: tabular-nums;
+        min-width: 52px;
+      }
+      .cd-roster-tempo-bar {
+        display: inline-flex; height: 8px; width: 80px;
+        border-radius: 2px; overflow: hidden;
+        border: 1px solid ${BORDER};
+      }
+      .cd-roster-tempo-bar > span { display: block; height: 100%; }
+      .cd-roster-cat {
+        font-size: 11px; color: ${MUTED};
+        text-transform: uppercase; letter-spacing: 0.5px;
+      }
+
       /* Audit top sheet — Step 22. Three groups of three findings +
          Next Steps. Matches the strategist's hand-drawn structure.
          Editorial pull-page treatment: deep teal background, cream
@@ -3751,6 +3861,16 @@ function PrintStyles() {
         .cd-table caption {
           break-after: avoid;
           page-break-after: avoid;
+        }
+
+        /* The roster table can run longer than one sheet (20+ channels).
+           Opt it OUT of the default page break-inside:avoid + min-height
+           so it paginates cleanly across sheets — rows stay intact and
+           the header repeats via the rules above. */
+        .cd-roster {
+          break-inside: auto !important;
+          page-break-inside: auto !important;
+          min-height: 0 !important;
         }
 
         /* Charts + SVGs — flow to the printable area; never split. */
