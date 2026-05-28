@@ -1848,6 +1848,17 @@ function AudienceFormatSummary({ audienceSignals }) {
 // Horizontal bar chart for title-pattern lifts. Bars proportional to
 // absolute lift; positive lifts pink, negative lifts gray. Directional
 // confidence shown as a hatched fill, statistical as solid.
+// Format-skew caveat — when a title pattern's matching videos are
+// heavily one format, its lift partly reflects that format's view
+// scale (Shorts vs long-form) rather than the pattern itself. Returns
+// a short note past a 70/30 skew, else null.
+function formatSkewLabel(shortsShare) {
+  if (shortsShare == null) return null;
+  if (shortsShare >= 0.7) return 'mostly Shorts';
+  if (shortsShare <= 0.3) return 'mostly long-form';
+  return null;
+}
+
 function TitlePatternBars({ patterns }) {
   // Sort by lift desc, cap at 8 to keep the chart legible.
   const rows = [...patterns]
@@ -1865,14 +1876,14 @@ function TitlePatternBars({ patterns }) {
   // don't render full-width bars off tiny lifts.
   const maxAbs = Math.min(250, Math.max(...rows.map(r => Math.abs(liftPct(r))), 50));
   const labelWidth = 220;
-  const valueWidth = 70;
-  const barAreaWidth = 460;
+  const valueWidth = 160;  // widened to fit the format-skew caveat
+  const barAreaWidth = 440;
   const rowHeight = 26;
   const height = rows.length * rowHeight + 18;
   const zeroX = labelWidth + (barAreaWidth * (maxAbs / (2 * maxAbs)));  // center the zero line
 
   return (
-    <svg className="cd-chart" viewBox={`0 0 ${labelWidth + barAreaWidth + valueWidth} ${height}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', maxWidth: 760 }}>
+    <svg className="cd-chart" viewBox={`0 0 ${labelWidth + barAreaWidth + valueWidth} ${height}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', maxWidth: 820 }}>
       {/* Zero line */}
       <line x1={zeroX} x2={zeroX} y1={4} y2={height - 6} stroke="#d9cfb1" strokeWidth={1} strokeDasharray="2 2" />
       {rows.map((p, i) => {
@@ -1883,6 +1894,7 @@ function TitlePatternBars({ patterns }) {
         const x = clamped >= 0 ? zeroX : zeroX - width;
         const isDirectional = p.confidence === 'directional';
         const color = clamped >= 0 ? ACCENT : '#9ca3af';
+        const skew = formatSkewLabel(p.shortsShare);
         return (
           <g key={i}>
             <text x={labelWidth - 8} y={y + 13} textAnchor="end" fontSize="11.5" fill={INK} style={{ fontWeight: 500 }}>
@@ -1891,12 +1903,13 @@ function TitlePatternBars({ patterns }) {
             <rect x={x} y={y + 4} width={width} height={14} fill={color} opacity={isDirectional ? 0.45 : 0.92} rx={2} />
             <text x={labelWidth + barAreaWidth + 6} y={y + 13} fontSize="11" fill={INK} style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 600 }}>
               {pct >= 0 ? '+' : ''}{Math.round(pct)}%{isDirectional ? '*' : ''}
+              {skew && <tspan fill={MUTED} style={{ fontFamily: FONT_STACK, fontWeight: 400 }}>{` · ${skew}`}</tspan>}
             </text>
           </g>
         );
       })}
       <text x={labelWidth + barAreaWidth + valueWidth} y={height - 1} textAnchor="end" fontSize="9" fill={MUTED}>
-        * directional (small sample)
+        * directional (small sample) · format note = lift may reflect format
       </text>
     </svg>
   );

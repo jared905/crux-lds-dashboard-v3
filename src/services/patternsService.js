@@ -221,6 +221,15 @@ function computeTitlePatterns(videos) {
       ? matchedMedianViews / scopeMedianViews
       : null;
 
+    // Format skew — what fraction of videos matching this pattern are
+    // Shorts. When a pattern is heavily one-sided, its lift partly
+    // reflects the format's view scale (Shorts vs long-form), not the
+    // pattern itself. Consumers surface a caveat past a skew threshold.
+    const matchedWithDur = matched.filter(v => v.duration_seconds != null);
+    const shortsShare = matchedWithDur.length
+      ? matchedWithDur.filter(v => (v.duration_seconds || 0) <= SHORTS_DURATION_THRESHOLD).length / matchedWithDur.length
+      : null;
+
     return {
       id: p.id,
       label: p.label,
@@ -229,6 +238,7 @@ function computeTitlePatterns(videos) {
       medianViews: matchedMedianViews,
       viewsLift,
       confidence,
+      shortsShare,
       avgEngagement: matchedEng.length > 0
         ? matchedEng.reduce((s, e) => s + e, 0) / matchedEng.length
         : null,

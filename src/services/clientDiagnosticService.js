@@ -62,6 +62,13 @@ function patternStats(videos) {
     const m = matchedViews.length > 0 ? trimmedMedian(matchedViews) : null;
     const conf = liftConfidence({ sampleValues: matchedViews, currentMedian: m, kind: 'pattern' });
     const lift = (m != null && scopeMedian && scopeMedian > 0 && conf !== 'insufficient') ? m / scopeMedian : null;
+    // Format skew — fraction of matching videos that are Shorts. Lets
+    // the briefing caveat a pattern whose lift may reflect format
+    // rather than the pattern itself. SHORTS_DURATION_THRESHOLD = 180.
+    const withDur = matched.filter(v => v.duration_seconds != null);
+    const shortsShare = withDur.length
+      ? withDur.filter(v => (v.duration_seconds || 0) <= 180).length / withDur.length
+      : null;
     return {
       id: p.id,
       label: p.label,
@@ -70,6 +77,7 @@ function patternStats(videos) {
       freq: matched.length / videos.length,
       medianViews: m,
       lift,
+      shortsShare,
     };
   });
   return { patterns, scopeMedian };
@@ -470,7 +478,7 @@ const BRIEFING_CACHE_HOURS = 24 * 3; // re-synthesize every 3 days
 
 // Bump when the prompt structure or hedging rules change — invalidates
 // every cached briefing so stale pre-hedging output stops being served.
-const BRIEFING_PROMPT_VERSION = 'v12-brand-exclusivity';
+const BRIEFING_PROMPT_VERSION = 'v13-format-skew-caveat';
 
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;
@@ -490,7 +498,7 @@ export async function loadOrGenerateBriefing(diagnostic) {
   const sig = [
     BRIEFING_PROMPT_VERSION,
     client.id, mode, client.archetype || '',
-    workingPatterns.map(p => `${p.id}:${p.lift?.toFixed(2)}:${p.confidence}`).join(','),
+    workingPatterns.map(p => `${p.id}:${p.lift?.toFixed(2)}:${p.confidence}:${p.shortsShare?.toFixed(2) ?? ''}`).join(','),
     workingBuckets.map(b => `${b.id}:${b.lift?.toFixed(2)}:${b.confidence}`).join(','),
     workingSlots.slice(0, 3).map(s => `${s.day}-${s.block}:${s.lift?.toFixed(2)}:${s.confidence}`).join(','),
     gaps.map(g => `${g.id}:${g.freqRatio.toFixed(1)}`).join(','),
@@ -512,11 +520,19 @@ export async function loadOrGenerateBriefing(diagnostic) {
     // frequency than baseline" when the actual claim was "videos posted
     // here get 81% MORE VIEWS than the cohort median" — different sentence,
     // different defensibility.
-    const fmtLine = (label, freq, lift, n, conf) => {
+    const fmtLine = (label, freq, lift, n, conf, shortsShare) => {
       const tag = conf === 'statistical' ? '[STATISTICAL]' : '[DIRECTIONAL — small sample]';
-      return `- ${label}: appears in ${(freq * 100).toFixed(0)}% of cohort videos (n=${n}). Videos using this pattern get ${((lift - 1) * 100).toFixed(0)}% MORE VIEWS than the cohort median. ${tag}`;
+      // Format-skew caveat: a pattern whose matching videos are heavily
+      // one format has a lift partly explained by that format's view
+      // scale, not the pattern. Surface it so the briefing can hedge.
+      let skew = '';
+      if (shortsShare != null) {
+        if (shortsShare >= 0.7) skew = ` (NOTE: ${(shortsShare * 100).toFixed(0)}% of these are Shorts — lift may reflect format, not the pattern)`;
+        else if (shortsShare <= 0.3) skew = ` (NOTE: ${(100 - shortsShare * 100).toFixed(0)}% of these are long-form — lift may reflect format, not the pattern)`;
+      }
+      return `- ${label}: appears in ${(freq * 100).toFixed(0)}% of cohort videos (n=${n}). Videos using this pattern get ${((lift - 1) * 100).toFixed(0)}% MORE VIEWS than the cohort median. ${tag}${skew}`;
     };
-    const patternLines = workingPatterns.map(p => fmtLine(p.label, p.freq, p.lift, p.count, p.confidence)).join('\n') || '(none with significant lift)';
+    const patternLines = workingPatterns.map(p => fmtLine(p.label, p.freq, p.lift, p.count, p.confidence, p.shortsShare)).join('\n') || '(none with significant lift)';
     const bucketLines  = workingBuckets.map(b  => fmtLine(b.label, b.freq, b.lift, b.count, b.confidence)).join('\n') || '(none with significant lift)';
 
     // Per-format slot lines. The combined-format slot analysis is misleading
@@ -600,6 +616,7 @@ CRITICAL RULES — read carefully:
    - "Start with the Why-title gap (statistical, lift +X%); reserve one upload to A/B-test the Saturday slot before committing schedule changes."
    A briefing that ends on "needs more data to confirm" is advisory, not actionable. Always point at the next move, even when the move is "run these two tests this week."
 10. **BRAND NAME RULE (CRITICAL).** Never name specific competitor product brands anywhere in the briefing. Refer to product CATEGORIES generically ("video doorbell," "outdoor security camera," "professionally-monitored alarm system"). The ONLY brand name allowed is ${client.name}'s own. Even illustrative examples or analogies must use category names — "showcase how Nest Cam detects motion" is wrong; "showcase how a doorbell camera detects motion" is right. This applies to ALL competitor brands, including those that appear in the cohort data (Ring, Nest, Vivint, SimpliSafe, Brinks, ADT, Wyze, Arlo, Blink, eufy, Lorex, etc.).
+11. **FORMAT-SKEW CAVEAT.** Some pattern lines carry a "(NOTE: X% of these are Shorts/long-form — lift may reflect format)" tag. When you cite such a pattern, you MUST carry the caveat — say the lift may be a format effect, not the pattern itself (e.g., "emoji titles show +154%, but these are mostly Shorts, so the lift partly reflects format — test emoji on long-form before reading it as a title lever"). Never present a format-skewed lift as a clean pattern win.
 
 Output: 3-5 sentence briefing. First sentence = the single highest-leverage move (gap-led if a gap exists, otherwise the strongest statistical finding, otherwise an honest "data is too thin for confident recommendations"). Cite concrete numbers from the lines above. No platitudes.
 
