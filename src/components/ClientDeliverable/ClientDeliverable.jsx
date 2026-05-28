@@ -631,7 +631,7 @@ function AuditTopSheet({ clientName, channels, patternsResult, whiteSpaceResult,
   const unclaimed = buildUnclaimedTerritory(whiteSpaceResult);
   const cohortBehavior = buildHowCohortShowsUp(ctx, channels);
   const movement = buildWhatsMovingNow(alerts);
-  const nextSteps = buildAuditNextSteps();
+  const roadmap = buildEngagementRoadmap();
 
   const synthRef = React.useRef(null);
   const [copied, setCopied] = useState(false);
@@ -680,15 +680,9 @@ function AuditTopSheet({ clientName, channels, patternsResult, whiteSpaceResult,
           emptyText="No named-channel movement in the cohort over the last 30 days — the field is steady-state."
         />
 
-        <div className="cd-audit-nextsteps">
-          <div className="cd-audit-nextsteps-label">Next steps</div>
-          <ol className="cd-audit-nextsteps-list">
-            {nextSteps.map((step, i) => (
-              <li key={i}>
-                <E tag="span">{step}</E>
-              </li>
-            ))}
-          </ol>
+        <div className="cd-audit-nextsteps cd-audit-roadmap-block">
+          <div className="cd-audit-nextsteps-label">The road ahead</div>
+          <RoadmapStepper stages={roadmap} />
         </div>
       </div>
     </section>
@@ -934,12 +928,38 @@ function readableFormat(code) {
 // The three audit next-steps. Hardcoded — they map to the strategist's
 // defined post-audit phases (content strategy → pillar development →
 // reconvene pitch meeting).
-function buildAuditNextSteps() {
+// The CRUX engagement arc, rendered as a roadmap on the audit summary.
+// Audit is complete (the client is reading its output); the rest are
+// upcoming stages. "next" gets the "you are here / next up" highlight.
+function buildEngagementRoadmap() {
   return [
-    <><strong>Content strategy.</strong> Develop the working strategy doc anchored on the gaps named above.</>,
-    <><strong>Pillar development.</strong> Draft 5 pillar candidates spanning long-form, Shorts, and multi-cut formats.</>,
-    <><strong>Reconvene pitch meeting.</strong> Present the pillar slate for greenlight on 1–3 to start producing.</>,
+    { label: 'Audit',    sub: 'Category + landscape',  status: 'done' },
+    { label: 'Strategy', sub: 'Working strategy doc',   status: 'next' },
+    { label: 'Pillars',  sub: 'Draft 5 candidates',     status: 'upcoming' },
+    { label: 'Pitch',    sub: 'Greenlight 1–3',     status: 'upcoming' },
+    { label: 'Produce',  sub: 'Build the slate',        status: 'upcoming' },
   ];
+}
+
+// Horizontal roadmap stepper. Done nodes carry a check, the "next" node
+// gets a pink ring + "Next up" tag, upcoming nodes are muted. Arrows
+// connect them. Styled for the teal pull-page (cream-on-teal).
+function RoadmapStepper({ stages }) {
+  return (
+    <div className="cd-roadmap">
+      {stages.map((s, i) => (
+        <React.Fragment key={s.label}>
+          <div className={`cd-roadmap-node cd-roadmap-${s.status}`}>
+            {s.status === 'next' && <div className="cd-roadmap-here">Next up</div>}
+            <div className="cd-roadmap-marker">{s.status === 'done' ? <Check size={12} strokeWidth={3} /> : i + 1}</div>
+            <div className="cd-roadmap-label">{s.label}</div>
+            <div className="cd-roadmap-sub">{s.sub}</div>
+          </div>
+          {i < stages.length - 1 && <div className="cd-roadmap-arrow">→</div>}
+        </React.Fragment>
+      ))}
+    </div>
+  );
 }
 
 // Compress a long string on word boundary + append ellipsis. Used for
@@ -3237,6 +3257,84 @@ function PrintStyles() {
       }
       .cd-audit-nextsteps-list li { margin-bottom: 8px; }
       .cd-audit-nextsteps-list li:last-child { margin-bottom: 0; }
+
+      /* Engagement-arc roadmap on the audit summary. The roadmap nodes
+         carry their own borders, so this block drops the panel border
+         (overrides .cd-audit-nextsteps above). Cream-on-teal styling. */
+      .cd-audit-roadmap-block {
+        border: none !important;
+        background: transparent !important;
+        padding: 0 !important;
+        margin-top: 30px;
+      }
+      .cd-roadmap {
+        display: flex; align-items: stretch;
+        margin-top: 6px;
+      }
+      .cd-roadmap-node {
+        flex: 1; min-width: 0;
+        position: relative;
+        text-align: center;
+        padding: 16px 8px 14px;
+        border: 1px solid rgba(255, 250, 241, 0.25);
+        border-radius: 8px;
+        background: rgba(255, 250, 241, 0.05);
+      }
+      .cd-roadmap-marker {
+        width: 24px; height: 24px; margin: 0 auto 8px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 12px; font-weight: 900;
+        border: 1.5px solid rgba(255, 250, 241, 0.5);
+        color: ${brand.colors.background};
+      }
+      .cd-roadmap-label {
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 13px; font-weight: 900;
+        text-transform: uppercase; letter-spacing: 0.8px;
+        color: ${brand.colors.background};
+        line-height: 1.1; margin-bottom: 4px;
+      }
+      .cd-roadmap-sub {
+        font-size: 10.5px; line-height: 1.3;
+        color: rgba(255, 250, 241, 0.7);
+      }
+      /* Done — filled cream marker with teal check, full-strength text. */
+      .cd-roadmap-done .cd-roadmap-marker {
+        background: ${brand.colors.background};
+        border-color: ${brand.colors.background};
+        color: ${ACCENT};
+      }
+      /* Next — pink ring + "Next up" tag. The "you are here" node. */
+      .cd-roadmap-next {
+        border-color: ${ACCENT_VIVID};
+        background: rgba(234, 115, 172, 0.14);
+      }
+      .cd-roadmap-next .cd-roadmap-marker {
+        border-color: ${ACCENT_VIVID};
+        color: ${ACCENT_VIVID};
+      }
+      .cd-roadmap-here {
+        position: absolute; top: -10px; left: 50%;
+        transform: translateX(-50%);
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 8px; font-weight: 900;
+        text-transform: uppercase; letter-spacing: 1px;
+        color: ${brand.colors.background};
+        background: ${ACCENT_VIVID};
+        padding: 2px 7px; border-radius: 99px;
+        white-space: nowrap;
+      }
+      /* Upcoming — muted. */
+      .cd-roadmap-upcoming { opacity: 0.6; }
+      .cd-roadmap-arrow {
+        display: flex; align-items: center;
+        padding: 0 6px;
+        color: rgba(255, 250, 241, 0.45);
+        font-size: 16px;
+        flex-shrink: 0;
+      }
 
       @media print {
         .cd-audit-topsheet { break-after: page; padding: 0.7in 0.8in !important; }
