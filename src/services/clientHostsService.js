@@ -16,6 +16,7 @@
 
 import { supabase } from './supabaseClient';
 import { getSpine, HOST_ARCHETYPES, HOST_ARCHETYPE_BY_ID } from './strategySpineService';
+import { loadAuditEvidence, formatEvidenceForPrompt, EVIDENCE_RULES } from './auditEvidenceService';
 import claudeAPI from './claudeAPI';
 import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 
@@ -174,7 +175,10 @@ export async function deleteHost(hostId) {
  */
 export async function suggestHostProfile(clientId, { clientName, seriesLabel, existingArchetypes = [] } = {}) {
   if (!clientId) return { ok: false, error: 'missing clientId' };
-  const spine = await getSpine(clientId);
+  const [spine, evidence] = await Promise.all([
+    getSpine(clientId),
+    loadAuditEvidence(clientId).catch(() => null),
+  ]);
   if (!spine) return { ok: false, error: 'no spine on file for this client' };
 
   const haveAnchor =
@@ -184,6 +188,9 @@ export async function suggestHostProfile(clientId, { clientName, seriesLabel, ex
     || spine.positioning_hypothesis?.trim();
   if (!haveAnchor) {
     return { ok: false, error: 'Need editorial POV, voice/tone, or positioning authored first — the host archetype is derived from those fields, not picked in a vacuum.' };
+  }
+  if (!evidence || evidence.cohortHostVisible == null) {
+    return { ok: false, error: 'Need audit data with cohort host-visibility signal — host archetype is calibrated against whether the field runs host-light or host-heavy.' };
   }
 
   const catalogBlock = HOST_ARCHETYPES.map(a => `  - ${a.id} (${a.label}): ${a.description}`).join('\n');
@@ -201,24 +208,41 @@ export async function suggestHostProfile(clientId, { clientName, seriesLabel, ex
     parts.push(`EXISTING HOST ARCHETYPES on this channel (don't propose these — generate complementary picks):\n${existingArchetypes.map(a => `  - ${a}`).join('\n')}`);
   }
 
-  const systemPrompt = `You design on-camera host profiles for YouTube channels. You read the channel's positioning + voice + audience and recommend a host archetype from a fixed catalog, plus a channel-specific refinement note. The refinement is what makes the archetype specific to THIS channel — not "The Practitioner" generally but "The Practitioner — an active installer who narrates the work, never explains it from outside." Return ONLY valid JSON.`;
+  const evidenceBlock = formatEvidenceForPrompt(evidence);
 
-  const prompt = `Read the spine below and propose THREE candidate host profiles for this channel${seriesLabel ? ` (specifically the "${seriesLabel}" series)` : ''}.
+  // Cohort host-visibility framing — the prompt cites this explicitly
+  // so every rationale anchors to whether putting a host on camera
+  // breaks or matches the field convention.
+  const hostVis = evidence.cohortHostVisible;
+  const hostFraming = hostVis < 30
+    ? `The cohort runs HOST-LIGHT (${hostVis}% average host-on-screen). A recurring on-camera host is a structural break from the field — the archetype must be a SPECIFIC personality, not just "a person on camera."`
+    : hostVis > 70
+      ? `The cohort runs HOST-HEAVY (${hostVis}% average host-on-screen). To differentiate, the archetype must be a DISTINCT personality the cohort doesn't already have. Generic "expert" or "narrator" is failure-mode here.`
+      : `The cohort is MIXED on host presence (${hostVis}% host-on-screen, ${evidence.cohortFaceDriven ?? '—'}% face-driven thumbnails). The archetype choice should be deliberate — the cohort hasn't settled on a convention, so either direction is claimable.`;
+
+  const systemPrompt = `You recommend on-camera host archetypes for YouTube channels. Recommendations are evidence-led — every rationale cites the cohort's host-visibility %, host-visibility framing (light/heavy/mixed), or a specific spine field. The refinement is what makes the archetype specific to THIS channel + this cohort context, not "The Practitioner" generally. Never write narrator-voice meta-commentary about the recommendation. Return ONLY valid JSON.`;
+
+  const prompt = `Read the spine + audit evidence below and propose THREE candidate host profiles for this channel${seriesLabel ? ` (specifically the "${seriesLabel}" series)` : ''}.
+
+${evidenceBlock}
+
+COHORT HOST FRAMING: ${hostFraming}
+${EVIDENCE_RULES}
 
 HOST ARCHETYPE CATALOG (pick archetypeId from this list):
 ${catalogBlock}
 
-REQUIREMENTS:
-- Each candidate picks one archetype from the catalog above by id.
-- The three candidates take DISTINCT archetypes — never propose the same archetypeId twice. Each archetype implies a different bet about who's on screen.
-- Each candidate includes:
-    - archetypeId (catalog id, lowercase)
-    - refinement: 1–2 sentence specific gloss on the archetype FOR THIS CHANNEL. Names what the host actually does on screen ("narrates the install while doing it, never breaks the fourth wall to explain"), not generic descriptors.
-    - voice_tone_refinement: 1–2 sentence overlay on the channel voice that's SPECIFIC TO THIS HOST. What this host's voice does that the channel default doesn't.
-    - rationale: 1 sentence on WHY this archetype fits this channel. Anchor to the spine: cite editorial POV or audience read or voice/tone language.
-
 SPINE:
 ${parts.join('\n\n')}
+
+REQUIREMENTS:
+- Each candidate picks one archetype from the catalog above by id.
+- The three candidates take DISTINCT archetypes — never propose the same archetypeId twice.
+- Each candidate includes:
+    - archetypeId (catalog id, lowercase)
+    - refinement: 1–2 sentence specific gloss on the archetype FOR THIS CHANNEL + THIS COHORT. Names what the host actually does on screen ("narrates the install while doing it, never breaks the fourth wall to explain"). NOT generic descriptors.
+    - voice_tone_refinement: 1–2 sentence overlay on the channel voice that's SPECIFIC TO THIS HOST.
+    - rationale: 1–2 sentences on WHY this archetype fits. MUST cite the cohort host-visibility % AND one spine field (editorial POV, audience read, voice/tone, or saturated theme). Format: "[Archetype] fits because [cohort signal] + [spine anchor]." Generic rationales ("a strong on-camera presence") are a failure.
 
 Return JSON exactly:
 {
@@ -227,7 +251,7 @@ Return JSON exactly:
       "archetypeId": "string from catalog",
       "refinement": "string",
       "voice_tone_refinement": "string",
-      "rationale": "string"
+      "rationale": "string — cites cohort host-visibility % AND a spine field"
     },
     ... three total
   ]
@@ -235,7 +259,7 @@ Return JSON exactly:
 Return ONLY the JSON.`;
 
   try {
-    const result = await claudeAPI.call(prompt, systemPrompt, 'host_profile_suggest', 2048);
+    const result = await claudeAPI.call(prompt, systemPrompt, 'host_profile_suggest_v2', 2200);
     const parsed = parseClaudeJSON(result.text, null);
     const raw = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
     const candidates = raw

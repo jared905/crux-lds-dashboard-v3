@@ -16,6 +16,7 @@ import { supabase } from './supabaseClient';
 import { computeClientDiagnostic } from './clientDiagnosticService';
 import { analyzePatterns } from './patternsService';
 import { analyzeWhiteSpace } from './whiteSpaceService';
+import { loadAuditEvidence, formatEvidenceForPrompt, EVIDENCE_RULES } from './auditEvidenceService';
 import claudeAPI from './claudeAPI';
 import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 
@@ -545,7 +546,10 @@ Return ONLY the JSON.`;
  */
 export async function suggestEditorialPov(clientId, { clientName } = {}) {
   if (!clientId) return { ok: false, error: 'missing clientId' };
-  const spine = await getSpine(clientId);
+  const [spine, evidence] = await Promise.all([
+    getSpine(clientId),
+    loadAuditEvidence(clientId).catch(() => null),
+  ]);
   if (!spine) return { ok: false, error: 'no spine on file for this client' };
 
   // Need at least one other positioning field to anchor against —
@@ -559,6 +563,11 @@ export async function suggestEditorialPov(clientId, { clientName } = {}) {
   if (!haveAnchor) {
     return { ok: false, error: 'Need positioning or audience read authored first — editorial POV is what this channel argues against the competitive landscape, not a recommendation generated from scratch.' };
   }
+  // Need audit evidence too — POV without cohort numbers produces
+  // narrator-voice output ("frames why this POV is needed").
+  if (!evidence || (!evidence.findings?.length && !evidence.topicSaturated?.length && !evidence.topicGaps?.length)) {
+    return { ok: false, error: 'Need audit data — run the audit / regenerate the deliverable so the cohort\'s gaps, saturated themes, and findings are loaded. Editorial POV must cite cohort evidence, not be generated in a vacuum.' };
+  }
 
   const parts = [];
   if (clientName) parts.push(`CLIENT: ${clientName}`);
@@ -569,35 +578,50 @@ export async function suggestEditorialPov(clientId, { clientName } = {}) {
   if (spine.audience_read?.trim()) parts.push(`AUDIENCE READ:\n${spine.audience_read.trim()}`);
   if (spine.guardrails?.trim()) parts.push(`GUARDRAILS:\n${spine.guardrails.trim()}`);
 
-  const systemPrompt = `You compress strategist brainstorm into client-facing editorial POV statements — what this channel argues, why it exists, what it's betting on. The strategist's draft language ("we want to...", "I see this being...") gets rewritten into stating language ("We argue...", "We exist because..."). Return ONLY valid JSON.`;
+  const evidenceBlock = formatEvidenceForPrompt(evidence);
 
-  const prompt = `Read the spine below and propose THREE candidate Editorial POV + Mission statements.
+  const systemPrompt = `You write client-facing Editorial POV + Mission statements that READ as evidence-led convictions, not as marketing copy or narrator commentary. Every recommendation cites at least one specific number, theme, or pattern from the audit evidence the user provides. You write in stating language ("We argue...", "We exist because...") — never in meta language ("This POV frames the gap...", "The mission should make that connection legible..."). Return ONLY valid JSON.`;
+
+  const prompt = `Read the spine + audit evidence below and propose THREE candidate Editorial POV + Mission statements.
+
+${evidenceBlock}
+${EVIDENCE_RULES}
+
+SPINE (the strategist's working positioning):
+${parts.join('\n\n')}
+
+CANDIDATE STRUCTURE:
+Each candidate is 2–4 sentences and takes a DISTINCT angle — three rewrites of the same idea is a failure mode. The three angles:
+
+1. belief — Name what this channel ARGUES, anchored to a specific cohort gap or saturated theme. Must state both:
+   (a) what we believe / what we stand for (the conviction)
+   (b) the opposition — what the cohort does that we explicitly reject, with a number cite (e.g., "X of Y competitors lead with DIY install content, X% of cohort titles teach setup steps — we don't ship a single video that does that")
+   The opposition is the load-bearing part. A belief with no named opposition is just a slogan.
+
+2. mission — Why this channel exists in operational terms. Names the audience by what they're DOING or FEELING (not demographic), and names the operational shift — what changes about the way content gets made because of this mission (e.g., "we interview the installer, not the marketer; the camera is in the field, not on a stage"). Anchor to the unserved demand or a gap finding.
+
+3. bet — What this channel is wagering on being RIGHT about the moment / audience / category. Cite the specific evidence behind the bet: a topic gap, a format-bucket lift, a cadence signal, a saturated theme that's about to crack. Make the bet falsifiable ("if X% of cohort starts producing Y by next year, we were right about the timing").
 
 REQUIREMENTS:
-- Each candidate is 2–4 sentences. Reads as a statement, not a brief.
-- The three candidates take DISTINCT angles, not three rewrites of the same idea:
-    1. belief — name what this channel argues. State a conviction. Implies an opposition (something the channel argues AGAINST).
-    2. mission — why this channel exists. The operational reason — what would change in the world if this channel succeeded.
-    3. bet — what this channel is wagering on being right about. Names a specific bet about audience, category, or moment.
-- No marketing throat-clearing — never "we are dedicated to," "we strive to," "we empower," "we believe in [vague abstraction]."
+- Each candidate cites at least one specific number from the audit evidence.
+- Each candidate is concrete enough that a producer reading it could approve or reject a script against it.
+- The belief candidate MUST name its opposition with a cohort cite.
+- No "we are dedicated to," "we strive to," "we empower," "we believe in [vague abstraction]."
 - Reference the audience by what they're doing or feeling, not by demographic category.
 - Match the spine's voice/tone if specified.
-
-SPINE:
-${parts.join('\n\n')}
 
 Return JSON exactly:
 {
   "candidates": [
-    { "angle": "belief", "text": "string — 2-4 sentence editorial POV statement" },
-    { "angle": "mission", "text": "string — 2-4 sentence editorial POV statement" },
-    { "angle": "bet", "text": "string — 2-4 sentence editorial POV statement" }
+    { "angle": "belief", "text": "string — 2-4 sentence statement with cited opposition and number" },
+    { "angle": "mission", "text": "string — 2-4 sentence statement with operational shift + audience anchor" },
+    { "angle": "bet", "text": "string — 2-4 sentence statement with falsifiable wager and evidence cite" }
   ]
 }
 Return ONLY the JSON.`;
 
   try {
-    const result = await claudeAPI.call(prompt, systemPrompt, 'editorial_pov_suggest', 1536);
+    const result = await claudeAPI.call(prompt, systemPrompt, 'editorial_pov_suggest_v2', 1800);
     const parsed = parseClaudeJSON(result.text, null);
     const raw = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
     const candidates = raw
@@ -626,7 +650,10 @@ Return ONLY the JSON.`;
  */
 export async function suggestVoiceTone(clientId, { clientName } = {}) {
   if (!clientId) return { ok: false, error: 'missing clientId' };
-  const spine = await getSpine(clientId);
+  const [spine, evidence] = await Promise.all([
+    getSpine(clientId),
+    loadAuditEvidence(clientId).catch(() => null),
+  ]);
   if (!spine) return { ok: false, error: 'no spine on file for this client' };
 
   const haveAnchor =
@@ -636,6 +663,9 @@ export async function suggestVoiceTone(clientId, { clientName } = {}) {
     || spine.host_archetype?.trim();
   if (!haveAnchor) {
     return { ok: false, error: 'Need editorial POV, positioning, or host archetype authored first — voice/tone is calibrated against those, not generated in isolation.' };
+  }
+  if (!evidence || (evidence.cohortTier?.total ?? 0) < 3) {
+    return { ok: false, error: 'Need audit data with at least 3 production-tiered competitors — voice/tone is calibrated against the cohort\'s polish level, not generated from spine text alone.' };
   }
 
   const parts = [];
@@ -648,35 +678,46 @@ export async function suggestVoiceTone(clientId, { clientName } = {}) {
   if (spine.audience_read?.trim()) parts.push(`AUDIENCE READ:\n${spine.audience_read.trim()}`);
   if (spine.guardrails?.trim()) parts.push(`GUARDRAILS:\n${spine.guardrails.trim()}`);
 
-  const systemPrompt = `You compress strategist brainstorm into producer-ready voice + tone style sheets. The strategist tends to write adjective lists ("friendly and approachable") that producers can't act on. You write what an editor needs: register + pacing + signature moves + what to avoid. Return ONLY valid JSON.`;
+  const evidenceBlock = formatEvidenceForPrompt(evidence);
 
-  const prompt = `Read the spine below and propose THREE candidate Voice + Tone style sheets.
+  const systemPrompt = `You write producer-ready Voice + Tone style sheets that READ as enforceable specs anchored to the cohort's actual polish + production signals. Producers reject scripts using these — so they must be concrete enough that drift is detectable in an edit. Every candidate cites a specific cohort signal (production-tier mix, host-visibility %, dominant title pattern, or top/under performer pattern). No marketing language, no narrator-voice commentary about the spec. Return ONLY valid JSON.`;
 
-REQUIREMENTS:
-- Each candidate is 2–4 sentences. Reads as something a producer can hold a script against and reject lines that drift from.
-- The three candidates take DISTINCT angles:
-    1. register   — leads with the speech register and pacing (plainspoken vs hyped, slow vs cracked, etc.). Producer can hear it.
-    2. identity   — leads with who is speaking ("an installer talking about their actual work," not "a brand voice"). Producer can cast against it.
-    3. antipattern — defines voice by what it's NOT. Names the cliché this channel must avoid (clickbait register, polished marketing voice, etc.). Producer can flag drift toward the anti-pattern in edits.
-- Be concrete about signature moves: holds a beat after a hard question, never punches up a noun, refuses corporate jargon, uses concrete examples over abstractions, etc.
-- Each candidate must end with something a producer can actually enforce.
-- No marketing language ("warm and engaging," "professional yet approachable").
+  const prompt = `Read the spine + audit evidence below and propose THREE candidate Voice + Tone style sheets.
+
+${evidenceBlock}
+${EVIDENCE_RULES}
 
 SPINE:
 ${parts.join('\n\n')}
 
+CANDIDATE STRUCTURE:
+Each candidate is 2–4 sentences. Each candidate cites at least one specific cohort signal from the evidence (production tier rollup, host-visibility %, top/under title pattern). Each candidate ends with at least one signature move a producer can hold a script against.
+
+The three angles:
+
+1. register — Lead with speech register + pacing (plainspoken vs hyped, slow vs cracked, etc.). Anchor to the cohort's tier: if cohort is high-tier polish, name what register breaks the field (warmth, imperfection, holding a beat). If cohort is low-tier raw, name what register breaks (controlled pacing, crafted lines). Producer can HEAR the difference.
+
+2. identity — Lead with WHO is speaking ("an active installer talking about today's job," not "a brand voice"). Anchor to the cohort's host-visibility %: if cohort runs host-light, identity becomes the structural break; if host-heavy, identity must be specific enough that producers can cast against it.
+
+3. antipattern — Define voice by what it's NOT. Anchor to either (a) the cohort's saturated themes — if X% of cohort titles are gear-roundups, the anti-pattern is sounding like a buyer's guide, or (b) the under-performing title pattern in the evidence — drift toward that pattern is the rejection criterion. Producer can flag drift in edits.
+
+REQUIREMENTS:
+- Each candidate ends with at least one enforceable signature move (e.g., "holds a beat after a hard question," "refuses 'experience' as a noun," "never opens a script with a question").
+- Concrete examples beat abstractions. "Uses 'install' not 'setup'" beats "uses domain-specific language."
+- No "warm and engaging," "professional yet approachable," "authentic," "real" — these are unenforceable.
+
 Return JSON exactly:
 {
   "candidates": [
-    { "angle": "register", "text": "string — 2-4 sentence voice + tone spec" },
-    { "angle": "identity", "text": "string — 2-4 sentence voice + tone spec" },
-    { "angle": "antipattern", "text": "string — 2-4 sentence voice + tone spec" }
+    { "angle": "register", "text": "string — 2-4 sentence voice + tone spec with cohort cite and enforceable moves" },
+    { "angle": "identity", "text": "string — 2-4 sentence voice + tone spec with host-visibility cite and casting anchor" },
+    { "angle": "antipattern", "text": "string — 2-4 sentence voice + tone spec with cohort-saturation cite and rejection criterion" }
   ]
 }
 Return ONLY the JSON.`;
 
   try {
-    const result = await claudeAPI.call(prompt, systemPrompt, 'voice_tone_suggest', 1536);
+    const result = await claudeAPI.call(prompt, systemPrompt, 'voice_tone_suggest_v2', 1800);
     const parsed = parseClaudeJSON(result.text, null);
     const raw = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
     const candidates = raw

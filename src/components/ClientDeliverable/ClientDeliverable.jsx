@@ -2048,17 +2048,21 @@ function PartTwoContent({ spine, hosts = [], legacyRubric, rationales = {} }) {
     <section className="cd-page">
       {spine?.editorial_pov && (
         <SubSection title="Editorial POV + mission" kicker="What this channel believes">
-          {rationales.editorial_pov && <EvidenceLead>{rationales.editorial_pov}</EvidenceLead>}
+          {rationales.whys?.editorial_pov && <EvidenceLead>{rationales.whys.editorial_pov}</EvidenceLead>}
           <E tag="p" className="cd-recommendation">{spine.editorial_pov}</E>
-          <InPractice>Every script and brief is tested against this POV — if a video doesn't argue or stand for something in this frame, it doesn't ship.</InPractice>
+          <InPractice>
+            {rationales.inPractice?.editorial_pov || <>Every script and brief is tested against this POV — if a video doesn't argue or stand for something in this frame, it doesn't ship.</>}
+          </InPractice>
         </SubSection>
       )}
 
       {spine?.voice_tone && (
         <SubSection title="Voice + tone" kicker="How this channel sounds">
-          {rationales.voice_tone && <EvidenceLead>{rationales.voice_tone}</EvidenceLead>}
+          {rationales.whys?.voice_tone && <EvidenceLead>{rationales.whys.voice_tone}</EvidenceLead>}
           <E tag="p" className="cd-recommendation">{spine.voice_tone}</E>
-          <InPractice>This is the style sheet talent reads before takes and producers reference during edits — generated copy and scripts match this register or get rejected.</InPractice>
+          <InPractice>
+            {rationales.inPractice?.voice_tone || <>This is the style sheet talent reads before takes and producers reference during edits — generated copy and scripts match this register or get rejected.</>}
+          </InPractice>
         </SubSection>
       )}
 
@@ -2067,25 +2071,27 @@ function PartTwoContent({ spine, hosts = [], legacyRubric, rationales = {} }) {
           title={hostsToRender.length === 1 ? 'Host' : `Hosts (${hostsToRender.length})`}
           kicker={hostsToRender.length === 1 ? 'Who is on screen' : 'Series-specific on-camera personas'}
         >
-          {rationales.host_archetype && <EvidenceLead>{rationales.host_archetype}</EvidenceLead>}
+          {rationales.whys?.host_archetype && <EvidenceLead>{rationales.whys.host_archetype}</EvidenceLead>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {hostsToRender.map((h, i) => (
               <HostBlock key={h.id || i} host={h} />
             ))}
           </div>
           <InPractice>
-            {hostsToRender.length === 1
-              ? 'Auditions score candidates against the rubric tied to this archetype. Producers brief on-camera takes against the archetype\'s specifics.'
-              : 'Each series casts and briefs against its own host rubric. Producers don\'t move talent between series without re-auditioning against the target archetype.'}
+            {rationales.inPractice?.host_archetype || (hostsToRender.length === 1
+              ? <>Auditions score candidates against the rubric tied to this archetype. Producers brief on-camera takes against the archetype's specifics.</>
+              : <>Each series casts and briefs against its own host rubric. Producers don't move talent between series without re-auditioning against the target archetype.</>)}
           </InPractice>
         </SubSection>
       )}
 
       {spine?.guardrails && (
         <SubSection title="What this isn't" kicker="Explicit anti-stances">
-          {rationales.guardrails && <EvidenceLead>{rationales.guardrails}</EvidenceLead>}
+          {rationales.whys?.guardrails && <EvidenceLead>{rationales.whys.guardrails}</EvidenceLead>}
           <E className="cd-guardrails">{spine.guardrails}</E>
-          <InPractice>AI generations, producer briefs, and content pitches explicitly exclude these stances. A pitch that drifts into them gets pulled before production.</InPractice>
+          <InPractice>
+            {rationales.inPractice?.guardrails || <>AI generations, producer briefs, and content pitches explicitly exclude these stances. A pitch that drifts into them gets pulled before production.</>}
+          </InPractice>
         </SubSection>
       )}
 
@@ -2319,12 +2325,13 @@ function InPractice({ children }) {
   );
 }
 
-// Build per-field rationales from Part 01 data. Each returns a React
-// fragment or string, or null when no evidence supports it. Sources are
-// woven into the rationale text — no separate citation list to clutter
-// the deliverable.
+// Build per-field rationales + operational implications from Part 01
+// data. Each WHY cites specific cohort numbers; each IN-PRACTICE names
+// a concrete editorial action anchored to evidence (not generic "every
+// script tested against this" filler). Computed deterministically — no
+// LLM call.
 function buildRationales({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, clientProductionRow, demandRow }) {
-  const out = {};
+  const out = { whys: {}, inPractice: {} };
 
   const competitorSignals = (channels || [])
     .map(c => productionSignalsByChannel?.[c.id]?.signals)
@@ -2346,53 +2353,77 @@ function buildRationales({ channels, patternsResult, whiteSpaceResult, productio
 
   const topOpportunity = whiteSpaceResult?.brief?.opportunities?.[0];
   const topUnserved = demandRow?.signals?.unserved_requests?.[0];
+  const topicSaturated = (whiteSpaceResult?.topicCoverage || []).filter(t => t.coverage === 'saturated');
+  const topSaturated = topicSaturated[0] || null;
 
-  const topPattern = (patternsResult?.scope?.titlePatterns || [])
-    .filter(p => p.viewsLift != null)
+  const titlePatterns = patternsResult?.scope?.titlePatterns || [];
+  const topPattern = titlePatterns
+    .filter(p => p.viewsLift != null && p.confidence === 'statistical')
     .sort((a, b) => b.viewsLift - a.viewsLift)[0];
-  const worstPattern = (patternsResult?.scope?.titlePatterns || [])
+  const worstPattern = titlePatterns
     .filter(p => p.viewsLift != null && p.viewsLift < -30 && p.confidence === 'statistical')
     .sort((a, b) => a.viewsLift - b.viewsLift)[0];
 
-  // One-liner: anchored to the white-space opportunity or an unserved request.
+  // ───── ONE-LINER ─────
   if (topOpportunity?.title) {
-    out.oneliner = <>The headline names the field's clearest opening — <strong>{topOpportunity.title}</strong> — so the channel's articulation matches an unclaimed slot rather than describing the crowded center.</>;
+    out.whys.oneliner = <>The headline names the audit's strongest unclaimed slot — <strong>{topOpportunity.title}</strong>. The cohort isn't articulating this position; the one-liner claims it before they do.</>;
+    out.inPractice.oneliner = <>This is the single sentence every pitch, every channel description, and every long-form intro tests against. If a script's premise can't be defended as a beat of this one-liner, it gets killed in pitch — not in edit.</>;
   } else if (topUnserved?.topic) {
-    out.oneliner = <>The headline responds to the audience's most-repeated unserved ask — <strong>"{topUnserved.topic}"</strong> ({topUnserved.mentions || 'multiple'} mentions) — so it speaks to a known appetite, not a guessed one.</>;
+    out.whys.oneliner = <>The headline answers the audience's most-repeated unserved ask — <strong>"{topUnserved.topic}"</strong>{topUnserved.mentions ? <> ({topUnserved.mentions} mentions in the demand window)</> : null}. Articulation matches a named appetite, not a guessed one.</>;
+    out.inPractice.oneliner = <>This is the sentence every pitch tests against. A script that doesn't deliver against the unserved ask either gets reframed in pitch or doesn't ship.</>;
   }
 
-  // Editorial POV — anchored to the gap or unserved demand
-  if (topUnserved?.topic) {
-    out.editorial_pov = <>This POV exists because the audience keeps asking for <strong>{topUnserved.topic}</strong> and no one in the cohort is answering it cleanly. The mission statement should be readable as a direct response to that ask.</>;
-  } else if (topOpportunity?.title) {
-    out.editorial_pov = <>The cohort's biggest gap — <strong>{topOpportunity.title}</strong> — frames why this POV is needed. The mission should make that connection legible.</>;
+  // ───── EDITORIAL POV + MISSION ─────
+  // Lead with evidence: the saturated theme is the opposition, the gap
+  // is the claimable position. Cite numbers. Drop narrator voice
+  // ("frames why this POV is needed", "should make the connection
+  // legible") completely.
+  const povBits = [];
+  if (topSaturated?.name && topSaturated.count) {
+    povBits.push(<>The cohort crowds <strong>{topSaturated.name}</strong> ({topSaturated.count} titles) — that's the opposition this POV must explicitly reject.</>);
+  }
+  if (topOpportunity?.title) {
+    povBits.push(<>The audit's strongest unclaimed slot — <strong>{topOpportunity.title}</strong> — is the position this POV claims.</>);
+  } else if (topUnserved?.topic) {
+    povBits.push(<>The audience keeps asking for <strong>"{topUnserved.topic}"</strong>{topUnserved.mentions ? <> ({topUnserved.mentions} mentions)</> : null}; no cohort channel answers it cleanly. This POV is the answer.</>);
+  }
+  if (povBits.length) {
+    out.whys.editorial_pov = <>{povBits.map((b, i) => <span key={i}>{i > 0 ? ' ' : ''}{b}</span>)}</>;
+    out.inPractice.editorial_pov = topSaturated?.name
+      ? <>Every pitch is tested against the opposition: if a video reads like more <strong>{topSaturated.name}</strong> content, it doesn't ship. If it argues the POV without naming the opposition, it gets rewritten.</>
+      : <>Every pitch is tested against this POV. A video that doesn't argue or stand for something in this frame doesn't ship — there's no "neutral information" tier on this channel.</>;
   }
 
-  // Voice + tone — anchored to cohort production tier and visual conventions
+  // ───── VOICE + TONE ─────
   if (dominantTier && totalTiered >= 3) {
     const tierCount = tierRollup[dominantTier];
     const counterMove = dominantTier === 'high'
-      ? 'lean warmth or imperfection — the cohort is already polished, so polish stops differentiating'
+      ? 'lean warmth or imperfection — polish stops differentiating when the cohort is already polished'
       : dominantTier === 'low'
-        ? 'lean polish and design discipline — the cohort defaults to raw, so craft becomes the differentiator'
-        : 'lean a consistent, recognizable register — the cohort is mixed, so an instantly identifiable voice is the edge';
-    out.voice_tone = <>The cohort skews <strong>{dominantTier}-tier production</strong> ({tierCount}/{totalTiered} competitors). To stand out, {counterMove}.</>;
+        ? 'lean polish and design discipline — craft becomes the differentiator when the cohort defaults to raw'
+        : 'lean a consistent, recognizable register — an instantly identifiable voice is the edge when the field is mixed';
+    out.whys.voice_tone = <>The cohort skews <strong>{dominantTier}-tier production</strong> ({tierCount}/{totalTiered} competitors). To break the field, {counterMove}.</>;
+    out.inPractice.voice_tone = <>Producers reject scripts that drift toward the cohort's <strong>{dominantTier}-tier</strong> default. Generated copy and AI-assist runs are checked against this register before they reach a script.</>;
   }
 
-  // Host archetype — anchored to cohort host visibility
+  // ───── HOST ARCHETYPE ─────
   if (cohortHostVisible != null && totalTiered >= 3) {
     if (cohortHostVisible < 30) {
-      out.host_archetype = <>The cohort runs <strong>host-light</strong> ({cohortHostVisible}% average host visibility across competitors). Putting a recurring human anchor on screen is a structural break from the field.</>;
+      out.whys.host_archetype = <>The cohort runs <strong>host-light</strong> ({cohortHostVisible}% average host-on-screen). A recurring on-camera anchor is a structural break from the field.</>;
+      out.inPractice.host_archetype = <>Casting holds out for the right person rather than backfilling fast. A host-light cohort means a wrong-fit host on this channel reads as the cohort's default — wasted differentiation.</>;
     } else if (cohortHostVisible > 70) {
-      out.host_archetype = <>The cohort is <strong>host-heavy</strong> ({cohortHostVisible}% average host visibility). To differentiate, the host archetype must be a distinct personality — not just "a person on camera."</>;
+      out.whys.host_archetype = <>The cohort runs <strong>host-heavy</strong> ({cohortHostVisible}% average host-on-screen). Generic on-camera presence won't differentiate — the archetype must be a distinct personality.</>;
+      out.inPractice.host_archetype = <>Auditions score against the archetype's specifics, not "camera presence." A candidate who fits a generic host slot but not THIS archetype doesn't move forward.</>;
     } else if (cohortFaceDriven != null) {
-      out.host_archetype = <>The cohort is mixed on host presence ({cohortHostVisible}% visibility, {cohortFaceDriven}% face-driven thumbnails). The archetype choice should be deliberate — the cohort hasn't settled into one convention.</>;
+      out.whys.host_archetype = <>The cohort is mixed on host presence ({cohortHostVisible}% on-screen, {cohortFaceDriven}% face-driven thumbnails). The archetype choice is a positioning lever — either direction is claimable.</>;
+      out.inPractice.host_archetype = <>The archetype decision precedes the host-search, not after. Once chosen, talent briefs, audition rubrics, and thumbnail conventions all line up to it.</>;
     }
   }
 
-  // Guardrails — anchored to patterns with negative lift or the audit's worst-performing slots
+  // ───── GUARDRAILS ─────
   if (worstPattern?.label) {
-    out.guardrails = <>The cohort data shows <strong>"{worstPattern.label}"</strong> titles under-perform by {Math.round(Math.abs(worstPattern.viewsLift))}% vs. median. Guardrails should keep that pattern off the production schedule.</>;
+    out.whys.guardrails = <>The cohort data shows <strong>"{worstPattern.label}"</strong> titles under-perform by {Math.round(Math.abs(worstPattern.viewsLift))}% vs. median. Guardrails keep that pattern off the production schedule.</>;
+    out.inPractice.guardrails = <>AI generations, producer briefs, and pitches explicitly exclude these patterns. Drift into them gets caught in pitch review — before storyboarding.</>;
   }
 
   return out;
