@@ -4130,7 +4130,10 @@ function PrintStyles() {
           break-inside: auto !important;
           page-break-inside: auto !important;
           min-height: 0 !important;
-          padding: 0.5in 0.6in !important;
+          /* Match the body-page margins exactly (0.6in 0.7in) so the
+             roster's top + left edges line up with every other sheet —
+             the compact rows below already buy back the vertical room. */
+          padding: 0.6in 0.7in !important;
         }
         /* Compact the roster rows so all ~22 channels land on one page
            rather than spilling three rows onto a near-empty continuation.
@@ -4176,7 +4179,10 @@ function PrintStyles() {
            the roadmap sheet is sparse and centers within whatever space
            this padding leaves. */
         .cd-audit-topsheet {
-          padding: 0.5in 0.6in !important;
+          /* Top margin matches the body pages (0.6in) so the teal sheets
+             don't sit higher than the white ones. Horizontal stays 0.6in
+             to keep the dense nine-finding column wide enough to fit. */
+          padding: 0.6in 0.6in !important;
           break-after: page;
           page-break-after: always;
         }
