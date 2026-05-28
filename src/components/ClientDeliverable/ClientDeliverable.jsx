@@ -3915,13 +3915,13 @@ function PrintStyles() {
          so the client name + date repeat on every printed page. */
       .cd-print-footer { display: none; }
 
-      /* Paged-media page setup — Letter at 0.5in margin top/sides,
-         0.7in bottom to leave room for the fixed footer. */
-      /* Letter, full-bleed on top + sides so colored pages reach those
-         edges; a 0.5in BOTTOM margin reserves a clean band for the
-         running footer so flowing content (long tables) never collides
-         with it. Printable content height = 10.5in. */
-      @page { size: letter; margin: 0 0 0.5in 0; }
+      /* Letter, FULL BLEED on all sides so colored pages (cover cream,
+         callout sage, audit-summary teal) reach every paper edge. No
+         bottom margin band — the running footer is removed in print
+         (it's incompatible with full-bleed colored pages + flowing
+         content; it was the thing overlapping). Set "Margins: None" +
+         "Background graphics: On" in the print dialog for true bleed. */
+      @page { size: letter; margin: 0; }
 
       /* Print rules — produce a clean, color-accurate, paginated PDF
          from the on-screen deliverable. The deliverable lives inside a
@@ -4016,20 +4016,17 @@ function PrintStyles() {
           break-after: auto;
         }
 
-        /* Colored feature pages fill MOST of the sheet so their
-           background reads as a full page. min-height is deliberately
-           held at 8.5in — well under the real printable area in EVERY
-           print config (margins-none ~10.5in, default-margins ~9.5in).
-           A taller value (10.4in) overflowed when the print dialog
-           applied any margin, which split the cover across two pages
-           and produced ~6 blank trailing sheets. 8.5in can never
-           overflow, so pagination stays clean. */
+        /* Colored feature pages fill the FULL sheet (min-height 100vh)
+           so their background bleeds to every edge. Safe now that the
+           deliverable is portaled to body (no hidden-app content to
+           overflow against) and @page margin is 0. Requires the print
+           dialog "Margins: None" for the page box to equal the sheet. */
         .cd-cover,
         .cd-callout,
         .cd-audit-topsheet,
         .cd-prelaunch,
         .cd-final {
-          min-height: 8.5in;
+          min-height: 100vh;
           box-sizing: border-box;
         }
 
@@ -4181,41 +4178,16 @@ function PrintStyles() {
            footer (which sits at bottom 0.25in, bottom-left) so the
            bottom-right ornament doesn't collide with it. */
         .cd-page:not(.cd-cover):not(.cd-callout-page)::after {
-          bottom: 0.55in;
+          bottom: 0.4in;
           right: 0.4in;
-          opacity: 0.45 !important;
+          opacity: 0.4 !important;
         }
 
-        /* Show the print-only footer on every page. position: fixed
-           in print context repeats the element on each printed page
-           in Chrome/Safari (the typical user environment). */
-        .cd-print-footer {
-          display: flex !important;
-          position: fixed;
-          bottom: 0.25in;
-          left: 0.5in;
-          right: 0.5in;
-          font-family: ${FONT_HEAD_STACK};
-          font-size: 9px;
-          color: #555;
-          border-top: 1px solid ${BORDER};
-          padding-top: 5px;
-          justify-content: space-between;
-          align-items: center;
-          letter-spacing: 1px;
-          text-transform: uppercase;
-        }
-        .cd-print-footer-left {
-          display: flex; align-items: center; gap: 8px;
-          font-weight: 700;
-        }
-        .cd-print-footer-right {
-          font-weight: 700;
-        }
-        .cd-print-footer-logo {
-          max-height: 14px; max-width: 70px;
-          object-fit: contain; object-position: left;
-        }
+        /* Footer removed in print — a fixed footer can't coexist with
+           full-bleed colored pages + flowing content without
+           overlapping. The cover identifies the document; use the
+           browser print dialog's page-number option if needed. */
+        .cd-print-footer { display: none !important; }
       }
     `}</style>
   );
