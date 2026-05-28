@@ -2782,7 +2782,7 @@ function PrintStyles() {
       .cd-cover-title {
         font-family: ${FONT_HEAD_STACK};
         font-size: 64px; font-weight: 900; color: ${INK};
-        margin: 0 0 14px; letter-spacing: -2px; line-height: 1.0;
+        margin: 0 0 14px; letter-spacing: -0.5px; line-height: 1.0;
         text-transform: uppercase;
       }
       .cd-cover-date {
@@ -2831,8 +2831,9 @@ function PrintStyles() {
       .cd-callout-title {
         font-family: ${FONT_HEAD_STACK};
         font-size: 32px; font-weight: 900; color: ${INK};
-        text-transform: uppercase; letter-spacing: -0.3px;
+        text-transform: uppercase; letter-spacing: 0.3px;
         margin: 0 0 18px;
+        line-height: 1.05;
       }
       .cd-callout-desc {
         font-size: 14px; color: ${INK}; line-height: 1.55;
@@ -2872,9 +2873,9 @@ function PrintStyles() {
       .cd-subtitle {
         font-family: ${FONT_HEAD_STACK};
         font-size: 26px; font-weight: 900; color: ${INK};
-        margin: 0; letter-spacing: -0.5px;
+        margin: 0; letter-spacing: 0.5px;
         text-transform: uppercase;
-        line-height: 1.05;
+        line-height: 1.1;
       }
 
       /* Audit top sheet — Step 22. Three groups of three findings +
@@ -3112,7 +3113,7 @@ function PrintStyles() {
       .cd-synthesis-title {
         font-family: ${FONT_HEAD_STACK};
         font-size: 36px; font-weight: 900;
-        color: ${INK}; letter-spacing: -1px;
+        color: ${INK}; letter-spacing: 0;
         margin: 0; line-height: 1.05;
         text-transform: uppercase;
       }
