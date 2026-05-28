@@ -2778,10 +2778,10 @@ function PrintStyles() {
         position: absolute;
         bottom: 18px;
         right: 18px;
-        width: 100px;
-        height: 24px;
+        width: 110px;
+        height: 26px;
         background: url('${brand.wordmarkUrl}') right center / contain no-repeat;
-        opacity: 0.35;
+        opacity: 0.5;
         pointer-events: none;
       }
       /* Audit topsheet has a dark teal background — invert the
@@ -3805,11 +3805,13 @@ function PrintStyles() {
           background: transparent !important;
         }
 
-        /* Corner wordmark is screen-only — the print footer already
-           carries the logo, so suppress the per-page ornament. */
-        .cd-page::after {
-          display: none !important;
-          content: none !important;
+        /* Corner wordmark prints too. Lift it above the fixed print
+           footer (which sits at bottom 0.25in, bottom-left) so the
+           bottom-right ornament doesn't collide with it. */
+        .cd-page:not(.cd-cover):not(.cd-callout-page)::after {
+          bottom: 0.55in;
+          right: 0.4in;
+          opacity: 0.45 !important;
         }
 
         /* Show the print-only footer on every page. position: fixed
