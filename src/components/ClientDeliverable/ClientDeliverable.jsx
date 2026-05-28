@@ -3991,12 +3991,7 @@ function PrintStyles() {
         /* Page boundaries — each .cd-page breaks to its own sheet.
            CONTENT pages flow at their natural height (no min-height,
            no break-inside:avoid) so they never overflow a sheet and
-           accumulate blank trailing pages. Only the COLORED feature
-           pages below fill the sheet, using a reliable inch height
-           (vh is unreliable in print and was the cause of the blank
-           pages + the cover getting pushed to page 2). 10.4in sits
-           just under the 10.5in printable area so there's no rounding
-           overflow. */
+           accumulate blank trailing pages. */
         .cd-page {
           margin: 0 !important;
           border-radius: 0 !important;
@@ -4011,28 +4006,33 @@ function PrintStyles() {
           break-after: auto;
         }
 
-        /* Full-bleed colored feature pages fill the sheet so their
-           background reaches the edges. Short, centered content — safe
-           to force height. */
+        /* Colored feature pages fill MOST of the sheet so their
+           background reads as a full page. min-height is deliberately
+           held at 8.5in — well under the real printable area in EVERY
+           print config (margins-none ~10.5in, default-margins ~9.5in).
+           A taller value (10.4in) overflowed when the print dialog
+           applied any margin, which split the cover across two pages
+           and produced ~6 blank trailing sheets. 8.5in can never
+           overflow, so pagination stays clean. */
         .cd-cover,
         .cd-callout,
         .cd-audit-topsheet,
         .cd-prelaunch,
         .cd-final {
-          min-height: 10.4in;
+          min-height: 8.5in;
           box-sizing: border-box;
         }
 
         .cd-callout-page { padding: 0 !important; }
         .cd-callout {
           border-radius: 0 !important;
-          padding: 1.2in 0.9in !important;
+          padding: 1in 0.9in !important;
           display: flex;
           flex-direction: column;
           justify-content: center;
         }
         .cd-cover {
-          padding: 1.2in 1in !important;
+          padding: 0.9in 1in !important;
         }
 
         /* Internal break protection for known compound blocks. */
