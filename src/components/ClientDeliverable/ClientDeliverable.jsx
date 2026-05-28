@@ -2557,8 +2557,11 @@ function buildRationales({ channels, patternsResult, whiteSpaceResult, productio
   const topPattern = titlePatterns
     .filter(p => p.viewsLift != null && p.confidence === 'statistical')
     .sort((a, b) => b.viewsLift - a.viewsLift)[0];
+  // viewsLift is a RATIO (0.7 = -30% vs median). Under-performers
+  // are ratios below 1; "< 0.7" = worse than -30%. (Was "< -30",
+  // which a ratio never satisfies — the guardrail never rendered.)
   const worstPattern = titlePatterns
-    .filter(p => p.viewsLift != null && p.viewsLift < -30 && p.confidence === 'statistical')
+    .filter(p => p.viewsLift != null && p.viewsLift < 0.7 && p.confidence === 'statistical')
     .sort((a, b) => a.viewsLift - b.viewsLift)[0];
 
   // ───── ONE-LINER ─────
@@ -2619,7 +2622,7 @@ function buildRationales({ channels, patternsResult, whiteSpaceResult, productio
 
   // ───── GUARDRAILS ─────
   if (worstPattern?.label) {
-    out.whys.guardrails = <>The cohort data shows <strong>"{worstPattern.label}"</strong> titles under-perform by {Math.round(Math.abs(worstPattern.viewsLift))}% vs. median. Guardrails keep that pattern off the production schedule.</>;
+    out.whys.guardrails = <>The cohort data shows <strong>"{worstPattern.label}"</strong> titles under-perform by {Math.round((1 - worstPattern.viewsLift) * 100)}% vs. median. Guardrails keep that pattern off the production schedule.</>;
     out.inPractice.guardrails = <>AI generations, producer briefs, and pitches explicitly exclude these patterns. Drift into them gets caught in pitch review — before storyboarding.</>;
   }
 
@@ -2660,12 +2663,6 @@ function fmtPct(v) {
   if (v == null) return '—';
   const pct = v > 1 ? v : v * 100;
   return `${Math.round(pct)}%`;
-}
-function fmtLift(lift, confidence) {
-  if (lift == null) return '—';
-  const sign = lift > 0 ? '+' : '';
-  const suffix = confidence === 'directional' ? ' (directional)' : '';
-  return `${sign}${Math.round(lift)}%${suffix}`;
 }
 
 // ──────────────────────────────────────────────────
