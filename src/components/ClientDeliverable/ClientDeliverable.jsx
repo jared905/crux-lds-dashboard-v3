@@ -1282,18 +1282,18 @@ function buildAuditFindings({ channels, patternsResult, whiteSpaceResult, produc
 function PreLaunchFraming({ clientName }) {
   return (
     <section className="cd-page cd-prelaunch">
-      <div className="cd-prelaunch-kicker">Why this deliverable looks different</div>
-      <h3 className="cd-prelaunch-title">{clientName} hasn't published in over 90 days — so we're reading the field, not the channel.</h3>
+      <E className="cd-prelaunch-kicker" path="prelaunch.kicker">Why this deliverable looks different</E>
+      <E tag="h3" className="cd-prelaunch-title" path="prelaunch.title">{clientName} hasn't published in over 90 days, so this audit reads the field — not the channel.</E>
       <div className="cd-prelaunch-body">
-        <p>
-          When a channel has a year of recent uploads behind it, an audit reads the channel: what's worked, what's flatlined, where the audience is leaning. This deliverable can't do that yet — there isn't enough current data — and shouldn't pretend to.
-        </p>
-        <p>
-          Instead, the audit below describes the <strong>category</strong> {clientName} is operating in: who occupies it today, how those channels post, what they look like, and where the field has open ground. The Positioning Recommendation that follows is calibrated against that landscape — so the channel can re-enter into a defined slot rather than discover one mid-flight.
-        </p>
-        <p>
-          The performance-feedback layer (what your audience watches, what they comment on, what time slots win for your content specifically) will populate once the channel publishes consistently again — roughly 90 days of activity. We'll regenerate this document then with the channel's own signal layered on top of the landscape.
-        </p>
+        <E tag="p" path="prelaunch.p1">
+          A normal audit reads the channel's own track record: what's landed, what hasn't. {clientName} hasn't posted enough recently to support that read, so we didn't force one.
+        </E>
+        <E tag="p" path="prelaunch.p2">
+          Instead, the audit below reads the <strong>category</strong> {clientName} is competing in — who's winning it now, how they operate, and where the open ground is. The Positioning Recommendation that follows builds on that, so {clientName} re-launches into a defined position rather than working one out after going live.
+        </E>
+        <E tag="p" path="prelaunch.p3">
+          Once {clientName} is publishing regularly again — about 90 days of activity — the channel will generate its own performance data, and we'll rebuild this report with that layered on top of the landscape.
+        </E>
       </div>
     </section>
   );
