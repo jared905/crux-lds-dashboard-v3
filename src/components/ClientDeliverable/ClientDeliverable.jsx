@@ -4114,6 +4114,15 @@ function PrintStyles() {
           break-inside: auto !important;
           page-break-inside: auto !important;
           min-height: 0 !important;
+          padding: 0.5in 0.6in !important;
+        }
+        /* Compact the roster rows so all ~22 channels land on one page
+           rather than spilling three rows onto a near-empty continuation.
+           24px avatar still drives row height; trimming the cell padding
+           reclaims roughly three rows' worth of vertical space. */
+        .cd-roster .cd-table th,
+        .cd-roster .cd-table td {
+          padding: 3px 10px !important;
         }
 
         /* Charts + SVGs — flow to the printable area; never split. */
@@ -4146,50 +4155,52 @@ function PrintStyles() {
           overflow-wrap: break-word;
         }
 
-        /* Audit summary — now two teal sheets (findings + roadmap), so
-           each page has room to breathe. Generous padding; the findings
-           body flexes to fill the sheet so the three groups spread evenly
-           instead of bunching at the top with a flush-to-edge last line. */
+        /* Audit summary — two teal sheets (findings + roadmap). The
+           findings sheet is dense (nine items), so keep padding modest;
+           the roadmap sheet is sparse and centers within whatever space
+           this padding leaves. */
         .cd-audit-topsheet {
-          padding: 0.7in 0.75in !important;
+          padding: 0.5in 0.6in !important;
           break-after: page;
           page-break-after: always;
         }
-        .cd-audit-findings {
-          display: flex;
-          flex-direction: column;
-        }
-        .cd-audit-findings .cd-findings-body {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-        }
+        /* All nine findings must fit on this single teal sheet. Earlier
+           we flex-distributed the groups with space-between, but a flex
+           container can't paginate — when content ran past one page the
+           third group spilled to a near-empty second sheet. So: normal
+           top-aligned flow + compact type, sized so the three groups land
+           on one page with teal filling whatever space is left below. */
         .cd-audit-topsheet .cd-synthesis-title {
-          font-size: 26px !important;
-          margin: 0 0 18px 0 !important;
+          font-size: 21px !important;
+          line-height: 1.1 !important;
+          margin: 0 0 14px 0 !important;
         }
         .cd-audit-topsheet .cd-synthesis-kicker {
           font-size: 10px !important;
-          margin-bottom: 3px !important;
+          margin-bottom: 2px !important;
         }
         .cd-topsheet-group {
-          margin-bottom: 0 !important;
+          margin-bottom: 16px !important;
         }
+        .cd-topsheet-group:last-of-type { margin-bottom: 0 !important; }
         .cd-topsheet-group-label {
-          font-size: 12px !important;
-          margin-bottom: 10px !important;
+          font-size: 11px !important;
+          margin-bottom: 7px !important;
+          padding-bottom: 5px !important;
+        }
+        .cd-topsheet-list {
+          gap: 7px !important;
         }
         .cd-topsheet-item {
-          margin-bottom: 10px !important;
+          margin-bottom: 0 !important;
         }
         .cd-topsheet-item-text {
-          font-size: 13px !important;
-          line-height: 1.5 !important;
+          font-size: 12px !important;
+          line-height: 1.4 !important;
         }
         .cd-topsheet-item-label {
-          font-size: 12px !important;
-          margin-bottom: 3px !important;
+          font-size: 11px !important;
+          margin-bottom: 2px !important;
         }
         .cd-topsheet-empty {
           font-size: 12px !important;
