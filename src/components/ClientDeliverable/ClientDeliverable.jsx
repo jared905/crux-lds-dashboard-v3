@@ -2762,7 +2762,33 @@ function PrintStyles() {
         margin-bottom: 28px;
         border-radius: 6px;
         box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        position: relative;
       }
+
+      /* Corner wordmark — subtle on-screen brand ornament in the
+         bottom-right of every body page. Skipped on the cover (which
+         has the full logo) and the callout interstitials. Hidden in
+         print since the print footer already carries the logo. */
+      ${brand.wordmarkUrl ? `
+      .cd-page:not(.cd-cover):not(.cd-callout-page)::after {
+        content: '';
+        position: absolute;
+        bottom: 18px;
+        right: 18px;
+        width: 100px;
+        height: 24px;
+        background: url('${brand.wordmarkUrl}') right center / contain no-repeat;
+        opacity: 0.35;
+        pointer-events: none;
+      }
+      /* Audit topsheet has a dark teal background — invert the
+         wordmark filter so a black-ink mark reads as cream against
+         the deep teal. */
+      .cd-audit-topsheet::after {
+        filter: invert(1) brightness(1.2);
+        opacity: 0.5;
+      }
+      ` : ''}
 
       /* Cover */
       .cd-cover {
@@ -3774,6 +3800,13 @@ function PrintStyles() {
         .cd-editable {
           outline: none !important;
           background: transparent !important;
+        }
+
+        /* Corner wordmark is screen-only — the print footer already
+           carries the logo, so suppress the per-page ornament. */
+        .cd-page::after {
+          display: none !important;
+          content: none !important;
         }
 
         /* Show the print-only footer on every page. position: fixed

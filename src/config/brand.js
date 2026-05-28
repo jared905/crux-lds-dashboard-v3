@@ -37,6 +37,11 @@ export const brand = {
   // every browser to refetch instead of using its cached copy.
   logoUrl: '/crux-logo.png?v=2',
 
+  // Wordmark — text-only mark used as a subtle on-screen corner
+  // ornament on each body page (NOT print — the print footer already
+  // carries the logo). Save the file at /public/crux-wordmark.png.
+  wordmarkUrl: '/crux-wordmark.png?v=1',
+
   // Color palette. CRUX brand — editorial-magazine warmth (#FFFAF1
   // cream surface, #060707 ink) with #015661 deep teal as the primary
   // accent. The pink (#EA73AC), brighter teal (#0A919B), and amber
