@@ -2205,7 +2205,9 @@ function UploadTempo({ channels, formatMixByChannel }) {
   const maxRate = rows[0].uploadsPerWeek;
   const labelWidth = 180;
   const barAreaWidth = 380;
-  const valueWidth = 100;
+  // Wide enough to hold the full value + format note ("4.0/mo · long-form")
+  // without the SVG viewBox clipping the trailing word at the right edge.
+  const valueWidth = 150;
   const rowHeight = 26;
   const height = rows.length * rowHeight + 6;
 
@@ -3173,8 +3175,9 @@ function PrintStyles() {
       }
       .cd-roster-tempo-num {
         font-variant-numeric: tabular-nums;
-        width: 46px; flex-shrink: 0;
+        width: 52px; flex-shrink: 0;
         text-align: right;
+        white-space: nowrap;
       }
       .cd-roster-tempo-bar {
         display: inline-flex; height: 8px;
@@ -4135,13 +4138,14 @@ function PrintStyles() {
              the compact rows below already buy back the vertical room. */
           padding: 0.6in 0.7in !important;
         }
-        /* Compact the roster rows so all ~22 channels land on one page
-           rather than spilling three rows onto a near-empty continuation.
-           24px avatar still drives row height; trimming the cell padding
-           reclaims roughly three rows' worth of vertical space. */
+        /* Compact the roster rows so all ~22 channels AND the footnote
+           land on one page (no spill onto a near-empty continuation).
+           The 24px avatar drives row height, so 2px cell padding keeps
+           rows readable while reclaiming enough room for the closing
+           note to sit on the same sheet under the full-margin layout. */
         .cd-roster .cd-table th,
         .cd-roster .cd-table td {
-          padding: 3px 10px !important;
+          padding: 2px 10px !important;
         }
 
         /* Charts + SVGs — flow to the printable area; never split. */
