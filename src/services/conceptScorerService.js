@@ -446,8 +446,9 @@ function buildRationale(dimensions, tier) {
  * The tweaks are deliberately mechanical; the LLM strategic-read layer
  * adds editorial framing on top.
  */
-export function generateTweaks({ scores, cohortContext, maxTweaks = 3 }) {
+export function generateTweaks({ input, scores, cohortContext, maxTweaks = 3 }) {
   const tweaks = [];
+  const plannedFormat = input?.format;
 
   // Title — surface drags first (highest signal "drop this and you gain N%")
   if (scores.title_patterns?.drags?.length) {
@@ -461,7 +462,14 @@ export function generateTweaks({ scores, cohortContext, maxTweaks = 3 }) {
     }
   }
 
-  // Title — suggest adding a statistical-positive pattern the title doesn't have
+  // Title — suggest adding a statistical-positive pattern the title doesn't have.
+  //
+  // CRITICAL: filter by format-skew the same way scoreTitlePatterns does
+  // when it flags incoming patterns. The cohort's emoji lift is +150%
+  // statistical, but 99% of the n=175 titles in that bucket are Shorts —
+  // the lift is a format artifact, not a portable title lever. Suggesting
+  // "add emoji" to a long-form concept would be actively misleading
+  // (which is exactly what happened pre-fix).
   if (scores.title_patterns) {
     const matchedIds = new Set([
       ...(scores.title_patterns.matched || []).map(m => m.pattern),
@@ -472,6 +480,16 @@ export function generateTweaks({ scores, cohortContext, maxTweaks = 3 }) {
       .filter(p => !matchedIds.has(p.id))
       .filter(p => p.viewsLift != null && p.viewsLift >= LIFT_TIER_THRESHOLDS.likely_solid)
       .filter(p => p.confidence === 'statistical')
+      // Format-skew filter — exclude patterns whose cohort representation
+      // is heavily one-sided AGAINST the planned format. A pattern that
+      // exists 99% in Shorts has no evidence it works on long-form (and
+      // vice versa), so suggesting it would lie about transferable lift.
+      .filter(p => {
+        if (p.shortsShare == null) return true;
+        if (plannedFormat === 'long_form' && p.shortsShare >= SHORTS_SKEW_THRESHOLD) return false;
+        if (plannedFormat === 'shorts'    && p.shortsShare <= LONGFORM_SKEW_THRESHOLD) return false;
+        return true;
+      })
       .sort((a, b) => b.viewsLift - a.viewsLift);
 
     // Pick at most ONE "add a pattern" suggestion — adding several in
@@ -613,7 +631,10 @@ export function scoreConcept({ input, cohortContext }) {
   };
 
   const { tier: compositeTier, rationale } = composeRating([titlePatterns, slot, length, topic]);
-  const tweaks = generateTweaks({ scores, cohortContext });
+  // Pass input so tweak generator can apply format-aware filters
+  // (e.g. don't suggest "add emoji" to a long-form concept when the
+  // cohort's emoji pattern is 99% Shorts).
+  const tweaks = generateTweaks({ input, scores, cohortContext });
 
   return {
     scores,
