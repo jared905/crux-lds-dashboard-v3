@@ -576,12 +576,15 @@ function ChannelRoster({ channels, formatMixByChannel }) {
       </p>
       <table className="cd-table cd-roster-table">
         <colgroup>
-          <col style={{ width: '29%' }} />
+          {/* Engagement bumped to 16% so the "ENGAGEMENT" header sits
+              on one line; the extra width comes from Channel (which
+              still fits the longest names) and Views/day. */}
+          <col style={{ width: '27%' }} />
           <col style={{ width: '11%' }} />
           <col style={{ width: '20%' }} />
-          <col style={{ width: '13%' }} />
+          <col style={{ width: '12%' }} />
           <col style={{ width: '14%' }} />
-          <col style={{ width: '13%' }} />
+          <col style={{ width: '16%' }} />
         </colgroup>
         <thead>
           <tr>
