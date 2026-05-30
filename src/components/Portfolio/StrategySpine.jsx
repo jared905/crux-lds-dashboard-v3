@@ -65,6 +65,7 @@ import {
   confirmBusinessContext,
   discardDraft,
 } from '../../services/clientBusinessContextService.js';
+import PreflightPanel from './preflight/PreflightPanel.jsx';
 
 export default function StrategySpine({ client, onBack }) {
   const [spine, setSpine] = useState(null);
@@ -288,6 +289,12 @@ export default function StrategySpine({ client, onBack }) {
           const refreshed = await listPillars(client.id);
           setPillars(refreshed);
         }}
+      />
+
+      <PreflightPanel
+        clientId={client.id}
+        clientName={client.name}
+        pillars={pillars}
       />
 
       <HostsPanel
