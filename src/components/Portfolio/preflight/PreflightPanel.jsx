@@ -31,6 +31,7 @@ import {
   archiveScorecard,
 } from '../../../services/conceptScorecardsService';
 import { generateStrategicRead } from '../../../services/strategicReadService';
+import Phase25Spike from './Phase25Spike.jsx';
 
 // ──────────────────────────────────────────────────
 // Constants
@@ -258,6 +259,11 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
             onLoad={handleLoadFromHistory}
             onArchive={handleArchive}
           />
+
+          {/* Diagnostic — confirms the Phase 2.5 Analytics API paths
+              (traffic-source breakdown + suggested-video adjacency)
+              before the real Phase 2.5 build commits to them. */}
+          <Phase25Spike />
         </>
       )}
     </div>
