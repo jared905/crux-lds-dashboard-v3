@@ -32,6 +32,7 @@ import {
 } from '../../../services/conceptScorecardsService';
 import { generateStrategicRead } from '../../../services/strategicReadService';
 import Phase25Spike from './Phase25Spike.jsx';
+import SurfacePullPanel from './SurfacePullPanel.jsx';
 
 // ──────────────────────────────────────────────────
 // Constants
@@ -260,8 +261,13 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
             onArchive={handleArchive}
           />
 
+          {/* Phase 2.5 surface intelligence — refresh per-video
+              traffic-source data + channel-level search queries from
+              YouTube Analytics. Once a snapshot lands the scorer's
+              upcoming surface-aware dimension will read from it. */}
+          <SurfacePullPanel clientId={clientId} />
+
           {/* Diagnostic — confirms the Phase 2.5 Analytics API paths
-              (traffic-source breakdown + suggested-video adjacency)
               before the real Phase 2.5 build commits to them. */}
           <Phase25Spike />
         </>
