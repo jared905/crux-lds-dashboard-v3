@@ -221,40 +221,53 @@ export default async function handler(req, res) {
       maxResults: 25,
     });
 
-    // ── Query B: suggested-video adjacency — which source videos
-    // drove suggested-video impressions to the target video ──
-    // dimensions=insightTrafficSourceDetail, filters=video==<id>;insightTrafficSourceType==RELATED_VIDEO
-    // (Note: SUGGESTED_VIDEO is the legacy label; YouTube's current
-    // dimension value is RELATED_VIDEO. We try both.)
-    const adjacencyRelated = await runAnalyticsQuery({
-      channelId,
-      accessToken,
-      dimensions: 'insightTrafficSourceDetail',
-      filters: `video==${videoId};insightTrafficSourceType==RELATED_VIDEO`,
-      metrics: 'views',
-      startDate: start,
-      endDate: end,
-      sort: '-views',
-      maxResults: 50,
-    });
-
-    // Fallback: some API versions still accept SUGGESTED_VIDEO
-    let adjacencySuggested = null;
-    if (!adjacencyRelated.ok) {
-      adjacencySuggested = await runAnalyticsQuery({
+    // ── Query B: suggested-video adjacency ──
+    //
+    // dimensions=insightTrafficSourceDetail requires an
+    // insightTrafficSourceType filter. Per the API docs only a subset
+    // of source types support this dimension. We try several variants
+    // so we can pin down exactly which (if any) works for this account.
+    //
+    //   1. RELATED_VIDEO — the current canonical enum for Suggested.
+    //   2. SUGGESTED_VIDEO — deprecated legacy alias; sometimes still
+    //      accepted on older API versions.
+    //   3. YT_SEARCH probe — sanity check. Even with very low search
+    //      data the API should return ok=true with 0 or 1 rows. If
+    //      this ALSO fails the issue isn't RELATED_VIDEO-specific.
+    //   4. Reordered filter — some accounts have been seen to require
+    //      insightTrafficSourceType before video in the filter list.
+    //
+    // Every attempt is captured in adjacencyAttempts so the response
+    // surfaces all errors, not just the last one (the bug in v1 that
+    // hid the real RELATED_VIDEO failure behind the SUGGESTED_VIDEO
+    // rejection).
+    const adjacencyAttempts = [];
+    const tryAdjacency = async (label, filters) => {
+      const result = await runAnalyticsQuery({
         channelId,
         accessToken,
         dimensions: 'insightTrafficSourceDetail',
-        filters: `video==${videoId};insightTrafficSourceType==SUGGESTED_VIDEO`,
+        filters,
         metrics: 'views',
         startDate: start,
         endDate: end,
         sort: '-views',
         maxResults: 50,
       });
-    }
+      adjacencyAttempts.push({ label, filters, ...result });
+      return result;
+    };
 
-    const adjacency = adjacencyRelated.ok ? adjacencyRelated : adjacencySuggested;
+    let adjacency = await tryAdjacency('RELATED_VIDEO', `video==${videoId};insightTrafficSourceType==RELATED_VIDEO`);
+    if (!adjacency.ok) {
+      adjacency = await tryAdjacency('SUGGESTED_VIDEO_legacy', `video==${videoId};insightTrafficSourceType==SUGGESTED_VIDEO`);
+    }
+    if (!adjacency.ok) {
+      adjacency = await tryAdjacency('YT_SEARCH_probe', `video==${videoId};insightTrafficSourceType==YT_SEARCH`);
+    }
+    if (!adjacency.ok) {
+      adjacency = await tryAdjacency('RELATED_VIDEO_filter_order', `insightTrafficSourceType==RELATED_VIDEO;video==${videoId}`);
+    }
 
     // ── Parse traffic-source response into a tidy summary ──
     let trafficSourceSummary = null;
@@ -295,7 +308,17 @@ export default async function handler(req, res) {
       adjacency: {
         ...(adjacency || { ok: false, error: 'no adjacency result' }),
         summary: adjacencySummary,
-        triedSuggestedFallback: !!adjacencySuggested,
+        // Every attempt with its filter, error, and status code so
+        // failures don't hide each other.
+        attempts: adjacencyAttempts.map(a => ({
+          label: a.label,
+          filters: a.filters,
+          ok: a.ok,
+          status: a.request?.status,
+          error: a.error,
+          errorReason: a.errorReason,
+          rowCount: a.rowCount,
+        })),
       },
       diagnostics: {
         connectionId,

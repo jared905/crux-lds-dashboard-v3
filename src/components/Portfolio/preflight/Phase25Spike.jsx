@@ -15,16 +15,20 @@
 
 import React, { useEffect, useState } from 'react';
 import { youtubeOAuthService } from '../../../services/youtubeOAuthService';
+import { supabase } from '../../../services/supabaseClient';
 
 export default function Phase25Spike() {
   const [open, setOpen] = useState(false);
   const [connections, setConnections] = useState([]);
   const [connectionId, setConnectionId] = useState('');
+  const [recentVideos, setRecentVideos] = useState([]);
+  const [videosLoading, setVideosLoading] = useState(false);
   const [videoId, setVideoId] = useState('');
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
 
+  // Load OAuth connections on open
   useEffect(() => {
     if (!open) return;
     (async () => {
@@ -38,6 +42,52 @@ export default function Phase25Spike() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Load recent videos for the selected connection. Joins via
+  // youtube_channel_id → channels.id → videos.channel_id so the picker
+  // shows real titles from already-ingested data (no extra API quota).
+  useEffect(() => {
+    if (!connectionId || !connections.length) {
+      setRecentVideos([]);
+      return;
+    }
+    const conn = connections.find(c => c.id === connectionId);
+    const ytChannelId = conn?.youtube_channel_id;
+    if (!ytChannelId) {
+      setRecentVideos([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setVideosLoading(true);
+      try {
+        const { data: channelRows } = await supabase
+          .from('channels')
+          .select('id')
+          .eq('youtube_channel_id', ytChannelId)
+          .limit(1);
+        const internalId = channelRows?.[0]?.id;
+        if (!internalId) {
+          if (!cancelled) setRecentVideos([]);
+          return;
+        }
+        const { data: videos } = await supabase
+          .from('videos')
+          .select('youtube_video_id, title, view_count, published_at, duration_seconds')
+          .eq('channel_id', internalId)
+          .gt('view_count', 0)
+          .order('published_at', { ascending: false })
+          .limit(20);
+        if (!cancelled) setRecentVideos(videos || []);
+      } catch (err) {
+        console.warn('[Phase25Spike] recent videos load failed:', err);
+        if (!cancelled) setRecentVideos([]);
+      } finally {
+        if (!cancelled) setVideosLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [connectionId, connections]);
 
   const run = async () => {
     setError(null);
@@ -97,28 +147,46 @@ export default function Phase25Spike() {
         <button onClick={() => setOpen(false)} style={{ ...collapsedBtnStyle, padding: 0 }}>collapse ▴</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-        <div>
-          <label style={labelStyle}>OAuth connection</label>
-          <select value={connectionId} onChange={(e) => setConnectionId(e.target.value)} style={inputStyle}>
-            <option value="">— pick a connection —</option>
-            {connections.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.youtube_channel_title || c.youtube_channel_name || c.youtube_channel_id} {c.is_active ? '' : '(inactive)'}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label style={labelStyle}>YouTube video id (11 chars)</label>
-          <input
-            type="text"
-            value={videoId}
-            onChange={(e) => setVideoId(e.target.value)}
-            placeholder="dQw4w9WgXcQ"
-            style={inputStyle}
-          />
-        </div>
+      <div style={{ marginBottom: 10 }}>
+        <label style={labelStyle}>OAuth connection</label>
+        <select value={connectionId} onChange={(e) => setConnectionId(e.target.value)} style={inputStyle}>
+          <option value="">— pick a connection —</option>
+          {connections.map(c => (
+            <option key={c.id} value={c.id}>
+              {c.youtube_channel_title || c.youtube_channel_name || c.youtube_channel_id} {c.is_active ? '' : '(inactive)'}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        <label style={labelStyle}>
+          Recent videos {videosLoading ? '(loading…)' : recentVideos.length ? `(${recentVideos.length})` : '(none — ingest the channel first, or paste an ID below)'}
+        </label>
+        <select
+          value=""
+          onChange={(e) => { if (e.target.value) setVideoId(e.target.value); }}
+          style={inputStyle}
+          disabled={!recentVideos.length}
+        >
+          <option value="">— pick a recent upload to populate the field below —</option>
+          {recentVideos.map(v => (
+            <option key={v.youtube_video_id} value={v.youtube_video_id}>
+              {formatVideoLabel(v)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        <label style={labelStyle}>YouTube video id (11 chars)</label>
+        <input
+          type="text"
+          value={videoId}
+          onChange={(e) => setVideoId(e.target.value)}
+          placeholder="dQw4w9WgXcQ"
+          style={inputStyle}
+        />
       </div>
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
@@ -155,7 +223,11 @@ function renderVerdict(result) {
     const s = result.adjacency?.summary;
     lines.push(`✓ Adjacency query OK — ${s?.sourceVideoCount || 0} source videos drove ${s?.totalSuggestedViews || 0} suggested-video impressions.`);
   } else {
-    lines.push(`✗ Adjacency query FAILED — ${result.adjacency?.error || 'unknown error'}${result.adjacency?.errorReason ? ` (reason: ${result.adjacency.errorReason})` : ''}.`);
+    const attempts = result.adjacency?.attempts || [];
+    lines.push(`✗ Adjacency query FAILED across ${attempts.length} attempt${attempts.length === 1 ? '' : 's'}:`);
+    attempts.forEach(a => {
+      lines.push(`   · ${a.label} → ${a.ok ? 'OK' : `${a.status || '?'} ${a.error || 'unknown error'}${a.errorReason ? ` (${a.errorReason})` : ''}`}`);
+    });
   }
 
   return (
@@ -168,6 +240,23 @@ function renderVerdict(result) {
       {lines.map((l, i) => <div key={i} style={{ fontSize: 12 }}>{l}</div>)}
     </div>
   );
+}
+
+// Compact label for a recent-videos picker entry: truncated title +
+// view count + length tag so the strategist can pick a representative
+// upload (high-views = denser Analytics data; short = Shorts).
+function formatVideoLabel(v) {
+  const title = (v.title || '(untitled)').slice(0, 60);
+  const ellipsis = (v.title || '').length > 60 ? '…' : '';
+  const views = v.view_count != null ? formatNum(v.view_count) : '?';
+  const lenTag = v.duration_seconds != null && v.duration_seconds <= 180 ? ' · SHORT' : '';
+  return `${title}${ellipsis} — ${views} views${lenTag}`;
+}
+
+function formatNum(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
 }
 
 // Drop the noisy `rows` arrays for the pretty-printed view — the
