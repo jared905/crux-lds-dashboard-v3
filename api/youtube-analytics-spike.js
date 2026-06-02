@@ -268,6 +268,26 @@ export default async function handler(req, res) {
     if (!adjacency.ok) {
       adjacency = await tryAdjacency('RELATED_VIDEO_filter_order', `insightTrafficSourceType==RELATED_VIDEO;video==${videoId}`);
     }
+    // The big one. Drop the per-video filter — query at the CHANNEL
+    // level. Phase 2.5's adjacency cohort is channel-wide anyway
+    // (concept scoring uses the channel's overall co-watch graph,
+    // not the adjacency of a single past video). If RELATED_VIDEO is
+    // blocked only at the per-video grain on this Brand Account
+    // (the known YouTube Analytics quirk), the channel-level query
+    // still gives us the data we need.
+    const channelLevelRelated = await tryAdjacency(
+      'RELATED_VIDEO_channel_level',
+      `insightTrafficSourceType==RELATED_VIDEO`,
+    );
+    if (channelLevelRelated.ok && !adjacency.ok) {
+      // Promote channel-level result as the working adjacency path.
+      adjacency = channelLevelRelated;
+    }
+    // Sanity check on another filter value to confirm the dimension
+    // works broadly, not just for YT_SEARCH.
+    if (!adjacency.ok) {
+      adjacency = await tryAdjacency('EXT_URL_probe', `video==${videoId};insightTrafficSourceType==EXT_URL`);
+    }
 
     // ── Parse traffic-source response into a tidy summary ──
     let trafficSourceSummary = null;
