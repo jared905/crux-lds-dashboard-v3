@@ -104,7 +104,7 @@ export default function Phase25Spike() {
             <option value="">— pick a connection —</option>
             {connections.map(c => (
               <option key={c.id} value={c.id}>
-                {c.youtube_channel_name || c.youtube_channel_id} {c.is_active ? '' : '(inactive)'}
+                {c.youtube_channel_title || c.youtube_channel_name || c.youtube_channel_id} {c.is_active ? '' : '(inactive)'}
               </option>
             ))}
           </select>
