@@ -23,6 +23,40 @@
  * (when input or cohort data is missing). Null dimensions are excluded
  * from the composite — they don't degrade the rating, they're just
  * absent.
+ *
+ * ─── Forward compat: Phase 2.5+ dimensions ───
+ * Phase 2.5 adds:
+ *   - target_surface (Search | Browse | Suggested | ShortsFeed) — concept-form input
+ *   - surface_fit — per-surface lift lookup with cross-surface
+ *     divergence flagging
+ *   - search_keyword_match — does the title's keywords overlap with
+ *     non-branded queries that actually pulled cold viewers
+ *     (client_search_queries.is_branded = false)
+ *
+ * Phase 2.6 (queued, per Gemini's framework + our roadmap):
+ *   - topic_authority — vector-embedding similarity of the concept
+ *     against the channel's top historical performers + the cohort's
+ *     recent hits. Flags off-axis concepts the pattern scorer misses
+ *     (e.g. a SafeStreets channel proposing "heartwarming dog moments"
+ *     scores fine on title patterns alone but is off the channel's
+ *     topical neighborhood entirely).
+ *   - curiosity_gap — LLM-rated 1–10 on whether the title leaves an
+ *     open loop vs. fully resolves. Pattern regexes can't see this.
+ *   - hook_promise_delivery — optional strategist hook-beat input
+ *     (1–2 sentences describing first 15s); scorer checks whether the
+ *     title's promise / keyword appears. Catches title-promises-X-
+ *     but-hook-opens-with-Y, the most common production failure.
+ *
+ * Phase 3 (thumbnail CV):
+ *   - thumbnail_visual — face count / emotion / OCR text overlay
+ *   - title_thumbnail_divergence — semantic match between thumbnail
+ *     and title. Identical → redundant. Wildly unrelated → misleading.
+ *     Sweet spot is productive tension on the same promise.
+ *
+ * Each new dimension follows the existing contract: returns either a
+ * typed score object with a `tier` field or null (excluded from
+ * composite). composeRating() doesn't need to change — it already
+ * handles arbitrary-length dimension lists.
  */
 
 import { TITLE_PATTERNS } from './patternsService';
