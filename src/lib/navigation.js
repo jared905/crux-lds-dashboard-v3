@@ -64,6 +64,7 @@ export const MAIN_SECTIONS = [
     icon: Map,
     tabs: [
       { id: "opportunities", label: "Opportunities", icon: Compass },
+      { id: "pre-flight", label: "Pre-flight", icon: Crosshair },
       { id: "actions", label: "Feedback", icon: Activity },
       { id: "calendar", label: "Calendar", icon: Calendar },
     ],

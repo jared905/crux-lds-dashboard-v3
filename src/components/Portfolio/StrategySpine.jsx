@@ -65,7 +65,6 @@ import {
   confirmBusinessContext,
   discardDraft,
 } from '../../services/clientBusinessContextService.js';
-import PreflightPanel from './preflight/PreflightPanel.jsx';
 
 export default function StrategySpine({ client, onBack }) {
   const [spine, setSpine] = useState(null);
@@ -291,11 +290,9 @@ export default function StrategySpine({ client, onBack }) {
         }}
       />
 
-      <PreflightPanel
-        clientId={client.id}
-        clientName={client.name}
-        pillars={pillars}
-      />
+      {/* Pre-flight scorecard extracted to its own top-level
+          Strategy workspace on 2026-06-03 (Phase 2.6 prep). Available
+          under Strategy → Pre-flight in the main nav. */}
 
       <HostsPanel
         clientId={client.id}
