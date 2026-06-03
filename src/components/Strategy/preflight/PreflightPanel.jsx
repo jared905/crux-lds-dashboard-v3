@@ -34,8 +34,13 @@ import { generateStrategicRead } from '../../../services/strategicReadService';
 import { loadSurfaceContext, TARGET_SURFACES } from '../../../services/surfaceIntelligenceService';
 import { rateCuriosityGap } from '../../../services/curiosityGapService';
 import { rateHookDelivery } from '../../../services/hookPromiseDeliveryService';
+import {
+  getConceptEmbedding,
+  loadTopicAuthorityContext,
+} from '../../../services/topicAuthorityService';
 import Phase25Spike from './Phase25Spike.jsx';
 import SurfacePullPanel from './SurfacePullPanel.jsx';
+import EmbeddingsBackfillPanel from './EmbeddingsBackfillPanel.jsx';
 
 // ──────────────────────────────────────────────────
 // Constants
@@ -94,6 +99,10 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
   // returning null for surface_fit + search_keyword_match (excluded
   // from the composite).
   const [surfaceContext, setSurfaceContext] = useState(null);
+  // Phase 2.6 step 3 — topic authority context (top historical hits +
+  // cohort recent winners with title embeddings). Null when embeddings
+  // haven't been backfilled yet; scorer excludes topic_authority then.
+  const [topicAuthorityContext, setTopicAuthorityContext] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [form, setForm] = useState(defaultForm);
@@ -148,6 +157,19 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
   };
   useEffect(() => { refreshSurfaceContext(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [clientId]);
 
+  // Topic-authority context (top historical + cohort embeddings).
+  // Re-fired after EmbeddingsBackfillPanel completes a batch.
+  const refreshTopicAuthorityContext = async () => {
+    try {
+      const ctx = await loadTopicAuthorityContext({ clientId });
+      setTopicAuthorityContext(ctx);
+    } catch (err) {
+      console.warn('[PreflightPanel] topic authority context load failed:', err);
+      setTopicAuthorityContext(null);
+    }
+  };
+  useEffect(() => { refreshTopicAuthorityContext(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [clientId]);
+
   // Load history on mount + refresh after each save
   const refreshHistory = async () => {
     setHistoryLoading(true);
@@ -169,15 +191,21 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
       //    curiosity-gap LLM rating — title-only, cached, cheap).
       setScoringPhase('scoring');
       const input = buildInput(form);
-      // Curiosity-gap + hook-promise-delivery are LLM-rated and
-      // run in parallel. Both cached, both null-safe (null result =
-      // dimension self-excludes). Hook is title × hook-beat; only
-      // fires when the strategist filled in the hook-beat field.
-      const [curiosityResult, hookResult] = await Promise.all([
+      // Phase 2.6 — three async pieces fan out in parallel before
+      // the deterministic scorer runs:
+      //   - curiosity_gap: Claude rating, cached by title.
+      //   - hook_promise_delivery: Claude rating (only if hook_beat
+      //     filled); cached by (title, hook).
+      //   - concept embedding: OpenAI text-embedding-3-small, cached
+      //     per-session by title.
+      // All three are null-safe — null results mean the dimension
+      // self-excludes from the composite.
+      const [curiosityResult, hookResult, conceptEmbedding] = await Promise.all([
         rateCuriosityGap(input.title, { format: input.format }),
         input.hook_beat
           ? rateHookDelivery(input.title, input.hook_beat, { format: input.format })
           : Promise.resolve(null),
+        getConceptEmbedding(input.title),
       ]);
       const scoringOutput = scoreConcept({
         input,
@@ -188,9 +216,11 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
           // search_keyword_match. Null is fine; those dimensions
           // self-exclude from the composite when missing.
           surfaceContext,
-          // Phase 2.6 — curiosity + hook results. Null is fine.
+          // Phase 2.6 — curiosity + hook + topic authority. Null is fine.
           curiosityResult,
           hookResult,
+          conceptEmbedding,
+          topicAuthorityContext,
         },
       });
 
@@ -323,6 +353,11 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
               pull we re-load the surface context so the target-surface
               picker activates immediately (no page refresh needed). */}
           <SurfacePullPanel clientId={clientId} onPullComplete={refreshSurfaceContext} />
+
+          {/* Phase 2.6 step 3 — title-embedding backfill. Refreshes
+              the topic-authority context on completion so the
+              dimension activates immediately on the next score. */}
+          <EmbeddingsBackfillPanel clientId={clientId} onBackfillComplete={refreshTopicAuthorityContext} />
 
           {/* Diagnostic — confirms the Phase 2.5 Analytics API paths
               before the real Phase 2.5 build commits to them. */}
@@ -554,6 +589,7 @@ function ScorecardDisplay({ scorecard, reading }) {
         {scores?.search_keyword_match && <DimensionCard name="Search keyword match" dim={scores.search_keyword_match} />}
         {scores?.curiosity_gap &&  <DimensionCard name="Curiosity gap" dim={scores.curiosity_gap} />}
         {scores?.hook_promise_delivery && <DimensionCard name="Hook delivery" dim={scores.hook_promise_delivery} />}
+        {scores?.topic_authority && <DimensionCard name="Topic authority" dim={scores.topic_authority} />}
       </div>
 
       {suggested_tweaks?.length > 0 && (
@@ -616,6 +652,12 @@ function DimensionCard({ name, dim }) {
     // Hook promise delivery — same 1–10 visual shape as curiosity_gap.
     primary = `${dim.hook_score}/10`;
     subLabel = dim.cached ? 'cached LLM rating' : 'fresh LLM rating';
+  } else if (dim.topic_max_similarity != null) {
+    // Topic authority — render the max cosine similarity as the
+    // primary metric. text-embedding-3-small similarities typically
+    // fall in 0.30–0.70 for related content.
+    primary = `${(dim.topic_max_similarity * 100).toFixed(0)}%`;
+    subLabel = `closest: ${dim.dominant_source === 'channel' ? 'your channel' : 'cohort'}`;
   }
 
   const hasFormatSkew = dim.matched?.some?.(m => m.format_skew_warning);
@@ -637,6 +679,19 @@ function DimensionCard({ name, dim }) {
       {dim.top_matches?.length > 0 && (
         <div style={{ fontSize: 11, color: '#888', marginTop: 6, lineHeight: 1.4 }}>
           Top match: <em style={{ color: '#cde4d6' }}>"{dim.top_matches[0].query}"</em>
+        </div>
+      )}
+      {/* Topic authority — surface the single closest neighbor; the
+          full match list is in the persisted scorecard JSON for
+          strategist drill-down later. */}
+      {dim.top_channel_matches?.length > 0 && dim.dominant_source === 'channel' && (
+        <div style={{ fontSize: 11, color: '#888', marginTop: 6, lineHeight: 1.4 }}>
+          Closest hit on this channel: <em style={{ color: '#cde4d6' }}>"{dim.top_channel_matches[0].title}"</em>
+        </div>
+      )}
+      {dim.top_cohort_matches?.length > 0 && dim.dominant_source === 'cohort' && (
+        <div style={{ fontSize: 11, color: '#888', marginTop: 6, lineHeight: 1.4 }}>
+          Closest hit in cohort: <em style={{ color: '#cde4d6' }}>"{dim.top_cohort_matches[0].title}"</em>
         </div>
       )}
       {dim.rationale && (

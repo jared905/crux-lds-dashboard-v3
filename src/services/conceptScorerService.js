@@ -61,6 +61,7 @@
 
 import { TITLE_PATTERNS } from './patternsService';
 import { TARGET_SURFACES } from './surfaceIntelligenceService';
+import { findTopMatches } from './topicAuthorityService';
 
 // ──────────────────────────────────────────────────
 // Constants
@@ -610,6 +611,76 @@ export function scoreHookPromiseDelivery(hookResult) {
 }
 
 // ──────────────────────────────────────────────────
+// 9. Topic authority (Phase 2.6 — step 3)
+// ──────────────────────────────────────────────────
+
+/**
+ * Score the concept's semantic fit against (a) the channel's own
+ * historical hits and (b) the cohort's recent winners. Max similarity
+ * across both corpora drives the tier.
+ *
+ * Threshold rationale (text-embedding-3-small on titles typically
+ * produces similarities in 0.30–0.70 for "related" content):
+ *   ≥0.55 → very_likely_outperform (close neighbor in either corpus)
+ *   0.40–0.55 → likely_solid (decent neighbor)
+ *   0.25–0.40 → risky (loose neighbor — concept exists in adjacent
+ *               space but not strongly aligned)
+ *   <0.25 → predicted_under (off-axis — no real neighbor either side)
+ *
+ * Returns null when no concept embedding OR both corpora are empty —
+ * the dimension self-excludes per contract. The most common reason
+ * for null is "backfill not run yet"; UI surfaces this via the
+ * EmbeddingsBackfillPanel.
+ */
+export function scoreTopicAuthority(conceptEmbedding, topicAuthorityContext) {
+  if (!conceptEmbedding || !topicAuthorityContext) return null;
+  const historical = topicAuthorityContext.historicalHits || [];
+  const cohort = topicAuthorityContext.cohortRecentHits || [];
+  if (!historical.length && !cohort.length) return null;
+
+  const channelMatches = findTopMatches(conceptEmbedding, historical, 5);
+  const cohortMatches  = findTopMatches(conceptEmbedding, cohort, 5);
+
+  const channelMax = channelMatches[0]?.similarity ?? null;
+  const cohortMax  = cohortMatches[0]?.similarity ?? null;
+  const maxSim = Math.max(channelMax ?? 0, cohortMax ?? 0);
+
+  let tier;
+  if (maxSim >= 0.55)      tier = 'very_likely_outperform';
+  else if (maxSim >= 0.40) tier = 'likely_solid';
+  else if (maxSim >= 0.25) tier = 'risky';
+  else                     tier = 'predicted_under';
+
+  // Identify the dominant signal source so the UI can render
+  // "closest neighbor: <video> on YOUR channel" vs "in the cohort".
+  const dominantSource =
+    channelMax != null && (cohortMax == null || channelMax >= cohortMax)
+      ? 'channel' : 'cohort';
+
+  // Compact match summaries — strip the embedding column to keep the
+  // payload small (the score row gets persisted via JSON and we don't
+  // need 1536 floats in there).
+  const compact = (m) => ({
+    title: m.video.title,
+    similarity: Math.round(m.similarity * 1000) / 1000,
+    youtube_video_id: m.video.youtube_video_id || null,
+    view_count: m.video.view_count || null,
+  });
+
+  return {
+    topic_max_similarity: Math.round(maxSim * 1000) / 1000,
+    channel_max_similarity: channelMax != null ? Math.round(channelMax * 1000) / 1000 : null,
+    cohort_max_similarity:  cohortMax  != null ? Math.round(cohortMax * 1000) / 1000  : null,
+    channel_corpus_size: historical.length,
+    cohort_corpus_size:  cohort.length,
+    dominant_source: dominantSource,
+    top_channel_matches: channelMatches.map(compact),
+    top_cohort_matches:  cohortMatches.map(compact),
+    tier,
+  };
+}
+
+// ──────────────────────────────────────────────────
 // Composite tier
 // ──────────────────────────────────────────────────
 
@@ -664,6 +735,7 @@ function dimensionName(d) {
   if (d.match_pct !== undefined && d.total_unbranded_queries !== undefined) return 'search keyword match';
   if (d.curiosity_score !== undefined) return 'curiosity gap';
   if (d.hook_score !== undefined) return 'hook promise delivery';
+  if (d.topic_max_similarity !== undefined) return 'topic authority';
   if (d.saturation !== undefined || d.matched_topic_name !== undefined) return 'topic';
   if (d.bucket !== undefined) return 'length';
   if (d.day !== undefined) return 'upload slot';
@@ -905,12 +977,16 @@ export function scoreConcept({ input, cohortContext }) {
     cohortContext.surfaceContext?.search_queries,
   );
 
-  // Phase 2.6 — curiosity gap + hook promise delivery dimensions.
-  // Orchestrator computes the LLM ratings via curiosityGapService +
-  // hookPromiseDeliveryService and passes them through cohortContext.
-  // Null results → dimensions self-exclude.
+  // Phase 2.6 — curiosity gap + hook promise delivery + topic authority.
+  // Orchestrator computes the async pieces via curiosityGapService /
+  // hookPromiseDeliveryService / topicAuthorityService and passes the
+  // results through cohortContext. Null results → dimensions self-exclude.
   const curiosityGap = scoreCuriosityGap(cohortContext.curiosityResult);
   const hookPromiseDelivery = scoreHookPromiseDelivery(cohortContext.hookResult);
+  const topicAuthority = scoreTopicAuthority(
+    cohortContext.conceptEmbedding,
+    cohortContext.topicAuthorityContext,
+  );
 
   const scores = {
     title_patterns: titlePatterns,
@@ -921,11 +997,12 @@ export function scoreConcept({ input, cohortContext }) {
     search_keyword_match: searchKeywordMatch,
     curiosity_gap: curiosityGap,
     hook_promise_delivery: hookPromiseDelivery,
+    topic_authority: topicAuthority,
   };
 
   const { tier: compositeTier, rationale } = composeRating([
     titlePatterns, slot, length, topic, surfaceFit, searchKeywordMatch,
-    curiosityGap, hookPromiseDelivery,
+    curiosityGap, hookPromiseDelivery, topicAuthority,
   ]);
   // Pass input so tweak generator can apply format-aware filters
   // (e.g. don't suggest "add emoji" to a long-form concept when the
@@ -945,5 +1022,6 @@ export default {
   scoreTitlePatterns, scoreSlot, scoreLength, scoreTopic,
   scoreSurfaceFit, scoreSearchKeywordMatch,
   scoreCuriosityGap, scoreHookPromiseDelivery,
+  scoreTopicAuthority,
   composeRating, generateTweaks, TIERS,
 };
