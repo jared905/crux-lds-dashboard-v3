@@ -115,14 +115,25 @@ export async function loadTopicAuthorityContext({ clientId, limit = DEFAULT_LIMI
 
   // (b) Cohort recent hits: top N videos by view_count among the
   // client's competitor cohort, published within the recency window.
-  // We resolve cohort membership via is_competitor=true + client_id
-  // pointer (matches the convention in patternsService et al.).
-  const { data: cohortChannels } = await supabase
-    .from('channels')
-    .select('id')
-    .eq('is_competitor', true)
-    .eq('client_id', clientChannel.youtube_channel_id);
-  const cohortIds = (cohortChannels || []).map(c => c.id);
+  //
+  // Cohort membership lives in the client_channels junction table
+  // (client_id, channel_id) — NOT in a channels.client_id column.
+  // We look up the junction first, then optionally narrow to
+  // is_competitor=true rows.
+  const { data: junctionRows } = await supabase
+    .from('client_channels')
+    .select('channel_id')
+    .eq('client_id', clientChannel.id);
+  const linkedIds = (junctionRows || []).map(r => r.channel_id);
+  let cohortIds = [];
+  if (linkedIds.length) {
+    const { data: cohortChannels } = await supabase
+      .from('channels')
+      .select('id')
+      .in('id', linkedIds)
+      .eq('is_competitor', true);
+    cohortIds = (cohortChannels || []).map(c => c.id);
+  }
 
   let cohortRecentHits = [];
   if (cohortIds.length) {

@@ -31,6 +31,9 @@ export default function EmbeddingsBackfillPanel({ clientId, onBackfillComplete }
   const [error, setError] = useState(null);
 
   // Bootstrap — resolve client channel + cohort ids + pending counts.
+  // Re-fires when the panel is expanded so adding competitors in
+  // another tab + coming back picks up the new junction rows without
+  // a page reload.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -45,14 +48,25 @@ export default function EmbeddingsBackfillPanel({ clientId, onBackfillComplete }
         if (cancelled) return;
         setClientChannel(ch || null);
 
+        // Cohort membership = client_channels junction (client_id,
+        // channel_id) ∩ channels.is_competitor=true. The naive
+        // `channels.client_id=…` query is wrong — competitor links
+        // live in the junction table, not a column on channels.
         let cohortIds = [];
-        if (ch?.youtube_channel_id) {
-          const { data: cohort } = await supabase
-            .from('channels')
-            .select('id')
-            .eq('is_competitor', true)
-            .eq('client_id', ch.youtube_channel_id);
-          cohortIds = (cohort || []).map(c => c.id);
+        if (ch?.id) {
+          const { data: junctionRows } = await supabase
+            .from('client_channels')
+            .select('channel_id')
+            .eq('client_id', ch.id);
+          const linkedIds = (junctionRows || []).map(r => r.channel_id);
+          if (linkedIds.length) {
+            const { data: cohort } = await supabase
+              .from('channels')
+              .select('id')
+              .in('id', linkedIds)
+              .eq('is_competitor', true);
+            cohortIds = (cohort || []).map(c => c.id);
+          }
         }
         if (cancelled) return;
         setCohortChannelIds(cohortIds);
@@ -65,7 +79,7 @@ export default function EmbeddingsBackfillPanel({ clientId, onBackfillComplete }
       }
     })();
     return () => { cancelled = true; };
-  }, [clientId]);
+  }, [clientId, open]);
 
   const refreshPending = async (clientChannelId, cohortIds, cancelled = false) => {
     if (clientChannelId) {
