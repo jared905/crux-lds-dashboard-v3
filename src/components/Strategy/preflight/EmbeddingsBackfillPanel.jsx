@@ -189,8 +189,19 @@ export default function EmbeddingsBackfillPanel({ clientId, onBackfillComplete }
             {result.totalEmbedded} videos embedded · {result.totalTokens} OpenAI tokens used.
           </div>
           {result.errors?.length > 0 && (
-            <div style={{ fontSize: 11, color: '#E8A82B', marginTop: 4 }}>
-              {result.errors.length} error{result.errors.length === 1 ? '' : 's'} — see console.
+            <div style={{ fontSize: 11, color: '#E8A82B', marginTop: 4, lineHeight: 1.4 }}>
+              {result.errors.length} error{result.errors.length === 1 ? '' : 's'}:
+              {result.errors.slice(0, 3).map((e, i) => (
+                <div key={i} style={{ marginLeft: 8, marginTop: 2 }}>
+                  <span style={{ color: '#666' }}>[{e.stage || 'unknown'}]</span>{' '}
+                  {e.error || 'unknown error'}
+                </div>
+              ))}
+              {result.errors.length > 3 && (
+                <div style={{ marginLeft: 8, marginTop: 2, color: '#666' }}>
+                  …{result.errors.length - 3} more
+                </div>
+              )}
             </div>
           )}
         </div>
