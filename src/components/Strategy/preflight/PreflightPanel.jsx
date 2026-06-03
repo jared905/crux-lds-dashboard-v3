@@ -33,6 +33,7 @@ import {
 import { generateStrategicRead } from '../../../services/strategicReadService';
 import { loadSurfaceContext, TARGET_SURFACES } from '../../../services/surfaceIntelligenceService';
 import { rateCuriosityGap } from '../../../services/curiosityGapService';
+import { rateHookDelivery } from '../../../services/hookPromiseDeliveryService';
 import Phase25Spike from './Phase25Spike.jsx';
 import SurfacePullPanel from './SurfacePullPanel.jsx';
 
@@ -76,6 +77,7 @@ const defaultForm = () => ({
   notes: '',
   pillar_id: '',
   target_surface: '',  // Phase 2.5 — strategist picks per session via header tag
+  hook_beat: '',       // Phase 2.6 — optional; activates hook_promise_delivery
 });
 
 // ──────────────────────────────────────────────────
@@ -167,11 +169,16 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
       //    curiosity-gap LLM rating — title-only, cached, cheap).
       setScoringPhase('scoring');
       const input = buildInput(form);
-      // Curiosity-gap is title-derived and LLM-rated. Cached by
-      // (title, format, prompt_version) so iterating title variants
-      // pays the Claude call once per unique variant. Null result is
-      // fine — the scorer dimension self-excludes.
-      const curiosityResult = await rateCuriosityGap(input.title, { format: input.format });
+      // Curiosity-gap + hook-promise-delivery are LLM-rated and
+      // run in parallel. Both cached, both null-safe (null result =
+      // dimension self-excludes). Hook is title × hook-beat; only
+      // fires when the strategist filled in the hook-beat field.
+      const [curiosityResult, hookResult] = await Promise.all([
+        rateCuriosityGap(input.title, { format: input.format }),
+        input.hook_beat
+          ? rateHookDelivery(input.title, input.hook_beat, { format: input.format })
+          : Promise.resolve(null),
+      ]);
       const scoringOutput = scoreConcept({
         input,
         cohortContext: {
@@ -181,8 +188,9 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
           // search_keyword_match. Null is fine; those dimensions
           // self-exclude from the composite when missing.
           surfaceContext,
-          // Phase 2.6 — curiosity-gap result. Null is fine.
+          // Phase 2.6 — curiosity + hook results. Null is fine.
           curiosityResult,
+          hookResult,
         },
       });
 
@@ -426,6 +434,16 @@ function ConceptForm({ form, setForm, optionalsOpen, setOptionalsOpen, pillars, 
             </Field>
           )}
 
+          <Field label="Hook beat — first 15s (optional)" full>
+            <textarea
+              value={form.hook_beat}
+              onChange={(e) => update({ hook_beat: e.target.value })}
+              rows={2}
+              style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+              placeholder="1–2 sentences describing what's on screen + spoken in the first 15 seconds. Activates the hook-promise-delivery dimension."
+            />
+          </Field>
+
           <Field label="Strategist notes (optional)" full>
             <textarea
               value={form.notes}
@@ -535,6 +553,7 @@ function ScorecardDisplay({ scorecard, reading }) {
         {scores?.surface_fit &&    <DimensionCard name={`Surface · ${scores.surface_fit.target_surface}`} dim={scores.surface_fit} />}
         {scores?.search_keyword_match && <DimensionCard name="Search keyword match" dim={scores.search_keyword_match} />}
         {scores?.curiosity_gap &&  <DimensionCard name="Curiosity gap" dim={scores.curiosity_gap} />}
+        {scores?.hook_promise_delivery && <DimensionCard name="Hook delivery" dim={scores.hook_promise_delivery} />}
       </div>
 
       {suggested_tweaks?.length > 0 && (
@@ -592,6 +611,10 @@ function DimensionCard({ name, dim }) {
   } else if (dim.curiosity_score != null) {
     // Curiosity gap — render 1–10 score as "X/10".
     primary = `${dim.curiosity_score}/10`;
+    subLabel = dim.cached ? 'cached LLM rating' : 'fresh LLM rating';
+  } else if (dim.hook_score != null) {
+    // Hook promise delivery — same 1–10 visual shape as curiosity_gap.
+    primary = `${dim.hook_score}/10`;
     subLabel = dim.cached ? 'cached LLM rating' : 'fresh LLM rating';
   }
 
@@ -697,6 +720,8 @@ function buildInput(form) {
   if (form.length_seconds && form.format === 'long_form') out.length_seconds = Number(form.length_seconds);
   if (form.topic_label?.trim()) out.topic_label = form.topic_label.trim();
   if (form.notes?.trim())       out.notes = form.notes.trim();
+  if (form.target_surface)      out.target_surface = form.target_surface;
+  if (form.hook_beat?.trim())   out.hook_beat = form.hook_beat.trim();
   return out;
 }
 

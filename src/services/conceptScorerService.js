@@ -574,6 +574,42 @@ export function scoreCuriosityGap(curiosityResult) {
 }
 
 // ──────────────────────────────────────────────────
+// 8. Hook promise delivery (Phase 2.6 — step 2)
+// ──────────────────────────────────────────────────
+
+/**
+ * Tier a hook-delivery score (1–10) into the standard tier vocabulary.
+ *
+ * Mapping (mirrors curiosity_gap):
+ *   9–10 → very_likely_outperform (hook directly delivers the title's promise)
+ *   7–8  → likely_solid (clear alignment, no detour)
+ *   4–6  → risky (same topic, different angle)
+ *   1–3  → predicted_under (off-promise hook; click is wasted)
+ *
+ * Returns null when no hook result available — the dimension self-
+ * excludes (strategist hasn't entered a hook beat yet).
+ */
+export function scoreHookPromiseDelivery(hookResult) {
+  if (!hookResult || hookResult.score == null) return null;
+  const score = Math.round(Number(hookResult.score));
+  if (!Number.isFinite(score)) return null;
+
+  let tier;
+  if (score >= 9)      tier = 'very_likely_outperform';
+  else if (score >= 7) tier = 'likely_solid';
+  else if (score >= 4) tier = 'risky';
+  else                 tier = 'predicted_under';
+
+  return {
+    hook_score: score,
+    rationale: hookResult.rationale || null,
+    prompt_version: hookResult.promptVersion || null,
+    cached: !!hookResult.cached,
+    tier,
+  };
+}
+
+// ──────────────────────────────────────────────────
 // Composite tier
 // ──────────────────────────────────────────────────
 
@@ -627,6 +663,7 @@ function dimensionName(d) {
   if (d.target_surface !== undefined) return 'surface fit';
   if (d.match_pct !== undefined && d.total_unbranded_queries !== undefined) return 'search keyword match';
   if (d.curiosity_score !== undefined) return 'curiosity gap';
+  if (d.hook_score !== undefined) return 'hook promise delivery';
   if (d.saturation !== undefined || d.matched_topic_name !== undefined) return 'topic';
   if (d.bucket !== undefined) return 'length';
   if (d.day !== undefined) return 'upload slot';
@@ -868,11 +905,12 @@ export function scoreConcept({ input, cohortContext }) {
     cohortContext.surfaceContext?.search_queries,
   );
 
-  // Phase 2.6 — curiosity gap dimension. Orchestrator computes the
-  // LLM rating via curiosityGapService.rateCuriosityGap() and passes
-  // it in via cohortContext.curiosityResult. Null result → dimension
-  // excludes itself.
+  // Phase 2.6 — curiosity gap + hook promise delivery dimensions.
+  // Orchestrator computes the LLM ratings via curiosityGapService +
+  // hookPromiseDeliveryService and passes them through cohortContext.
+  // Null results → dimensions self-exclude.
   const curiosityGap = scoreCuriosityGap(cohortContext.curiosityResult);
+  const hookPromiseDelivery = scoreHookPromiseDelivery(cohortContext.hookResult);
 
   const scores = {
     title_patterns: titlePatterns,
@@ -882,10 +920,12 @@ export function scoreConcept({ input, cohortContext }) {
     surface_fit: surfaceFit,
     search_keyword_match: searchKeywordMatch,
     curiosity_gap: curiosityGap,
+    hook_promise_delivery: hookPromiseDelivery,
   };
 
   const { tier: compositeTier, rationale } = composeRating([
-    titlePatterns, slot, length, topic, surfaceFit, searchKeywordMatch, curiosityGap,
+    titlePatterns, slot, length, topic, surfaceFit, searchKeywordMatch,
+    curiosityGap, hookPromiseDelivery,
   ]);
   // Pass input so tweak generator can apply format-aware filters
   // (e.g. don't suggest "add emoji" to a long-form concept when the
@@ -904,6 +944,6 @@ export default {
   scoreConcept,
   scoreTitlePatterns, scoreSlot, scoreLength, scoreTopic,
   scoreSurfaceFit, scoreSearchKeywordMatch,
-  scoreCuriosityGap,
+  scoreCuriosityGap, scoreHookPromiseDelivery,
   composeRating, generateTweaks, TIERS,
 };
