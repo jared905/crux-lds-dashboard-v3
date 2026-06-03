@@ -60,6 +60,7 @@
  */
 
 import { TITLE_PATTERNS } from './patternsService';
+import { TARGET_SURFACES } from './surfaceIntelligenceService';
 
 // ──────────────────────────────────────────────────
 // Constants
@@ -385,6 +386,155 @@ export function scoreTopic(topicLabel, topicCoverage) {
 }
 
 // ──────────────────────────────────────────────────
+// 5. Surface fit (Phase 2.5)
+// ──────────────────────────────────────────────────
+
+/**
+ * Score the concept against the channel's actual per-surface
+ * performance. The strategist picks a target surface (Search,
+ * Browse, Suggested, ShortsFeed) and we look at what share of the
+ * client's existing views actually came from that surface.
+ *
+ * Why share-of-views (not lift): YouTube Analytics is OAuth-locked
+ * to owned channels, so we don't have surface data on the competitive
+ * cohort to compute a lift against. What we DO have is the client's
+ * own surface profile — and if a channel currently gets 91% of its
+ * views from Suggested, targeting Search is swimming upstream
+ * regardless of how good the keywords are.
+ *
+ * Tier from share:
+ *   ≥40% → very_likely_outperform (target is the channel's home surface)
+ *   20–40% → likely_solid
+ *   5–20% → risky (small but non-trivial track record)
+ *   <5% → predicted_under (no evidence this surface works for this channel)
+ *
+ * Divergence warning fires when target ≠ dominant AND the dominant
+ * has ≥40% share — surfaces the same friction the cross-surface
+ * divergence callout in the UI will render.
+ *
+ * Returns null when no target surface picked or no surface data
+ * available — the dimension is excluded from the composite rather
+ * than degrading it.
+ */
+export function scoreSurfaceFit(targetSurface, surfaceContext) {
+  if (!targetSurface || !surfaceContext?.surface_mix?.length) return null;
+  if (!TARGET_SURFACES.includes(targetSurface)) return null;
+
+  const targetEntry = surfaceContext.surface_mix.find(s => s.bucket === targetSurface);
+  const sharePct = targetEntry?.sharePct ?? 0;
+  const targetViews = targetEntry?.views ?? 0;
+
+  let tier;
+  if (sharePct >= 40)      tier = 'very_likely_outperform';
+  else if (sharePct >= 20) tier = 'likely_solid';
+  else if (sharePct >= 5)  tier = 'risky';
+  else                     tier = 'predicted_under';
+
+  const isDominant = surfaceContext.dominant_surface === targetSurface;
+  const dominantShare = surfaceContext.dominant_share_pct || 0;
+  const divergenceWarning = (!isDominant && dominantShare >= 40)
+    ? `Channel's home surface is ${surfaceContext.dominant_surface} (${dominantShare}%). Targeting ${targetSurface} (${sharePct}%) means swimming against the channel's existing algorithmic profile.`
+    : null;
+
+  return {
+    target_surface: targetSurface,
+    surface_share_pct: sharePct,
+    target_views: targetViews,
+    dominant_surface: surfaceContext.dominant_surface,
+    dominant_share_pct: dominantShare,
+    is_dominant: isDominant,
+    n_videos: surfaceContext.n_videos,
+    surface_mix: surfaceContext.surface_mix,
+    divergence_warning: divergenceWarning,
+    tier,
+  };
+}
+
+// ──────────────────────────────────────────────────
+// 6. Search keyword match (Phase 2.5)
+// ──────────────────────────────────────────────────
+
+// Conservative English stop-word list. Tokens shorter than 3 chars
+// are also dropped (handled in the tokenizer below).
+const STOP_WORDS = new Set([
+  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'but', 'by',
+  'did', 'do', 'does', 'for', 'from', 'had', 'has', 'have', 'how',
+  'i', 'if', 'in', 'into', 'is', 'it', 'its', 'me', 'my', 'of',
+  'on', 'or', 'so', 'than', 'that', 'the', 'their', 'them', 'these',
+  'they', 'this', 'those', 'to', 'us', 'was', 'we', 'were', 'what',
+  'when', 'where', 'which', 'why', 'will', 'with', 'would', 'you',
+  'your',
+]);
+
+function tokenizeForKeywords(text) {
+  if (!text || typeof text !== 'string') return [];
+  return text.toLowerCase()
+    .replace(/[^\w\s]/g, ' ')   // drop punctuation
+    .split(/\s+/)
+    .filter(t => t.length >= 3 && !STOP_WORDS.has(t));
+}
+
+/**
+ * Score how well the proposed title's keywords match the search
+ * queries that have ACTUALLY pulled cold viewers to this channel.
+ *
+ * Uses the unbranded subset of client_search_queries (branded queries
+ * are excluded at ingest time — they reflect audience that already
+ * knew the brand, not keywords that pull discovery).
+ *
+ * Returns null when the channel has no unbranded search queries —
+ * common for Suggested-dominant channels like 210 Financial. The
+ * dimension is then excluded from the composite rather than scored
+ * as "predicted under" (the channel doesn't get search traffic; we
+ * don't have evidence for the title's keywords either way).
+ *
+ * Tier from match % of top-20 unbranded queries that share ≥1 token
+ * with the title:
+ *   ≥50% → very_likely_outperform
+ *   25–50% → likely_solid
+ *   10–25% → risky
+ *   <10% → predicted_under
+ */
+export function scoreSearchKeywordMatch(title, searchQueries) {
+  if (!title) return null;
+  const unbranded = (searchQueries?.unbranded || []).slice(0, 20);
+  if (!unbranded.length) return null;
+
+  const titleTokens = new Set(tokenizeForKeywords(title));
+  if (!titleTokens.size) return null;
+
+  const matched = [];
+  for (const q of unbranded) {
+    const qTokens = tokenizeForKeywords(q.query);
+    const overlap = qTokens.filter(t => titleTokens.has(t));
+    if (overlap.length > 0) {
+      matched.push({
+        query: q.query,
+        views: q.views,
+        matched_tokens: [...new Set(overlap)],
+      });
+    }
+  }
+
+  const matchPct = Math.round((matched.length / unbranded.length) * 100);
+
+  let tier;
+  if (matchPct >= 50)      tier = 'very_likely_outperform';
+  else if (matchPct >= 25) tier = 'likely_solid';
+  else if (matchPct >= 10) tier = 'risky';
+  else                     tier = 'predicted_under';
+
+  return {
+    title_tokens: [...titleTokens],
+    total_unbranded_queries: unbranded.length,
+    matched_count: matched.length,
+    match_pct: matchPct,
+    top_matches: matched.slice(0, 5),
+    tier,
+  };
+}
+
+// ──────────────────────────────────────────────────
 // Composite tier
 // ──────────────────────────────────────────────────
 
@@ -435,6 +585,8 @@ export function composeRating(dimensions) {
 // pattern-match instead of threading a name through every return.
 function dimensionName(d) {
   if (!d) return 'dimension';
+  if (d.target_surface !== undefined) return 'surface fit';
+  if (d.match_pct !== undefined && d.total_unbranded_queries !== undefined) return 'search keyword match';
   if (d.saturation !== undefined || d.matched_topic_name !== undefined) return 'topic';
   if (d.bucket !== undefined) return 'length';
   if (d.day !== undefined) return 'upload slot';
@@ -627,10 +779,16 @@ export function generateTweaks({ input, scores, cohortContext, maxTweaks = 3 }) 
  * Score a concept end-to-end.
  *
  * @param {Object} args
- * @param {Object} args.input   strategist's concept (see migration 086 header)
+ * @param {Object} args.input   strategist's concept (see migration 086 header).
+ *   Phase 2.5 adds: input.target_surface — one of TARGET_SURFACES from
+ *   surfaceIntelligenceService. Optional; when absent, surface_fit is
+ *   excluded from the composite.
  * @param {Object} args.cohortContext
  * @param {Object} args.cohortContext.patternsResult   from patternsService.analyzePatterns
  * @param {Object} args.cohortContext.whiteSpaceResult from whiteSpaceService.analyzeWhiteSpace
+ * @param {Object} [args.cohortContext.surfaceContext] from surfaceIntelligenceService.loadSurfaceContext.
+ *   Phase 2.5 — drives surface_fit + search_keyword_match dimensions.
+ *   Optional; when absent, those dimensions return null and are excluded.
  * @returns {Object}  { scores, composite_tier, composite_rationale, suggested_tweaks }
  */
 export function scoreConcept({ input, cohortContext }) {
@@ -657,14 +815,31 @@ export function scoreConcept({ input, cohortContext }) {
     cohortContext.whiteSpaceResult?.topicCoverage,
   );
 
+  // Phase 2.5 dimensions — both return null when their data isn't
+  // available (no target surface picked, no surface snapshot loaded,
+  // no unbranded queries on this channel). Null dimensions are
+  // excluded from the composite per the established contract.
+  const surfaceFit = scoreSurfaceFit(
+    input.target_surface,
+    cohortContext.surfaceContext,
+  );
+  const searchKeywordMatch = scoreSearchKeywordMatch(
+    input.title,
+    cohortContext.surfaceContext?.search_queries,
+  );
+
   const scores = {
     title_patterns: titlePatterns,
     slot,
     length,
     topic,
+    surface_fit: surfaceFit,
+    search_keyword_match: searchKeywordMatch,
   };
 
-  const { tier: compositeTier, rationale } = composeRating([titlePatterns, slot, length, topic]);
+  const { tier: compositeTier, rationale } = composeRating([
+    titlePatterns, slot, length, topic, surfaceFit, searchKeywordMatch,
+  ]);
   // Pass input so tweak generator can apply format-aware filters
   // (e.g. don't suggest "add emoji" to a long-form concept when the
   // cohort's emoji pattern is 99% Shorts).
@@ -678,4 +853,9 @@ export function scoreConcept({ input, cohortContext }) {
   };
 }
 
-export default { scoreConcept, scoreTitlePatterns, scoreSlot, scoreLength, scoreTopic, composeRating, generateTweaks, TIERS };
+export default {
+  scoreConcept,
+  scoreTitlePatterns, scoreSlot, scoreLength, scoreTopic,
+  scoreSurfaceFit, scoreSearchKeywordMatch,
+  composeRating, generateTweaks, TIERS,
+};
