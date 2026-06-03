@@ -26,7 +26,7 @@ import React, { useEffect, useState } from 'react';
 import { youtubeOAuthService } from '../../../services/youtubeOAuthService';
 import { supabase } from '../../../services/supabaseClient';
 
-export default function SurfacePullPanel({ clientId }) {
+export default function SurfacePullPanel({ clientId, onPullComplete }) {
   const [open, setOpen] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
   const [clientYtId, setClientYtId] = useState(null);
@@ -97,7 +97,12 @@ export default function SurfacePullPanel({ clientId }) {
         setResult(json);
       } else {
         setResult(json);
-        if (json?.ok) setLastPullAt(new Date().toISOString());
+        if (json?.ok) {
+          setLastPullAt(new Date().toISOString());
+          // Let the parent (PreflightPanel) re-load surface context so
+          // the target-surface picker activates without a page refresh.
+          if (typeof onPullComplete === 'function') onPullComplete();
+        }
       }
     } catch (err) {
       setError(err.message || String(err));

@@ -31,6 +31,7 @@ import {
   archiveScorecard,
 } from '../../../services/conceptScorecardsService';
 import { generateStrategicRead } from '../../../services/strategicReadService';
+import { loadSurfaceContext, TARGET_SURFACES } from '../../../services/surfaceIntelligenceService';
 import Phase25Spike from './Phase25Spike.jsx';
 import SurfacePullPanel from './SurfacePullPanel.jsx';
 
@@ -73,6 +74,7 @@ const defaultForm = () => ({
   topic_label: '',
   notes: '',
   pillar_id: '',
+  target_surface: '',  // Phase 2.5 — strategist picks per session via header tag
 });
 
 // ──────────────────────────────────────────────────
@@ -83,6 +85,12 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
   const [cohortContext, setCohortContext] = useState(null);
   const [cohortLoading, setCohortLoading] = useState(true);
   const [cohortError, setCohortError] = useState(null);
+  // Phase 2.5 surface intelligence — loaded separately from the
+  // deliverable cohort because it lives in different tables. Null when
+  // no snapshot has been pulled yet; the scorer handles this by
+  // returning null for surface_fit + search_keyword_match (excluded
+  // from the composite).
+  const [surfaceContext, setSurfaceContext] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [form, setForm] = useState(defaultForm);
@@ -122,6 +130,21 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
     return () => { cancelled = true; };
   }, [clientId]);
 
+  // Load latest surface intelligence snapshot. Independent from the
+  // deliverable cohort load so a missing surface snapshot doesn't
+  // block the rest of the panel. Re-fired when refreshSurfaceContext
+  // is called (e.g. after SurfacePullPanel completes a pull).
+  const refreshSurfaceContext = async () => {
+    try {
+      const ctx = await loadSurfaceContext(clientId);
+      setSurfaceContext(ctx);
+    } catch (err) {
+      console.warn('[PreflightPanel] surface context load failed:', err);
+      setSurfaceContext(null);
+    }
+  };
+  useEffect(() => { refreshSurfaceContext(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [clientId]);
+
   // Load history on mount + refresh after each save
   const refreshHistory = async () => {
     setHistoryLoading(true);
@@ -147,6 +170,10 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
         cohortContext: {
           patternsResult: cohortContext.patternsResult,
           whiteSpaceResult: cohortContext.whiteSpaceResult,
+          // Phase 2.5 — surfaceContext drives surface_fit +
+          // search_keyword_match. Null is fine; those dimensions
+          // self-exclude from the composite when missing.
+          surfaceContext,
         },
       });
 
@@ -231,6 +258,17 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
         )}
       </div>
 
+      {/* Phase 2.5 — Target-surface picker. The strategist picks once
+          per session; scoring against the picked surface determines
+          surface_fit + drives the cross-surface divergence callouts.
+          Disabled when no surface snapshot exists yet (the
+          SurfacePullPanel below the form is where they pull one). */}
+      <TargetSurfaceTag
+        value={form.target_surface}
+        onChange={(s) => setForm(f => ({ ...f, target_surface: s }))}
+        surfaceContext={surfaceContext}
+      />
+
       {cohortLoading && <InlineNote tone="info">Loading cohort data…</InlineNote>}
       {cohortError && <InlineNote tone="error">{cohortError}</InlineNote>}
 
@@ -263,9 +301,11 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
 
           {/* Phase 2.5 surface intelligence — refresh per-video
               traffic-source data + channel-level search queries from
-              YouTube Analytics. Once a snapshot lands the scorer's
-              upcoming surface-aware dimension will read from it. */}
-          <SurfacePullPanel clientId={clientId} />
+              YouTube Analytics. The scorer reads the latest snapshot
+              for surface_fit + search_keyword_match. After a successful
+              pull we re-load the surface context so the target-surface
+              picker activates immediately (no page refresh needed). */}
+          <SurfacePullPanel clientId={clientId} onPullComplete={refreshSurfaceContext} />
 
           {/* Diagnostic — confirms the Phase 2.5 Analytics API paths
               before the real Phase 2.5 build commits to them. */}
@@ -410,6 +450,57 @@ function Field({ label, required, children, full }) {
   );
 }
 
+// Phase 2.5 — Target-surface picker. Lives above the form (per the
+// "header tag" UX decision earlier in the build): the strategist picks
+// once per session and every scored concept this session uses it.
+// Disabled when no surface snapshot exists (with inline messaging
+// pointing them at the SurfacePullPanel below).
+function TargetSurfaceTag({ value, onChange, surfaceContext }) {
+  const haveData = !!surfaceContext?.surface_mix?.length;
+  const dominant = surfaceContext?.dominant_surface;
+  return (
+    <div style={targetTagStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 700 }}>
+          Target surface
+        </span>
+        {TARGET_SURFACES.map(s => {
+          const isPicked = value === s;
+          const isDominant = dominant === s;
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onChange(isPicked ? '' : s)}
+              disabled={!haveData}
+              style={surfaceChipStyle(isPicked, isDominant, haveData)}
+              title={
+                !haveData
+                  ? 'No surface snapshot yet — pull one in Surface intelligence below.'
+                  : isDominant
+                    ? `${s} is this channel's home surface (${surfaceContext.dominant_share_pct}%)`
+                    : `Score against ${s}`
+              }
+            >
+              {s}{isDominant ? ' ★' : ''}
+            </button>
+          );
+        })}
+        {haveData && value && (
+          <span style={{ fontSize: 11, color: '#666', marginLeft: 'auto' }}>
+            scoring against <strong style={{ color: '#cde4d6' }}>{value}</strong>
+          </span>
+        )}
+        {!haveData && (
+          <span style={{ fontSize: 11, color: '#E8A82B', marginLeft: 'auto' }}>
+            No surface snapshot yet — pull one below to unlock surface scoring.
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ──────────────────────────────────────────────────
 // Scorecard display
 // ──────────────────────────────────────────────────
@@ -432,6 +523,8 @@ function ScorecardDisplay({ scorecard, reading }) {
         {scores?.slot &&           <DimensionCard name={`Slot · ${scores.slot.day} ${scores.slot.block}`} dim={scores.slot} />}
         {scores?.length &&         <DimensionCard name={`Length · ${scores.length.bucket}`} dim={scores.length} />}
         {scores?.topic &&          <DimensionCard name={`Topic · ${scores.topic.label}`} dim={scores.topic} />}
+        {scores?.surface_fit &&    <DimensionCard name={`Surface · ${scores.surface_fit.target_surface}`} dim={scores.surface_fit} />}
+        {scores?.search_keyword_match && <DimensionCard name="Search keyword match" dim={scores.search_keyword_match} />}
       </div>
 
       {suggested_tweaks?.length > 0 && (
@@ -462,26 +555,53 @@ function ScorecardDisplay({ scorecard, reading }) {
 }
 
 function DimensionCard({ name, dim }) {
-  const liftStr = dim.composite_lift_pct != null
-    ? `${dim.composite_lift_pct >= 0 ? '+' : ''}${dim.composite_lift_pct}%`
-    : dim.lift_pct != null
-      ? `${dim.lift_pct >= 0 ? '+' : ''}${dim.lift_pct}%`
+  // Pick the primary metric to render. Title/slot/length carry a
+  // lift_pct (or composite_lift_pct). Surface fit uses share-of-views.
+  // Search keyword match uses match %. Each picks the most descriptive
+  // sub-label too.
+  let primary = null;     // big number
+  let subLabel = null;    // line under the big number
+  if (dim.composite_lift_pct != null) {
+    primary = `${dim.composite_lift_pct >= 0 ? '+' : ''}${dim.composite_lift_pct}%`;
+    subLabel = dim.confidence
+      ? `${dim.confidence}${dim.n != null ? ` · n=${dim.n}` : ''}`
       : null;
-  const hasWarning = dim.matched?.some(m => m.format_skew_warning);
+  } else if (dim.lift_pct != null) {
+    primary = `${dim.lift_pct >= 0 ? '+' : ''}${dim.lift_pct}%`;
+    subLabel = dim.confidence
+      ? `${dim.confidence}${dim.n != null ? ` · n=${dim.n}` : ''}`
+      : null;
+  } else if (dim.surface_share_pct != null) {
+    // Surface fit — render share of channel views as the primary metric.
+    primary = `${dim.surface_share_pct}%`;
+    subLabel = `share of ${dim.n_videos || 0}-video snapshot`;
+  } else if (dim.match_pct != null) {
+    // Search keyword match — render % of unbranded queries that match.
+    primary = `${dim.match_pct}%`;
+    subLabel = `${dim.matched_count}/${dim.total_unbranded_queries} unbranded queries match`;
+  }
+
+  const hasFormatSkew = dim.matched?.some?.(m => m.format_skew_warning);
   return (
     <div style={dimensionCardStyle(dim.tier)}>
       <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>{name}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
-        {liftStr && <div style={{ fontSize: 20, fontWeight: 700, color: TIER_COLORS[dim.tier]?.fg || '#fff' }}>{liftStr}</div>}
-        {dim.confidence && (
-          <div style={{ fontSize: 10, color: '#888' }}>
-            {dim.confidence}{dim.n != null ? ` · n=${dim.n}` : ''}
-          </div>
-        )}
+        {primary && <div style={{ fontSize: 20, fontWeight: 700, color: TIER_COLORS[dim.tier]?.fg || '#fff' }}>{primary}</div>}
+        {subLabel && <div style={{ fontSize: 10, color: '#888' }}>{subLabel}</div>}
       </div>
       <TierBadge tier={dim.tier} />
-      {hasWarning && <div style={{ fontSize: 11, color: '#E8A82B', marginTop: 6 }}>⚠ Format-skew warning on matched pattern</div>}
+      {hasFormatSkew && <div style={{ fontSize: 11, color: '#E8A82B', marginTop: 6 }}>⚠ Format-skew warning on matched pattern</div>}
       {dim.saturation && <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>Saturation: {dim.saturation}</div>}
+      {dim.divergence_warning && (
+        <div style={{ fontSize: 11, color: '#E8A82B', marginTop: 6, lineHeight: 1.4 }}>
+          ⚠ {dim.divergence_warning}
+        </div>
+      )}
+      {dim.top_matches?.length > 0 && (
+        <div style={{ fontSize: 11, color: '#888', marginTop: 6, lineHeight: 1.4 }}>
+          Top match: <em style={{ color: '#cde4d6' }}>"{dim.top_matches[0].query}"</em>
+        </div>
+      )}
       {dim.note && <div style={{ fontSize: 11, color: '#888', marginTop: 4, fontStyle: 'italic' }}>{dim.note}</div>}
     </div>
   );
@@ -702,6 +822,27 @@ const strategicReadCardStyle = {
   borderRadius: 6,
   padding: 12,
 };
+// Phase 2.5 — target-surface tag bar + chip styles
+const targetTagStyle = {
+  background: '#0e0e11',
+  border: '1px solid #1f1f24',
+  borderRadius: 6,
+  padding: '8px 12px',
+  marginBottom: 14,
+};
+const surfaceChipStyle = (picked, dominant, enabled) => ({
+  padding: '5px 12px',
+  borderRadius: 99,
+  border: `1px solid ${picked ? 'rgba(10, 145, 155, 0.55)' : dominant ? 'rgba(232, 168, 43, 0.45)' : '#2a2a30'}`,
+  background: picked ? 'rgba(10, 145, 155, 0.18)' : 'transparent',
+  color: !enabled ? '#444' : picked ? '#0A919B' : dominant ? '#E8A82B' : '#cde4d6',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: enabled ? 'pointer' : 'not-allowed',
+  letterSpacing: 0.2,
+  whiteSpace: 'nowrap',
+});
+
 const historyRowStyle = (active) => ({
   display: 'flex',
   alignItems: 'center',
