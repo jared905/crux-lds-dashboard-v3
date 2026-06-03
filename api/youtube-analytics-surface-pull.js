@@ -165,7 +165,14 @@ function buildBrandedTokens({ channelTitle, customUrl }) {
   const tokens = new Set();
   const add = (s) => {
     const v = (s || '').toLowerCase().trim();
-    if (v && v.length >= 3) tokens.add(v);
+    // Skip URLs, channel-id strings, anything too short to be a real
+    // search token. URLs and channel-id paths never appear in user
+    // search queries, so admitting them is just noise in the diagnostic.
+    if (!v || v.length < 3) return;
+    if (v.startsWith('http://') || v.startsWith('https://')) return;
+    if (v.startsWith('/')) return;
+    if (/^uc[\w-]{20,}$/.test(v)) return;
+    tokens.add(v);
   };
   if (channelTitle) {
     add(channelTitle);
@@ -174,7 +181,19 @@ function buildBrandedTokens({ channelTitle, customUrl }) {
     add(channelTitle.replace(/\s+/g, ''));
   }
   if (customUrl) {
-    add(customUrl.replace(/^@/, ''));
+    // customUrl can show up as a bare handle ("@channel"), a path
+    // ("/@channel"), or a full URL (".../channel/UC..." or
+    // ".../@channel"). Extract just the handle/slug portion.
+    let extracted = customUrl.trim();
+    // youtube.com/@handle or /@handle or just @handle
+    const atMatch = extracted.match(/@([\w.-]+)/);
+    if (atMatch) {
+      add(atMatch[1]);
+    } else {
+      // youtube.com/c/<slug> or youtube.com/user/<slug>
+      const slugMatch = extracted.match(/\/(?:c|user)\/([\w.-]+)/i);
+      if (slugMatch) add(slugMatch[1]);
+    }
   }
   return [...tokens];
 }
@@ -261,38 +280,64 @@ async function pullVideoTrafficSources({
 }
 
 /**
- * Pull channel-level YT_SEARCH detail (the actual search queries) and
- * bulk-insert rows into client_search_queries with is_branded flagged.
+ * Pull YT_SEARCH detail and aggregate to channel level.
+ *
+ * Channel-level YT_SEARCH detail (no video filter) is blocked on
+ * Brand Accounts with the same FIELD_UNKNOWN_VALUE error as
+ * channel-level RELATED_VIDEO. Per-video queries work — confirmed by
+ * the spike. So we iterate the same video set we used for traffic-
+ * source, aggregate views by unique query, then write one row per
+ * unique query. Matches the channel-level intent of the schema.
+ *
+ * Extra quota: N units (1 per video). Trivial vs. the 50,000/day
+ * Analytics quota.
  */
 async function pullSearchQueries({
-  clientChannelId, ytChannelId, accessToken, brandedTokens, startDate, endDate,
+  clientChannelId, ytChannelId, accessToken, videoIds, brandedTokens, startDate, endDate,
 }) {
-  const result = await runAnalyticsQuery({
-    channelId: ytChannelId,
-    accessToken,
-    dimensions: 'insightTrafficSourceDetail',
-    filters: 'insightTrafficSourceType==YT_SEARCH',
-    metrics: 'views',
-    startDate,
-    endDate,
-    sort: '-views',
-    maxResults: 200,
-  });
-  if (!result.ok) {
-    return {
-      rowsAttempted: 0,
-      rowsInserted: 0,
-      brandedCount: 0,
-      errors: [{ stage: 'query', error: result.error, status: result.status }],
-    };
+  // Aggregate queries across all videos. Key by lowercased query text
+  // so casing variants ("Best alarm" vs "best alarm") collapse into
+  // one row.
+  const aggregated = new Map();
+  const errors = [];
+  let videosOk = 0;
+  let videosWithSearchRows = 0;
+
+  for (const videoId of videoIds) {
+    const result = await runAnalyticsQuery({
+      channelId: ytChannelId,
+      accessToken,
+      dimensions: 'insightTrafficSourceDetail',
+      filters: `video==${videoId};insightTrafficSourceType==YT_SEARCH`,
+      metrics: 'views',
+      startDate,
+      endDate,
+      sort: '-views',
+      maxResults: 200,
+    });
+    if (!result.ok) {
+      errors.push({ videoId, error: result.error, status: result.status });
+      continue;
+    }
+    videosOk++;
+    if (result.rows.length > 0) videosWithSearchRows++;
+    for (const row of result.rows) {
+      const queryRaw = row[0];
+      const views = row[1] || 0;
+      if (!queryRaw || views <= 0) continue;
+      const key = queryRaw.toLowerCase();
+      const existing = aggregated.get(key);
+      if (existing) {
+        existing.views += views;
+      } else {
+        aggregated.set(key, { query: queryRaw, views });
+      }
+    }
   }
 
   const rowsToInsert = [];
   let brandedCount = 0;
-  for (const row of result.rows) {
-    const query = row[0];
-    const views = row[1] || 0;
-    if (!query || views <= 0) continue;
+  for (const { query, views } of aggregated.values()) {
     const isBranded = isQueryBranded(query, brandedTokens);
     if (isBranded) brandedCount++;
     rowsToInsert.push({
@@ -316,7 +361,9 @@ async function pullSearchQueries({
         rowsAttempted: rowsToInsert.length,
         rowsInserted: 0,
         brandedCount,
-        errors: [{ stage: 'insert', error: error.message }],
+        videosOk,
+        videosWithSearchRows,
+        errors: [...errors, { stage: 'insert', error: error.message }],
       };
     }
     insertedCount = data?.length || 0;
@@ -326,7 +373,9 @@ async function pullSearchQueries({
     rowsAttempted: rowsToInsert.length,
     rowsInserted: insertedCount,
     brandedCount,
-    errors: [],
+    videosOk,
+    videosWithSearchRows,
+    errors,
   };
 }
 
@@ -440,6 +489,7 @@ export default async function handler(req, res) {
       clientChannelId: channelRow.id,
       ytChannelId: connection.youtube_channel_id,
       accessToken,
+      videoIds,
       brandedTokens,
       startDate,
       endDate,

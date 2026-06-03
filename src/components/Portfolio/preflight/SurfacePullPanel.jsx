@@ -197,10 +197,17 @@ function ResultSummary({ result }) {
       {search && (
         <div style={{ fontSize: 12, color: '#aaa' }}>
           <strong style={{ color: '#cde4d6' }}>Search queries:</strong>{' '}
-          {search.rowsInserted} stored ({unbranded} unbranded, {branded} branded).
+          {search.rowsInserted} unique stored ({unbranded} unbranded, {branded} branded)
+          {search.videosOk != null && (
+            <> · {search.videosOk}/{search.videosOk + (search.errors?.filter(e => e.videoId).length || 0)} videos returned data
+              {search.videosWithSearchRows != null && (
+                <> ({search.videosWithSearchRows} had search-driven views)</>
+              )}
+            </>
+          )}.
           {search.errors?.length > 0 && (
             <div style={{ fontSize: 11, color: '#E8A82B', marginTop: 4 }}>
-              Errors: {search.errors.map(e => e.error).join('; ')}
+              {summarizeErrors(search.errors)}
             </div>
           )}
         </div>
@@ -218,6 +225,23 @@ function ResultSummary({ result }) {
 // ─────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────
+
+// Per-video pulls can produce N identical errors when an API path is
+// uniformly blocked. Collapse them so the UI shows "20 videos: same
+// FIELD_UNKNOWN_VALUE error" instead of the same string twenty times.
+function summarizeErrors(errors) {
+  if (!errors?.length) return '';
+  const buckets = new Map();
+  for (const e of errors) {
+    const key = e.error || 'unknown error';
+    buckets.set(key, (buckets.get(key) || 0) + 1);
+  }
+  const parts = [];
+  for (const [msg, n] of buckets.entries()) {
+    parts.push(n > 1 ? `${n}× ${msg}` : msg);
+  }
+  return `Errors: ${parts.join(' · ')}`;
+}
 
 function formatRelative(iso) {
   if (!iso) return 'never';
