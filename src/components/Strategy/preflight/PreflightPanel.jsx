@@ -32,6 +32,7 @@ import {
 } from '../../../services/conceptScorecardsService';
 import { generateStrategicRead } from '../../../services/strategicReadService';
 import { loadSurfaceContext, TARGET_SURFACES } from '../../../services/surfaceIntelligenceService';
+import { rateCuriosityGap } from '../../../services/curiosityGapService';
 import Phase25Spike from './Phase25Spike.jsx';
 import SurfacePullPanel from './SurfacePullPanel.jsx';
 
@@ -162,9 +163,15 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
 
     setScoring(true);
     try {
-      // 1. Run the deterministic scorer
+      // 1. Run the deterministic scorer (preceded by the Phase 2.6
+      //    curiosity-gap LLM rating — title-only, cached, cheap).
       setScoringPhase('scoring');
       const input = buildInput(form);
+      // Curiosity-gap is title-derived and LLM-rated. Cached by
+      // (title, format, prompt_version) so iterating title variants
+      // pays the Claude call once per unique variant. Null result is
+      // fine — the scorer dimension self-excludes.
+      const curiosityResult = await rateCuriosityGap(input.title, { format: input.format });
       const scoringOutput = scoreConcept({
         input,
         cohortContext: {
@@ -174,6 +181,8 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
           // search_keyword_match. Null is fine; those dimensions
           // self-exclude from the composite when missing.
           surfaceContext,
+          // Phase 2.6 — curiosity-gap result. Null is fine.
+          curiosityResult,
         },
       });
 
@@ -525,6 +534,7 @@ function ScorecardDisplay({ scorecard, reading }) {
         {scores?.topic &&          <DimensionCard name={`Topic · ${scores.topic.label}`} dim={scores.topic} />}
         {scores?.surface_fit &&    <DimensionCard name={`Surface · ${scores.surface_fit.target_surface}`} dim={scores.surface_fit} />}
         {scores?.search_keyword_match && <DimensionCard name="Search keyword match" dim={scores.search_keyword_match} />}
+        {scores?.curiosity_gap &&  <DimensionCard name="Curiosity gap" dim={scores.curiosity_gap} />}
       </div>
 
       {suggested_tweaks?.length > 0 && (
@@ -579,6 +589,10 @@ function DimensionCard({ name, dim }) {
     // Search keyword match — render % of unbranded queries that match.
     primary = `${dim.match_pct}%`;
     subLabel = `${dim.matched_count}/${dim.total_unbranded_queries} unbranded queries match`;
+  } else if (dim.curiosity_score != null) {
+    // Curiosity gap — render 1–10 score as "X/10".
+    primary = `${dim.curiosity_score}/10`;
+    subLabel = dim.cached ? 'cached LLM rating' : 'fresh LLM rating';
   }
 
   const hasFormatSkew = dim.matched?.some?.(m => m.format_skew_warning);
@@ -600,6 +614,11 @@ function DimensionCard({ name, dim }) {
       {dim.top_matches?.length > 0 && (
         <div style={{ fontSize: 11, color: '#888', marginTop: 6, lineHeight: 1.4 }}>
           Top match: <em style={{ color: '#cde4d6' }}>"{dim.top_matches[0].query}"</em>
+        </div>
+      )}
+      {dim.rationale && (
+        <div style={{ fontSize: 11, color: '#888', marginTop: 6, lineHeight: 1.4 }}>
+          {dim.rationale}
         </div>
       )}
       {dim.note && <div style={{ fontSize: 11, color: '#888', marginTop: 4, fontStyle: 'italic' }}>{dim.note}</div>}
