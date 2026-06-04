@@ -237,7 +237,7 @@ export function findTopMatches(conceptEmbedding, videos, topK = 5) {
 // Postgres pgvector columns come back as either an array (when the
 // client uses the supabase-js JSON parser correctly) or as a string
 // like "[0.012,-0.034,...]" (some configurations). Normalize.
-function parseEmbedding(raw) {
+export function parseEmbedding(raw) {
   if (Array.isArray(raw)) return raw;
   if (typeof raw === 'string') {
     try {
@@ -256,4 +256,6 @@ export default {
   countPendingEmbeddings,
   cosineSimilarity,
   findTopMatches,
+  filterCorpusByFormat,
+  parseEmbedding,
 };
