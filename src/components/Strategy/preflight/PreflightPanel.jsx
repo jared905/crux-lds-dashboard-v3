@@ -31,6 +31,7 @@ import {
   archiveScorecard,
 } from '../../../services/conceptScorecardsService';
 import { generateStrategicRead } from '../../../services/strategicReadService';
+import { generateAlternativeTitles } from '../../../services/alternativeTitlesService';
 import { loadSurfaceContext, TARGET_SURFACES } from '../../../services/surfaceIntelligenceService';
 import { rateCuriosityGap } from '../../../services/curiosityGapService';
 import { rateHookDelivery } from '../../../services/hookPromiseDeliveryService';
@@ -252,24 +253,38 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
       const baseCard = { id: saved.id, created_at: saved.created_at, input, ...scoringOutput };
       setCurrentScorecard(baseCard);
 
-      // 4. Fire the strategic-read pass (auto, as configured)
+      // 4. Fire the strategic-read pass AND the alternative-titles
+      //    generator in parallel — both are LLM calls keyed off the
+      //    same scorecard, no need to serialize. Strategic read goes
+      //    to its own DB column (updateStrategicRead); alternatives
+      //    live in scorecard state only for v1 (not yet persisted).
       setScoringPhase('reading');
-      const { text, promptVersion } = await generateStrategicRead({
-        input,
-        scoringOutput,
-        cohortSummary: {
-          clientName,
-          channelCount: cohortContext.channelCount,
-          videoCount: cohortContext.videoCount,
-          // Phase 2.7b — brand-register context drives the LLM's
-          // judgment about which pattern tweaks are appropriate.
-          spine: cohortContext.spine,
-        },
-      });
+      const sharedSummary = {
+        clientName,
+        channelCount: cohortContext.channelCount,
+        videoCount: cohortContext.videoCount,
+        spine: cohortContext.spine,
+      };
+      const [strategicReadResult, altTitlesResult] = await Promise.all([
+        generateStrategicRead({ input, scoringOutput, cohortSummary: sharedSummary }),
+        generateAlternativeTitles({
+          input, scoringOutput, spine: cohortContext.spine, cohortSummary: sharedSummary,
+        }),
+      ]);
+
+      const { text, promptVersion } = strategicReadResult || {};
+      const alternatives = altTitlesResult?.alternatives || [];
+
       if (text) {
         await updateStrategicRead({ id: saved.id, text, promptVersion });
-        setCurrentScorecard({ ...baseCard, strategic_read: text });
       }
+      // Always update the scorecard (alternatives may exist even if
+      // strategic-read returned empty, and vice versa).
+      setCurrentScorecard({
+        ...baseCard,
+        strategic_read: text || null,
+        alternative_titles: alternatives,
+      });
 
       // 5. Refresh history
       refreshHistory();
@@ -578,7 +593,7 @@ function TargetSurfaceTag({ value, onChange, surfaceContext }) {
 // ──────────────────────────────────────────────────
 
 function ScorecardDisplay({ scorecard, reading }) {
-  const { scores, composite_tier, composite_rationale, suggested_tweaks, strategic_read, input } = scorecard;
+  const { scores, composite_tier, composite_rationale, suggested_tweaks, strategic_read, alternative_titles, input } = scorecard;
   return (
     <div style={scorecardCardStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, marginBottom: 14 }}>
@@ -625,6 +640,42 @@ function ScorecardDisplay({ scorecard, reading }) {
             ? <div style={{ fontSize: 13, color: '#888', fontStyle: 'italic' }}>Writing strategic read…</div>
             : <div style={{ fontSize: 13, color: '#666', fontStyle: 'italic' }}>No strategic read on this scorecard.</div>}
       </div>
+
+      {/* Phase 2.7c — alternative titles. Editorial reframes proposed
+          by the LLM that solve the diagnosed weaknesses while staying
+          inside the channel's brand register. Renders when at least
+          one alternative came back; shows the "thinking…" state while
+          the parallel LLM call is still in flight. */}
+      {(alternative_titles?.length > 0 || reading) && (
+        <div style={altTitlesCardStyle}>
+          <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+            Alternative titles
+          </div>
+          {!alternative_titles?.length && reading
+            ? <div style={{ fontSize: 13, color: '#888', fontStyle: 'italic' }}>Generating alternatives…</div>
+            : (
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                {alternative_titles.map((alt, i) => (
+                  <li key={i} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: i === alternative_titles.length - 1 ? 'none' : '1px solid #1f1f24' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e2d0', marginBottom: 4 }}>
+                      "{alt.title}"
+                    </div>
+                    {alt.addresses && (
+                      <div style={{ fontSize: 10, color: '#0A919B', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, marginBottom: 2 }}>
+                        Addresses: {alt.addresses}
+                      </div>
+                    )}
+                    {alt.rationale && (
+                      <div style={{ fontSize: 12, color: '#888', lineHeight: 1.4 }}>
+                        {alt.rationale}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+        </div>
+      )}
     </div>
   );
 }
@@ -940,6 +991,14 @@ const strategicReadCardStyle = {
   border: '1px solid #2a2a30',
   borderRadius: 6,
   padding: 12,
+};
+const altTitlesCardStyle = {
+  background: 'rgba(10, 145, 155, 0.04)',
+  border: '1px solid rgba(10, 145, 155, 0.20)',
+  borderLeft: '2px solid #0A919B',
+  borderRadius: 6,
+  padding: 12,
+  marginTop: 10,
 };
 // Phase 2.5 — target-surface tag bar + chip styles
 const targetTagStyle = {
