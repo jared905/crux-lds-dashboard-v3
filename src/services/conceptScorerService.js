@@ -130,23 +130,41 @@ const CASUAL_REGISTER_KEYWORDS = [
 ];
 
 /**
- * Heuristic: does the spine's voice / POV text indicate a trust-
- * sensitive brand register? Used to downrank hype-flavored tweaks
+ * Heuristic: does the channel's brand context indicate a trust-
+ * sensitive register? Used to downrank hype-flavored tweaks
  * (ALL CAPS, emoji) the cohort data alone would surface.
  *
- * Loosened in 2.7b followup after the Kendall Stahl smoke test
- * showed the LLM correctly identifying trust register from the same
- * spine text that my heuristic was missing. New logic:
- *   - Any TRUST_REGISTER_PHRASES match → trust-sensitive (decisive).
- *   - Otherwise: trustHits >= 1 AND trustHits > casualHits.
+ * Scans (in order of authority):
+ *   1. ALL spine text fields — voice_tone, editorial_pov,
+ *      positioning_oneliner, audience_read, guardrails. The strategist
+ *      may have written the register signal in any of these.
+ *   2. supplementaryTexts — fallback context the caller passes in,
+ *      typically the channel's recent video titles. Catches the case
+ *      where the spine is sparse but the channel's actual content
+ *      makes the register obvious ("retire", "investment", "wealth"
+ *      land in the titles even when the strategist hasn't formalized
+ *      it in voice_tone yet).
  *
- * False positives just suppress one pattern suggestion — recoverable.
- * False negatives (the old failure mode) let an off-register tweak
- * surface unchallenged, which is the worse outcome.
+ * Loosened progressively through 2.7b iterations as smoke tests
+ * showed the LLM inferring register from context my heuristic was
+ * missing. False positives suppress one pattern suggestion
+ * (recoverable); false negatives let an off-register tweak surface
+ * unchallenged (the worse outcome).
  */
-export function detectsTrustSensitiveRegister(spine) {
-  if (!spine) return false;
-  const text = `${spine.editorial_pov || ''} ${spine.voice_tone || ''}`.toLowerCase().trim();
+export function detectsTrustSensitiveRegister(spine, supplementaryTexts = []) {
+  const spineText = [
+    spine?.editorial_pov,
+    spine?.voice_tone,
+    spine?.positioning_oneliner,
+    spine?.audience_read,
+    spine?.guardrails,
+  ].filter(s => typeof s === 'string').join(' ');
+
+  const supplementaryText = (supplementaryTexts || [])
+    .filter(s => typeof s === 'string')
+    .join(' ');
+
+  const text = `${spineText} ${supplementaryText}`.toLowerCase().trim();
   if (!text) return false;
 
   for (const phrase of TRUST_REGISTER_PHRASES) {
@@ -946,7 +964,20 @@ export function generateTweaks({ input, scores, cohortContext, maxTweaks = 3 }) 
     // lifts X%") but also sees the explicit "may break brand
     // register" flag — and the LLM strategic read (which now
     // receives the spine context) can reinforce the editorial call.
-    const trustSensitive = detectsTrustSensitiveRegister(cohortContext?.spine);
+    // Supplementary register context — the channel's recent video
+    // titles. Catches trust-sensitive channels (finance, legal,
+    // medical) whose spine fields are sparse but whose actual content
+    // makes the register clear ("retire", "investment", "advisor"
+    // surface in the titles). Pulled from topic_authority context
+    // when available; otherwise just spine.
+    const channelTitlesForRegister = (cohortContext?.topicAuthorityContext?.historicalHits || [])
+      .slice(0, 10)
+      .map(h => h.title)
+      .filter(Boolean);
+    const trustSensitive = detectsTrustSensitiveRegister(
+      cohortContext?.spine,
+      channelTitlesForRegister,
+    );
     const top = candidates[0];
     if (top) {
       const liftPct = Math.round((top.viewsLift - 1) * 100);
