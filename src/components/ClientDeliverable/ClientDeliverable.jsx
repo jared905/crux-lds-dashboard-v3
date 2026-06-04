@@ -344,14 +344,7 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
       <EditCtx.Provider value={editMode}>
         <OverrideCtx.Provider value={overrideCtxValue}>
           <div className="cd-doc" key={resetKey}>
-            {loading && (
-              <div className="cd-loading">
-                <Loader size={28} className="cd-spin" />
-                <div style={{ marginTop: 10, fontSize: 14, color: MUTED }}>
-                  Loading deliverable… this can take 10–30 seconds — the briefing and white-space brief are AI-generated.
-                </div>
-              </div>
-            )}
+            {loading && <DeliverableLoading />}
             {error && (
               <div className="cd-error">
                 <strong>Couldn't load deliverable:</strong> {error}
@@ -382,6 +375,50 @@ export default function ClientDeliverable({ clientId, clientName, onClose }) {
       </div>
     </div>,
     document.body,
+  );
+}
+
+// Branded loading state for the deliverable. Rotates through editorial
+// stage labels that name the actual work happening (reading the cohort,
+// mapping the field, finding open ground, etc.) rather than leading
+// with "AI is generating this." The Crux X wordmark pulses softly as
+// the visual anchor — same asset the deliverable cover + footer use.
+//
+// Stages don't loop. Once we hit "Composing the deliverable" we stay
+// there; the load resolves when the data lands, not when the timer
+// runs out. Each stage holds for ~3s so the strategist sees the work
+// progressing on a real 10–30s load.
+function DeliverableLoading() {
+  const stages = React.useMemo(() => [
+    'Reading the cohort',
+    'Mapping the field',
+    'Charting cadence patterns',
+    'Finding the open ground',
+    'Reading what just popped',
+    'Calibrating the positioning',
+    'Composing the deliverable',
+  ], []);
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setIdx(i => Math.min(i + 1, stages.length - 1));
+    }, 3000);
+    return () => clearInterval(id);
+  }, [stages.length]);
+
+  return (
+    <div className="cd-loading">
+      {brand.wordmarkUrl
+        ? <img src={brand.wordmarkUrl} alt="" className="cd-loading-mark" />
+        : <Loader size={32} className="cd-spin" />}
+      <div className="cd-loading-kicker">Composing your audit</div>
+      <div className="cd-loading-stage">{stages[idx]}…</div>
+      <div className="cd-loading-progress">
+        {stages.map((_, i) => (
+          <span key={i} className={`cd-loading-dot ${i <= idx ? 'is-on' : ''}`} />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -2960,12 +2997,59 @@ function PrintStyles() {
         color: ${INK};
         line-height: 1.55;
       }
+      /* Loading + error states share the outer card shell. Loading
+         gets the brand cream + deep-teal accent rail; error stays
+         neutral with a danger color on the text. */
       .cd-loading, .cd-error {
         padding: 80px 40px; text-align: center;
-        background: #fff; border-radius: 8px;
+        background: ${brand.colors.background};
+        border-radius: 8px;
+        border-left: 4px solid ${brand.colors.accent};
         box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        font-family: ${brand.fontStack};
       }
-      .cd-error { color: #b91c1c; }
+      .cd-error { color: ${brand.colors.danger || '#b91c1c'}; }
+
+      .cd-loading-mark {
+        width: 56px; height: 56px;
+        display: block; margin: 0 auto;
+        opacity: 0.9;
+        animation: cd-loading-pulse 2.6s ease-in-out infinite;
+        filter: drop-shadow(0 2px 6px rgba(1, 86, 97, 0.18));
+      }
+      @keyframes cd-loading-pulse {
+        0%, 100% { transform: scale(1); opacity: 0.85; }
+        50%      { transform: scale(1.08); opacity: 1; }
+      }
+
+      .cd-loading-kicker {
+        margin-top: 22px;
+        font-family: ${FONT_HEAD_STACK};
+        font-size: 11px; font-weight: 900;
+        color: ${ACCENT};
+        text-transform: uppercase; letter-spacing: 2px;
+      }
+      .cd-loading-stage {
+        margin-top: 10px;
+        font-size: 17px; font-weight: 600;
+        color: ${INK};
+        letter-spacing: 0.1px;
+        min-height: 22px;     /* prevent layout jitter when stage label changes */
+        transition: opacity 220ms ease;
+      }
+      .cd-loading-progress {
+        margin: 18px auto 0;
+        display: flex; gap: 7px; justify-content: center;
+      }
+      .cd-loading-dot {
+        width: 6px; height: 6px; border-radius: 99px;
+        background: ${brand.colors.border || '#e8e2d0'};
+        transition: background 320ms ease, transform 320ms ease;
+      }
+      .cd-loading-dot.is-on {
+        background: ${ACCENT};
+        transform: scale(1.15);
+      }
 
       .cd-page {
         background: #ffffff;
