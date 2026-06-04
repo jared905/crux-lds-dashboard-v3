@@ -103,10 +103,12 @@ export async function loadTopicAuthorityContext({ clientId, limit = DEFAULT_LIMI
   if (!clientChannel) return null;
 
   // (a) Client's top historical performers: top N videos by view_count
-  // among videos that have an embedding.
+  // among videos that have an embedding. duration_seconds is pulled so
+  // the scorer can filter by format (Phase 2.7a) — a long-form concept
+  // shouldn't match against a viral Short on form similarity alone.
   const { data: historicalHits } = await supabase
     .from('videos')
-    .select('id, title, view_count, published_at, title_embedding, youtube_video_id, channel_id')
+    .select('id, title, view_count, published_at, duration_seconds, title_embedding, youtube_video_id, channel_id')
     .eq('channel_id', clientChannel.id)
     .not('title_embedding', 'is', null)
     .gt('view_count', 0)
@@ -140,7 +142,7 @@ export async function loadTopicAuthorityContext({ clientId, limit = DEFAULT_LIMI
     const cutoff = new Date(Date.now() - COHORT_RECENCY_DAYS * 86400000).toISOString();
     const { data } = await supabase
       .from('videos')
-      .select('id, title, view_count, published_at, title_embedding, youtube_video_id, channel_id')
+      .select('id, title, view_count, published_at, duration_seconds, title_embedding, youtube_video_id, channel_id')
       .in('channel_id', cohortIds)
       .gte('published_at', cutoff)
       .not('title_embedding', 'is', null)
@@ -178,6 +180,25 @@ export async function countPendingEmbeddings(channelId) {
 // ──────────────────────────────────────────────────
 // Similarity
 // ──────────────────────────────────────────────────
+
+/**
+ * Filter a corpus of videos to format-matched ones (Phase 2.7a).
+ *   format = 'shorts'    → only videos with duration_seconds in (0, 180].
+ *   format = 'long_form' → only videos with duration > 180 OR duration unknown.
+ *
+ * Why long-form gets the "or unknown" branch: many cohort videos lack
+ * duration_seconds (older ingestions). Treating unknown as long-form
+ * preserves corpus size for the dominant content type; treating it as
+ * Shorts would mostly mis-classify. For Shorts filtering we stay
+ * strict — a video isn't a Short unless we can confirm the duration.
+ */
+export function filterCorpusByFormat(videos, format) {
+  if (!Array.isArray(videos) || !format) return videos || [];
+  if (format === 'shorts') {
+    return videos.filter(v => v.duration_seconds != null && v.duration_seconds > 0 && v.duration_seconds <= 180);
+  }
+  return videos.filter(v => v.duration_seconds == null || v.duration_seconds > 180);
+}
 
 /** Cosine similarity between two equal-length number arrays. */
 export function cosineSimilarity(a, b) {

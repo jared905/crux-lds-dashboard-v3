@@ -61,7 +61,7 @@
 
 import { TITLE_PATTERNS } from './patternsService';
 import { TARGET_SURFACES } from './surfaceIntelligenceService';
-import { findTopMatches } from './topicAuthorityService';
+import { findTopMatches, filterCorpusByFormat } from './topicAuthorityService';
 
 // ──────────────────────────────────────────────────
 // Constants
@@ -258,7 +258,7 @@ export function scoreTitlePatterns(title, format, patternsResult) {
  * mixed) per the existing pipeline. Phase 2 should split this per
  * format; for Phase 1 we use it as-is and note the limitation.
  */
-export function scoreSlot(plannedDay, plannedHourBlock, cadenceGaps) {
+export function scoreSlot(plannedDay, plannedHourBlock, cadenceGaps, format = null) {
   if (!plannedDay || !plannedHourBlock || !cadenceGaps?.liftGrid) return null;
 
   const block = BLOCK_ALIASES[plannedHourBlock] || plannedHourBlock;
@@ -266,9 +266,25 @@ export function scoreSlot(plannedDay, plannedHourBlock, cadenceGaps) {
   const blockIdx = BLOCK_INDEX[block];
   if (dayIdx == null || blockIdx == null) return null;
 
-  const lift = cadenceGaps.liftGrid[dayIdx]?.[blockIdx];
-  const confidence = cadenceGaps.confidenceGrid[dayIdx]?.[blockIdx] || 'insufficient';
-  const n = cadenceGaps.grid[dayIdx]?.[blockIdx] || 0;
+  // Phase 2.7a — prefer the format-specific subgrid when (a) format is
+  // known and (b) the subgrid has enough data for THIS cell to clear
+  // the insufficient floor. Falls through to the combined grid when
+  // the format-specific cell is too sparse — better one mixed-format
+  // signal than nothing at all.
+  const formatGrid = format && cadenceGaps.byFormat?.[format];
+  let scopeUsed = 'combined';
+  let usedGrid = cadenceGaps;
+  if (formatGrid?.liftGrid) {
+    const formatConf = formatGrid.confidenceGrid[dayIdx]?.[blockIdx] || 'insufficient';
+    if (formatConf !== 'insufficient') {
+      usedGrid = formatGrid;
+      scopeUsed = format;
+    }
+  }
+
+  const lift = usedGrid.liftGrid[dayIdx]?.[blockIdx];
+  const confidence = usedGrid.confidenceGrid[dayIdx]?.[blockIdx] || 'insufficient';
+  const n = usedGrid.grid[dayIdx]?.[blockIdx] || 0;
 
   return {
     day: plannedDay,
@@ -276,6 +292,7 @@ export function scoreSlot(plannedDay, plannedHourBlock, cadenceGaps) {
     lift_pct: lift != null ? Math.round((lift - 1) * 100) : null,
     n,
     confidence,
+    scope_used: scopeUsed,  // 'combined' | 'shorts' | 'long_form'
     tier: tierFromLift(lift, confidence),
   };
 }
@@ -632,10 +649,30 @@ export function scoreHookPromiseDelivery(hookResult) {
  * for null is "backfill not run yet"; UI surfaces this via the
  * EmbeddingsBackfillPanel.
  */
-export function scoreTopicAuthority(conceptEmbedding, topicAuthorityContext) {
+export function scoreTopicAuthority(conceptEmbedding, topicAuthorityContext, format = null) {
   if (!conceptEmbedding || !topicAuthorityContext) return null;
-  const historical = topicAuthorityContext.historicalHits || [];
-  const cohort = topicAuthorityContext.cohortRecentHits || [];
+  let historical = topicAuthorityContext.historicalHits || [];
+  let cohort = topicAuthorityContext.cohortRecentHits || [];
+
+  // Phase 2.7a — filter both corpora by format match. Without this, a
+  // long-form concept's "closest neighbor" could be a viral Short with
+  // similar form/topic; the algorithm pairs the concept with different
+  // recommendation neighborhoods than that Short lives in. Defensive:
+  // if the filter empties a corpus, fall back to the unfiltered version
+  // so we still surface SOME signal (with a note in the output).
+  let formatScopeNote = null;
+  if (format) {
+    const filteredHistorical = filterCorpusByFormat(historical, format);
+    const filteredCohort     = filterCorpusByFormat(cohort, format);
+    if (filteredHistorical.length || filteredCohort.length) {
+      historical = filteredHistorical;
+      cohort     = filteredCohort;
+      formatScopeNote = `Filtered to ${format} only`;
+    } else {
+      formatScopeNote = `No ${format} videos in corpus; falling back to mixed`;
+    }
+  }
+
   if (!historical.length && !cohort.length) return null;
 
   const channelMatches = findTopMatches(conceptEmbedding, historical, 5);
@@ -676,6 +713,7 @@ export function scoreTopicAuthority(conceptEmbedding, topicAuthorityContext) {
     dominant_source: dominantSource,
     top_channel_matches: channelMatches.map(compact),
     top_cohort_matches:  cohortMatches.map(compact),
+    format_scope_note: formatScopeNote,
     tier,
   };
 }
@@ -842,20 +880,26 @@ export function generateTweaks({ input, scores, cohortContext, maxTweaks = 3 }) 
   }
 
   // Slot — if the current slot isn't statistical-positive, suggest the
-  // best statistical-positive cell in the heatmap.
+  // best statistical-positive cell in the heatmap. Phase 2.7a: prefer
+  // the format-specific subgrid when (a) a format is known and (b) the
+  // subgrid has any statistical-positive cells. Falls back to the
+  // combined grid otherwise so we still suggest SOMETHING even when
+  // the format-specific corpus is thin.
   if (scores.slot && scores.slot.tier !== 'very_likely_outperform' && scores.slot.tier !== 'likely_solid') {
     const cadence = cohortContext?.whiteSpaceResult?.cadenceGaps;
-    if (cadence?.liftGrid) {
+    const formatGrid = plannedFormat && cadence?.byFormat?.[plannedFormat];
+    const scanGrid = formatGrid?.liftGrid ? formatGrid : cadence;
+    if (scanGrid?.liftGrid) {
       const candidates = [];
       for (let d = 0; d < 7; d++) {
         for (let b = 0; b < 4; b++) {
-          const lift = cadence.liftGrid[d]?.[b];
-          const conf = cadence.confidenceGrid[d]?.[b];
-          const n = cadence.grid[d]?.[b] || 0;
+          const lift = scanGrid.liftGrid[d]?.[b];
+          const conf = scanGrid.confidenceGrid[d]?.[b];
+          const n = scanGrid.grid[d]?.[b] || 0;
           if (lift != null && conf === 'statistical' && lift >= LIFT_TIER_THRESHOLDS.likely_solid) {
             candidates.push({
-              day: cadence.labels.days[d],
-              block: cadence.labels.blocks[b],
+              day: scanGrid.labels.days[d],
+              block: scanGrid.labels.blocks[b],
               lift,
               n,
             });
@@ -866,9 +910,10 @@ export function generateTweaks({ input, scores, cohortContext, maxTweaks = 3 }) 
       const top = candidates[0];
       if (top) {
         const liftPct = Math.round((top.lift - 1) * 100);
+        const scopeNote = formatGrid?.liftGrid ? ` (${plannedFormat})` : '';
         tweaks.push({
           dimension: 'slot',
-          suggestion: `Shift to ${top.day} ${top.block} — cohort lift +${liftPct}% statistical (n=${top.n})`,
+          suggestion: `Shift to ${top.day} ${top.block} — cohort lift +${liftPct}% statistical (n=${top.n})${scopeNote}`,
           projected_lift_pct: liftPct,
           priority: liftPct,
         });
@@ -953,6 +998,7 @@ export function scoreConcept({ input, cohortContext }) {
     input.planned_day,
     input.planned_hour_block,
     cohortContext.whiteSpaceResult?.cadenceGaps,
+    input.format,
   );
   const length = scoreLength(
     input.length_seconds,
@@ -986,6 +1032,7 @@ export function scoreConcept({ input, cohortContext }) {
   const topicAuthority = scoreTopicAuthority(
     cohortContext.conceptEmbedding,
     cohortContext.topicAuthorityContext,
+    input.format,
   );
 
   const scores = {

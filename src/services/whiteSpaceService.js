@@ -133,7 +133,37 @@ function computeFormatGaps(videos) {
 // ──────────────────────────────────────────────────
 // Cadence gaps — day-of-week × time-of-day density (Mountain Time)
 // ──────────────────────────────────────────────────
+//
+// Phase 2.7a — returns three views of the same heatmap:
+//   - combined (top-level grids; backward compatible with audit UI consumers)
+//   - byFormat.shorts / byFormat.long_form
+//
+// Why: a Wed 6am cell that's 80% Shorts in the cohort gives a lift
+// that reflects Shorts viewing patterns, not long-form. Scoring a
+// long-form concept against the combined lift reads off the wrong
+// signal. The scorer's scoreSlot reads the format-specific subgrid
+// when input.format is known; the audit page continues to render the
+// top-level combined grid as before.
 function computeCadenceGaps(videos) {
+  const combined = computeCadenceGapsForCorpus(videos);
+
+  // Per-format subgrids. Same shape; same `labels`. Scope median is
+  // computed within the format so a Wed 6am Shorts cell's lift is
+  // relative to OTHER Shorts cells, not the Shorts-dominated overall
+  // median (which would always be near 1.0 for Shorts-heavy cohorts).
+  const shortsVideos = videos.filter(v => (v.duration_seconds || 0) > 0 && (v.duration_seconds || 0) <= SHORTS_DURATION_THRESHOLD);
+  const longFormVideos = videos.filter(v => (v.duration_seconds || 0) > SHORTS_DURATION_THRESHOLD);
+
+  return {
+    ...combined,
+    byFormat: {
+      shorts:    computeCadenceGapsForCorpus(shortsVideos),
+      long_form: computeCadenceGapsForCorpus(longFormVideos),
+    },
+  };
+}
+
+function computeCadenceGapsForCorpus(videos) {
   // 7 days × 4 time blocks (Night/Morning/Afternoon/Evening, MT).
   // grid       = upload counts per cell
   // viewsGrid  = arrays of view_counts per cell — we'll reduce to medians + lift

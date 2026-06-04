@@ -694,6 +694,16 @@ function DimensionCard({ name, dim }) {
           Closest hit in cohort: <em style={{ color: '#cde4d6' }}>"{dim.top_cohort_matches[0].title}"</em>
         </div>
       )}
+      {dim.format_scope_note && (
+        <div style={{ fontSize: 10, color: '#666', marginTop: 4, fontStyle: 'italic' }}>
+          {dim.format_scope_note}
+        </div>
+      )}
+      {dim.scope_used && dim.scope_used !== 'combined' && (
+        <div style={{ fontSize: 10, color: '#666', marginTop: 4, fontStyle: 'italic' }}>
+          Scope: {dim.scope_used === 'long_form' ? 'long-form' : dim.scope_used} cohort
+        </div>
+      )}
       {dim.rationale && (
         <div style={{ fontSize: 11, color: '#888', marginTop: 6, lineHeight: 1.4 }}>
           {dim.rationale}
