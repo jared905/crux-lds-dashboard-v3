@@ -94,6 +94,51 @@ const LIFT_TIER_THRESHOLDS = {
   predicted_under:        0.85,   // below -15%
 };
 
+// ──────────────────────────────────────────────────
+// Brand-register detection (Phase 2.7b)
+// ──────────────────────────────────────────────────
+// Title-pattern ids that carry an inherent casual/hype register —
+// adding them to a sophisticated-finance or trust-sensitive channel
+// breaks brand even when the cohort-level lift supports them. The
+// tweak generator downranks suggestions touching these patterns when
+// trust-sensitive register is detected on the channel's spine.
+const REGISTER_SENSITIVE_PATTERNS = new Set(['emoji', 'allcaps']);
+
+const TRUST_REGISTER_KEYWORDS = [
+  'professional', 'authoritative', 'sophisticated', 'credible', 'trust',
+  'premium', 'expert', 'authority', 'fiduciary',
+  'financial', 'legal', 'medical', 'advisor', 'wealth', 'tax', 'estate',
+  'doctor', 'physician', 'attorney', 'lawyer',
+];
+const CASUAL_REGISTER_KEYWORDS = [
+  'casual', 'fun', 'playful', 'irreverent', 'cheeky', 'meme',
+  'lighthearted', 'snarky', 'edgy', 'unhinged',
+];
+
+/**
+ * Heuristic: does the spine's voice / POV text indicate a trust-
+ * sensitive brand register? Used to downrank hype-flavored tweaks
+ * (ALL CAPS, emoji) the cohort data alone would surface.
+ *
+ * Strict by design — only fires when trust signals clearly outweigh
+ * casual ones. False negatives are fine (we just don't add the
+ * brand-register caveat); false positives would suppress legitimate
+ * pattern recommendations on channels that genuinely benefit from
+ * casual cues.
+ */
+export function detectsTrustSensitiveRegister(spine) {
+  if (!spine) return false;
+  const text = `${spine.editorial_pov || ''} ${spine.voice_tone || ''}`.toLowerCase().trim();
+  if (!text) return false;
+
+  let trustHits = 0;
+  let casualHits = 0;
+  for (const w of TRUST_REGISTER_KEYWORDS) if (text.includes(w)) trustHits++;
+  for (const w of CASUAL_REGISTER_KEYWORDS) if (text.includes(w)) casualHits++;
+
+  return trustHits >= 2 && trustHits > casualHits;
+}
+
 // Block-label normalization. The UI uses en-dash; downstream cohort
 // data uses en-dash too. Normalize at input.
 const BLOCK_ALIASES = {
@@ -867,14 +912,34 @@ export function generateTweaks({ input, scores, cohortContext, maxTweaks = 3 }) 
 
     // Pick at most ONE "add a pattern" suggestion — adding several in
     // one tweak list reads as spammy advice.
+    //
+    // Phase 2.7b — if the channel's spine indicates a trust-sensitive
+    // register (finance, legal, medical, professional) AND the top
+    // candidate is a register-sensitive pattern (emoji, ALL CAPS),
+    // we (a) annotate the suggestion with a brand-register warning
+    // and (b) heavily downrank its priority so it falls beneath
+    // register-neutral suggestions in the rank-and-cap step.
+    //
+    // The strategist sees the data ("the cohort does this and it
+    // lifts X%") but also sees the explicit "may break brand
+    // register" flag — and the LLM strategic read (which now
+    // receives the spine context) can reinforce the editorial call.
+    const trustSensitive = detectsTrustSensitiveRegister(cohortContext?.spine);
     const top = candidates[0];
     if (top) {
       const liftPct = Math.round((top.viewsLift - 1) * 100);
+      const isRegisterSensitive = REGISTER_SENSITIVE_PATTERNS.has(top.id);
+      const registerWarning = (isRegisterSensitive && trustSensitive)
+        ? ` ⚠ may break brand register for this channel`
+        : '';
       tweaks.push({
         dimension: 'title_patterns',
-        suggestion: `Add a "${top.label.toLowerCase()}" element — cohort lift +${liftPct}% statistical (n=${top.count})`,
+        suggestion: `Add a "${top.label.toLowerCase()}" element — cohort lift +${liftPct}% statistical (n=${top.count})${registerWarning}`,
         projected_lift_pct: liftPct,
-        priority: liftPct,
+        // Downrank to 30% of nominal when register-sensitive on a
+        // trust-sensitive channel — drops it well below register-
+        // neutral suggestions of comparable lift.
+        priority: (isRegisterSensitive && trustSensitive) ? liftPct * 0.3 : liftPct,
       });
     }
   }

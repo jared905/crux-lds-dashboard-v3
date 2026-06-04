@@ -31,7 +31,7 @@
  * before producing").
  */
 
-export const STRATEGIC_READ_PROMPT_VERSION = 'v1-scorer-strategic-read';
+export const STRATEGIC_READ_PROMPT_VERSION = 'v2-scorer-strategic-read-brand-register';
 
 /**
  * Generate a 3-4 sentence strategic narrative for a scored concept.
@@ -81,6 +81,7 @@ Rules:
 - Lead with the strongest specific number from the scores (e.g. "Wed 6am-12pm carries a +90% statistical lift").
 - Name any drag or format-skew warning explicitly. If a pattern's lift is mostly Shorts-driven and this concept is long-form, say so.
 - Distinguish statistical from directional confidence in plain English. Directional = "early signal, worth testing once" not "this will work".
+- Brand-register check: if the channel's voice + editorial POV indicate a trust-sensitive register (finance, legal, medical, professional services), question whether high-lift hype-flavored tweaks (ALL CAPS, emoji, clickbait phrasing) would violate brand register — even when the cohort data supports them. Cohort lift on a register-mismatched tweak is short-term clicks at the cost of long-term audience trust; flag this explicitly when relevant.
 - Close with the gate read: does it clear / clear with caveats / need re-work, with the dominant reason.
 - Plain language. NO hype words: leverage, unlock, robust, innovative, stands out, compelling, powerful, game-changer, cutting-edge.
 - No bullets, no markdown, no headers. Continuous prose, 3-4 sentences.
@@ -111,6 +112,22 @@ function buildUserPrompt({ input, scoringOutput, cohortSummary }) {
     }
     if (cohortSummary.topGap) lines.push(`- Notable gap in cohort: ${cohortSummary.topGap}`);
     if (cohortSummary.topBreakout) lines.push(`- Active breakout in cohort: ${cohortSummary.topBreakout}`);
+    lines.push('');
+  }
+
+  // Phase 2.7b — brand-register context. Lets the LLM judge whether
+  // pattern-tweak suggestions (especially ALL CAPS / emoji / hype
+  // language) align with the channel's editorial voice, instead of
+  // taking cohort-level lift numbers as universally portable.
+  const spine = cohortSummary.spine || {};
+  if (spine.editorial_pov?.trim() || spine.voice_tone?.trim()) {
+    lines.push('BRAND REGISTER (from Strategy Spine):');
+    if (spine.editorial_pov?.trim()) {
+      lines.push(`- Editorial POV: ${spine.editorial_pov.trim()}`);
+    }
+    if (spine.voice_tone?.trim()) {
+      lines.push(`- Voice + tone: ${spine.voice_tone.trim()}`);
+    }
     lines.push('');
   }
 

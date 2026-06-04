@@ -128,6 +128,10 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
           setCohortContext({
             patternsResult: data.patternsResult,
             whiteSpaceResult: data.whiteSpaceResult,
+            // Phase 2.7b — pull the spine through so the scorer's tweak
+            // generator and the LLM strategic-read prompt can apply
+            // brand-register judgment to pattern recommendations.
+            spine: data.spine || null,
             coverage: data.coverage,
             channelCount: (data.channels || []).length,
             videoCount: data.coverage?.videoCount,
@@ -221,6 +225,9 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
           hookResult,
           conceptEmbedding,
           topicAuthorityContext,
+          // Phase 2.7b — spine drives brand-register awareness in
+          // the tweak generator. Null is fine.
+          spine: cohortContext.spine,
         },
       });
 
@@ -254,6 +261,9 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
           clientName,
           channelCount: cohortContext.channelCount,
           videoCount: cohortContext.videoCount,
+          // Phase 2.7b — brand-register context drives the LLM's
+          // judgment about which pattern tweaks are appropriate.
+          spine: cohortContext.spine,
         },
       });
       if (text) {
