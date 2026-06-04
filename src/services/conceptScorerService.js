@@ -105,14 +105,28 @@ const LIFT_TIER_THRESHOLDS = {
 const REGISTER_SENSITIVE_PATTERNS = new Set(['emoji', 'allcaps']);
 
 const TRUST_REGISTER_KEYWORDS = [
+  // Voice / register descriptors
   'professional', 'authoritative', 'sophisticated', 'credible', 'trust',
-  'premium', 'expert', 'authority', 'fiduciary',
-  'financial', 'legal', 'medical', 'advisor', 'wealth', 'tax', 'estate',
-  'doctor', 'physician', 'attorney', 'lawyer',
+  'premium', 'expert', 'authority', 'fiduciary', 'serious',
+  // Domain signals — finance
+  'financial', 'finance', 'advisor', 'adviser', 'wealth', 'investment',
+  'investing', 'investor', 'portfolio', 'retirement', 'retire',
+  'planner', 'planning', 'asset', 'income', 'tax', 'estate',
+  // Domain signals — legal / medical / regulated
+  'legal', 'medical', 'doctor', 'physician', 'attorney', 'lawyer',
+  'compliance', 'regulated',
+];
+// Exact multi-word phrases that lock the register decisively. Any
+// single match here flips trust-sensitive to true regardless of the
+// keyword-count tally below.
+const TRUST_REGISTER_PHRASES = [
+  'financial advisor', 'financial adviser', 'investment advisor',
+  'investment adviser', 'wealth management', 'retirement planning',
+  'financial planner', 'family office', 'high net worth',
 ];
 const CASUAL_REGISTER_KEYWORDS = [
   'casual', 'fun', 'playful', 'irreverent', 'cheeky', 'meme',
-  'lighthearted', 'snarky', 'edgy', 'unhinged',
+  'lighthearted', 'snarky', 'edgy', 'unhinged', 'goofy', 'silly',
 ];
 
 /**
@@ -120,23 +134,31 @@ const CASUAL_REGISTER_KEYWORDS = [
  * sensitive brand register? Used to downrank hype-flavored tweaks
  * (ALL CAPS, emoji) the cohort data alone would surface.
  *
- * Strict by design — only fires when trust signals clearly outweigh
- * casual ones. False negatives are fine (we just don't add the
- * brand-register caveat); false positives would suppress legitimate
- * pattern recommendations on channels that genuinely benefit from
- * casual cues.
+ * Loosened in 2.7b followup after the Kendall Stahl smoke test
+ * showed the LLM correctly identifying trust register from the same
+ * spine text that my heuristic was missing. New logic:
+ *   - Any TRUST_REGISTER_PHRASES match → trust-sensitive (decisive).
+ *   - Otherwise: trustHits >= 1 AND trustHits > casualHits.
+ *
+ * False positives just suppress one pattern suggestion — recoverable.
+ * False negatives (the old failure mode) let an off-register tweak
+ * surface unchallenged, which is the worse outcome.
  */
 export function detectsTrustSensitiveRegister(spine) {
   if (!spine) return false;
   const text = `${spine.editorial_pov || ''} ${spine.voice_tone || ''}`.toLowerCase().trim();
   if (!text) return false;
 
+  for (const phrase of TRUST_REGISTER_PHRASES) {
+    if (text.includes(phrase)) return true;
+  }
+
   let trustHits = 0;
   let casualHits = 0;
   for (const w of TRUST_REGISTER_KEYWORDS) if (text.includes(w)) trustHits++;
   for (const w of CASUAL_REGISTER_KEYWORDS) if (text.includes(w)) casualHits++;
 
-  return trustHits >= 2 && trustHits > casualHits;
+  return trustHits >= 1 && trustHits > casualHits;
 }
 
 // Block-label normalization. The UI uses en-dash; downstream cohort
