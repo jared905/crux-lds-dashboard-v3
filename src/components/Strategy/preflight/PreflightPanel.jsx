@@ -676,11 +676,65 @@ function ScorecardDisplay({ scorecard, reading }) {
             )}
         </div>
       )}
+
+      {/* Panel-level methodology footer — explains the framework once.
+          Always visible (collapsed); strategist clicks to expand. Per-
+          card methodology is the per-dimension specifics; this is the
+          overall logic (confidence definitions, tier thresholds,
+          composite rules) that doesn't fit on a single card. */}
+      <HowWeScoreFooter />
+    </div>
+  );
+}
+
+// Panel-level "How we score" footer — the framework explanation.
+// Collapsed by default; one click reveals confidence definitions, tier
+// thresholds, and composite logic. Each per-dimension card has its own
+// formula/sample/caveats expander; this footer covers what's shared
+// across all of them.
+function HowWeScoreFooter() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #1f1f24' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} style={methodologyToggleStyle}>
+        {open ? '▾' : '▸'} How we score · framework
+      </button>
+      {open && (
+        <div style={{ ...methodologyBlockStyle, marginTop: 8 }}>
+          <MethodLine
+            label="Confidence levels"
+            body={'Statistical: sample size clears the per-dimension floor AND removing the top-view video doesn\'t shift the median by more than 25% (drop-top stability check). Directional: sample is in the suggestive range but fails one of the two checks. Insufficient: too few data points — excluded entirely. Directional results are framed as "worth testing once" not "this will work".'}
+          />
+          <MethodLine
+            label="Dimension tiers"
+            body={'very_likely_outperform → likely_solid → risky → predicted_under. For lift-based dimensions the boundaries are roughly +50% / +15% / 0% / -15% on statistical confidence; directional shifts everything one tier toward risky. LLM and similarity dimensions use their own 1–10 or 0–1 thresholds (each card\'s methodology expander shows the specifics).'}
+          />
+          <MethodLine
+            label="Composite logic"
+            body={'Two or more dimensions at predicted_under → composite predicted_under. Any one predicted_under → composite caps at risky. Two or more very_likely_outperform with no underperformers → composite very_likely_outperform. Majority risky → composite risky. Null dimensions self-exclude (they don\'t drag the composite down — they\'re just absent).'}
+          />
+          <MethodLine
+            label="What's NOT measured"
+            body={'Algorithmic luck on initial seed delivery. Topic trend tailwinds at upload time. Hook execution quality past the title-promise alignment. Off-platform amplification. Audience mood. The composite is a concept gate — not a view-count forecast.'}
+          />
+          <MethodLine
+            label="Cohort window"
+            body={'90 days by default. Snapshot timestamp shown on each scorecard (cohort_data_at) so older scorecards stay interpretable when the audit refreshes.'}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
 function DimensionCard({ name, dim }) {
+  // Methodology expander state — collapsed by default. Strategist
+  // clicks "How this was computed" to reveal formula + sample +
+  // confidence definition + per-dimension caveats. The data the
+  // methodology block reads has been computed all along; we just
+  // weren't surfacing it.
+  const [methodologyOpen, setMethodologyOpen] = useState(false);
+
   // Pick the primary metric to render. Title/slot/length carry a
   // lift_pct (or composite_lift_pct). Surface fit uses share-of-views.
   // Search keyword match uses match %. Each picks the most descriptive
@@ -771,8 +825,199 @@ function DimensionCard({ name, dim }) {
         </div>
       )}
       {dim.note && <div style={{ fontSize: 11, color: '#888', marginTop: 4, fontStyle: 'italic' }}>{dim.note}</div>}
+
+      {/* Methodology — collapsed by default. The data the methodology
+          block reads is the same data the score above is built from;
+          this just exposes the formula + sample + confidence rules so
+          a strategist can defend the number to a stakeholder. */}
+      <button
+        type="button"
+        onClick={() => setMethodologyOpen(o => !o)}
+        style={methodologyToggleStyle}
+      >
+        {methodologyOpen ? '▾' : '▸'} How this was computed
+      </button>
+      {methodologyOpen && <MethodologyBlock dim={dim} dimensionName={name} />}
     </div>
   );
+}
+
+// Methodology helper — takes a dimension's score object and renders
+// the formula, sample, confidence definition, and any caveats. Reads
+// from the same data the score itself was computed from. Per-dimension
+// branches because each dimension has different math + provenance.
+function MethodologyBlock({ dim, dimensionName }) {
+  const m = buildMethodology(dim, dimensionName);
+  return (
+    <div style={methodologyBlockStyle}>
+      <MethodLine label="Formula" body={m.formula} />
+      {m.sample &&     <MethodLine label="Sample"     body={m.sample} />}
+      {m.confidence && <MethodLine label="Confidence" body={m.confidence} />}
+      {m.caveats?.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div style={methodLabelStyle}>Caveats</div>
+          {m.caveats.map((c, i) => (
+            <div key={i} style={methodCaveatStyle}>• {c}</div>
+          ))}
+        </div>
+      )}
+      {m.source && <MethodLine label="Source" body={m.source} />}
+    </div>
+  );
+}
+
+function MethodLine({ label, body }) {
+  return (
+    <div style={{ marginTop: 4 }}>
+      <span style={methodLabelStyle}>{label}: </span>
+      <span style={methodBodyStyle}>{body}</span>
+    </div>
+  );
+}
+
+// Builds the methodology content for a dimension based on its shape.
+// Reads the same fields the DimensionCard already renders — confidence,
+// n, scope_used, format-skew warnings, dominant_source, etc. — and
+// composes them into prose a strategist can show a stakeholder.
+function buildMethodology(dim, dimensionName) {
+  const name = (dimensionName || '').toLowerCase();
+
+  // Title pattern stack
+  if (dim.matched !== undefined && dim.drags !== undefined) {
+    const matchedCount = dim.matched?.length || 0;
+    const dragCount = dim.drags?.length || 0;
+    const hasFormatSkew = dim.matched?.some?.(m => m.format_skew_warning);
+    return {
+      formula: 'For each title-pattern the title matches, lift = (trimmed median views of cohort videos matching this pattern) ÷ (trimmed median views across the full cohort scope). The dimension tier is set by the BEST matched pattern; "drag" patterns (statistically-negative lift) cap the composite when present.',
+      sample: `${matchedCount} pattern${matchedCount === 1 ? '' : 's'} matched in title, ${dragCount} drag${dragCount === 1 ? '' : 's'} (negative-lift patterns also present). Each match cites its own sample size (n=).`,
+      confidence: 'Statistical: pattern n ≥ 30 AND removing the top-view video doesn\'t shift the median by more than 25% (drop-top stability check). Directional: n ≥ 10 but fails the drop-top check, or borderline sample size. Insufficient: n < 10 — pattern excluded.',
+      caveats: [
+        hasFormatSkew ? 'Format-skew warning fired: at least one matched pattern is dominated by the opposite format in the cohort (Shorts vs long-form). The lift figure may not transfer to this video\'s format.' : null,
+        dragCount >= 2 ? 'Two or more drag patterns present — composite caps at "predicted under" regardless of positive matches.' : (dragCount === 1 ? 'One drag pattern present — composite caps at "risky" regardless of positive matches.' : null),
+      ].filter(Boolean),
+      source: 'patternsService — 14 regex patterns evaluated against cohort videos in the 90-day window.',
+    };
+  }
+
+  // Slot (cadence heatmap)
+  if (dim.day !== undefined && dim.block !== undefined) {
+    return {
+      formula: 'Lift = (trimmed median views of cohort videos uploaded in this day × hour-block) ÷ (cohort scope median). Day × hour-block is computed in Mountain Time; weekday is one of Sun–Sat, block is 12am–6am / 6am–12pm / 12pm–6pm / 6pm–12am.',
+      sample: `n=${dim.n ?? 0} cohort uploads in the ${dim.day} ${dim.block} cell, 90-day window.`,
+      confidence: 'Statistical: cell n ≥ 30 AND drop-top stability check passes. Directional: n ≥ 5 but fails drop-top or low sample. Insufficient: n < 5 — cell shows no lift.',
+      caveats: [
+        dim.scope_used && dim.scope_used !== 'combined'
+          ? `Phase 2.7a filter active — this slot was scored against the ${dim.scope_used === 'long_form' ? 'long-form' : 'Shorts'}-only cohort subgrid, not the format-mixed combined grid.`
+          : 'Currently scoring against the format-mixed combined grid — the format-specific subgrid for this cell was below the statistical floor, so we fell back to combined.',
+      ].filter(Boolean),
+      source: 'whiteSpaceService.computeCadenceGaps — 7×4 grid of upload counts + view medians per cell.',
+    };
+  }
+
+  // Length (long-form only)
+  if (dim.bucket !== undefined && dim.bucket_id !== undefined) {
+    return {
+      formula: 'Lift = (trimmed median views of cohort videos in this length bucket) ÷ (long-form median across the cohort). Critically, the baseline is the LONG-FORM median, not the all-videos median — comparing 8–15 min content against a Shorts-diluted scope median would inflate every long-form bucket.',
+      sample: `n=${dim.n ?? 0} cohort videos in the ${dim.bucket} bucket.`,
+      confidence: 'Statistical: n ≥ 30. Directional: 10 ≤ n < 30. Insufficient: n < 10 — bucket lift excluded.',
+      caveats: [
+        'Length scoring runs only for long-form (>180s). Shorts lift comes from a different signal — completion + loops, not length.',
+      ],
+      source: 'whiteSpaceService.computeFormatGaps — length-class baselined per the LDS audit pipeline.',
+    };
+  }
+
+  // Topic (whitespace coverage)
+  if (dim.saturation !== undefined || dim.matched_topic_name !== undefined) {
+    return {
+      formula: 'Topic coverage classification from the cohort\'s top-80 titles, clustered by Claude into 8–12 themes. Saturated: theme covers >15% of titles. Moderate: 5–15%. Gap: <5%.',
+      sample: `Theme "${dim.matched_topic_name || dim.label}" — ${dim.cohort_share_pct}% of the top-80 cohort titles fall in this theme.`,
+      confidence: 'This dimension is classification, not a measured lift. Treat as directional — the inference is "if no one is producing X and X performs well, there\'s room to claim it," not a forecast.',
+      caveats: dim.note ? [dim.note] : (
+        !dim.matched_topic_name ? ['Topic label not found in cohort clusters — treated as novel gap with no empirical backing.'] : []
+      ),
+      source: 'whiteSpaceService.computeTopicCoverage — Claude clustering of cohort\'s highest-view titles, cached 7 days.',
+    };
+  }
+
+  // Surface fit (Phase 2.5)
+  if (dim.target_surface !== undefined && dim.surface_share_pct !== undefined) {
+    return {
+      formula: 'Surface share = (views from the target surface across the channel\'s recent videos) ÷ (total views across the same set). Phase 2.5 architecture: this isn\'t a cohort lift — it\'s the channel\'s own surface profile from YouTube Analytics insightTrafficSourceType data.',
+      sample: `${dim.n_videos || 0}-video snapshot from the latest /api/youtube-analytics-surface-pull. The target surface (${dim.target_surface}) carries ${dim.surface_share_pct}% of channel views over the snapshot window.`,
+      confidence: 'Statistical when n ≥ 10 videos in the snapshot. Direct measurement from YouTube Analytics — no inference layer, but reflects only THIS channel, not the cohort.',
+      caveats: [
+        dim.divergence_warning,
+        !dim.is_dominant && dim.dominant_surface ? `Targeting ${dim.target_surface} but ${dim.dominant_surface} carries ${dim.dominant_share_pct}% — this channel\'s algorithmic home is elsewhere.` : null,
+      ].filter(Boolean),
+      source: 'client_video_traffic_sources (latest snapshot) — direct YouTube Analytics insightTrafficSourceType.',
+    };
+  }
+
+  // Search keyword match (Phase 2.5)
+  if (dim.match_pct !== undefined && dim.total_unbranded_queries !== undefined) {
+    return {
+      formula: 'Match % = (number of top-20 unbranded search queries that share ≥1 non-stopword token with the proposed title) ÷ 20. Branded queries (containing the channel name/handle) are excluded at ingest — they reflect audience that already knew the brand.',
+      sample: `${dim.total_unbranded_queries} unbranded queries pulled from channel-level YT_SEARCH detail (per-video aggregation), 90-day window. ${dim.matched_count} match the title's token set.`,
+      confidence: 'Direct measurement from YouTube Analytics. Statistical when total unbranded queries ≥ 20.',
+      caveats: [
+        dim.total_unbranded_queries < 20 ? `Only ${dim.total_unbranded_queries} unbranded queries available — match % is a small-sample read.` : null,
+        'Branded vs unbranded classification is conservative — false negatives (letting a branded query through) pollute the keyword pool but don\'t hide signal.',
+      ].filter(Boolean),
+      source: 'client_search_queries (latest snapshot) — YT_SEARCH detail per video, aggregated channel-wide.',
+    };
+  }
+
+  // Curiosity gap (Phase 2.6 step 1)
+  if (dim.curiosity_score !== undefined) {
+    return {
+      formula: 'Claude 1–10 rating of whether the title leaves an OPEN LOOP — a specific question or implied payoff the viewer can\'t predict from the title alone. Title-only input; format passed as context.',
+      sample: 'One LLM call per (title, format) — single judgment, no cohort comparison.',
+      confidence: `Prompt version ${dim.prompt_version || 'v1-curiosity-1-10'}. ${dim.cached ? 'Result was served from cache — original Claude call happened earlier and the result was stable enough to re-use.' : 'Fresh Claude call.'} Cached by (title, format, prompt-version) with 30-day TTL.`,
+      caveats: [
+        'LLM ratings have inherent variability — same title may score ±1 across calls. Score boundaries (3/4, 6/7, 8/9) are softer than they appear.',
+        'Trust-sensitive niches deserve a lower bar for "good enough" curiosity — over-engineering a curiosity hook trades brand register for short-term clicks.',
+      ],
+      source: 'curiosityGapService — Claude Sonnet 4.5, max 300 output tokens.',
+    };
+  }
+
+  // Hook promise delivery (Phase 2.6 step 2)
+  if (dim.hook_score !== undefined) {
+    return {
+      formula: 'Claude 1–10 rating of whether the strategist-provided "hook beat" (1–2 sentences describing the first 15 seconds) delivers on the title\'s specific promise. Mis-alignment is the most common reason high-CTR videos lose retention at 0:30.',
+      sample: 'One LLM call per (title, hook-beat, format) tuple. Only fires when the hook-beat field is filled.',
+      confidence: `Prompt version ${dim.prompt_version || 'v1-hook-delivery-1-10'}. ${dim.cached ? 'Cached result.' : 'Fresh Claude call.'} Cached by (title, hook-beat, format, prompt-version), 30-day TTL.`,
+      caveats: [
+        'Quality of this score depends on the strategist\'s hook-beat description — a vague beat will rate the title charitably.',
+        'The check is title-promise vs hook only; doesn\'t evaluate hook craft (pacing, cold-open quality) — only alignment.',
+      ],
+      source: 'hookPromiseDeliveryService — Claude Sonnet 4.5.',
+    };
+  }
+
+  // Topic authority (Phase 2.6 step 3)
+  if (dim.topic_max_similarity !== undefined) {
+    return {
+      formula: 'Cosine similarity between the proposed title\'s OpenAI text-embedding-3-small vector (1536 dims) and the embeddings of (a) the channel\'s top historical performers and (b) the cohort\'s top recent winners. The score = max similarity across the two corpora.',
+      sample: `${dim.channel_corpus_size || 0} historical hits from this channel + ${dim.cohort_corpus_size || 0} cohort recent winners (90-day window). Dominant source: ${dim.dominant_source === 'channel' ? 'this channel\'s own catalog' : 'the competitor cohort'}.`,
+      confidence: 'Direct geometric similarity, deterministic — but thresholds (0.55 / 0.40 / 0.25) are calibrated against text-embedding-3-small\'s typical 0.30–0.70 range for related content. Thresholds are tunable.',
+      caveats: [
+        dim.format_scope_note,
+        'Text embeddings capture form similarity as well as topic. A non-matching topic with a familiar title shape ("X are better than Y") will still hit ~30% similarity. The composite logic plus other dimensions handle the false-positive risk.',
+      ].filter(Boolean),
+      source: 'topicAuthorityService — embeddings computed via /api/openai-embeddings, similarity computed client-side over the latest backfill snapshot.',
+    };
+  }
+
+  // Default fallback for unknown dimension shapes
+  return {
+    formula: 'Per-dimension methodology not documented for this shape.',
+    sample: null,
+    confidence: null,
+    caveats: [],
+    source: null,
+  };
 }
 
 function TierBadge({ tier, size = 'sm' }) {
@@ -999,6 +1244,49 @@ const altTitlesCardStyle = {
   borderRadius: 6,
   padding: 12,
   marginTop: 10,
+};
+
+// Methodology toggle + block (Phase 2.7 follow-up — methodology transparency).
+// Expose formula + sample + confidence + caveats per dimension so the
+// scorer is defensible to a stakeholder (CFO, brand exec, legal).
+const methodologyToggleStyle = {
+  marginTop: 10,
+  background: 'transparent',
+  border: 'none',
+  padding: 0,
+  color: '#666',
+  fontSize: 10,
+  fontWeight: 600,
+  letterSpacing: 0.4,
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+  textAlign: 'left',
+};
+const methodologyBlockStyle = {
+  marginTop: 8,
+  padding: 10,
+  background: 'rgba(255, 250, 241, 0.03)',
+  border: '1px solid rgba(255, 250, 241, 0.08)',
+  borderLeft: '2px solid rgba(10, 145, 155, 0.40)',
+  borderRadius: 4,
+};
+const methodLabelStyle = {
+  fontSize: 10,
+  color: '#0A919B',
+  textTransform: 'uppercase',
+  letterSpacing: 0.7,
+  fontWeight: 700,
+};
+const methodBodyStyle = {
+  fontSize: 11,
+  color: '#aaa',
+  lineHeight: 1.5,
+};
+const methodCaveatStyle = {
+  fontSize: 11,
+  color: '#E8A82B',
+  lineHeight: 1.5,
+  marginTop: 3,
 };
 // Phase 2.5 — target-surface tag bar + chip styles
 const targetTagStyle = {
