@@ -28,9 +28,11 @@ import {
   saveScorecard,
   listScorecards,
   updateStrategicRead,
+  updateExecutiveMemo,
   archiveScorecard,
 } from '../../../services/conceptScorecardsService';
 import { generateStrategicRead } from '../../../services/strategicReadService';
+import { generateExecutiveMemo } from '../../../services/executiveMemoService';
 import { generateAlternativeTitles } from '../../../services/alternativeTitlesService';
 import { loadSurfaceContext, TARGET_SURFACES } from '../../../services/surfaceIntelligenceService';
 import { rateCuriosityGap } from '../../../services/curiosityGapService';
@@ -112,6 +114,8 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
   const [scoringPhase, setScoringPhase] = useState(null); // 'scoring' | 'saving' | 'reading' | null
   const [currentScorecard, setCurrentScorecard] = useState(null);
   const [actionError, setActionError] = useState(null);
+  const [memoGenerating, setMemoGenerating] = useState(false);
+  const [memoError, setMemoError] = useState(null);
 
   // Load cohort context + history on mount
   useEffect(() => {
@@ -311,6 +315,57 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
     if (currentScorecard?.id === id) setCurrentScorecard(null);
   };
 
+  // Generate the executive justification memo for the currently-loaded
+  // scorecard. On-demand (not auto-fired in handleScore) because only a
+  // subset of scorecards head to stakeholder approval — paying for an
+  // LLM call on every score would be wasteful. The memo is cached on
+  // the row so a Director can return to it later without re-spending.
+  const handleGenerateMemo = async () => {
+    if (!currentScorecard?.id) return;
+    if (!cohortContext) { setMemoError('Cohort context missing'); return; }
+    setMemoGenerating(true);
+    setMemoError(null);
+    try {
+      const cohortSummary = {
+        clientName,
+        channelCount: cohortContext.channelCount,
+        videoCount: cohortContext.videoCount,
+      };
+      const result = await generateExecutiveMemo({
+        input:              currentScorecard.input,
+        scoringOutput:      {
+          scores:              currentScorecard.scores,
+          composite_tier:      currentScorecard.composite_tier,
+          composite_rationale: currentScorecard.composite_rationale,
+          suggested_tweaks:    currentScorecard.suggested_tweaks,
+        },
+        strategicRead:      currentScorecard.strategic_read,
+        alternativeTitles:  currentScorecard.alternative_titles || [],
+        cohortSummary,
+        spine:              cohortContext.spine,
+      });
+      if (result.error || !result.text) {
+        setMemoError(result.error || 'Memo generation returned empty');
+        return;
+      }
+      await updateExecutiveMemo({
+        id: currentScorecard.id,
+        text: result.text,
+        promptVersion: result.promptVersion,
+      });
+      setCurrentScorecard({
+        ...currentScorecard,
+        executive_memo: result.text,
+        executive_memo_generated_at: new Date().toISOString(),
+      });
+      refreshHistory();
+    } catch (err) {
+      setMemoError(err?.message || 'Memo generation failed');
+    } finally {
+      setMemoGenerating(false);
+    }
+  };
+
   // ── Render ──
   const accent = TIER_COLORS.very_likely_outperform.fg;
 
@@ -360,7 +415,13 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
           {actionError && <InlineNote tone="error">{actionError}</InlineNote>}
 
           {currentScorecard && (
-            <ScorecardDisplay scorecard={currentScorecard} reading={scoringPhase === 'reading'} />
+            <ScorecardDisplay
+              scorecard={currentScorecard}
+              reading={scoringPhase === 'reading'}
+              memoGenerating={memoGenerating}
+              memoError={memoError}
+              onGenerateMemo={handleGenerateMemo}
+            />
           )}
 
           <ScorecardHistory
@@ -592,8 +653,12 @@ function TargetSurfaceTag({ value, onChange, surfaceContext }) {
 // Scorecard display
 // ──────────────────────────────────────────────────
 
-function ScorecardDisplay({ scorecard, reading }) {
-  const { scores, composite_tier, composite_rationale, suggested_tweaks, strategic_read, alternative_titles, input } = scorecard;
+function ScorecardDisplay({ scorecard, reading, memoGenerating, memoError, onGenerateMemo }) {
+  const {
+    scores, composite_tier, composite_rationale, suggested_tweaks,
+    strategic_read, alternative_titles, executive_memo, executive_memo_generated_at,
+    input,
+  } = scorecard;
   return (
     <div style={scorecardCardStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, marginBottom: 14 }}>
@@ -677,6 +742,20 @@ function ScorecardDisplay({ scorecard, reading }) {
         </div>
       )}
 
+      {/* Executive justification memo — on-demand artifact for
+          stakeholder approval. Not generated automatically; the Director
+          clicks Generate when this specific scorecard is headed to a VP
+          / legal review. Cached on the row so the same artifact can be
+          recalled later. Cleared when the scorecard is re-scored. */}
+      <ExecutiveMemoSection
+        memo={executive_memo}
+        generatedAt={executive_memo_generated_at}
+        generating={memoGenerating}
+        error={memoError}
+        saved={!scorecard._unsaved}
+        onGenerate={onGenerateMemo}
+      />
+
       {/* Panel-level methodology footer — explains the framework once.
           Always visible (collapsed); strategist clicks to expand. Per-
           card methodology is the per-dimension specifics; this is the
@@ -685,6 +764,185 @@ function ScorecardDisplay({ scorecard, reading }) {
       <HowWeScoreFooter />
     </div>
   );
+}
+
+// ──────────────────────────────────────────────────
+// Executive memo section
+// ──────────────────────────────────────────────────
+
+function ExecutiveMemoSection({ memo, generatedAt, generating, error, saved, onGenerate }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!memo) return;
+    try {
+      await navigator.clipboard.writeText(memo);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Silent fail — modern browsers should never hit this in HTTPS contexts.
+    }
+  };
+
+  if (!memo && !generating && !error) {
+    return (
+      <div style={memoCollapsedStyle}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+            Executive justification memo
+          </div>
+          <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
+            One-page stakeholder-ready artifact: verdict, hypothesis, why-now, predicted performance,
+            risks, success criteria. Generate when this scorecard is headed to a Director / VP approval.
+          </div>
+        </div>
+        <button
+          onClick={onGenerate}
+          disabled={!saved}
+          style={memoGenerateBtnStyle(!saved)}
+          title={!saved ? 'Save the scorecard before generating a memo' : 'Generate the executive memo'}
+        >
+          {saved ? 'Generate memo' : 'Save first'}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={memoCardStyle}>
+      <div style={memoHeaderStyle}>
+        <div>
+          <div style={{ fontSize: 10, color: '#0A919B', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 4 }}>
+            Executive justification memo
+          </div>
+          {generatedAt && (
+            <div style={{ fontSize: 11, color: '#666' }}>
+              Generated {formatRelative(generatedAt)}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {memo && (
+            <button onClick={handleCopy} style={memoActionBtnStyle}>
+              {copied ? '✓ Copied' : 'Copy markdown'}
+            </button>
+          )}
+          <button onClick={onGenerate} disabled={generating} style={memoActionBtnStyle}>
+            {generating ? 'Regenerating…' : 'Regenerate'}
+          </button>
+        </div>
+      </div>
+
+      {generating && !memo && (
+        <div style={{ fontSize: 13, color: '#888', fontStyle: 'italic', padding: '20px 0' }}>
+          Drafting the executive memo…
+        </div>
+      )}
+
+      {error && (
+        <InlineNote tone="error">{error}</InlineNote>
+      )}
+
+      {memo && (
+        <div style={memoBodyStyle}>
+          {renderMarkdown(memo)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Minimal markdown renderer — handles the section headers, bold text,
+// bullet lists, and paragraphs the prompt enforces. Heavier markdown
+// libraries pull in too much bundle weight for this narrow use.
+function renderMarkdown(md) {
+  const lines = md.split('\n');
+  const nodes = [];
+  let listBuf = [];
+  let paraBuf = [];
+
+  const flushList = () => {
+    if (listBuf.length) {
+      nodes.push(
+        <ul key={`ul-${nodes.length}`} style={{ margin: '4px 0 10px 0', paddingLeft: 22 }}>
+          {listBuf.map((item, i) => (
+            <li key={i} style={{ fontSize: 13, color: '#e8e2d0', lineHeight: 1.5, marginBottom: 4 }}>
+              {renderInline(item)}
+            </li>
+          ))}
+        </ul>
+      );
+      listBuf = [];
+    }
+  };
+  const flushPara = () => {
+    if (paraBuf.length) {
+      const text = paraBuf.join(' ');
+      nodes.push(
+        <p key={`p-${nodes.length}`} style={{ fontSize: 13, color: '#e8e2d0', lineHeight: 1.55, margin: '4px 0 10px 0' }}>
+          {renderInline(text)}
+        </p>
+      );
+      paraBuf = [];
+    }
+  };
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) {
+      flushList(); flushPara();
+      continue;
+    }
+    if (line.startsWith('## ')) {
+      flushList(); flushPara();
+      nodes.push(
+        <h3 key={`h-${nodes.length}`} style={{ fontSize: 12, color: '#0A919B', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, margin: '14px 0 6px 0' }}>
+          {line.slice(3)}
+        </h3>
+      );
+      continue;
+    }
+    if (line.startsWith('- ') || line.startsWith('* ')) {
+      flushPara();
+      listBuf.push(line.slice(2));
+      continue;
+    }
+    flushList();
+    paraBuf.push(line);
+  }
+  flushList(); flushPara();
+  return nodes;
+}
+
+function renderInline(text) {
+  // Bold via **...**, italic via *...* (single-pair). Greedy but safe
+  // for the memo prompt which uses both sparingly.
+  const parts = [];
+  let i = 0; let key = 0;
+  while (i < text.length) {
+    const bold = text.indexOf('**', i);
+    const italic = text.indexOf('*', i);
+    // Prefer the earlier delimiter; if bold's start is at italic's start,
+    // bold wins (bold is `**`, italic is `*`).
+    const isBoldFirst = bold !== -1 && (italic === -1 || bold <= italic);
+    if (isBoldFirst) {
+      const end = text.indexOf('**', bold + 2);
+      if (end === -1) { parts.push(text.slice(i)); break; }
+      if (bold > i) parts.push(text.slice(i, bold));
+      parts.push(<strong key={key++} style={{ color: '#cde4d6' }}>{text.slice(bold + 2, end)}</strong>);
+      i = end + 2;
+    } else if (italic !== -1) {
+      const end = text.indexOf('*', italic + 1);
+      if (end === -1) { parts.push(text.slice(i)); break; }
+      if (italic > i) parts.push(text.slice(i, italic));
+      parts.push(<em key={key++} style={{ color: '#aaa' }}>{text.slice(italic + 1, end)}</em>);
+      i = end + 1;
+    } else {
+      parts.push(text.slice(i));
+      break;
+    }
+  }
+  return parts;
 }
 
 // Panel-level "How we score" footer — the framework explanation.
@@ -1245,6 +1503,43 @@ const altTitlesCardStyle = {
   padding: 12,
   marginTop: 10,
 };
+
+const memoCollapsedStyle = {
+  display: 'flex', alignItems: 'center', gap: 14,
+  background: '#1a1a1f',
+  border: '1px dashed #2a2a30',
+  borderRadius: 6,
+  padding: 14,
+  marginTop: 10,
+};
+const memoCardStyle = {
+  background: '#0e0e11',
+  border: '1px solid rgba(10, 145, 155, 0.20)',
+  borderLeft: '2px solid #0A919B',
+  borderRadius: 6,
+  padding: 16,
+  marginTop: 10,
+};
+const memoHeaderStyle = {
+  display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12,
+  paddingBottom: 10, marginBottom: 6, borderBottom: '1px solid #2a2a30',
+};
+const memoBodyStyle = { paddingTop: 4 };
+const memoActionBtnStyle = {
+  background: '#1a1a1f', color: '#cde4d6',
+  border: '1px solid #2a2a30', borderRadius: 4,
+  padding: '5px 12px', fontSize: 11, fontWeight: 600,
+  cursor: 'pointer', letterSpacing: 0.3,
+};
+const memoGenerateBtnStyle = (disabled) => ({
+  background: disabled ? '#1a1a1f' : '#0A919B',
+  color: disabled ? '#666' : '#0a0a0e',
+  border: disabled ? '1px solid #2a2a30' : 'none',
+  padding: '8px 16px', borderRadius: 5,
+  fontSize: 12, fontWeight: 700, letterSpacing: 0.3,
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  whiteSpace: 'nowrap', flexShrink: 0,
+});
 
 // Methodology toggle + block (Phase 2.7 follow-up — methodology transparency).
 // Expose formula + sample + confidence + caveats per dimension so the

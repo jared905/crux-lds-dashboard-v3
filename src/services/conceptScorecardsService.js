@@ -117,7 +117,7 @@ export async function listScorecards({
 
   let q = supabase
     .from('client_concept_scorecards')
-    .select('id, pillar_id, created_at, created_by, input, composite_tier, composite_rationale, strategic_read, cohort_data_at, archived_at')
+    .select('id, pillar_id, created_at, created_by, input, composite_tier, composite_rationale, strategic_read, executive_memo, executive_memo_generated_at, cohort_data_at, archived_at')
     .eq('client_id', clientId)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -159,6 +159,28 @@ export async function updateStrategicRead({ id, text, promptVersion }) {
 }
 
 /**
+ * Attach (or overwrite) the executive justification memo on a scorecard.
+ * Generated on demand — most scorecards don't get one. Cleared in
+ * rescoreScorecard since the memo was authored against the old scores.
+ */
+export async function updateExecutiveMemo({ id, text, promptVersion }) {
+  if (!supabase || !id) return false;
+  const { error } = await supabase
+    .from('client_concept_scorecards')
+    .update({
+      executive_memo: text,
+      executive_memo_prompt_version: promptVersion,
+      executive_memo_generated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+  if (error) {
+    console.warn('[scorecards] executive-memo update failed:', error);
+    return false;
+  }
+  return true;
+}
+
+/**
  * Re-write the deterministic scoring fields on an existing scorecard.
  *
  * Use case: the strategist hits "re-score against current cohort"
@@ -181,6 +203,12 @@ export async function rescoreScorecard({ id, scoringOutput, cohortDataAt }) {
       // Orchestrator will regenerate via the strategic-read service.
       strategic_read: null,
       strategic_read_prompt_version: null,
+      // Executive memo was authored against the old scores too — wipe
+      // it; strategist regenerates explicitly if the scorecard is still
+      // headed to stakeholder approval.
+      executive_memo: null,
+      executive_memo_prompt_version: null,
+      executive_memo_generated_at: null,
     })
     .eq('id', id);
   if (error) {
@@ -225,6 +253,7 @@ export default {
   loadScorecard,
   listScorecards,
   updateStrategicRead,
+  updateExecutiveMemo,
   rescoreScorecard,
   archiveScorecard,
   unarchiveScorecard,
