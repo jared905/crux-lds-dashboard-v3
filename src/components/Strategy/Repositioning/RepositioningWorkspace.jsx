@@ -475,15 +475,19 @@ function DimensionBreakdownTable({ breakdowns }) {
 }
 
 function WeakestVideosList({ videos }) {
-  // Sort by composite tier (predicted_under worst, very_likely_outperform best),
-  // tie-break by view_count descending so high-traffic underperformers float up first.
+  // Reformulation ROI is highest where the audience already shows up —
+  // a 91k-view risky video has more upside from a title fix than a
+  // 189-view predicted_under video does. Sort by view_count desc among
+  // underperforming tiers (risky + predicted_under); tier weight is only
+  // used as a tie-breaker so predicted_under wins at equal traffic.
   const ranked = useMemo(() => {
     const tierWeight = { predicted_under: 3, risky: 2, likely_solid: 1, very_likely_outperform: 0 };
     return [...(videos || [])]
-      .map((v) => ({ ...v, _w: tierWeight[v.composite_tier] ?? 0 }))
+      .filter((v) => v.composite_tier === 'risky' || v.composite_tier === 'predicted_under')
       .sort((a, b) => {
-        if (b._w !== a._w) return b._w - a._w;
-        return (b.view_count || 0) - (a.view_count || 0);
+        const dv = (b.view_count || 0) - (a.view_count || 0);
+        if (dv !== 0) return dv;
+        return (tierWeight[b.composite_tier] ?? 0) - (tierWeight[a.composite_tier] ?? 0);
       })
       .slice(0, 10);
   }, [videos]);
