@@ -88,6 +88,12 @@ const defaultForm = () => ({
   hook_beat: '',       // Phase 2.6 — optional; activates hook_promise_delivery
 });
 
+// One-shot prefill bridge from CompetitorScanWorkspace — the scan
+// finding writes this key on "Score in Pre-flight" click; the panel
+// reads + deletes it on mount so a later visit doesn't replay the
+// prefill.
+const PREFLIGHT_PREFILL_KEY = 'preflight_prefill_v1';
+
 // ──────────────────────────────────────────────────
 // Main panel
 // ──────────────────────────────────────────────────
@@ -116,6 +122,33 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
   const [actionError, setActionError] = useState(null);
   const [memoGenerating, setMemoGenerating] = useState(false);
   const [memoError, setMemoError] = useState(null);
+  const [prefillFlash, setPrefillFlash] = useState(null);  // brief banner when a prefill arrives
+
+  // One-shot prefill bridge from CompetitorScanWorkspace. Reads + clears
+  // the sessionStorage key on mount so a later visit to Pre-flight
+  // doesn't replay the prefill. Falls back silently if storage is
+  // unavailable or the payload is malformed.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(PREFLIGHT_PREFILL_KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(PREFLIGHT_PREFILL_KEY);
+      const payload = JSON.parse(raw);
+      if (!payload || typeof payload !== 'object' || !payload.title) return;
+      setForm(prev => ({
+        ...prev,
+        title:          payload.title || prev.title,
+        format:         payload.format || prev.format,
+        length_seconds: payload.length_seconds ?? prev.length_seconds,
+        notes:          payload.notes || prev.notes,
+      }));
+      setPrefillFlash(payload.notes || 'Pre-filled from a competitor scan finding. Adjust before scoring.');
+      // Auto-dismiss after a few seconds — strategist doesn't need it sticky.
+      setTimeout(() => setPrefillFlash(null), 6000);
+    } catch (err) {
+      console.warn('[PreflightPanel] prefill read failed:', err);
+    }
+  }, []);
 
   // Load cohort context + history on mount
   useEffect(() => {
@@ -398,6 +431,10 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
 
       {cohortLoading && <InlineNote tone="info">Loading cohort data…</InlineNote>}
       {cohortError && <InlineNote tone="error">{cohortError}</InlineNote>}
+
+      {prefillFlash && (
+        <InlineNote tone="info">{prefillFlash}</InlineNote>
+      )}
 
       {!cohortLoading && !cohortError && (
         <>
@@ -772,6 +809,11 @@ function ScorecardDisplay({ scorecard, reading, memoGenerating, memoError, onGen
 
 function ExecutiveMemoSection({ memo, generatedAt, generating, error, saved, onGenerate }) {
   const [copied, setCopied] = useState(false);
+  // Hidden by default for the no-memo state — institutional brand clients
+  // are a minority of the cohort; surfacing the memo card prominently on
+  // every scorecard is noise for solo / financial-advisor clients. Auto-
+  // expanded when a memo already exists or is in flight.
+  const [open, setOpen] = useState(false);
 
   const handleCopy = async () => {
     if (!memo) return;
@@ -785,6 +827,15 @@ function ExecutiveMemoSection({ memo, generatedAt, generating, error, saved, onG
   };
 
   if (!memo && !generating && !error) {
+    // Single-line disclosure. Click to expand the full prompt + Generate
+    // button. Solo clients ignore; institutional clients click once.
+    if (!open) {
+      return (
+        <button type="button" onClick={() => setOpen(true)} style={memoDisclosureBtnStyle}>
+          ▸ Executive justification memo · <span style={{ color: '#666' }}>generate when headed to Director / VP approval</span>
+        </button>
+      );
+    }
     return (
       <div style={memoCollapsedStyle}>
         <div style={{ flex: 1 }}>
@@ -793,7 +844,7 @@ function ExecutiveMemoSection({ memo, generatedAt, generating, error, saved, onG
           </div>
           <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
             One-page stakeholder-ready artifact: verdict, hypothesis, why-now, predicted performance,
-            risks, success criteria. Generate when this scorecard is headed to a Director / VP approval.
+            risks, success criteria.
           </div>
         </div>
         <button
@@ -1504,6 +1555,13 @@ const altTitlesCardStyle = {
   marginTop: 10,
 };
 
+const memoDisclosureBtnStyle = {
+  background: 'transparent', border: 'none',
+  color: '#888', fontSize: 11, fontWeight: 600,
+  textAlign: 'left', padding: '8px 0',
+  cursor: 'pointer', marginTop: 10,
+  letterSpacing: 0.3,
+};
 const memoCollapsedStyle = {
   display: 'flex', alignItems: 'center', gap: 14,
   background: '#1a1a1f',

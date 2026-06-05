@@ -62,7 +62,12 @@ const SIGNAL_OPTIONS = [
   { value: 3.0, label: '3× channel avg'   },
 ];
 
-export default function CompetitorScanWorkspace({ activeClient }) {
+// sessionStorage key used as a one-shot bridge to PreflightPanel —
+// scan finding writes the prefill, navigates to pre-flight, panel reads
+// and clears it on mount. Avoids leaking shared state across tabs.
+const PREFLIGHT_PREFILL_KEY = 'preflight_prefill_v1';
+
+export default function CompetitorScanWorkspace({ activeClient, onNavigate }) {
   const clientId = activeClient?.id;
 
   const [cohortContext, setCohortContext]             = useState(null);
@@ -192,6 +197,31 @@ export default function CompetitorScanWorkspace({ activeClient }) {
     if (selectedScan?.id === scanId) setSelectedScan(null);
   };
 
+  // Score-in-Pre-flight handoff. Writes the competitor video's title +
+  // format + length to sessionStorage, then navigates to the Pre-flight
+  // tab. PreflightPanel reads + clears the key on mount, pre-filling
+  // the form so the strategist can iterate from there. The notes field
+  // captures provenance so the scorecard, once saved, remembers where
+  // it came from.
+  const handleScoreInPreflight = (finding) => {
+    if (!onNavigate) return;
+    const v = finding?.competitor_video;
+    if (!v) return;
+    const isShorts = v.format === 'shorts';
+    const prefill = {
+      title:          v.title || '',
+      format:         v.format || 'long_form',
+      length_seconds: isShorts ? null : (v.duration_seconds || null),
+      notes:          `Adapted from competitor: ${v.channel?.name || 'unknown'} — "${v.title}" (${formatViews(v.view_count)} views, ${finding?.signal?.multiplier}× channel avg)`,
+    };
+    try {
+      sessionStorage.setItem(PREFLIGHT_PREFILL_KEY, JSON.stringify(prefill));
+    } catch (err) {
+      console.warn('[competitorScan] prefill write failed:', err);
+    }
+    onNavigate('pre-flight');
+  };
+
   return (
     <div style={workspaceShellStyle}>
       <div style={workspaceHeaderStyle}>
@@ -231,7 +261,9 @@ export default function CompetitorScanWorkspace({ activeClient }) {
             onArchive={handleArchive}
           />
 
-          {selectedScan && <ScanDetail scan={selectedScan} />}
+          {selectedScan && (
+            <ScanDetail scan={selectedScan} onScoreInPreflight={handleScoreInPreflight} />
+          )}
         </>
       )}
     </div>
@@ -324,7 +356,7 @@ function SavedScansList({ scans, selectedId, onLoad, onArchive }) {
 // Scan detail
 // ──────────────────────────────────────────────────
 
-function ScanDetail({ scan }) {
+function ScanDetail({ scan, onScoreInPreflight }) {
   const tierCounts = useMemo(() => countTiers(scan.findings || []), [scan]);
   return (
     <div style={detailShellStyle}>
@@ -359,23 +391,28 @@ function ScanDetail({ scan }) {
           videos.
         </div>
       ) : (
-        <FindingsList findings={scan.findings} />
+        <FindingsList findings={scan.findings} onScoreInPreflight={onScoreInPreflight} />
       )}
     </div>
   );
 }
 
-function FindingsList({ findings }) {
+function FindingsList({ findings, onScoreInPreflight }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
       {findings.map((f, i) => (
-        <FindingCard key={`${f.competitor_video?.youtube_video_id || i}`} finding={f} rank={i + 1} />
+        <FindingCard
+          key={`${f.competitor_video?.youtube_video_id || i}`}
+          finding={f}
+          rank={i + 1}
+          onScoreInPreflight={onScoreInPreflight}
+        />
       ))}
     </div>
   );
 }
 
-function FindingCard({ finding, rank }) {
+function FindingCard({ finding, rank, onScoreInPreflight }) {
   const v = finding.competitor_video || {};
   const tier = finding.as_if_client_score?.composite_tier;
   const tierColor = TIER_COLORS[tier] || '#888';
@@ -426,6 +463,18 @@ function FindingCard({ finding, rank }) {
       {finding.as_if_client_score?.composite_rationale && (
         <div style={rationaleStyle}>
           {finding.as_if_client_score.composite_rationale}
+        </div>
+      )}
+
+      {onScoreInPreflight && (
+        <div style={findingActionsStyle}>
+          <button
+            onClick={() => onScoreInPreflight(finding)}
+            style={scoreInPreflightBtnStyle}
+            title="Open the Pre-flight scorecard with this title, format, and length pre-filled — iterate from there"
+          >
+            Score in Pre-flight →
+          </button>
         </div>
       )}
     </div>
@@ -628,4 +677,19 @@ const rationaleStyle = {
   fontSize: 12, color: '#aaa', fontStyle: 'italic',
   marginTop: 8, lineHeight: 1.4,
   paddingTop: 8, borderTop: '1px dashed #2a2a30',
+};
+
+const findingActionsStyle = {
+  display: 'flex', justifyContent: 'flex-end',
+  marginTop: 10,
+};
+const scoreInPreflightBtnStyle = {
+  background: 'rgba(10,145,155,0.10)',
+  color: '#0A919B',
+  border: '1px solid rgba(10,145,155,0.40)',
+  borderRadius: 4,
+  padding: '6px 14px',
+  fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
+  cursor: 'pointer',
+  textTransform: 'uppercase',
 };

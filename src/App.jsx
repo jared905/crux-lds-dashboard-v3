@@ -1329,7 +1329,7 @@ export default function App() {
             )}
 
             {tab === "competitor-scan" && (
-              <CompetitorScanWorkspace activeClient={activeClient} />
+              <CompetitorScanWorkspace activeClient={activeClient} onNavigate={setTab} />
             )}
 
             {tab === "gap-detection" && (
