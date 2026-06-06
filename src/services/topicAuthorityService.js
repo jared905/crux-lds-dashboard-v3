@@ -116,26 +116,14 @@ export async function loadTopicAuthorityContext({ clientId, limit = DEFAULT_LIMI
     .limit(limit);
 
   // (b) Cohort recent hits: top N videos by view_count among the
-  // client's competitor cohort, published within the recency window.
+  // client's PREDICTIVE cohort (cohort_role='peer'), published within
+  // the recency window.
   //
-  // Cohort membership lives in the client_channels junction table
-  // (client_id, channel_id) — NOT in a channels.client_id column.
-  // We look up the junction first, then optionally narrow to
-  // is_competitor=true rows.
-  const { data: junctionRows } = await supabase
-    .from('client_channels')
-    .select('channel_id')
-    .eq('client_id', clientChannel.id);
-  const linkedIds = (junctionRows || []).map(r => r.channel_id);
-  let cohortIds = [];
-  if (linkedIds.length) {
-    const { data: cohortChannels } = await supabase
-      .from('channels')
-      .select('id')
-      .in('id', linkedIds)
-      .eq('is_competitor', true);
-    cohortIds = (cohortChannels || []).map(c => c.id);
-  }
+  // Migration 093 — peer-only filtering ensures topic_authority isn't
+  // matching against aspirational/reference channels that don't transfer
+  // to the client's audience. Single source of truth via cohortRolesService.
+  const { resolvePredictiveCohortIds } = await import('./cohortRolesService');
+  const cohortIds = await resolvePredictiveCohortIds(clientChannel.id);
 
   let cohortRecentHits = [];
   if (cohortIds.length) {

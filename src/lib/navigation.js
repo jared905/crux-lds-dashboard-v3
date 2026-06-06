@@ -11,7 +11,7 @@ import {
   FileText, Activity, Calendar,
   Building, Key, Shield, ShieldCheck, Table,
   ClipboardCheck, Palette,
-  Compass, Crosshair, Target, Radar, Gauge,
+  Compass, Crosshair, Target, Radar, Gauge, Users2,
   BarChart3, Search, FlaskConical, Map, Briefcase, Settings,
 } from "lucide-react";
 
@@ -68,6 +68,7 @@ export const MAIN_SECTIONS = [
       { id: "repositioning", label: "Repositioning", icon: Target },
       { id: "competitor-scan", label: "Competitor Scan", icon: Radar },
       { id: "calibration", label: "Calibration", icon: Gauge },
+      { id: "cohort-roles", label: "Cohort", icon: Users2 },
       { id: "actions", label: "Feedback", icon: Activity },
       { id: "calendar", label: "Calendar", icon: Calendar },
     ],

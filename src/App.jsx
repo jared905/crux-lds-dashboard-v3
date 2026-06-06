@@ -35,6 +35,7 @@ import PreflightWorkspace from "./components/Strategy/PreflightWorkspace.jsx";
 import RepositioningWorkspace from "./components/Strategy/Repositioning/RepositioningWorkspace.jsx";
 import CompetitorScanWorkspace from "./components/Strategy/CompetitorScan/CompetitorScanWorkspace.jsx";
 import CalibrationWorkspace from "./components/Strategy/Calibration/CalibrationWorkspace.jsx";
+import CohortRolesWorkspace from "./components/Strategy/CohortRoles/CohortRolesWorkspace.jsx";
 import CommentAnalysis from "./components/Research/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContentIntelligence.jsx";
 import AIExecutiveSummary from "./components/Performance/AIExecutiveSummary.jsx";
@@ -1335,6 +1336,10 @@ export default function App() {
 
             {tab === "calibration" && (
               <CalibrationWorkspace activeClient={activeClient} />
+            )}
+
+            {tab === "cohort-roles" && (
+              <CohortRolesWorkspace activeClient={activeClient} />
             )}
 
             {tab === "gap-detection" && (

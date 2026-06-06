@@ -36,6 +36,7 @@
 import { supabase } from './supabaseClient';
 import { scoreConcept } from './conceptScorerService';
 import { getConceptEmbedding, parseEmbedding } from './topicAuthorityService';
+import { resolvePredictiveCohortIds } from './cohortRolesService';
 
 const SHORTS_DURATION_THRESHOLD = 180;
 const DEFAULT_WINDOW_DAYS       = 14;
@@ -145,31 +146,18 @@ export async function runCompetitorScan({
 
 async function resolveCompetitorChannels(clientId) {
   if (!supabase) return [];
-  // Junction-first — same convention as topicAuthorityService and
-  // EmbeddingsBackfillPanel after the cohort-resolution fix. Fall back
-  // to channels.client_id only if junction is unavailable.
-  try {
-    const { data: junctionRows } = await supabase
-      .from('client_channels')
-      .select('channel_id')
-      .eq('client_id', clientId);
-    const linkedIds = (junctionRows || []).map(r => r.channel_id);
-    if (linkedIds.length) {
-      const { data: cohort } = await supabase
-        .from('channels')
-        .select('id, name, youtube_channel_id')
-        .in('id', linkedIds)
-        .eq('is_competitor', true);
-      return cohort || [];
-    }
-  } catch (e) {
-    console.warn('[competitorScan] junction query failed, falling back:', e?.message);
-  }
+  // Migration 093 — predictive cohort only (cohort_role='peer'). Mixed
+  // cohorts (Kendall test case 2026-06-05) introduce premium-tier
+  // channels that don't transfer to mid-tier clients. Aspirational +
+  // reference channels still surface in Research/CompetitorPulse for
+  // monitoring; only excluded from scoring.
+  const peerIds = await resolvePredictiveCohortIds(clientId);
+  if (!peerIds.length) return [];
+
   const { data } = await supabase
     .from('channels')
     .select('id, name, youtube_channel_id')
-    .eq('client_id', clientId)
-    .eq('is_competitor', true);
+    .in('id', peerIds);
   return data || [];
 }
 

@@ -128,7 +128,17 @@ export async function expandCategoriesWithDescendants(rootIds) {
 
 export async function resolveScopeToChannelIds(scope = {}) {
   if (!supabase) return [];
-  const { categoryIds = null, tags = null, tiers = ['priority', 'tracked'], search = '', clientId = null, uncategorized = false } = scope;
+  const {
+    categoryIds = null, tags = null, tiers = ['priority', 'tracked'],
+    search = '', clientId = null, uncategorized = false,
+    // Migration 093 — when a clientId is set, restrict to predictive
+    // cohort roles ('peer') by default. The audit + deliverable +
+    // patterns + whitespace pipeline all flow through this resolver, so
+    // role-filtering here propagates everywhere predictively. Pass
+    // cohortRoles=null to opt out (e.g., to see aspirational channels
+    // for landscape browsing).
+    cohortRoles = ['peer'],
+  } = scope;
 
   let q = supabase.from('channels').select('id').eq('is_competitor', true);
   if (tiers?.length) q = q.in('tier', tiers);
@@ -138,12 +148,14 @@ export async function resolveScopeToChannelIds(scope = {}) {
 
   let ids = channels.map(c => c.id);
 
-  // Client membership via the client_channels junction (migration 052).
-  // When a client is selected, only keep competitors assigned to them.
+  // Client membership via the client_channels junction (migration 052),
+  // optionally restricted to predictive cohort roles (migration 093).
   if (clientId) {
-    const { data: cc } = await supabase
+    let ccQ = supabase
       .from('client_channels').select('channel_id')
       .eq('client_id', clientId).in('channel_id', ids);
+    if (cohortRoles?.length) ccQ = ccQ.in('cohort_role', cohortRoles);
+    const { data: cc } = await ccQ;
     const allowed = new Set((cc || []).map(r => r.channel_id));
     ids = ids.filter(id => allowed.has(id));
     if (!ids.length) return [];
