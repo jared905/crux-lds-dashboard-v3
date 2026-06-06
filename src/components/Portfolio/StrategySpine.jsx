@@ -65,6 +65,7 @@ import {
   confirmBusinessContext,
   discardDraft,
 } from '../../services/clientBusinessContextService.js';
+import SpineAutoFillSection from './SpineAutoFillSection.jsx';
 
 export default function StrategySpine({ client, onBack }) {
   const [spine, setSpine] = useState(null);
@@ -211,6 +212,17 @@ export default function StrategySpine({ client, onBack }) {
           ]);
           setBusinessActive(a);
           setBusinessDraft(d);
+        }}
+      />
+
+      <SpineAutoFillSection
+        clientId={client.id}
+        clientName={client.name}
+        spine={spine}
+        businessContext={businessActive}
+        onApplied={async () => {
+          const fresh = await getSpine(client.id);
+          setSpine(fresh);
         }}
       />
 
