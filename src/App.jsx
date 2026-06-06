@@ -36,6 +36,7 @@ import RepositioningWorkspace from "./components/Strategy/Repositioning/Repositi
 import CompetitorScanWorkspace from "./components/Strategy/CompetitorScan/CompetitorScanWorkspace.jsx";
 import CalibrationWorkspace from "./components/Strategy/Calibration/CalibrationWorkspace.jsx";
 import CohortRolesWorkspace from "./components/Strategy/CohortRoles/CohortRolesWorkspace.jsx";
+import WeeklyBriefWorkspace from "./components/Strategy/WeeklyBrief/WeeklyBriefWorkspace.jsx";
 import CommentAnalysis from "./components/Research/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContentIntelligence.jsx";
 import AIExecutiveSummary from "./components/Performance/AIExecutiveSummary.jsx";
@@ -1340,6 +1341,10 @@ export default function App() {
 
             {tab === "cohort-roles" && (
               <CohortRolesWorkspace activeClient={activeClient} />
+            )}
+
+            {tab === "weekly-brief" && (
+              <WeeklyBriefWorkspace activeClient={activeClient} />
             )}
 
             {tab === "gap-detection" && (
