@@ -3,6 +3,7 @@ import { Key, DollarSign, Activity, AlertCircle, CheckCircle2, ExternalLink } fr
 import claudeAPI from '../../services/claudeAPI';
 import youtubeAPI from '../../services/youtubeAPI';
 import YouTubeOAuthSettings from './YouTubeOAuthSettings';
+import YouTubeOAuthInvitesSection from './YouTubeOAuthInvitesSection';
 
 const inputStyle = {
   flex: 1,
@@ -197,6 +198,9 @@ export default function APISettings({ onNavigateToSecurity, onClientsUpdate }) {
 
       {/* YouTube OAuth Connection */}
       <YouTubeOAuthSettings onNavigateToSecurity={onNavigateToSecurity} onClientsUpdate={onClientsUpdate} />
+
+      {/* Guest OAuth invites — for channel owners who aren't Full View users */}
+      <YouTubeOAuthInvitesSection />
 
       {/* Usage Statistics */}
       {usageStats && (

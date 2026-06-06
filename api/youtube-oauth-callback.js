@@ -247,7 +247,36 @@ export default async function handler(req, res) {
         error_message: 'Database storage failed',
         metadata: { db_error: upsertError.message }
       });
+      // For invite-backed grants, redirect to a guest-friendly error
+      // page instead of the api-keys tab (the guest has no Crux account).
+      if (stateRecord.invite_id) {
+        return res.redirect(`${frontendUrl}?tab=guest-oauth&oauth_error=storage_failed`);
+      }
       return res.redirect(`${frontendUrl}?tab=api-keys&oauth_error=storage_failed`);
+    }
+
+    // Migration 096: invite-backed grant — mark the invite redeemed so
+    // the strategist sees confirmation in their invite list.
+    if (stateRecord.invite_id) {
+      try {
+        await supabase
+          .from('youtube_oauth_invites')
+          .update({
+            status:                          'redeemed',
+            redeemed_at:                     new Date().toISOString(),
+            redeemed_youtube_channel_id:     channelInfo.channelId,
+            redeemed_youtube_channel_title:  channelInfo.title,
+            redeemed_youtube_email:          channelInfo.email,
+          })
+          .eq('id', stateRecord.invite_id);
+        await logAuditEvent(stateRecord.user_id, 'oauth_invite_redeemed', {
+          ip_address: stateRecord.ip_address,
+          youtube_channel_id: channelInfo.channelId,
+          metadata: { invite_id: stateRecord.invite_id, channel_title: channelInfo.title },
+        });
+      } catch (err) {
+        console.warn('[OAuth] failed to mark invite redeemed (non-fatal):', err.message);
+      }
     }
 
     // Auto-setup Reporting API job for impressions/CTR data
@@ -361,7 +390,20 @@ export default async function handler(req, res) {
       }
     }
 
-    // Redirect to settings with success
+    // For invite-backed grants, redirect to a public guest-success page.
+    // The guest has no Crux account and can't access api-keys; they
+    // should land somewhere that says "access granted, you can close
+    // this tab" and nothing else.
+    if (stateRecord.invite_id) {
+      const guestParams = new URLSearchParams({
+        tab:           'guest-oauth',
+        oauth_success: 'true',
+        channel:       channelInfo.title,
+      });
+      return res.redirect(`${frontendUrl}?${guestParams.toString()}`);
+    }
+
+    // Standard authenticated-user flow — redirect to settings with success
     const successParams = new URLSearchParams({
       tab: 'api-keys',
       oauth_success: 'true',

@@ -8,6 +8,7 @@ import SignupPage from "./components/Auth/SignupPage.jsx";
 import HomePage from "./components/Public/HomePage.jsx";
 import PrivacyPolicy from "./components/Public/PrivacyPolicy.jsx";
 import TermsOfService from "./components/Public/TermsOfService.jsx";
+import GuestOAuthPage from "./components/GuestOAuth/GuestOAuthPage.jsx";
 import WelcomeOnboarding from "./components/Onboarding/WelcomeOnboarding.jsx";
 
 // Services
@@ -1000,6 +1001,9 @@ export default function App() {
   const pathname = window.location.pathname;
   if (tab === "privacy" || pathname === "/privacy") return <PrivacyPolicy />;
   if (tab === "terms" || pathname === "/terms") return <TermsOfService />;
+  // Guest OAuth invite landing — the channel owner clicks a link from
+  // the strategist and lands here WITHOUT a Crux account. Public route.
+  if (tab === "guest-oauth" || pathname === "/grant-youtube-access") return <GuestOAuthPage />;
 
   // Show loading state while checking auth
   if (authLoading) {
