@@ -64,13 +64,55 @@ export function computeCalibration({
   audit,
   baselineStrategy = 'percentile_rank',
   mismatchTopN = DEFAULT_MISMATCH_TOP_N,
+  // Migration 094 — when true, compute per-format metrics (shorts vs
+  // long_form) IN ADDITION TO pooled metrics. Each format's actual_tier
+  // is derived within its own pool (top 25% of shorts, top 25% of
+  // long-form — not pooled together). Surfaces format-specific scorer
+  // failure modes (Kendall test 2026-06-05: every high-traffic mismatch
+  // was a Shorts video).
+  splitByFormat = false,
 }) {
   if (!audit?.video_scores?.length) {
     return { error: 'audit has no video_scores to calibrate against' };
   }
 
+  // Pooled metrics (existing behavior — every video, single quartile derivation).
+  const pooled = computePoolMetrics({
+    videos:           audit.video_scores,
+    baselineStrategy,
+    mismatchTopN,
+  });
+  if (pooled.error) return { error: pooled.error };
+
+  let perFormatMetrics = null;
+  if (splitByFormat) {
+    perFormatMetrics = computePerFormatMetrics({
+      videos:           audit.video_scores,
+      baselineStrategy,
+      mismatchTopN,
+    });
+  }
+
+  return {
+    baselineStrategy,
+    formatSplitEnabled:        splitByFormat,
+    videosCalibrated:          pooled.videosCalibrated,
+    compositeMetrics:          pooled.compositeMetrics,
+    perDimensionMetrics:       pooled.perDimensionMetrics,
+    mismatchedVideos:          pooled.mismatchedVideos,
+    compositeAccuracy:         pooled.compositeMetrics.accuracy,
+    compositeAdjacentAccuracy: pooled.compositeMetrics.adjacent_accuracy,
+    perFormatMetrics,
+  };
+}
+
+// ──────────────────────────────────────────────────
+// Pool metrics — runs over any video pool (full pool, shorts pool, long-form pool)
+// ──────────────────────────────────────────────────
+
+function computePoolMetrics({ videos: videoPool, baselineStrategy, mismatchTopN }) {
   // 1) Derive actual_tier for each video using the chosen strategy.
-  const videos = deriveActualTiers({ videos: audit.video_scores, baselineStrategy });
+  const videos = deriveActualTiers({ videos: videoPool, baselineStrategy });
   if (videos.error) return { error: videos.error };
 
   // 2) Composite-tier metrics.
@@ -119,14 +161,51 @@ export function computeCalibration({
     }));
 
   return {
-    baselineStrategy,
-    videosCalibrated:          videos.length,
+    videosCalibrated:    videos.length,
     compositeMetrics,
     perDimensionMetrics,
-    mismatchedVideos:          mismatches,
-    compositeAccuracy:         compositeMetrics.accuracy,
-    compositeAdjacentAccuracy: compositeMetrics.adjacent_accuracy,
+    mismatchedVideos:    mismatches,
   };
+}
+
+// ──────────────────────────────────────────────────
+// Per-format metrics — split video pool into shorts/long_form,
+// compute pool metrics independently for each. Each format's actual_tier
+// is derived within its own pool so quartile boundaries reflect
+// "did this video outperform within its format?"
+// ──────────────────────────────────────────────────
+
+function computePerFormatMetrics({ videos, baselineStrategy, mismatchTopN }) {
+  const result = {};
+  for (const format of ['shorts', 'long_form']) {
+    const pool = videos.filter(v => v.format === format);
+    if (pool.length < 4) {
+      // Need at least 4 videos to make quartiles meaningful. Empty
+      // result block so the UI can label it "insufficient data."
+      result[format] = {
+        n: pool.length,
+        insufficientData: true,
+        compositeMetrics: null,
+        perDimensionMetrics: null,
+        mismatchedVideos: [],
+      };
+      continue;
+    }
+    const m = computePoolMetrics({ videos: pool, baselineStrategy, mismatchTopN });
+    if (m.error) {
+      result[format] = { n: pool.length, error: m.error };
+      continue;
+    }
+    result[format] = {
+      n:                   m.videosCalibrated,
+      compositeMetrics:    m.compositeMetrics,
+      perDimensionMetrics: m.perDimensionMetrics,
+      mismatchedVideos:    m.mismatchedVideos,
+      compositeAccuracy:   m.compositeMetrics.accuracy,
+      compositeAdjacentAccuracy: m.compositeMetrics.adjacent_accuracy,
+    };
+  }
+  return result;
 }
 
 // ──────────────────────────────────────────────────

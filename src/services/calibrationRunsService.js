@@ -26,6 +26,10 @@ export async function saveCalibrationRun({
   compositeMetrics,
   perDimensionMetrics,
   mismatchedVideos,
+  // Migration 094 — per-format metrics (computed alongside pooled when
+  // splitByFormat is on). Null on runs without format split.
+  perFormatMetrics = null,
+  formatSplitEnabled = false,
 }) {
   if (!supabase) return { ok: false, error: 'supabase not configured' };
   if (!clientId || !sourceAuditId) return { ok: false, error: 'clientId + sourceAuditId required' };
@@ -42,6 +46,8 @@ export async function saveCalibrationRun({
     composite_metrics:            compositeMetrics || null,
     per_dimension_metrics:        perDimensionMetrics || null,
     mismatched_videos:            mismatchedVideos || null,
+    per_format_metrics:           perFormatMetrics,
+    format_split_enabled:         !!formatSplitEnabled,
   };
 
   const { data, error } = await supabase
@@ -66,7 +72,7 @@ export async function listCalibrationRunsForClient(clientId, { limit = 10 } = {}
 
   const { data, error } = await supabase
     .from(TABLE)
-    .select('id, source_audit_id, created_at, created_by, baseline_strategy, videos_calibrated, composite_accuracy, composite_adjacent_accuracy')
+    .select('id, source_audit_id, created_at, created_by, baseline_strategy, videos_calibrated, composite_accuracy, composite_adjacent_accuracy, format_split_enabled')
     .eq('client_id', clientId)
     .is('archived_at', null)
     .order('created_at', { ascending: false })

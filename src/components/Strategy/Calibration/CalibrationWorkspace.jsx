@@ -61,6 +61,14 @@ export default function CalibrationWorkspace({ activeClient }) {
   const [selectedRun, setSelectedRun]       = useState(null);
   const [running, setRunning]               = useState(false);
   const [runError, setRunError]             = useState(null);
+  // Migration 094 — split-by-format toggle. Defaults ON because the
+  // Kendall test (2026-06-05) showed pooled metrics hide format-specific
+  // scorer failure modes. Strategist can opt out by unchecking.
+  const [splitByFormat, setSplitByFormat]   = useState(true);
+  // Detail view mode — 'pooled' | 'shorts' | 'long_form'. Only used
+  // when the loaded run has per_format_metrics; otherwise UI falls back
+  // to pooled-only.
+  const [viewMode, setViewMode]             = useState('pooled');
 
   // Bootstrap — hooks before any early return.
   useEffect(() => {
@@ -114,7 +122,7 @@ export default function CalibrationWorkspace({ activeClient }) {
       if (error) { setRunError(`Audit load failed: ${error.message}`); return; }
       if (!audit?.video_scores?.length) { setRunError('Selected audit has no video_scores'); return; }
 
-      const result = computeCalibration({ audit, baselineStrategy: 'percentile_rank' });
+      const result = computeCalibration({ audit, baselineStrategy: 'percentile_rank', splitByFormat });
       if (result.error) { setRunError(result.error); return; }
 
       const saved = await saveCalibrationRun({
@@ -127,6 +135,8 @@ export default function CalibrationWorkspace({ activeClient }) {
         compositeMetrics:           result.compositeMetrics,
         perDimensionMetrics:        result.perDimensionMetrics,
         mismatchedVideos:           result.mismatchedVideos,
+        perFormatMetrics:           result.perFormatMetrics,
+        formatSplitEnabled:         result.formatSplitEnabled,
       });
 
       const refreshed = await listCalibrationRunsForClient(clientId, { limit: 10 });
@@ -142,7 +152,10 @@ export default function CalibrationWorkspace({ activeClient }) {
         composite_metrics:          result.compositeMetrics,
         per_dimension_metrics:      result.perDimensionMetrics,
         mismatched_videos:          result.mismatchedVideos,
+        per_format_metrics:         result.perFormatMetrics,
+        format_split_enabled:       result.formatSplitEnabled,
       });
+      setViewMode('pooled');
     } catch (err) {
       setRunError(err?.message || 'unknown error');
     } finally {
@@ -195,6 +208,8 @@ export default function CalibrationWorkspace({ activeClient }) {
             onAuditChange={setSelectedAuditId}
             running={running}
             onRun={handleRun}
+            splitByFormat={splitByFormat}
+            onSplitByFormatChange={setSplitByFormat}
           />
           {runError && <Note tone="error">{runError}</Note>}
 
@@ -206,7 +221,14 @@ export default function CalibrationWorkspace({ activeClient }) {
             onArchive={handleArchiveRun}
           />
 
-          {selectedRun && <CalibrationDetail run={selectedRun} audits={audits} />}
+          {selectedRun && (
+            <CalibrationDetail
+              run={selectedRun}
+              audits={audits}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
+          )}
         </>
       )}
     </div>
@@ -237,7 +259,7 @@ async function listRepositioningAuditsLight(clientId) {
 // Run bar
 // ──────────────────────────────────────────────────
 
-function RunBar({ audits, selectedAuditId, onAuditChange, running, onRun }) {
+function RunBar({ audits, selectedAuditId, onAuditChange, running, onRun, splitByFormat, onSplitByFormatChange }) {
   return (
     <div style={runBarStyle}>
       <div style={{ flex: 1 }}>
@@ -261,6 +283,20 @@ function RunBar({ audits, selectedAuditId, onAuditChange, running, onRun }) {
           bottom 25% = "predicted_under" actual). Phase B will add pipeline strategies for
           clients with outcome data.
         </div>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={splitByFormat}
+            onChange={e => onSplitByFormatChange(e.target.checked)}
+            disabled={running}
+          />
+          <span style={{ fontSize: 12, color: '#cde4d6' }}>
+            Compute per-format metrics (shorts vs long-form)
+          </span>
+          <span style={{ fontSize: 11, color: '#666' }}>
+            — quartile derived within each format pool, surfaces format-specific failure modes
+          </span>
+        </label>
       </div>
       <button onClick={onRun} disabled={running} style={runBtnStyle(running)}>
         {running ? 'Computing…' : 'Run calibration'}
@@ -294,6 +330,11 @@ function SavedRunsList({ runs, audits, selectedId, onLoad, onArchive }) {
                   {' · '}{r.videos_calibrated} videos
                   {r.composite_accuracy != null && ` · composite ${(r.composite_accuracy * 100).toFixed(0)}% exact / ${(r.composite_adjacent_accuracy * 100).toFixed(0)}% ±1`}
                   {auditLookup[r.source_audit_id] && ` · audit ${new Date(auditLookup[r.source_audit_id].created_at).toLocaleDateString()}`}
+                  {r.format_split_enabled && (
+                    <span style={{ marginLeft: 8, color: '#0A919B', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                      · format-split
+                    </span>
+                  )}
                 </span>
               </div>
             </div>
@@ -310,16 +351,58 @@ function SavedRunsList({ runs, audits, selectedId, onLoad, onArchive }) {
 // Calibration detail
 // ──────────────────────────────────────────────────
 
-function CalibrationDetail({ run, audits }) {
+function CalibrationDetail({ run, audits, viewMode = 'pooled', onViewModeChange }) {
   const sourceAudit = audits.find(a => a.id === run.source_audit_id);
+
+  // Resolve the view's metric block. Defaults to pooled; format-split
+  // views pull from per_format_metrics[format] which has the same shape
+  // as the pooled metrics (single dimension entry per dim, single
+  // composite block, mismatch list).
+  const view = useMemo(() => {
+    if (viewMode === 'pooled' || !run.per_format_metrics) {
+      return {
+        label:             'Pooled (all formats)',
+        n:                 run.videos_calibrated,
+        compositeMetrics:  run.composite_metrics,
+        perDimensionMetrics: run.per_dimension_metrics,
+        mismatchedVideos:  run.mismatched_videos || [],
+        compositeAccuracy: run.composite_accuracy,
+        compositeAdjacent: run.composite_adjacent_accuracy,
+        insufficient:      false,
+      };
+    }
+    const block = run.per_format_metrics[viewMode];
+    if (!block || block.insufficientData) {
+      return {
+        label:             viewMode === 'shorts' ? 'Shorts only' : 'Long-form only',
+        n:                 block?.n || 0,
+        compositeMetrics:  null,
+        perDimensionMetrics: null,
+        mismatchedVideos:  [],
+        compositeAccuracy: null,
+        compositeAdjacent: null,
+        insufficient:      true,
+      };
+    }
+    return {
+      label:             viewMode === 'shorts' ? 'Shorts only' : 'Long-form only',
+      n:                 block.n,
+      compositeMetrics:  block.compositeMetrics,
+      perDimensionMetrics: block.perDimensionMetrics,
+      mismatchedVideos:  block.mismatchedVideos || [],
+      compositeAccuracy: block.compositeAccuracy,
+      compositeAdjacent: block.compositeAdjacentAccuracy,
+      insufficient:      false,
+    };
+  }, [run, viewMode]);
 
   // Rank dimensions by accuracy to surface "trust most" vs "treat as hypothesis."
   const rankedDims = useMemo(() => {
-    const entries = Object.entries(run.per_dimension_metrics || {})
+    const entries = Object.entries(view.perDimensionMetrics || {})
       .filter(([_, m]) => m && m.n > 0)
       .map(([key, m]) => ({ key, ...m }));
     return entries.sort((a, b) => (b.accuracy || 0) - (a.accuracy || 0));
-  }, [run]);
+  }, [view]);
 
   return (
     <div style={detailShellStyle}>
@@ -329,40 +412,89 @@ function CalibrationDetail({ run, audits }) {
             Calibration · {new Date(run.created_at).toLocaleString()}
           </div>
           <div style={detailMetaStyle}>
-            {run.videos_calibrated} videos · baseline: {run.baseline_strategy}
+            {run.videos_calibrated} videos pooled · baseline: {run.baseline_strategy}
             {sourceAudit && ` · source audit ${new Date(sourceAudit.created_at).toLocaleDateString()} (${sourceAudit.videos_scored} videos${sourceAudit.format_filter ? `, ${sourceAudit.format_filter}` : ''})`}
           </div>
+          {run.per_format_metrics && (
+            <ViewModeTabs
+              run={run}
+              viewMode={viewMode}
+              onViewModeChange={onViewModeChange}
+            />
+          )}
         </div>
         <CompositeHeadline
-          accuracy={run.composite_accuracy}
-          adjacent={run.composite_adjacent_accuracy}
+          accuracy={view.compositeAccuracy}
+          adjacent={view.compositeAdjacent}
+          label={view.label}
+          n={view.n}
         />
       </div>
 
-      <DimensionRanking ranked={rankedDims} />
+      {view.insufficient ? (
+        <Note tone="warn">
+          {view.label}: insufficient data ({view.n} videos). Need at least 4 in this format to compute quartile-based actual_tier. Run an audit that includes more {viewMode === 'shorts' ? 'Shorts' : 'long-form videos'}.
+        </Note>
+      ) : (
+        <>
+          <DimensionRanking ranked={rankedDims} />
 
-      <ConfusionPanel
-        title="Composite confusion matrix"
-        metrics={run.composite_metrics}
-      />
+          <ConfusionPanel
+            title={`Composite confusion matrix · ${view.label}`}
+            metrics={view.compositeMetrics}
+          />
 
-      <PerDimensionConfusionGrid metrics={run.per_dimension_metrics} />
+          <PerDimensionConfusionGrid metrics={view.perDimensionMetrics} />
 
-      <MismatchedVideosList videos={run.mismatched_videos || []} />
+          <MismatchedVideosList videos={view.mismatchedVideos} />
+        </>
+      )}
     </div>
   );
 }
 
-function CompositeHeadline({ accuracy, adjacent }) {
-  if (accuracy == null) return null;
+function ViewModeTabs({ run, viewMode, onViewModeChange }) {
+  const shorts = run.per_format_metrics?.shorts;
+  const longForm = run.per_format_metrics?.long_form;
+  const tabs = [
+    { id: 'pooled',    label: `Pooled (${run.videos_calibrated})`,            available: true },
+    { id: 'shorts',    label: `Shorts (${shorts?.n || 0})`,                   available: shorts && !shorts.insufficientData },
+    { id: 'long_form', label: `Long-form (${longForm?.n || 0})`,              available: longForm && !longForm.insufficientData },
+  ];
+  return (
+    <div style={{ display: 'flex', gap: 4, marginTop: 10 }}>
+      {tabs.map(t => (
+        <button
+          key={t.id}
+          onClick={() => onViewModeChange?.(t.id)}
+          disabled={!t.available}
+          style={viewModeTabStyle(viewMode === t.id, !t.available)}
+          title={!t.available ? 'Insufficient data for this format' : undefined}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CompositeHeadline({ accuracy, adjacent, label, n }) {
+  if (accuracy == null) {
+    return label ? (
+      <div style={composHeadlineStyle}>
+        <div style={composLabelStyle}>{label}</div>
+        <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>n/a</div>
+      </div>
+    ) : null;
+  }
   const exact = Math.round(accuracy * 100);
   const adj   = adjacent != null ? Math.round(adjacent * 100) : null;
   return (
     <div style={composHeadlineStyle}>
       <div style={composScoreStyle}>{exact}%</div>
-      <div style={composLabelStyle}>composite exact</div>
+      <div style={composLabelStyle}>composite exact{label ? ` · ${label}` : ''}</div>
       {adj != null && (
-        <div style={composSubStyle}>{adj}% within ±1 tier</div>
+        <div style={composSubStyle}>{adj}% within ±1 tier{n != null ? ` · n=${n}` : ''}</div>
       )}
     </div>
   );
@@ -655,6 +787,17 @@ const composHeadlineStyle = {
   padding: '10px 14px',
   flexShrink: 0,
 };
+
+const viewModeTabStyle = (active, disabled) => ({
+  background: active ? 'rgba(10,145,155,0.18)' : '#1a1a1f',
+  color: active ? '#0A919B' : (disabled ? '#444' : '#888'),
+  border: `1px solid ${active ? 'rgba(10,145,155,0.55)' : '#2a2a30'}`,
+  borderRadius: 4, padding: '4px 12px',
+  fontSize: 11, fontWeight: 700,
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  letterSpacing: 0.3, textTransform: 'uppercase',
+  opacity: disabled ? 0.5 : 1,
+});
 const composScoreStyle = { fontSize: 28, fontWeight: 700, color: '#0A919B', lineHeight: 1 };
 const composLabelStyle = { fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 };
 const composSubStyle = { fontSize: 11, color: '#cde4d6', marginTop: 6 };
