@@ -34,6 +34,7 @@ import PortfolioView from "./components/Portfolio/PortfolioView.jsx";
 import PreflightWorkspace from "./components/Strategy/PreflightWorkspace.jsx";
 import RepositioningWorkspace from "./components/Strategy/Repositioning/RepositioningWorkspace.jsx";
 import CompetitorScanWorkspace from "./components/Strategy/CompetitorScan/CompetitorScanWorkspace.jsx";
+import CalibrationWorkspace from "./components/Strategy/Calibration/CalibrationWorkspace.jsx";
 import CommentAnalysis from "./components/Research/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContentIntelligence.jsx";
 import AIExecutiveSummary from "./components/Performance/AIExecutiveSummary.jsx";
@@ -1330,6 +1331,10 @@ export default function App() {
 
             {tab === "competitor-scan" && (
               <CompetitorScanWorkspace activeClient={activeClient} onNavigate={setTab} />
+            )}
+
+            {tab === "calibration" && (
+              <CalibrationWorkspace activeClient={activeClient} />
             )}
 
             {tab === "gap-detection" && (
