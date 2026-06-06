@@ -26,7 +26,7 @@ import { supabase } from './supabaseClient';
 import claudeAPI from './claudeAPI';
 import { getCohortComposition } from './cohortRolesService';
 
-export const BRIEF_PROMPT_VERSION = 'v1-weekly-brief';
+export const BRIEF_PROMPT_VERSION = 'v2-weekly-brief';
 const DEFAULT_MODEL = 'claude-sonnet-4-5';
 
 // ──────────────────────────────────────────────────
@@ -198,6 +198,7 @@ EACH BULLET MUST:
 2. Follow with the reasoning, citing specific evidence from the data provided (calibration accuracy numbers, audit findings, cohort composition, specific videos by name when relevant)
 3. Honestly acknowledge calibration confidence — if a dimension or format has low calibration accuracy, frame its read as a hypothesis worth testing, not a verdict
 4. Stay within the brand register declared in the Strategy Spine
+5. NAME SPECIFIC VIDEOS when recommending a test. If a bullet says "test a title rewrite on an older underperforming video" or "investigate the runtime on a long-form video," the bullet MUST name a specific video from the calibration mismatches list or audit data. NEVER use placeholder phrases like "a similar video", "an older video", "one of your existing videos" — those phrases mean the brief is suggesting work the strategist still has to plan. Name the candidate video by title.
 
 THE 4-5 BULLETS SHOULD COLLECTIVELY:
 - Name what's working (so the client doesn't second-guess strengths)
