@@ -470,11 +470,13 @@ export default async function handler(req, res) {
     if (!connectionId) return res.status(400).json({ error: 'connectionId required' });
     if (!action || !['setup', 'fetch', 'backfill'].includes(action)) return res.status(400).json({ error: 'action must be "setup", "fetch", or "backfill"' });
 
+    // Team-OAuth model (2026-06-06): any Crux user can trigger
+    // reporting jobs / fetches against any team member's grant.
+    // Connection-ownership filter removed; authentication enforced upstream.
     const { data: connection, error: connError } = await supabase
       .from('youtube_oauth_connections')
       .select('*')
       .eq('id', connectionId)
-      .eq('user_id', user.id)
       .single();
 
     if (connError || !connection) return res.status(404).json({ error: 'Connection not found' });

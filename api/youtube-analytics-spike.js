@@ -177,12 +177,15 @@ export default async function handler(req, res) {
     if (!connectionId) return res.status(400).json({ error: 'connectionId required' });
     if (!videoId)      return res.status(400).json({ error: 'videoId required' });
 
-    // Get OAuth connection
+    // Get OAuth connection — team-OAuth model (2026-06-06): any Crux
+    // user can analytics-pull using any team member's OAuth grant.
+    // Authentication is still enforced upstream; just the
+    // connection-ownership check is loosened. Authenticated user.id is
+    // logged on the audit trail for accountability.
     const { data: connection, error: connError } = await supabase
       .from('youtube_oauth_connections')
       .select('*')
       .eq('id', connectionId)
-      .eq('user_id', user.id)
       .single();
     if (connError || !connection) return res.status(404).json({ error: 'Connection not found' });
 

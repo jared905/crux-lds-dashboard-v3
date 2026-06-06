@@ -60,15 +60,20 @@ async function logAuditEvent(userId, eventType, data = {}) {
 
 /* ── GET: list connections ── */
 async function handleGet(user, res) {
+  // Migration to team-OAuth model (2026-06-06): single-tenant strategist
+  // workspace shares OAuth grants across all Crux users. Any team
+  // member can see every channel any other member has OAuthed — so
+  // when a channel-side person (e.g., the client themselves) grants
+  // access, the strategist sees and can refresh from their own login
+  // without re-OAuthing. Audit log still records the requesting user.
   const { data: connections, error } = await supabase
     .from('youtube_oauth_connections')
     .select(`
-      id, youtube_channel_id, youtube_channel_title, youtube_channel_thumbnail,
+      id, user_id, youtube_channel_id, youtube_channel_title, youtube_channel_thumbnail,
       youtube_email, token_expires_at, scopes, is_active, last_used_at,
       last_refreshed_at, connection_error, reporting_job_id, reporting_job_type,
       last_report_downloaded_at, created_at, updated_at
     `)
-    .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -143,11 +148,14 @@ async function handlePost(user, req, res) {
   const ipAddress = req.headers['x-forwarded-for']?.split(',')[0] || req.headers['x-real-ip'] || null;
   const userAgent = req.headers['user-agent'] || null;
 
+  // Team-OAuth model (2026-06-06): any Crux user can refresh any
+  // connection regardless of which user originally OAuthed it. Audit
+  // log records the requesting user (user.id) so we know WHO triggered
+  // the refresh even when using another teammate's token.
   const { data: connection, error: connError } = await supabase
     .from('youtube_oauth_connections')
     .select('*')
     .eq('id', connectionId)
-    .eq('user_id', user.id)
     .single();
 
   if (connError || !connection) return res.status(404).json({ error: 'Connection not found' });
@@ -236,6 +244,12 @@ async function handleDelete(user, req, res) {
   const ipAddress = req.headers['x-forwarded-for']?.split(',')[0] || req.headers['x-real-ip'] || null;
   const userAgent = req.headers['user-agent'] || null;
 
+  // DELETE intentionally stays user-scoped even under the team-OAuth
+  // model (2026-06-06). Other team members shouldn't be able to revoke
+  // another member's OAuth grant — that's destructive and would force
+  // the original grantor to re-do the consent flow with no warning.
+  // If a team member needs to delete someone else's connection, they
+  // should ask the grantor or use admin tooling.
   const { data: connection, error: connError } = await supabase
     .from('youtube_oauth_connections')
     .select('*')

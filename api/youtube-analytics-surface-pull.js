@@ -410,12 +410,14 @@ export default async function handler(req, res) {
     const N = Math.min(Math.max(parseInt(videoLimit, 10) || 20, 1), 50);
     const days = Math.min(Math.max(parseInt(windowDays, 10) || 90, 7), 365);
 
-    // Connection + access token
+    // Connection + access token — team-OAuth model (2026-06-06): any
+    // Crux user can pull surface intelligence using any team member's
+    // grant. Connection-ownership filter removed; authentication still
+    // enforced upstream.
     const { data: connection, error: connError } = await supabase
       .from('youtube_oauth_connections')
       .select('*')
       .eq('id', connectionId)
-      .eq('user_id', user.id)
       .single();
     if (connError || !connection) return res.status(404).json({ error: 'Connection not found' });
 
