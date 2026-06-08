@@ -25,6 +25,7 @@ import ClientBackground from "./components/Shared/ClientBackground.jsx";
 import { useMediaQuery } from "./hooks/useMediaQuery.js";
 import { ThemeProvider } from "./contexts/ThemeContext.jsx";
 import TopNav from "./components/Shared/TopNav.jsx";
+import ContextStrip from "./components/Shared/ContextStrip.jsx";
 
 // Tab content
 import DashboardPage from "./components/Performance/DashboardPage.jsx";
@@ -1199,6 +1200,19 @@ export default function App() {
           />
         )}
       </div>
+
+      {/* P2 #11 (2026-06-08): persistent context strip — "you are here"
+          breadcrumb that stays visible across tab changes so the
+          strategist never wonders which client/surface they're on. */}
+      <ContextStrip
+        tab={tab}
+        activeClient={activeClient}
+        onPickClient={() => {
+          // Open the client picker by focusing the existing select.
+          const sel = document.querySelector('select[value]');
+          if (sel) sel.focus();
+        }}
+      />
 
       {/* Sticky Filters Bar */}
       {activeClient && (

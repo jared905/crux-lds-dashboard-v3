@@ -21,11 +21,16 @@ export const MAIN_SECTIONS = [
     id: "operate",
     label: "Operate",
     icon: Briefcase,
+    // P2 #9 + #10 (2026-06-08): grouped into Daily (the cross-client
+    // alerts feed strategist opens to) + Clients (the portfolio +
+    // onboarding artifacts that were previously under ⚙ → Onboarding).
+    // Brand Context and Audits are client-onboarding artifacts that
+    // belong with the client they're for, not in a utility menu.
     tabs: [
-      // P1 #8 (2026-06-08): cross-client alerts feed — "what should I do
-      // right now?". First tab so it's the strategist's natural landing.
-      { id: "this-week", label: "This Week", icon: AlertCircle, recommended: true },
-      { id: "portfolio", label: "Clients", icon: Users },
+      { id: "this-week", label: "This Week", icon: AlertCircle, group: "Daily", recommended: true },
+      { id: "portfolio", label: "Clients", icon: Users, group: "Clients" },
+      { id: "audits", label: "Audits", icon: ClipboardCheck, group: "Clients" },
+      { id: "brand-context", label: "Brand Context", icon: Palette, group: "Clients" },
     ],
   },
   {
@@ -68,35 +73,34 @@ export const MAIN_SECTIONS = [
     id: "strategy",
     label: "Strategy",
     icon: Map,
+    // P2 #9 (2026-06-08): tabs grouped into three logical phases of work.
+    // TopNav renders group headers between transitions in the dropdown,
+    // reducing the "9 flat options" cognitive scan for new strategists.
+    // Order reflects natural sequence: produce artifacts → understand
+    // the channel → keep tabs on signal.
     tabs: [
-      // P0 2026-06-08: Brief is marked recommended — first tab a strategist
-      // opens in Strategy section. TopNav surfaces a small dot indicator.
-      { id: "weekly-brief", label: "Brief", icon: ScrollText, recommended: true },
-      { id: "opportunities", label: "Opportunities", icon: Compass },
-      { id: "pre-flight", label: "Pre-flight", icon: Crosshair },
-      { id: "repositioning", label: "Repositioning", icon: Target },
-      { id: "competitor-scan", label: "Competitor Scan", icon: Radar },
-      { id: "calibration", label: "Calibration", icon: Gauge },
-      { id: "cohort-roles", label: "Cohort", icon: Users2 },
+      // ── Act: produce the artifacts a client sees ──
+      { id: "weekly-brief", label: "Brief", icon: ScrollText, group: "Act", recommended: true },
+      { id: "pre-flight", label: "Pre-flight", icon: Crosshair, group: "Act" },
+      // ── Diagnose: understand the channel's strategic position ──
+      { id: "cohort-roles", label: "Cohort", icon: Users2, group: "Diagnose" },
+      { id: "repositioning", label: "Repositioning", icon: Target, group: "Diagnose" },
+      { id: "competitor-scan", label: "Competitor Scan", icon: Radar, group: "Diagnose" },
+      { id: "calibration", label: "Calibration", icon: Gauge, group: "Diagnose" },
+      // ── Track: keep tabs on signal over time ──
+      { id: "opportunities", label: "Opportunities", icon: Compass, group: "Track" },
       // P0-rename 2026-06-08: was "Feedback" — ambiguous what kind.
-      // "Recent Uploads" names what this tab actually shows.
-      { id: "actions", label: "Recent Uploads", icon: Activity },
-      { id: "calendar", label: "Calendar", icon: Calendar },
+      { id: "actions", label: "Recent Uploads", icon: Activity, group: "Track" },
+      { id: "calendar", label: "Calendar", icon: Calendar, group: "Track" },
     ],
   },
 ];
 
 /** Utility sections behind the gear icon */
+// P2 #10 (2026-06-08): Onboarding section removed. Audits + Brand Context
+// migrated into Operate → Clients group because they're client-onboarding
+// artifacts that belong with the client they're for, not a utility menu.
 export const UTILITY_SECTIONS = [
-  {
-    id: "onboarding",
-    label: "Onboarding",
-    icon: Briefcase,
-    tabs: [
-      { id: "audits", label: "Audits", icon: ClipboardCheck },
-      { id: "brand-context", label: "Brand Context", icon: Palette },
-    ],
-  },
   {
     id: "settings",
     label: "Settings",

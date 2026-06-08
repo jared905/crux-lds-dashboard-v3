@@ -124,53 +124,69 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                   zIndex: 200,
                 }}
               >
-                {visibleTabs.map((t) => {
-                  const TabIcon = t.icon;
-                  const isTabActive = tab === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      onClick={() => handleTabClick(t.id)}
-                      style={{
-                        width: "100%",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "10px 14px",
-                        background: isTabActive ? "var(--accent-dim)" : "transparent",
-                        border: "none",
-                        borderRadius: "6px",
-                        color: isTabActive ? "var(--accent-text)" : "#ccc",
-                        cursor: "pointer",
-                        fontWeight: isTabActive ? "600" : "500",
-                        fontSize: "13px",
-                        textAlign: "left",
-                        transition: "background 0.1s",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isTabActive) e.currentTarget.style.background = "#252525";
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isTabActive) e.currentTarget.style.background = "transparent";
-                      }}
-                      title={t.recommended ? 'Recommended starting point for this section' : undefined}
-                    >
-                      <TabIcon size={16} />
-                      <span style={{ flex: 1 }}>{t.label}</span>
-                      {/* P0 #5 (2026-06-08): "Start here" indicator next to the
-                          recommended first tab in each section. New strategists
-                          have a visual cue for the canonical entry point. */}
-                      {t.recommended && (
-                        <span style={{
-                          display: 'inline-block',
-                          width: 6, height: 6, borderRadius: '50%',
-                          background: '#3fa66a',
-                          boxShadow: '0 0 6px rgba(63,166,106,0.6)',
-                        }} />
-                      )}
-                    </button>
-                  );
-                })}
+                {/* P2 #9 (2026-06-08): render group headers between
+                    tabs when the section has a `group` field. Section
+                    without groups falls through to flat list. */}
+                {(() => {
+                  let lastGroup = null;
+                  return visibleTabs.map((t) => {
+                    const TabIcon = t.icon;
+                    const isTabActive = tab === t.id;
+                    const showGroupHeader = t.group && t.group !== lastGroup;
+                    if (t.group) lastGroup = t.group;
+                    return (
+                      <React.Fragment key={t.id}>
+                        {showGroupHeader && (
+                          <div style={{
+                            fontSize: 10, color: "#666",
+                            textTransform: "uppercase", letterSpacing: 1, fontWeight: 700,
+                            padding: "10px 14px 6px",
+                            marginTop: lastGroup === t.group ? 4 : 0,
+                          }}>
+                            {t.group}
+                          </div>
+                        )}
+                        <button
+                          onClick={() => handleTabClick(t.id)}
+                          style={{
+                            width: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                            padding: "10px 14px",
+                            background: isTabActive ? "var(--accent-dim)" : "transparent",
+                            border: "none",
+                            borderRadius: "6px",
+                            color: isTabActive ? "var(--accent-text)" : "#ccc",
+                            cursor: "pointer",
+                            fontWeight: isTabActive ? "600" : "500",
+                            fontSize: "13px",
+                            textAlign: "left",
+                            transition: "background 0.1s",
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isTabActive) e.currentTarget.style.background = "#252525";
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isTabActive) e.currentTarget.style.background = "transparent";
+                          }}
+                          title={t.recommended ? 'Recommended starting point for this section' : undefined}
+                        >
+                          <TabIcon size={16} />
+                          <span style={{ flex: 1 }}>{t.label}</span>
+                          {t.recommended && (
+                            <span style={{
+                              display: 'inline-block',
+                              width: 6, height: 6, borderRadius: '50%',
+                              background: '#3fa66a',
+                              boxShadow: '0 0 6px rgba(63,166,106,0.6)',
+                            }} />
+                          )}
+                        </button>
+                      </React.Fragment>
+                    );
+                  });
+                })()}
               </div>
             )}
           </div>
