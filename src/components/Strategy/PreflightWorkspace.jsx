@@ -26,6 +26,7 @@ import React, { useEffect, useState } from 'react';
 import PreflightPanel from './preflight/PreflightPanel.jsx';
 import { listPillars } from '../../services/clientPillarsService.js';
 import DataFreshnessBadge from './shared/DataFreshnessBadge.jsx';
+import PrelaunchBadge from './shared/PrelaunchBadge.jsx';
 
 export default function PreflightWorkspace({ activeClient }) {
   const [pillars, setPillars] = useState([]);
@@ -66,7 +67,12 @@ export default function PreflightWorkspace({ activeClient }) {
       <div style={workspaceHeaderStyle}>
         <div>
           <div style={kickerStyle}>Strategy · Pre-flight</div>
-          <h1 style={titleStyle}>{activeClient.name}</h1>
+          <h1 style={titleStyle}>
+            {activeClient.name}
+            <span style={{ marginLeft: 12, display: 'inline-block', verticalAlign: 'middle' }}>
+              <PrelaunchBadge client={activeClient} />
+            </span>
+          </h1>
           <div style={subtitleStyle}>
             Score concepts against the cohort + the channel's surface intelligence before greenlight.
             History persists per client; pick a target surface in the panel header.

@@ -31,6 +31,7 @@ import {
   saveCalibrationRun, listCalibrationRunsForClient, loadCalibrationRun, archiveCalibrationRun,
 } from '../../../services/calibrationRunsService.js';
 import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
+import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 
 const TIER_LABELS = {
   very_likely_outperform: 'Very likely',
@@ -181,7 +182,12 @@ export default function CalibrationWorkspace({ activeClient }) {
     <div style={workspaceShellStyle}>
       <div style={workspaceHeaderStyle}>
         <div style={kickerStyle}>Strategy · Calibration</div>
-        <h1 style={titleStyle}>{activeClient.name}</h1>
+        <h1 style={titleStyle}>
+          {activeClient.name}
+          <span style={{ marginLeft: 12, display: 'inline-block', verticalAlign: 'middle' }}>
+            <PrelaunchBadge client={activeClient} />
+          </span>
+        </h1>
         <div style={subtitleStyle}>
           Closes the prediction-machine feedback loop. Compares the scorer's predicted tiers
           against actual outcomes for every video in a repositioning audit. Surfaces which

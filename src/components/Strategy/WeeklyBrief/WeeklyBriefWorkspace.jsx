@@ -33,6 +33,7 @@ import {
 } from '../../../services/weeklyBriefsService.js';
 import { supabase } from '../../../services/supabaseClient.js';
 import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
+import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 
 export default function WeeklyBriefWorkspace({ activeClient }) {
   const clientId = activeClient?.id;
@@ -143,7 +144,12 @@ export default function WeeklyBriefWorkspace({ activeClient }) {
     <div style={workspaceShellStyle}>
       <div style={workspaceHeaderStyle}>
         <div style={kickerStyle}>Strategy · Weekly brief</div>
-        <h1 style={titleStyle}>{activeClient.name}</h1>
+        <h1 style={titleStyle}>
+          {activeClient.name}
+          <span style={{ marginLeft: 12, display: 'inline-block', verticalAlign: 'middle' }}>
+            <PrelaunchBadge client={activeClient} />
+          </span>
+        </h1>
         <div style={subtitleStyle}>
           Translates the analytical state (repositioning audit + calibration + Strategy Spine + cohort
           composition) into a 4-5 bullet client-facing brief. Action-led, evidence-cited,

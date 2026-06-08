@@ -31,6 +31,7 @@ import {
   saveScan, listScansForClient, loadScan, archiveScan,
 } from '../../../services/competitorScansService.js';
 import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
+import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 
 const TIER_LABELS = {
   very_likely_outperform: 'Very likely outperform',
@@ -227,7 +228,12 @@ export default function CompetitorScanWorkspace({ activeClient, onNavigate }) {
     <div style={workspaceShellStyle}>
       <div style={workspaceHeaderStyle}>
         <div style={kickerStyle}>Strategy · Competitor scan</div>
-        <h1 style={titleStyle}>{activeClient.name}</h1>
+        <h1 style={titleStyle}>
+          {activeClient.name}
+          <span style={{ marginLeft: 12, display: 'inline-block', verticalAlign: 'middle' }}>
+            <PrelaunchBadge client={activeClient} />
+          </span>
+        </h1>
         <div style={subtitleStyle}>
           Scan recent uploads from the competitor cohort, score each as-if-the-client-made-it
           through the Pre-flight scorer, and rank by adaptability — the composite of peer

@@ -28,6 +28,7 @@ import {
   saveAudit, listAuditsForClient, loadAudit, archiveAudit,
 } from '../../../services/repositioningAuditsService.js';
 import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
+import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 
 const DIMENSION_LABELS = {
   title_patterns:  'Title patterns',
@@ -203,7 +204,12 @@ export default function RepositioningWorkspace({ activeClient }) {
     <div style={workspaceShellStyle}>
       <div style={workspaceHeaderStyle}>
         <div style={kickerStyle}>Strategy · Repositioning</div>
-        <h1 style={titleStyle}>{activeClient.name}</h1>
+        <h1 style={titleStyle}>
+          {activeClient.name}
+          <span style={{ marginLeft: 12, display: 'inline-block', verticalAlign: 'middle' }}>
+            <PrelaunchBadge client={activeClient} />
+          </span>
+        </h1>
         <div style={subtitleStyle}>
           Bulk-score the channel's existing catalog through the same scorer Pre-flight uses for
           proposed concepts. Surfaces dimensions where the channel is systemically weak or

@@ -29,6 +29,7 @@ import {
   COHORT_ROLES,
 } from '../../../services/cohortRolesService.js';
 import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
+import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 
 const ROLE_LABELS = {
   peer:         'Peer',
@@ -131,7 +132,12 @@ export default function CohortRolesWorkspace({ activeClient }) {
     <div style={workspaceShellStyle}>
       <div style={workspaceHeaderStyle}>
         <div style={kickerStyle}>Strategy · Cohort roles</div>
-        <h1 style={titleStyle}>{activeClient.name}</h1>
+        <h1 style={titleStyle}>
+          {activeClient.name}
+          <span style={{ marginLeft: 12, display: 'inline-block', verticalAlign: 'middle' }}>
+            <PrelaunchBadge client={activeClient} />
+          </span>
+        </h1>
         <div style={subtitleStyle}>
           Separate predictive ground truth (peer) from directional intelligence (aspirational) and
           case-study (reference) channels. The scorer reads only peer-tagged channels for prediction;

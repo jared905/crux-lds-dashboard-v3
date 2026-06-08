@@ -438,6 +438,12 @@ export async function getClientsFromSupabase() {
         reportPeriods: data.reportPeriods,
         activePeriod: data.activePeriod,
         activePeriodId: channel.active_period_id,
+        // Migration 098 — pre-launch flag flows through so Strategy
+        // workspace headers can render the "PRE-LAUNCH" badge and
+        // surface graceful empty states for Pre-flight / Repositioning /
+        // Calibration which need client video data.
+        is_prelaunch: !!channel.is_prelaunch,
+        prelaunch_intended_launch_at: channel.prelaunch_intended_launch_at || null,
       };
     })
   );

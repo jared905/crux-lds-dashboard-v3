@@ -11,7 +11,7 @@
  * stage transitions) is in place for the hires-coming-soon case.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader, AlertTriangle, ChevronDown, ExternalLink, RefreshCw, EyeOff, Eye } from 'lucide-react';
+import { Loader, AlertTriangle, ChevronDown, ExternalLink, RefreshCw, EyeOff, Eye, Sparkles } from 'lucide-react';
 import {
   listPortfolio,
   updateClientStage,
@@ -21,6 +21,7 @@ import {
 } from '../../services/portfolioService.js';
 import ChannelIssuesModal from '../ResearchV2/ChannelIssuesModal.jsx';
 import StrategySpine from './StrategySpine.jsx';
+import AddPrelaunchClientModal from './AddPrelaunchClientModal.jsx';
 
 export default function PortfolioView() {
   const [clients, setClients] = useState(null);
@@ -34,6 +35,9 @@ export default function PortfolioView() {
   // Master/detail: when set, the spine view fills the page in place of
   // the client list. Clicking a client name opens it; back button clears.
   const [openSpineClient, setOpenSpineClient] = useState(null);
+  // Pre-launch client creation modal — onboard clients before they
+  // have a YouTube channel to OAuth.
+  const [prelaunchOpen, setPrelaunchOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,10 +124,26 @@ export default function PortfolioView() {
   if (!clients?.length) {
     return (
       <div style={{ padding: '24px 28px', maxWidth: 1500, margin: '0 auto' }}>
-        <Header total={0} />
+        <Header total={0} onAddPrelaunch={() => setPrelaunchOpen(true)} />
         <div style={{ padding: 40, background: '#131316', border: '1px solid #1f1f24', borderRadius: 10, textAlign: 'center', color: '#888' }}>
-          No clients yet. Add a client in <strong>Settings → Clients</strong> or via <strong>+ Add channels</strong> in Research.
+          <div style={{ marginBottom: 16 }}>No clients yet.</div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setPrelaunchOpen(true)}
+              style={{ background: '#a78bfa', color: '#0a0a0e', border: 'none', borderRadius: 5, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Sparkles size={13} /> Add pre-launch client
+            </button>
+            <div style={{ alignSelf: 'center', fontSize: 12, color: '#666' }}>
+              or use <strong>+ Add channels</strong> in Research to onboard one with an existing YouTube channel
+            </div>
+          </div>
         </div>
+        <AddPrelaunchClientModal
+          open={prelaunchOpen}
+          onClose={() => setPrelaunchOpen(false)}
+          onCreated={() => setRefreshTick(t => t + 1)}
+        />
       </div>
     );
   }
@@ -144,6 +164,7 @@ export default function PortfolioView() {
         onToggleHidden={() => setIncludeHidden(v => !v)}
         subChannelCount={subChannelCandidates.length}
         onBulkHideSubChannels={handleBulkHideSubChannels}
+        onAddPrelaunch={() => setPrelaunchOpen(true)}
       />
 
       {grouped.map(group => (
@@ -167,11 +188,17 @@ export default function PortfolioView() {
           onChanged={() => setRefreshTick(t => t + 1)}
         />
       )}
+
+      <AddPrelaunchClientModal
+        open={prelaunchOpen}
+        onClose={() => setPrelaunchOpen(false)}
+        onCreated={() => setRefreshTick(t => t + 1)}
+      />
     </div>
   );
 }
 
-function Header({ total, totals = [], onRefresh, hiddenCount = 0, includeHidden = false, onToggleHidden, subChannelCount = 0, onBulkHideSubChannels }) {
+function Header({ total, totals = [], onRefresh, hiddenCount = 0, includeHidden = false, onToggleHidden, subChannelCount = 0, onBulkHideSubChannels, onAddPrelaunch }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
       <div>
@@ -212,6 +239,15 @@ function Header({ total, totals = [], onRefresh, hiddenCount = 0, includeHidden 
           >
             {includeHidden ? <Eye size={13} /> : <EyeOff size={13} />}
             {includeHidden ? `Hide ${hiddenCount} sub-channel${hiddenCount === 1 ? '' : 's'}` : `Show ${hiddenCount} hidden`}
+          </button>
+        )}
+        {onAddPrelaunch && (
+          <button
+            onClick={onAddPrelaunch}
+            style={{ ...refreshBtn, background: 'rgba(167,139,250,0.12)', borderColor: 'rgba(167,139,250,0.35)', color: '#a78bfa' }}
+            title="Add a client before they have a YouTube channel"
+          >
+            <Sparkles size={13} /> Add pre-launch client
           </button>
         )}
         {onRefresh && (
