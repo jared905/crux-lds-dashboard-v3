@@ -1107,34 +1107,59 @@ export default function App() {
 
         {/* Client Selector */}
         {activeClient && (
-          <div style={{ position: "relative", ...(isMobile ? { width: "100%", order: 10 } : {}) }}>
-            <select
-              value={activeClient?.id || ""}
-              onChange={(e) => {
-                const client = clients.find(c => c.id === e.target.value);
-                if (client) handleClientChange(client);
-              }}
-              style={{
-                minWidth: isMobile ? 0 : "200px",
-                width: isMobile ? "100%" : "auto",
-                border: "1px solid var(--accent-border)",
-                borderRadius: "8px",
-                padding: isMobile ? "10px 36px 10px 12px" : "8px 32px 8px 12px",
-                background: "#252525",
-                color: "#E0E0E0",
-                fontSize: "13px",
-                fontWeight: "600",
-                cursor: "pointer",
-                appearance: "none",
-              }}
-            >
-              {accessibleClients.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.rows.length} videos)
-                </option>
-              ))}
-            </select>
-            <ChevronDown size={16} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "#9E9E9E", pointerEvents: "none" }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...(isMobile ? { width: "100%", order: 10 } : {}) }}>
+            <div style={{ position: "relative", ...(isMobile ? { flex: 1 } : {}) }}>
+              <select
+                value={activeClient?.id || ""}
+                onChange={(e) => {
+                  const client = clients.find(c => c.id === e.target.value);
+                  if (client) handleClientChange(client);
+                }}
+                style={{
+                  minWidth: isMobile ? 0 : "200px",
+                  width: isMobile ? "100%" : "auto",
+                  border: activeClient?.is_prelaunch
+                    ? "1px solid rgba(167,139,250,0.55)"
+                    : "1px solid var(--accent-border)",
+                  borderRadius: "8px",
+                  padding: isMobile ? "10px 36px 10px 12px" : "8px 32px 8px 12px",
+                  background: activeClient?.is_prelaunch ? "rgba(167,139,250,0.10)" : "#252525",
+                  color: "#E0E0E0",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  appearance: "none",
+                }}
+              >
+                {accessibleClients.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.is_prelaunch
+                      ? `${c.name} · pre-launch`
+                      : `${c.name} (${c.rows.length} videos)`}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={16} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "#9E9E9E", pointerEvents: "none" }} />
+            </div>
+            {/* P0 #4 (2026-06-08): inline pre-launch tag on the picker so the
+                strategist knows mid-session which clients have a channel and
+                which are placeholders. */}
+            {activeClient?.is_prelaunch && (
+              <span style={{
+                background: 'rgba(167,139,250,0.15)',
+                color: '#a78bfa',
+                border: '1px solid rgba(167,139,250,0.40)',
+                borderRadius: 4,
+                padding: '3px 8px',
+                fontSize: 9,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                whiteSpace: 'nowrap',
+              }}>
+                Pre-launch
+              </span>
+            )}
           </div>
         )}
 

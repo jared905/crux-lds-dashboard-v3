@@ -55,7 +55,10 @@ export const MAIN_SECTIONS = [
       { id: "ideation", label: "Ideation", icon: Lightbulb },
       { id: "intelligence", label: "Intelligence", icon: Brain },
       { id: "atomizer", label: "Atomizer", icon: Zap },
-      { id: "briefs", label: "Briefs", icon: FileText },
+      // P0-rename 2026-06-08: was "Briefs" — collided with Strategy → Brief.
+      // "Production Briefs" clarifies it's the per-video shoot brief, not
+      // the weekly strategist brief.
+      { id: "briefs", label: "Production Briefs", icon: FileText },
     ],
   },
   {
@@ -63,14 +66,18 @@ export const MAIN_SECTIONS = [
     label: "Strategy",
     icon: Map,
     tabs: [
-      { id: "weekly-brief", label: "Brief", icon: ScrollText },
+      // P0 2026-06-08: Brief is marked recommended — first tab a strategist
+      // opens in Strategy section. TopNav surfaces a small dot indicator.
+      { id: "weekly-brief", label: "Brief", icon: ScrollText, recommended: true },
       { id: "opportunities", label: "Opportunities", icon: Compass },
       { id: "pre-flight", label: "Pre-flight", icon: Crosshair },
       { id: "repositioning", label: "Repositioning", icon: Target },
       { id: "competitor-scan", label: "Competitor Scan", icon: Radar },
       { id: "calibration", label: "Calibration", icon: Gauge },
       { id: "cohort-roles", label: "Cohort", icon: Users2 },
-      { id: "actions", label: "Feedback", icon: Activity },
+      // P0-rename 2026-06-08: was "Feedback" — ambiguous what kind.
+      // "Recent Uploads" names what this tab actually shows.
+      { id: "actions", label: "Recent Uploads", icon: Activity },
       { id: "calendar", label: "Calendar", icon: Calendar },
     ],
   },
@@ -92,7 +99,9 @@ export const UTILITY_SECTIONS = [
     label: "Settings",
     icon: Settings,
     tabs: [
-      { id: "clients", label: "Clients", icon: Building },
+      // P0 2026-06-08: removed Settings → Clients link — it pointed at
+      // tab="clients" which had no handler in App.jsx (dead route).
+      // Client management lives at Operate → Clients (Portfolio).
       { id: "api-keys", label: "API Keys", icon: Key },
       { id: "security", label: "Security", icon: ShieldCheck },
       { id: "standardizer", label: "Data Standardizer", icon: Table },

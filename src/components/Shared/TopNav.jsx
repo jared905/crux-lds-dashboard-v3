@@ -153,9 +153,21 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                       onMouseLeave={(e) => {
                         if (!isTabActive) e.currentTarget.style.background = "transparent";
                       }}
+                      title={t.recommended ? 'Recommended starting point for this section' : undefined}
                     >
                       <TabIcon size={16} />
-                      {t.label}
+                      <span style={{ flex: 1 }}>{t.label}</span>
+                      {/* P0 #5 (2026-06-08): "Start here" indicator next to the
+                          recommended first tab in each section. New strategists
+                          have a visual cue for the canonical entry point. */}
+                      {t.recommended && (
+                        <span style={{
+                          display: 'inline-block',
+                          width: 6, height: 6, borderRadius: '50%',
+                          background: '#3fa66a',
+                          boxShadow: '0 0 6px rgba(63,166,106,0.6)',
+                        }} />
+                      )}
                     </button>
                   );
                 })}
