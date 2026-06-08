@@ -30,6 +30,7 @@ import { computeCalibration, CALIBRATION_TIERS, CALIBRATION_DIMENSION_KEYS } fro
 import {
   saveCalibrationRun, listCalibrationRunsForClient, loadCalibrationRun, archiveCalibrationRun,
 } from '../../../services/calibrationRunsService.js';
+import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
 
 const TIER_LABELS = {
   very_likely_outperform: 'Very likely',
@@ -187,6 +188,9 @@ export default function CalibrationWorkspace({ activeClient }) {
           dimensions to trust most for this channel and where the scorer is systematically
           off. Phase A uses view-rank quartile inside the channel as the actual-tier baseline;
           Phase B will add pipeline strategies for clients with outcome data.
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <DataFreshnessBadge clientId={clientId} />
         </div>
       </div>
 

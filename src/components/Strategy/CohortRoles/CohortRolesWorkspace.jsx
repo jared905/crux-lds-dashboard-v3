@@ -28,6 +28,7 @@ import {
   loadCohortWithRoles, updateCohortRole, getCohortComposition,
   COHORT_ROLES,
 } from '../../../services/cohortRolesService.js';
+import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
 
 const ROLE_LABELS = {
   peer:         'Peer',
@@ -135,6 +136,9 @@ export default function CohortRolesWorkspace({ activeClient }) {
           Separate predictive ground truth (peer) from directional intelligence (aspirational) and
           case-study (reference) channels. The scorer reads only peer-tagged channels for prediction;
           aspirational and reference stay visible in monitoring surfaces.
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <DataFreshnessBadge clientId={clientId} />
         </div>
       </div>
 

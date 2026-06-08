@@ -27,6 +27,7 @@ import { runRepositioningAudit, REPORTED_DIMENSIONS } from '../../../services/re
 import {
   saveAudit, listAuditsForClient, loadAudit, archiveAudit,
 } from '../../../services/repositioningAuditsService.js';
+import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
 
 const DIMENSION_LABELS = {
   title_patterns:  'Title patterns',
@@ -207,6 +208,9 @@ export default function RepositioningWorkspace({ activeClient }) {
           Bulk-score the channel's existing catalog through the same scorer Pre-flight uses for
           proposed concepts. Surfaces dimensions where the channel is systemically weak or
           systemically strong, so repositioning gets pointed at the right lever.
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <DataFreshnessBadge clientId={clientId} />
         </div>
       </div>
 

@@ -497,6 +497,20 @@ export default async function handler(req, res) {
       endDate,
     });
 
+    // Migration 097 — stamp the channel with last-surface-pull timestamp
+    // so the DataFreshnessBadge can display "Surface intelligence: 2h
+    // ago" without a slow MAX(created_at) query over surface_intelligence rows.
+    try {
+      await supabase
+        .from('channels')
+        .update({ last_surface_pull_at: new Date().toISOString() })
+        .eq('id', channelRow.id);
+    } catch (stampErr) {
+      // Non-fatal — the pull succeeded; the timestamp is purely a
+      // display affordance.
+      console.warn('[surface-pull] failed to stamp last_surface_pull_at:', stampErr?.message);
+    }
+
     return res.status(200).json({
       ok: true,
       window: { startDate, endDate, days },

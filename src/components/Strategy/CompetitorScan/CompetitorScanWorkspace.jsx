@@ -30,6 +30,7 @@ import { runCompetitorScan } from '../../../services/competitorScanService.js';
 import {
   saveScan, listScansForClient, loadScan, archiveScan,
 } from '../../../services/competitorScansService.js';
+import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
 
 const TIER_LABELS = {
   very_likely_outperform: 'Very likely outperform',
@@ -232,6 +233,9 @@ export default function CompetitorScanWorkspace({ activeClient, onNavigate }) {
           through the Pre-flight scorer, and rank by adaptability — the composite of peer
           early-performance signal, the as-if-client tier, and topic-authority similarity
           to the client's catalog.
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <DataFreshnessBadge clientId={clientId} />
         </div>
       </div>
 

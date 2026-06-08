@@ -32,6 +32,7 @@ import {
   saveBrief, listBriefsForClient, loadBrief, archiveBrief,
 } from '../../../services/weeklyBriefsService.js';
 import { supabase } from '../../../services/supabaseClient.js';
+import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
 
 export default function WeeklyBriefWorkspace({ activeClient }) {
   const clientId = activeClient?.id;
@@ -148,6 +149,9 @@ export default function WeeklyBriefWorkspace({ activeClient }) {
           composition) into a 4-5 bullet client-facing brief. Action-led, evidence-cited,
           calibration-honest. The artifact you'd actually send the client — not the analytics
           beneath it.
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <DataFreshnessBadge clientId={clientId} />
         </div>
       </div>
 
