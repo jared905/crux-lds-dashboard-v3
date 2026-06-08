@@ -38,6 +38,7 @@ import CompetitorScanWorkspace from "./components/Strategy/CompetitorScan/Compet
 import CalibrationWorkspace from "./components/Strategy/Calibration/CalibrationWorkspace.jsx";
 import CohortRolesWorkspace from "./components/Strategy/CohortRoles/CohortRolesWorkspace.jsx";
 import WeeklyBriefWorkspace from "./components/Strategy/WeeklyBrief/WeeklyBriefWorkspace.jsx";
+import ThisWeekWorkspace from "./components/Operate/ThisWeek/ThisWeekWorkspace.jsx";
 import CommentAnalysis from "./components/Research/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContentIntelligence.jsx";
 import AIExecutiveSummary from "./components/Performance/AIExecutiveSummary.jsx";
@@ -1308,6 +1309,16 @@ export default function App() {
         {error && <div style={{ background: "rgba(207, 102, 121, 0.1)", padding: "20px", borderRadius: "12px", color: "#CF6679" }}>{error}</div>}
 
         {tab === "standardizer" && <DataStandardizer />}
+
+        {/* This Week — cross-client alerts feed, renders regardless of
+            whether an active client is selected. */}
+        {tab === "this-week" && (
+          <ThisWeekWorkspace
+            clients={clients}
+            onClientChange={handleClientChange}
+            onNavigate={setTab}
+          />
+        )}
 
         {/* Only show content when client is active */}
         {activeClient && (

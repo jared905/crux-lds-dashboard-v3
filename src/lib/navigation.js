@@ -11,7 +11,7 @@ import {
   FileText, Activity, Calendar,
   Building, Key, Shield, ShieldCheck, Table,
   ClipboardCheck, Palette,
-  Compass, Crosshair, Target, Radar, Gauge, Users2, ScrollText,
+  Compass, Crosshair, Target, Radar, Gauge, Users2, ScrollText, AlertCircle,
   BarChart3, Search, FlaskConical, Map, Briefcase, Settings,
 } from "lucide-react";
 
@@ -22,6 +22,9 @@ export const MAIN_SECTIONS = [
     label: "Operate",
     icon: Briefcase,
     tabs: [
+      // P1 #8 (2026-06-08): cross-client alerts feed — "what should I do
+      // right now?". First tab so it's the strategist's natural landing.
+      { id: "this-week", label: "This Week", icon: AlertCircle, recommended: true },
       { id: "portfolio", label: "Clients", icon: Users },
     ],
   },
