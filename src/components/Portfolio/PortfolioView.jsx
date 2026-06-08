@@ -23,7 +23,7 @@ import ChannelIssuesModal from '../ResearchV2/ChannelIssuesModal.jsx';
 import StrategySpine from './StrategySpine.jsx';
 import AddPrelaunchClientModal from './AddPrelaunchClientModal.jsx';
 
-export default function PortfolioView() {
+export default function PortfolioView({ onNavigate } = {}) {
   const [clients, setClients] = useState(null);
   const [hiddenCount, setHiddenCount] = useState(0);
   const [includeHidden, setIncludeHidden] = useState(false);
@@ -143,6 +143,7 @@ export default function PortfolioView() {
           open={prelaunchOpen}
           onClose={() => setPrelaunchOpen(false)}
           onCreated={() => setRefreshTick(t => t + 1)}
+          onNavigate={onNavigate}
         />
       </div>
     );

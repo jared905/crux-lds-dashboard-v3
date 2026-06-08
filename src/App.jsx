@@ -1360,7 +1360,7 @@ export default function App() {
             )}
 
             {tab === "portfolio" && (
-              <PortfolioView />
+              <PortfolioView onNavigate={setTab} />
             )}
 
             {tab === "pre-flight" && (
