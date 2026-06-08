@@ -9,6 +9,7 @@ import { Globe, BarChart3, Square, Inbox, RefreshCw, Loader, Download, Image as 
 import { generateAuditPack, downloadMarkdown } from '../../services/auditPackService.js';
 import { refreshCohortProductionSignals } from '../../services/productionSignalService.js';
 import ScopeBar from './ScopeBar.jsx';
+import DataFreshnessBadge from '../Strategy/shared/DataFreshnessBadge.jsx';
 import RecipesBar from './RecipesBar.jsx';
 import ClientDiagnostic from './ClientDiagnostic.jsx';
 import CompetitivePostureBanner from './CompetitivePostureBanner.jsx';
@@ -286,6 +287,16 @@ export default function ResearchV2() {
         if (lens) setActiveLens(lens);
       }} />
       <ScopeBar scope={scope} onChange={setScope} />
+
+      {/* Data freshness — when a client is pinned via the ScopeBar,
+          surface how stale the underlying competitor cohort + analytics
+          data is. The competitor sync cron timestamp drives the channel
+          chip; OAuth + surface pulls appear when relevant. */}
+      {scope.clientId && (
+        <div style={{ marginTop: 8, marginBottom: 12 }}>
+          <DataFreshnessBadge clientId={scope.clientId} />
+        </div>
+      )}
 
       {/* Competitive posture — strategist's interpretation of the cohort.
           Sits above ClientDiagnostic so the data underneath is read with

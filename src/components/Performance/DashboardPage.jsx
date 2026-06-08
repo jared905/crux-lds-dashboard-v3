@@ -3,6 +3,7 @@ import { useMediaQuery } from "../../hooks/useMediaQuery.js";
 import { TrendingUp, TrendingDown, ChevronDown, ChevronUp, Activity, PlaySquare } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/formatters.js";
 import Chart from "./Chart.jsx";
+import DataFreshnessBadge from "../Strategy/shared/DataFreshnessBadge.jsx";
 import TopVideos from "./TopVideos.jsx";
 import PublishingTimeline from "./PublishingTimeline.jsx";
 import BrandFunnel from "./BrandFunnel.jsx";
@@ -292,6 +293,14 @@ export default function DashboardPage({ filtered, rows, kpis, allTimeKpis, previ
         narrative={narrative}
         onNavigateToStrategy={() => setTab?.("opportunities")}
       />
+
+      {/* Data freshness — sits just below the hero so the strategist sees
+          how fresh the underlying data is before scanning the KPIs. */}
+      {activeClient?.id && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6, marginBottom: 12 }}>
+          <DataFreshnessBadge clientId={activeClient.id} />
+        </div>
+      )}
 
       {/* Top Level KPIs - Period + All Time — now with deltas & click-to-expand */}
       <div style={{
