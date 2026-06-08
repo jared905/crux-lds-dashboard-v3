@@ -366,13 +366,67 @@ export default async function handler(req, res) {
       .delete()
       .eq('id', stateRecord.id);
 
-    // Check if a client already exists with this YouTube channel ID
-    const { data: existingClient } = await supabase
+    // Check if a client already exists with this YouTube channel ID.
+    // Broader lookup than is_competitor=false — covers the case where
+    // the channel was previously added as a competitor and we now need
+    // to promote it to a client (e.g., strategist tracked it as a peer
+    // before getting OAuth access).
+    let { data: existingChannel } = await supabase
       .from('channels')
-      .select('id, name')
+      .select('id, name, is_client, is_competitor')
       .eq('youtube_channel_id', channelInfo.channelId)
-      .eq('is_competitor', false)
       .maybeSingle();
+
+    // Bug fix 2026-06-08: invite-backed grants used to skip the
+    // prompt_add_client flow entirely and redirect to the guest-success
+    // page WITHOUT creating a channels row. Result: the OAuth
+    // connection existed but the channel was invisible to the dashboard
+    // (which reads channels WHERE is_client=true). Now we auto-create
+    // or promote the row inline so the channel appears immediately.
+    if (stateRecord.invite_id && !existingChannel) {
+      const { data: created, error: createErr } = await supabase
+        .from('channels')
+        .insert({
+          youtube_channel_id: channelInfo.channelId,
+          name:               channelInfo.title || 'Untitled channel',
+          thumbnail_url:      channelInfo.thumbnail || null,
+          is_client:          true,
+          is_competitor:      false,
+          created_via:        'manual',
+          subscriber_count:   0,
+          total_view_count:   0,
+          video_count:        0,
+          last_synced_at:     new Date().toISOString(),
+        })
+        .select('id, name, is_client, is_competitor')
+        .single();
+      if (createErr) {
+        console.warn('[OAuth] failed to auto-create channel from invite (non-fatal):', createErr.message);
+      } else {
+        existingChannel = created;
+        console.log(`[OAuth] Auto-created client channel from invite: ${created.name} (${channelInfo.channelId})`);
+      }
+    } else if (stateRecord.invite_id && existingChannel && !existingChannel.is_client) {
+      // Channel existed (probably as competitor) — promote to client.
+      const { error: promoteErr } = await supabase
+        .from('channels')
+        .update({
+          is_client: true,
+          is_competitor: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingChannel.id);
+      if (promoteErr) {
+        console.warn('[OAuth] failed to promote channel to client (non-fatal):', promoteErr.message);
+      } else {
+        existingChannel = { ...existingChannel, is_client: true, is_competitor: false };
+        console.log(`[OAuth] Promoted ${existingChannel.name} to client (was competitor)`);
+      }
+    }
+
+    // For the legacy strategist-flow callers (non-invite), keep the
+    // existing variable name pointing at a confirmed client only.
+    const existingClient = existingChannel?.is_client ? existingChannel : null;
 
     // Auto-grant client access for the connecting user
     if (existingClient) {
