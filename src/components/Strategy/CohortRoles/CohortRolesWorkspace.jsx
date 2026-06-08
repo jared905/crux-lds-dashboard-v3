@@ -30,6 +30,7 @@ import {
 } from '../../../services/cohortRolesService.js';
 import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
 import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
+import NextStepCard from '../shared/NextStepCard.jsx';
 
 const ROLE_LABELS = {
   peer:         'Peer',
@@ -49,7 +50,7 @@ const ROLE_DESCRIPTIONS = {
   reference:    'Case-study channel kept for context. Not scored against, not monitored heavily — useful for cross-vertical observation.',
 };
 
-export default function CohortRolesWorkspace({ activeClient }) {
+export default function CohortRolesWorkspace({ activeClient, onNavigate }) {
   const clientId = activeClient?.id;
 
   const [bootLoading, setBootLoading]   = useState(true);
@@ -182,6 +183,13 @@ export default function CohortRolesWorkspace({ activeClient }) {
             rows={displayRows}
             pending={pendingUpdates}
             onRoleChange={handleRoleChange}
+          />
+
+          <NextStepCard
+            setTab={onNavigate}
+            nextTab="repositioning"
+            label="Re-run the repositioning audit"
+            description="Re-tagging channels changes the predictive cohort. Run a fresh audit to see how systemic gaps and strengths shift now that aspirational / reference channels are excluded from the scorer."
           />
         </>
       )}

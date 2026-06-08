@@ -32,6 +32,7 @@ import {
 } from '../../../services/calibrationRunsService.js';
 import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
 import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
+import NextStepCard from '../shared/NextStepCard.jsx';
 
 const TIER_LABELS = {
   very_likely_outperform: 'Very likely',
@@ -52,7 +53,7 @@ const DIMENSION_LABELS = {
   topic_authority: 'Topic authority',
 };
 
-export default function CalibrationWorkspace({ activeClient }) {
+export default function CalibrationWorkspace({ activeClient, onNavigate }) {
   const clientId = activeClient?.id;
 
   const [bootLoading, setBootLoading]       = useState(true);
@@ -232,12 +233,20 @@ export default function CalibrationWorkspace({ activeClient }) {
           />
 
           {selectedRun && (
-            <CalibrationDetail
-              run={selectedRun}
-              audits={audits}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-            />
+            <>
+              <CalibrationDetail
+                run={selectedRun}
+                audits={audits}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+              />
+              <NextStepCard
+                setTab={onNavigate}
+                nextTab="weekly-brief"
+                label="Generate the weekly brief"
+                description="With calibration loaded, the brief generator can honestly flag which scorer dimensions are reliable for this channel and which are hypotheses — produces a more defensible client-facing artifact."
+              />
+            </>
           )}
         </>
       )}

@@ -1357,7 +1357,7 @@ export default function App() {
             )}
 
             {tab === "repositioning" && (
-              <RepositioningWorkspace activeClient={activeClient} />
+              <RepositioningWorkspace activeClient={activeClient} onNavigate={setTab} />
             )}
 
             {tab === "competitor-scan" && (
@@ -1365,15 +1365,15 @@ export default function App() {
             )}
 
             {tab === "calibration" && (
-              <CalibrationWorkspace activeClient={activeClient} />
+              <CalibrationWorkspace activeClient={activeClient} onNavigate={setTab} />
             )}
 
             {tab === "cohort-roles" && (
-              <CohortRolesWorkspace activeClient={activeClient} />
+              <CohortRolesWorkspace activeClient={activeClient} onNavigate={setTab} />
             )}
 
             {tab === "weekly-brief" && (
-              <WeeklyBriefWorkspace activeClient={activeClient} />
+              <WeeklyBriefWorkspace activeClient={activeClient} onNavigate={setTab} />
             )}
 
             {tab === "gap-detection" && (

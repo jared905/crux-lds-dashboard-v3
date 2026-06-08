@@ -29,6 +29,7 @@ import {
 } from '../../../services/repositioningAuditsService.js';
 import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
 import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
+import NextStepCard from '../shared/NextStepCard.jsx';
 
 const DIMENSION_LABELS = {
   title_patterns:  'Title patterns',
@@ -58,7 +59,7 @@ const FORMAT_FILTERS = [
   { value: 'long_form',  label: 'Long-form only' },
 ];
 
-export default function RepositioningWorkspace({ activeClient }) {
+export default function RepositioningWorkspace({ activeClient, onNavigate }) {
   // ── State ─────────────────────────────────────────────
   const [cohortContext, setCohortContext]               = useState(null);
   const [cohortError, setCohortError]                   = useState(null);
@@ -244,7 +245,15 @@ export default function RepositioningWorkspace({ activeClient }) {
           />
 
           {selectedAudit && (
-            <AuditDetail audit={selectedAudit} />
+            <>
+              <AuditDetail audit={selectedAudit} />
+              <NextStepCard
+                setTab={onNavigate}
+                nextTab="calibration"
+                label="Calibrate this audit"
+                description="Run calibration to see which dimensions of the scorer are actually predictive for this channel. Without calibration, every audit finding is a claim that hasn't been validated."
+              />
+            </>
           )}
         </>
       )}
