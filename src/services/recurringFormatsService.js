@@ -74,7 +74,13 @@ export async function generateRecurringFormats({ clientId, clientName = null, ta
 
     const parsed = parseFormatsResponse(raw);
     if (!parsed || !Array.isArray(parsed.formats)) {
-      return { ok: false, error: 'Could not parse formats response', rawResponse: raw };
+      console.warn('[recurringFormats] parse failed. Raw LLM response:', raw);
+      const preview = raw.length > 400 ? raw.slice(0, 400) + '… [truncated]' : raw;
+      return {
+        ok: false,
+        error: `Could not parse formats response. LLM returned:\n\n${preview}`,
+        rawResponse: raw,
+      };
     }
 
     const batchId = (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -306,18 +312,40 @@ function buildUserPrompt({ clientName, spine, pillars, cohortComp, targetCount, 
 
 function parseFormatsResponse(raw) {
   if (!raw) return null;
+
   let cleaned = raw.trim();
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\n?/i, '').replace(/```\s*$/, '').trim();
-  }
+
+  // 1. Strip leading/trailing markdown code fences (with or without `json` tag).
+  cleaned = cleaned.replace(/^```(?:json|JSON)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+
+  // 2. Find the outermost { ... } even if prose surrounds it.
   const firstBrace = cleaned.indexOf('{');
-  const lastBrace = cleaned.lastIndexOf('}');
-  if (firstBrace > 0 || lastBrace < cleaned.length - 1) {
-    if (firstBrace >= 0 && lastBrace > firstBrace) {
-      cleaned = cleaned.slice(firstBrace, lastBrace + 1);
-    }
+  const lastBrace  = cleaned.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
   }
-  try { return JSON.parse(cleaned); } catch { return null; }
+
+  // 3. Try strict parse first.
+  try { return JSON.parse(cleaned); } catch { /* fall through to lenient pass */ }
+
+  // 4. Lenient pass — strip the common Sonnet failure modes that break JSON.parse
+  //    but don't change semantics:
+  //      - trailing commas before } or ]
+  //      - smart quotes (curly “ ” ‘ ’) leaking in from prompt echoing
+  //      - JS-style // line comments
+  //    Don't touch anything inside string bodies — these regexes only match the
+  //    structural cases ("...,\s*}" etc.) which by JSON grammar can't appear inside
+  //    a string anyway.
+  let lenient = cleaned
+    .replace(/[“”]/g, '"')     // “ ”  →  "
+    .replace(/[‘’]/g, "'")     // ‘ ’  →  '
+    .replace(/^\s*\/\/.*$/gm, '')         // line comments at start of a line
+    .replace(/,(\s*[}\]])/g, '$1');       // trailing commas before } or ]
+
+  try { return JSON.parse(lenient); } catch (err) {
+    console.warn('[recurringFormats] lenient JSON.parse also failed:', err?.message);
+    return null;
+  }
 }
 
 export default {

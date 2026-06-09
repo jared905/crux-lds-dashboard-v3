@@ -161,7 +161,17 @@ export default function RecurringFormatsSection({ clientId, hasPersona }) {
         </div>
       </div>
 
-      {error && <Note tone="error">{error}</Note>}
+      {error && (
+        <Note tone="error">
+          <div style={{
+            whiteSpace: 'pre-wrap',
+            fontFamily: error.length > 200 ? 'ui-monospace, Menlo, monospace' : 'inherit',
+            fontSize: error.length > 200 ? 11 : 13,
+          }}>
+            {error}
+          </div>
+        </Note>
+      )}
       {loading && <Note tone="info">Loading formats…</Note>}
 
       {!loading && formats.length === 0 && !error && (
