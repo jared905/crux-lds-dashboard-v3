@@ -26,7 +26,7 @@ import { supabase } from './supabaseClient';
 import claudeAPI from './claudeAPI';
 import { getCohortComposition } from './cohortRolesService';
 
-export const BRIEF_PROMPT_VERSION = 'v3-weekly-brief-persona';
+export const BRIEF_PROMPT_VERSION = 'v4-weekly-brief-prelaunch-aware';
 const DEFAULT_MODEL = 'claude-sonnet-4-5';
 
 // ──────────────────────────────────────────────────
@@ -61,11 +61,24 @@ export async function generateWeeklyBrief({
     loadClientChannel(clientId),
   ]);
 
-  if (!audit) {
-    return { error: 'No repositioning audit found for this client. Run an audit at Strategy → Repositioning first.' };
-  }
-  if (!calibration) {
-    return { error: 'No calibration run found. Run calibration at Strategy → Calibration first (needs the audit you just ran as the source).' };
+  // 2026-06-09: pre-launch clients can't have an audit or calibration
+  // (no videos exist to audit, no predictions to validate). The brief
+  // still generates from Spine + persona + cohort + business context;
+  // the prompt switches to a launch-strategy register instead of the
+  // "fix systemic gaps in your existing catalog" register.
+  const isPrelaunch = !!clientChannel?.is_prelaunch;
+
+  if (!isPrelaunch) {
+    if (!audit) {
+      return { error: 'No repositioning audit found for this client. Run an audit at Strategy → Repositioning first.' };
+    }
+    if (!calibration) {
+      return { error: 'No calibration run found. Run calibration at Strategy → Calibration first (needs the audit you just ran as the source).' };
+    }
+  } else if (!spine?.audience_persona && !spine?.audience_read && !businessContext?.target_market) {
+    // Pre-launch with no audience signal at all — the brief would
+    // be pure imagination. Tell the strategist what to fill in.
+    return { error: 'Pre-launch client needs at least one of: Spine audience_read, business context target_market, or a synthesized audience persona. Fill out the Spine or run the Audience workspace synthesis first.' };
   }
 
   // 2) Build the user prompt.
@@ -77,6 +90,7 @@ export async function generateWeeklyBrief({
     audit,
     calibration,
     cohortComp,
+    isPrelaunch,
   });
 
   // 3) Call Claude.
@@ -179,7 +193,7 @@ async function loadClientChannel(clientId) {
   if (!supabase) return null;
   const { data } = await supabase
     .from('channels')
-    .select('id, name, subscriber_count, total_view_count')
+    .select('id, name, subscriber_count, total_view_count, is_prelaunch, prelaunch_intended_launch_at')
     .eq('id', clientId)
     .maybeSingle();
   return data || null;
@@ -221,7 +235,7 @@ WHAT NOT TO INCLUDE:
 
 This brief is what makes the strategist's job legible to the client. Write it like the senior person in the room writing it.`;
 
-function buildUserPrompt({ clientName, clientChannel, spine, businessContext, audit, calibration, cohortComp }) {
+function buildUserPrompt({ clientName, clientChannel, spine, businessContext, audit, calibration, cohortComp, isPrelaunch }) {
   const lines = [];
 
   // ── Client header ──
@@ -230,6 +244,32 @@ function buildUserPrompt({ clientName, clientChannel, spine, businessContext, au
     lines.push(`Channel scale: ${formatN(clientChannel.subscriber_count)} subscribers · ${formatN(clientChannel.total_view_count)} total views`);
   }
   lines.push('');
+
+  // ── Pre-launch mode block ──
+  // 2026-06-09: when the client hasn't launched, there's no audit /
+  // calibration / video catalog. The brief shape changes to launch
+  // strategy + first-content seeds grounded in audience persona +
+  // cohort signal. The LLM needs to know this up front so it doesn't
+  // try to cite analytics that don't exist.
+  if (isPrelaunch) {
+    lines.push('=== PRE-LAUNCH CLIENT MODE ===');
+    lines.push('This client has NOT launched a YouTube channel yet.');
+    if (clientChannel?.prelaunch_intended_launch_at) {
+      const days = Math.round((new Date(clientChannel.prelaunch_intended_launch_at).getTime() - Date.now()) / 86_400_000);
+      if (days > 0)       lines.push(`Intended launch: ${days} days from now.`);
+      else if (days === 0) lines.push('Intended launch: today.');
+      else                 lines.push(`Intended launch was ${-days} days ago (past intended date).`);
+    }
+    lines.push('There is no repositioning audit, no calibration, no client video catalog. Do NOT cite or fabricate any of those.');
+    lines.push('');
+    lines.push('THE BRIEF SHAPE FOR PRE-LAUNCH:');
+    lines.push('1. Launch positioning — what the first 5-10 videos should establish.');
+    lines.push('2. Specific opening concepts grounded in the audience persona (cite actual persona questions in the audience\'s own words).');
+    lines.push('3. Cohort patterns to emulate vs avoid — what peer/aspirational channels in this space do that matches the brand register vs what they do that the persona\'s voice patterns would reject.');
+    lines.push('4. Editorial/production constraints the persona reveals (voice register, trust signals, what NOT to do).');
+    lines.push('5. The single most-important thing to get right before publishing the first video.');
+    lines.push('');
+  }
 
   // ── Brand register / Spine ──
   if (spine) {
@@ -289,6 +329,10 @@ function buildUserPrompt({ clientName, clientChannel, spine, businessContext, au
   }
 
   // ── Repositioning audit findings ──
+  // Skip entirely for pre-launch clients — no audit exists, no fields
+  // to render. (The PRE-LAUNCH MODE block above tells the LLM not to
+  // cite analytics.)
+  if (audit) {
   lines.push(`LATEST REPOSITIONING AUDIT (${new Date(audit.created_at).toLocaleDateString()}):`);
   lines.push(`- ${audit.videos_scored} videos scored${audit.format_filter ? ` · format filter: ${audit.format_filter}` : ' · all formats'}`);
   if (audit.composite_distribution) {
@@ -310,8 +354,10 @@ function buildUserPrompt({ clientName, clientChannel, spine, businessContext, au
     }
   }
   lines.push('');
+  } // end if (audit)
 
   // ── Calibration findings ──
+  if (calibration) {
   lines.push(`LATEST CALIBRATION (${new Date(calibration.created_at).toLocaleDateString()}, baseline: ${calibration.baseline_strategy}):`);
   if (calibration.composite_accuracy != null) {
     lines.push(`- Pooled composite: ${Math.round(calibration.composite_accuracy * 100)}% exact / ${Math.round((calibration.composite_adjacent_accuracy || 0) * 100)}% within ±1 tier (n=${calibration.videos_calibrated})`);
@@ -349,9 +395,14 @@ function buildUserPrompt({ clientName, clientChannel, spine, businessContext, au
       lines.push(`    · "${v.title}" (${formatN(v.view_count)} views, ${v.format}) — predicted ${v.predicted_composite_tier}, actual ${v.actual_tier}`);
     });
   }
+  } // end if (calibration)
 
   lines.push('');
-  lines.push('Draft the weekly strategist brief. 4-5 numbered bullets in markdown. Action-led, evidence-cited, calibration-honest, brand-register-aware. No preamble, no closing, no headers.');
+  if (isPrelaunch) {
+    lines.push('Draft the pre-launch strategist brief per the PRE-LAUNCH MODE shape above. 4-5 numbered bullets in markdown. Action-led, evidence-cited (from the audience persona + cohort composition + Spine — NOT from analytics that don\'t exist), brand-register-aware. Cite specific persona questions in the audience\'s own words. No preamble, no closing, no headers.');
+  } else {
+    lines.push('Draft the weekly strategist brief. 4-5 numbered bullets in markdown. Action-led, evidence-cited, calibration-honest, brand-register-aware. No preamble, no closing, no headers.');
+  }
   return lines.join('\n');
 }
 
