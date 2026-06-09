@@ -108,9 +108,13 @@ export async function generateWeeklyBrief({
     return {
       text,
       promptVersion:          BRIEF_PROMPT_VERSION,
-      sourceAuditId:          audit.id,
-      sourceCalibrationRunId: calibration.id,
+      // Pre-launch clients have null audit/calibration — the migration
+      // 095 schema allows null on these FK columns, so we just pass
+      // through with optional chaining.
+      sourceAuditId:          audit?.id || null,
+      sourceCalibrationRunId: calibration?.id || null,
       model:                  DEFAULT_MODEL,
+      isPrelaunch,
     };
   } catch (err) {
     console.warn('[weeklyBrief] generation failed:', err);
