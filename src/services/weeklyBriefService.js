@@ -26,7 +26,7 @@ import { supabase } from './supabaseClient';
 import claudeAPI from './claudeAPI';
 import { getCohortComposition } from './cohortRolesService';
 
-export const BRIEF_PROMPT_VERSION = 'v2-weekly-brief';
+export const BRIEF_PROMPT_VERSION = 'v3-weekly-brief-persona';
 const DEFAULT_MODEL = 'claude-sonnet-4-5';
 
 // ──────────────────────────────────────────────────
@@ -245,6 +245,27 @@ function buildUserPrompt({ clientName, clientChannel, spine, businessContext, au
       lines.push('STRATEGY SPINE (use as register + alignment anchor):');
       spineFields.forEach(s => lines.push(`- ${s}`));
       lines.push('');
+    }
+
+    // 2026-06-09: audience persona block. Synthesized object on the
+    // spine that gives the brief generator audience-specific language
+    // (specific pain points, recurring questions in the audience's own
+    // words) instead of generic declarations. Render the structured
+    // lists so the LLM can cite them directly in bullets.
+    const persona = spine.audience_persona;
+    if (persona && typeof persona === 'object') {
+      const fields = [];
+      if (persona.pain_points?.length)        fields.push(`Pain points: ${persona.pain_points.join('; ')}`);
+      if (persona.motivations?.length)        fields.push(`Motivations: ${persona.motivations.join('; ')}`);
+      if (persona.questions_asked?.length)    fields.push(`Audience questions (in their own words): ${persona.questions_asked.join('; ')}`);
+      if (persona.voice_patterns?.length)     fields.push(`Voice patterns: ${persona.voice_patterns.join('; ')}`);
+      if (persona.trust_signals?.length)      fields.push(`Trust signals: ${persona.trust_signals.join('; ')}`);
+      if (persona.adjacent_interests?.length) fields.push(`Adjacent interests: ${persona.adjacent_interests.join('; ')}`);
+      if (fields.length) {
+        lines.push('AUDIENCE PERSONA (synthesized from search queries + Spine + pillars — cite specific pain points and questions in the brief):');
+        fields.forEach(s => lines.push(`- ${s}`));
+        lines.push('');
+      }
     }
   }
 

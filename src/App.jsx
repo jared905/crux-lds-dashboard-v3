@@ -39,6 +39,7 @@ import CompetitorScanWorkspace from "./components/Strategy/CompetitorScan/Compet
 import CalibrationWorkspace from "./components/Strategy/Calibration/CalibrationWorkspace.jsx";
 import CohortRolesWorkspace from "./components/Strategy/CohortRoles/CohortRolesWorkspace.jsx";
 import WeeklyBriefWorkspace from "./components/Strategy/WeeklyBrief/WeeklyBriefWorkspace.jsx";
+import AudienceWorkspace from "./components/Strategy/Audience/AudienceWorkspace.jsx";
 import ThisWeekWorkspace from "./components/Operate/ThisWeek/ThisWeekWorkspace.jsx";
 import CommentAnalysis from "./components/Research/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContentIntelligence.jsx";
@@ -1395,6 +1396,10 @@ export default function App() {
 
             {tab === "cohort-roles" && (
               <CohortRolesWorkspace activeClient={activeClient} onNavigate={setTab} />
+            )}
+
+            {tab === "audience" && (
+              <AudienceWorkspace activeClient={activeClient} onNavigate={setTab} />
             )}
 
             {tab === "weekly-brief" && (

@@ -84,6 +84,10 @@ export const MAIN_SECTIONS = [
       { id: "pre-flight", label: "Pre-flight", icon: Crosshair, group: "Act" },
       // ── Diagnose: understand the channel's strategic position ──
       { id: "cohort-roles", label: "Cohort", icon: Users2, group: "Diagnose" },
+      // 2026-06-09: Audience workspace — synthesizes structured persona
+      // from existing signals; lives on the Spine; inherited by every
+      // downstream LLM artifact.
+      { id: "audience", label: "Audience", icon: Users, group: "Diagnose" },
       { id: "repositioning", label: "Repositioning", icon: Target, group: "Diagnose" },
       { id: "competitor-scan", label: "Competitor Scan", icon: Radar, group: "Diagnose" },
       { id: "calibration", label: "Calibration", icon: Gauge, group: "Diagnose" },

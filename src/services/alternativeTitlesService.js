@@ -20,7 +20,7 @@
 
 import { supabase } from './supabaseClient';
 
-export const ALT_TITLES_PROMPT_VERSION = 'v1-alt-titles';
+export const ALT_TITLES_PROMPT_VERSION = 'v2-alt-titles-persona';
 
 const CACHE_TTL_HOURS = 24 * 7;     // 1 week — short-ish; brand voice evolves
 const CACHE_TABLE = 'competitor_intelligence_cache';
@@ -117,6 +117,23 @@ function buildUserPrompt({ input, scoringOutput, spine, cohortSummary }) {
     lines.push('');
   }
 
+  // 2026-06-09: audience persona block. Alternative titles should
+  // match the audience's actual vocabulary (questions_asked, voice_patterns)
+  // rather than industry jargon — this is the single biggest unlock
+  // for register-appropriate reframing.
+  const persona = spine?.audience_persona;
+  if (persona && typeof persona === 'object') {
+    const personaLines = [];
+    if (persona.questions_asked?.length) personaLines.push(`- Audience asks (in their own words): ${persona.questions_asked.slice(0, 8).join('; ')}`);
+    if (persona.voice_patterns?.length)  personaLines.push(`- Audience voice patterns: ${persona.voice_patterns.join('; ')}`);
+    if (persona.pain_points?.length)     personaLines.push(`- Audience pain points: ${persona.pain_points.slice(0, 6).join('; ')}`);
+    if (personaLines.length) {
+      lines.push('AUDIENCE PERSONA (use the audience\'s actual vocabulary; alternatives should reflect how THEY phrase the question, not how an industry insider would):');
+      personaLines.forEach(s => lines.push(s));
+      lines.push('');
+    }
+  }
+
   // Diagnosed weaknesses — the gap to close.
   lines.push('DIAGNOSED WEAKNESSES:');
   lines.push(`- Composite tier: ${scoringOutput.composite_tier}`);
@@ -159,11 +176,18 @@ function buildUserPrompt({ input, scoringOutput, spine, cohortSummary }) {
 function buildCacheKey(input, scoringOutput, spine) {
   // Cache key reflects everything that would change the alternatives:
   // the title, the diagnosed weaknesses (proxied by composite tier),
-  // and the brand voice. Iterating on title text creates fresh cache
-  // entries; re-scoring the same title returns the previous result.
+  // the brand voice, and (2026-06-09) the audience persona. Persona
+  // changes should invalidate cached titles so the alternatives match
+  // the most current audience signal.
   const voiceHash = djb2(`${spine?.editorial_pov || ''}::${spine?.voice_tone || ''}`);
   const titleHash = djb2(input.title.toLowerCase());
-  return `alt_titles:${ALT_TITLES_PROMPT_VERSION}:${titleHash}:${input.format}:${scoringOutput.composite_tier}:${voiceHash}`;
+  // Compact persona fingerprint — just the questions_asked + voice_patterns
+  // since those are the fields that actually drive title rewording.
+  const persona = spine?.audience_persona || {};
+  const personaHash = djb2(
+    `${(persona.questions_asked || []).join('|')}::${(persona.voice_patterns || []).join('|')}`
+  );
+  return `alt_titles:${ALT_TITLES_PROMPT_VERSION}:${titleHash}:${input.format}:${scoringOutput.composite_tier}:${voiceHash}:${personaHash}`;
 }
 
 function djb2(str) {

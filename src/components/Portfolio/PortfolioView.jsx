@@ -108,6 +108,7 @@ export default function PortfolioView({ onNavigate } = {}) {
       <StrategySpine
         client={openSpineClient}
         onBack={() => setOpenSpineClient(null)}
+        onNavigate={onNavigate}
       />
     );
   }

@@ -66,8 +66,9 @@ import {
   discardDraft,
 } from '../../services/clientBusinessContextService.js';
 import SpineAutoFillSection from './SpineAutoFillSection.jsx';
+import AudienceQuickReference from './AudienceQuickReference.jsx';
 
-export default function StrategySpine({ client, onBack }) {
+export default function StrategySpine({ client, onBack, onNavigate }) {
   const [spine, setSpine] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -223,6 +224,17 @@ export default function StrategySpine({ client, onBack }) {
         onApplied={async () => {
           const fresh = await getSpine(client.id);
           setSpine(fresh);
+        }}
+      />
+
+      {/* 2026-06-09: audience persona quick-reference. Lives on the
+          Spine and is consumed silently by every LLM call, but the
+          strategist editing the Spine should still see it at a glance
+          with a one-click jump to the full Audience workspace. */}
+      <AudienceQuickReference
+        clientId={client.id}
+        onNavigateToAudience={() => {
+          if (typeof onNavigate === 'function') onNavigate('audience');
         }}
       />
 
