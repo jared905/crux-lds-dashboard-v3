@@ -24,16 +24,18 @@ import React, { useEffect, useState } from 'react';
 import { loadChannelFreshness, formatRelativeAge } from '../../../services/dataFreshnessService.js';
 
 const TIER_COLORS = {
-  fresh:      '#3fa66a',
-  stale:      '#E8A82B',
-  very_stale: '#ef6b6b',
-  missing:    '#666',
+  fresh:          '#3fa66a',
+  stale:          '#E8A82B',
+  very_stale:     '#ef6b6b',
+  missing:        '#666',
+  not_applicable: '#a78bfa',  // pre-launch
 };
 const TIER_LABELS = {
-  fresh:      'Fresh',
-  stale:      'Stale',
-  very_stale: 'Very stale',
-  missing:    'Never',
+  fresh:          'Fresh',
+  stale:          'Stale',
+  very_stale:     'Very stale',
+  missing:        'Never',
+  not_applicable: 'N/A',
 };
 
 export default function DataFreshnessBadge({ clientId, compact = false }) {
@@ -68,6 +70,13 @@ export default function DataFreshnessBadge({ clientId, compact = false }) {
   }
   if (!freshness) return null;
 
+  // 2026-06-09: pre-launch clients render a single calm purple chip.
+  // No sync/oauth/surface chips, no error indicator — those concepts
+  // don't apply until the channel actually launches.
+  if (freshness.is_prelaunch) {
+    return <PrelaunchFreshness launchAt={freshness.prelaunch_intended_launch_at} compact={compact} />;
+  }
+
   const dotColor = TIER_COLORS[freshness.worstTier];
 
   // Compact (collapsed) view — single row inline
@@ -90,6 +99,29 @@ export default function DataFreshnessBadge({ clientId, compact = false }) {
       {expanded && (
         <ExpandedDetails freshness={freshness} />
       )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────
+// Pre-launch — calm "N/A" state, no error semantics
+// ──────────────────────────────────────────────────
+
+function PrelaunchFreshness({ launchAt, compact }) {
+  let detail = 'no channel data yet';
+  if (launchAt) {
+    const days = Math.round((new Date(launchAt).getTime() - Date.now()) / 86_400_000);
+    if (days > 0)       detail = `${days} day${days === 1 ? '' : 's'} to launch`;
+    else if (days === 0) detail = 'launches today';
+    else                 detail = `${-days} day${days === -1 ? '' : 's'} past intended launch`;
+  }
+  return (
+    <div style={containerStyle(compact)}>
+      <span style={dotStyle('#a78bfa')} />
+      <span style={{ fontSize: 11, color: '#a78bfa', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        Pre-launch
+      </span>
+      <span style={{ fontSize: 11, color: '#888' }}>· {detail}</span>
     </div>
   );
 }

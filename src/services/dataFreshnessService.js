@@ -58,14 +58,31 @@ export async function loadChannelFreshness(clientId) {
     return emptyFreshness();
   }
 
-  // 1) Channel-level timestamps (sync + surface pull).
+  // 1) Channel-level timestamps (sync + surface pull) plus pre-launch
+  //    flag so the badge can short-circuit for clients without a channel.
   const { data: channel, error: chErr } = await supabase
     .from('channels')
-    .select('id, youtube_channel_id, last_synced_at, last_sync_attempt_at, last_sync_error, last_surface_pull_at')
+    .select('id, youtube_channel_id, last_synced_at, last_sync_attempt_at, last_sync_error, last_surface_pull_at, is_prelaunch, prelaunch_intended_launch_at')
     .eq('id', clientId)
     .maybeSingle();
 
   if (chErr || !channel) return emptyFreshness();
+
+  // 2026-06-09: pre-launch clients have no channel by definition.
+  // Don't render sync/oauth/surface chips OR fire downstream queries —
+  // freshness is conceptually N/A, not "stale" or "error." The UI
+  // renders a single calm purple chip instead.
+  if (channel.is_prelaunch) {
+    return {
+      is_prelaunch:                 true,
+      prelaunch_intended_launch_at: channel.prelaunch_intended_launch_at || null,
+      channel_sync:                 { at: null, tier: 'not_applicable' },
+      oauth_refresh:                { at: null, tier: 'not_applicable', hasConnection: false },
+      surface_pull:                 { at: null, tier: 'not_applicable' },
+      worstTier:                    'not_applicable',
+      anyError:                     false,
+    };
+  }
 
   // 2) OAuth connection timestamps — team-OAuth model means we want
   // the freshest connection for this youtube_channel_id, regardless of
