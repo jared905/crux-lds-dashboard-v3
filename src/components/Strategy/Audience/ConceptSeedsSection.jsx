@@ -1,20 +1,16 @@
 /**
- * ConceptSeedsSection — concept ideas generated from the audience persona.
+ * ConceptSeedsSection — individual video concepts generated from the audience persona.
  *
- * Lives inside AudienceWorkspace below the persona view. The persona
- * says WHAT the audience cares about; this section turns that into
- * specific videos the strategist can score.
- *
- * Series-format challenge built into the UI: series candidates render
- * with the trade-off visible inline (why this could series AND why
- * standalone might be better). System defaults to standalone — series
- * is opt-in with skepticism.
+ * Lives inside AudienceWorkspace below the recurring-formats view. Each
+ * seed is a STANDALONE specific video. Recurring creative-execution
+ * patterns (podcast, talking head, react/response) are handled separately
+ * by RecurringFormatsSection — seeds may optionally slot into one of
+ * those formats but do not propose narrative continuity themselves.
  */
 
 import React, { useEffect, useState } from 'react';
 import {
-  Sparkles, Loader, Trash2, Film, AlertTriangle, ChevronDown, ChevronRight,
-  Crosshair,
+  Sparkles, Loader, Trash2, ChevronDown, ChevronRight, Crosshair,
 } from 'lucide-react';
 import {
   generateConceptSeeds, listConceptSeeds, archiveConceptSeed, updateConceptSeed,
@@ -114,9 +110,10 @@ export default function ConceptSeedsSection({ clientId, hasPersona, onNavigate }
         <div>
           <div style={kickerStyle}>Concept seeds</div>
           <div style={subtitleStyle}>
-            Concrete video concepts generated from the persona's questions, pain points, and motivations.
-            Each seed pulls directly from one persona claim. Score promising seeds in Pre-flight; the rest
-            stay archived as audit trail.
+            Individual standalone video concepts generated from the persona's questions, pain points,
+            and motivations. Each seed pulls from one persona claim. Score promising seeds in Pre-flight;
+            the rest stay archived as audit trail. Recurring creative-execution patterns are handled
+            in the section above.
           </div>
         </div>
         <div style={generateBarStyle}>
@@ -189,11 +186,6 @@ function SeedCard({ seed, expanded, onToggle, onScore, onArchive }) {
             <span style={formatChipStyle(formatColor)}>{FORMAT_LABELS[seed.format_hint] || 'Either'}</span>
             {seed.status === 'scored' && <span style={statusChipStyle('#3fa66a')}>Scored</span>}
             {seed.status === 'filmed' && <span style={statusChipStyle('#0A919B')}>Filmed</span>}
-            {seed.is_series_candidate && (
-              <span style={seriesCandidateChipStyle} title="Series candidate — but read the rationale; standalone may still be better">
-                <AlertTriangle size={9} /> Series candidate
-              </span>
-            )}
           </div>
           <div style={seedTitleStyle}>{seed.title}</div>
           {seed.addresses_persona_claim && (
@@ -222,23 +214,6 @@ function SeedCard({ seed, expanded, onToggle, onScore, onArchive }) {
               <div style={blockBodyStyle}>{seed.outline}</div>
             </div>
           )}
-          {seed.is_series_candidate && seed.series_rationale && (
-            <div style={seriesRationaleStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <AlertTriangle size={12} style={{ color: '#E8A82B' }} />
-                <strong style={{ fontSize: 11, color: '#E8A82B', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Series candidate — read the trade-off
-                </strong>
-              </div>
-              <div style={{ fontSize: 12, color: '#cde4d6', lineHeight: 1.5 }}>
-                {seed.series_rationale}
-              </div>
-              <div style={seriesPushbackStyle}>
-                <strong>Default position:</strong> standalone discoverability-optimized concepts protect new channels and respect point-of-need consumption. Only choose series if the persona evidence + cohort signal genuinely warrants it.
-              </div>
-            </div>
-          )}
-
           <div style={actionsRowStyle}>
             {seed.status === 'draft' && (
               <button onClick={onScore} style={scoreBtnStyle}>
@@ -355,16 +330,6 @@ const statusChipStyle = (color) => ({
   fontSize: 9, fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: 0.4,
 });
-const seriesCandidateChipStyle = {
-  background: 'rgba(232,168,43,0.10)',
-  color: '#E8A82B',
-  border: '1px solid rgba(232,168,43,0.35)',
-  borderRadius: 3, padding: '1px 7px',
-  fontSize: 9, fontWeight: 700,
-  textTransform: 'uppercase', letterSpacing: 0.4,
-  display: 'inline-flex', alignItems: 'center', gap: 3,
-};
-
 const seedBodyStyle = {
   padding: '0 12px 12px',
   borderTop: '1px dashed #2a2a30',
@@ -378,18 +343,6 @@ const blockLabelStyle = {
 };
 const blockBodyStyle = {
   fontSize: 13, color: '#cde4d6', lineHeight: 1.55,
-};
-
-const seriesRationaleStyle = {
-  background: 'rgba(232,168,43,0.05)',
-  border: '1px solid rgba(232,168,43,0.25)',
-  borderRadius: 5, padding: 10,
-  marginTop: 8,
-};
-const seriesPushbackStyle = {
-  marginTop: 8, paddingTop: 8,
-  borderTop: '1px dashed rgba(232,168,43,0.25)',
-  fontSize: 11, color: '#888', lineHeight: 1.5,
 };
 
 const actionsRowStyle = {

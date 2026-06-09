@@ -1,33 +1,27 @@
 /**
- * conceptSeedsService — generate concept ideas from the audience persona.
+ * conceptSeedsService — generate individual concept ideas from the
+ * audience persona.
  *
  * Converts the persona's questions_asked + pain_points into concrete
- * video concepts the strategist can score in Pre-flight. The
- * audience-understanding layer (migration 100) tells us WHAT the
- * audience cares about; this service is the bridge from "what" to
- * "specific videos to make."
+ * video concepts the strategist can score in Pre-flight. Each seed is
+ * one specific video that may slot into a recurring format (see
+ * recurringFormatsService) or stand alone.
  *
- * Series-format challenge (2026-06-09): series format is the default
- * lazy-strategist reach. The system explicitly defaults to standalone
- * discoverability-optimized concepts. Series candidates are only
- * flagged when:
- *   - Multiple persona questions share a topic that would benefit
- *     from sequencing (not just convenience for the producer)
- *   - The persona's voice patterns suggest curriculum-seeking behavior
- *     (not point-of-need consumption)
- *   - The cohort has evidence that series works for THIS audience
+ * The 2026-06-09 reframe (migration 102) removed the
+ * serialized-series logic. The right model is:
+ *   Pillars × Recurring formats → individual concept seeds
  *
- * Even when flagged, the series_rationale field MUST include the
- * counter-argument for why standalone might still be the better call.
- * The strategist makes the final judgment; the system surfaces the
- * trade-off instead of hiding it.
+ * Recurring formats (creative-execution patterns) are generated
+ * separately by recurringFormatsService. Seeds can be tagged with
+ * recurring_format_id when they fit a format pattern, or remain
+ * standalone.
  */
 
 import { supabase } from './supabaseClient';
 import claudeAPI from './claudeAPI';
 import { getCohortComposition } from './cohortRolesService';
 
-export const SEEDS_PROMPT_VERSION = 'v1-concept-seeds';
+export const SEEDS_PROMPT_VERSION = 'v2-concept-seeds-no-series';
 const DEFAULT_MODEL = 'claude-sonnet-4-5';
 
 // ──────────────────────────────────────────────────
@@ -99,9 +93,6 @@ export async function generateConceptSeeds({ clientId, clientName = null, target
       estimated_length_minutes: seed.estimated_length_minutes || null,
       addresses_persona_claim: seed.addresses_persona_claim || null,
       addresses_evidence:      seed.addresses_evidence || null,
-      is_series_candidate:     !!seed.is_series_candidate,
-      series_rationale:        seed.series_rationale || null,
-      series_position:         seed.series_position || null,
       status:                  'draft',
     }));
 
@@ -202,16 +193,9 @@ OUTPUT FORMAT: Return ONLY valid JSON — no prose, no markdown fences, no pream
       "format_hint":               "shorts | long_form | either",
       "estimated_length_minutes":  null or a number (only for long_form when warranted),
       "addresses_persona_claim":   "field + specific claim from the persona this concept answers (e.g., 'questions_asked: How do I get my brand mentioned when customers ask ChatGPT')",
-      "addresses_evidence":        { "field": "questions_asked" | "pain_points" | "motivations" | "trust_signals", "value": "the specific persona entry" },
-      "is_series_candidate":       false,
-      "series_rationale":          null,
-      "series_position":           null
+      "addresses_evidence":        { "field": "questions_asked" | "pain_points" | "motivations" | "trust_signals", "value": "the specific persona entry" }
     }
-  ],
-  "series_assessment": {
-    "any_series_candidates":   false,
-    "rationale":               "why series-candidate flags were or were not used; cite specific persona/cohort evidence"
-  }
+  ]
 }
 
 GENERATION RULES:
@@ -224,14 +208,7 @@ GENERATION RULES:
 
 4. Format hint: default to long_form for educational / consultative / strategic content. Default to shorts for emotional resonance, single-stat reveals, or platform-discoverability-only plays. "either" when the topic could work both ways and the strategist should choose.
 
-5. CHALLENGE SERIES-FORMAT THINKING. Default is_series_candidate to FALSE. Only flag TRUE when ALL of the following are present:
-   - Multiple persona questions cluster around a topic that genuinely requires sequencing (not just convenience for the producer)
-   - The persona's voice patterns indicate curriculum-seeking, comprehensive-education behavior (not point-of-need single-question consumption)
-   - The cohort composition suggests an established audience the series can return to (high subscriber-base channels in cohort)
-   When TRUE, series_rationale MUST include BOTH:
-     (a) why this cluster could work as a series, AND
-     (b) why standalone discoverability-optimized concepts might STILL be the better call — especially for new/pre-launch channels with no returning audience, and for executive/decision-maker audiences who watch one video to answer one question.
-   The strategist makes the final call; you surface the trade-off.
+5. Each seed is a STANDALONE video. Recurring creative-execution patterns (podcast format, talking-head explainer, expert interview series) are handled separately by the recurring formats generator. Do NOT propose narrative continuity or "Ep. 1, Ep. 2" sequencing.
 
 6. AVOID hype words: leverage, unlock, robust, innovative, compelling, drives, taps into, resonates with, powerful, game-changer, cutting-edge, transformative, elevate.
 
@@ -239,7 +216,7 @@ GENERATION RULES:
 
 8. PRE-LAUNCH CONTEXT: if told the client is pre-launch, seeds are LAUNCH CONCEPTS — what the first 5-10 videos should establish. Anchor each to a persona claim AND a strategic positioning purpose (category-defining, trust-establishing, organizational-buy-in-enabling).
 
-9. Generate the requested target_count, no more, no less. If the persona is thin (under 3 questions_asked), generate fewer and explain in series_assessment.rationale why.`;
+9. Generate the requested target_count, no more, no less.`;
 
 function buildUserPrompt({ clientName, spine, cohortComp, targetCount, isPrelaunch }) {
   const lines = [];
@@ -292,7 +269,7 @@ function buildUserPrompt({ clientName, spine, cohortComp, targetCount, isPrelaun
     lines.push('');
   }
 
-  lines.push(`Generate the JSON now. ${targetCount} seeds. Default is_series_candidate to FALSE; flag TRUE only with the affirmative evidence + counter-argument requirement met.`);
+  lines.push(`Generate the JSON now. ${targetCount} standalone concept seeds. No series logic — recurring formats are produced by a separate generator.`);
   return lines.join('\n');
 }
 

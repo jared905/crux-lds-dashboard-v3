@@ -31,6 +31,7 @@ import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
 import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 import NextStepCard from '../shared/NextStepCard.jsx';
 import ConceptSeedsSection from './ConceptSeedsSection.jsx';
+import RecurringFormatsSection from './RecurringFormatsSection.jsx';
 
 const FIELD_META = [
   { key: 'pain_points',         label: 'Pain points',         description: 'Specific anxieties, decisions, or frustrations the audience is wrestling with.' },
@@ -185,6 +186,11 @@ export default function AudienceWorkspace({ activeClient, onNavigate }) {
               />
             ))}
           </div>
+
+          <RecurringFormatsSection
+            clientId={clientId}
+            hasPersona={!!persona}
+          />
 
           <ConceptSeedsSection
             clientId={clientId}
