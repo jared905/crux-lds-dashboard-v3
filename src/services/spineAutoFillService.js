@@ -35,7 +35,7 @@
 import claudeAPI from './claudeAPI';
 import { getSpine, updateSpineField } from './strategySpineService';
 
-export const SPINE_AUTOFILL_PROMPT_VERSION = 'v1-spine-autofill';
+export const SPINE_AUTOFILL_PROMPT_VERSION = 'v2-spine-autofill-multipage';
 const DEFAULT_MODEL = 'claude-sonnet-4-5';
 
 // ──────────────────────────────────────────────────
@@ -58,35 +58,40 @@ const DEFAULT_MODEL = 'claude-sonnet-4-5';
  *       editorial_pov, voice_tone, competitive_posture, guardrails,
  *       host_archetype_hint, notes }
  */
-export async function extractSpineFromWebsite({ clientId, url, clientName = null }) {
+export async function extractSpineFromWebsite({ clientId, url, clientName = null, multiPage = true }) {
   if (!clientId)    return { ok: false, error: 'clientId required' };
   if (!url?.trim()) return { ok: false, error: 'url required' };
 
-  // 1) Server-side fetch — reuse the existing endpoint so allowlisting,
-  // UA, and HTML stripping all behave identically to the business
-  // context audit.
-  const fetched = await fetchWebsite(url.trim());
+  // 1) Server-side fetch. Multi-page is the default: the audit-website
+  // endpoint discovers sitemap.xml or probes common paths (/about,
+  // /mission, /team, …) and concatenates same-origin pages with
+  // `## PAGE: <url>` headers. Falls back gracefully to single-page when
+  // discovery yields nothing.
+  const fetched = await fetchWebsite(url.trim(), { multiPage });
   if (!fetched.ok) return { ok: false, error: fetched.error || 'fetch failed' };
   if (!fetched.text?.trim()) return { ok: false, error: 'fetched page returned no text content' };
 
   // 2) Claude extraction
-  return extractSpineFromText({
+  const extraction = await extractSpineFromText({
     text:       fetched.text,
     url:        fetched.url,
     title:      fetched.title,
     clientName,
-  }).then(r => ({ ...r, fetched }));
+    isMultiPage: Array.isArray(fetched.pages) && fetched.pages.length > 1,
+    pageCount:  fetched.pagesFetched || (fetched.pages?.length ?? 1),
+  });
+  return { ...extraction, fetched };
 }
 
 /**
  * Same extraction but takes raw text. Use when the strategist pastes
  * deck contents or an About page they copied manually.
  */
-export async function extractSpineFromText({ text, url = null, title = null, clientName = null }) {
+export async function extractSpineFromText({ text, url = null, title = null, clientName = null, isMultiPage = false, pageCount = 1 }) {
   if (!text?.trim()) return { ok: false, error: 'text required' };
 
   try {
-    const userPrompt = buildUserPrompt({ text, url, title, clientName });
+    const userPrompt = buildUserPrompt({ text, url, title, clientName, isMultiPage, pageCount });
     const result = await claudeAPI.call(
       userPrompt,
       SYSTEM_PROMPT,
@@ -200,11 +205,14 @@ EXTRACTION RULES:
 
 If the website content is content-thin (under 500 chars of meaningful text), return partial extraction with explicit empty fields rather than fabricating.`;
 
-function buildUserPrompt({ text, url, title, clientName }) {
+function buildUserPrompt({ text, url, title, clientName, isMultiPage, pageCount }) {
   const lines = [];
   if (clientName) lines.push(`CLIENT: ${clientName}`);
   if (url)        lines.push(`SOURCE URL: ${url}`);
   if (title)      lines.push(`SOURCE TITLE: ${title}`);
+  if (isMultiPage) {
+    lines.push(`SOURCE PAGES: ${pageCount} same-origin pages concatenated below. Each page is delimited by '## PAGE: <url>' headers — synthesize ACROSS pages, prefer corroborated claims, and treat the homepage as the canonical positioning anchor.`);
+  }
   lines.push('');
   lines.push('WEBSITE CONTENT:');
   lines.push(text);
@@ -241,12 +249,12 @@ function parseExtraction(raw) {
 // Internal — server-side fetch
 // ──────────────────────────────────────────────────
 
-async function fetchWebsite(url) {
+async function fetchWebsite(url, { multiPage = false } = {}) {
   try {
     const resp = await fetch('/api/audit-website', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ url }),
+      body:    JSON.stringify({ url, multiPage }),
     });
     const json = await resp.json();
     if (!resp.ok) return { ok: false, error: json?.error || `HTTP ${resp.status}` };

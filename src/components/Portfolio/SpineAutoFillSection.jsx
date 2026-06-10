@@ -47,6 +47,7 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
   const [extracting, setExtracting] = useState(false);
   const [applying, setApplying]     = useState(false);
   const [draft, setDraft]           = useState(null);
+  const [fetched, setFetched]       = useState(null);
   const [error, setError]           = useState(null);
   const [applyResult, setApplyResult] = useState(null);
   const [overwriteMode, setOverwriteMode] = useState(false);
@@ -66,10 +67,11 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
     setApplyResult(null);
     setExtracting(true);
     setDraft(null);
+    setFetched(null);
     try {
       const r = await extractSpineFromWebsite({ clientId, url: url.trim(), clientName });
       if (!r.ok) setError(r.error || 'extraction failed');
-      else setDraft(r.draft);
+      else { setDraft(r.draft); setFetched(r.fetched || null); }
     } catch (err) {
       setError(err?.message || 'unknown error');
     } finally {
@@ -174,6 +176,10 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
             </button>
           </div>
 
+          {fetched?.pagesFetched > 0 && (
+            <CrawlSummary fetched={fetched} />
+          )}
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
             {SPINE_FIELDS.map(f => {
               const v = draft[f.key];
@@ -249,8 +255,66 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
 }
 
 // ──────────────────────────────────────────────────
+// Crawl summary — what got fetched, and how
+// ──────────────────────────────────────────────────
+
+function CrawlSummary({ fetched }) {
+  const [open, setOpen] = useState(false);
+  const pages = Array.isArray(fetched?.pages) ? fetched.pages : [];
+  const sourceLabel = {
+    sitemap:             'sitemap.xml',
+    common_path_probes:  'common-path probes',
+    requested_url_only:  'requested URL only',
+  }[fetched?.discoverySource] || fetched?.discoverySource || 'single page';
+
+  return (
+    <div style={crawlSummaryStyle}>
+      <button onClick={() => setOpen(o => !o)} style={crawlSummaryHeaderStyle}>
+        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+        <span>
+          Extracted from <strong style={{ color: '#cde4d6' }}>{fetched.pagesFetched} page{fetched.pagesFetched === 1 ? '' : 's'}</strong>
+          {' '}· discovery: <strong style={{ color: '#cde4d6' }}>{sourceLabel}</strong>
+          {fetched.sizeChars ? <> · {fetched.sizeChars.toLocaleString()} chars</> : null}
+        </span>
+      </button>
+      {open && pages.length > 0 && (
+        <ul style={crawlPageListStyle}>
+          {pages.map((p, i) => (
+            <li key={i} style={crawlPageItemStyle}>
+              <span style={{ color: '#a78bfa', fontWeight: 600 }}>{p.title || '(untitled)'}</span>
+              {' · '}
+              <span style={{ color: '#666' }}>{p.url}</span>
+              {' · '}
+              <span style={{ color: '#666' }}>{p.sizeChars?.toLocaleString?.() || '?'} chars</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────
 // Styles
 // ──────────────────────────────────────────────────
+
+const crawlSummaryStyle = {
+  marginBottom: 10,
+  background: 'rgba(167,139,250,0.04)',
+  border: '1px solid rgba(167,139,250,0.20)',
+  borderRadius: 5,
+  padding: '6px 10px',
+};
+const crawlSummaryHeaderStyle = {
+  background: 'transparent', border: 'none', padding: 0,
+  color: '#888', fontSize: 11, cursor: 'pointer',
+  display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left',
+};
+const crawlPageListStyle = {
+  margin: '6px 0 0', paddingLeft: 16, listStyle: 'disc',
+  fontSize: 11, color: '#888',
+};
+const crawlPageItemStyle = { lineHeight: 1.5, marginBottom: 2 };
 
 const collapsedBtnStyle = (accent) => ({
   display: 'flex', alignItems: 'center', gap: 10,

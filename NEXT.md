@@ -4,7 +4,7 @@ What's parked, why, and when it earns its build slot.
 
 **Read this before suggesting "what should I build next" in a fresh conversation.** Items here have been considered and intentionally deferred — they're not forgotten; they're waiting on a trigger.
 
-Last updated: 2026-06-08
+Last updated: 2026-06-10
 
 ---
 
@@ -51,11 +51,8 @@ Last updated: 2026-06-08
 
 ## Audit / Spine ingestion extensions
 
-### 6. Sitemap multi-page crawl · ~1 day
-**Status:** Current `audit-website` fetches one URL.
-**Context:** Institutional websites scatter info across `/about`, `/team`, `/mission`, `/pricing`. Single-page fetch misses 60% of the context. Extending to walk sitemap.xml or follow common paths would dramatically improve the Spine auto-fill quality on enterprise sites.
-**Trigger:** First institutional brand client where the auto-fill produces thin Spine output.
-**Files:** `api/audit-website.js`.
+### 6. ~~Sitemap multi-page crawl~~ — SHIPPED 2026-06-10
+**Status:** Done. `api/audit-website.js` now supports opt-in `multiPage: true` mode. Sitemap.xml discovery first (with relevance ranking — boosts /about, /team, /mission etc., penalizes /blog/ and pagination), common-path probing as fallback, up to 8 pages with 35K-char total budget and `## PAGE: <url>` section headers. `spineAutoFillService` uses multi-page by default; UI surfaces the page count + discovery source + per-page sizes.
 
 ### 7. PDF / deck upload for Spine extraction · ~1-2 days
 **Status:** No file upload infrastructure exists.
