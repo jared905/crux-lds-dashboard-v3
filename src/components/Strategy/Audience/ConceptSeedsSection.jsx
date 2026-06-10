@@ -155,19 +155,100 @@ export default function ConceptSeedsSection({ clientId, hasPersona, onNavigate }
       )}
 
       {!loading && seeds.length > 0 && (
-        <div style={seedsListStyle}>
-          {seeds.map(seed => (
+        <SeedsByFormat
+          seeds={seeds}
+          expandedSeed={expandedSeed}
+          setExpandedSeed={setExpandedSeed}
+          onScore={handleScoreInPreflight}
+          onArchive={handleArchive}
+        />
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────
+// Seed grouping by recurring format
+// ──────────────────────────────────────────────────
+
+function SeedsByFormat({ seeds, expandedSeed, setExpandedSeed, onScore, onArchive }) {
+  // Group: one bucket per recurring_format, plus a final "Standalone" bucket.
+  // Preserve seed order within each bucket (already created_at desc from query).
+  const groups = new Map();      // formatId -> { format: {...}, seeds: [...] }
+  const standalone = [];
+  for (const s of seeds) {
+    const f = s.recurring_format;
+    if (f?.id) {
+      if (!groups.has(f.id)) groups.set(f.id, { format: f, seeds: [] });
+      groups.get(f.id).seeds.push(s);
+    } else {
+      standalone.push(s);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 8 }}>
+      {[...groups.values()].map(({ format, seeds: bucket }) => (
+        <SeedGroup
+          key={format.id}
+          headerLabel={format.name}
+          headerSubtitle={`Episode candidates · ${format.creative_execution?.replace(/_/g, ' ')} · ${bucket.length} seed${bucket.length === 1 ? '' : 's'}`}
+          accent="#0A919B"
+        >
+          {bucket.map(seed => (
             <SeedCard
               key={seed.id}
               seed={seed}
               expanded={expandedSeed === seed.id}
               onToggle={() => setExpandedSeed(prev => prev === seed.id ? null : seed.id)}
-              onScore={() => handleScoreInPreflight(seed)}
-              onArchive={() => handleArchive(seed.id)}
+              onScore={() => onScore(seed)}
+              onArchive={() => onArchive(seed.id)}
             />
           ))}
-        </div>
+        </SeedGroup>
+      ))}
+
+      {standalone.length > 0 && (
+        <SeedGroup
+          headerLabel="Standalone concepts"
+          headerSubtitle={`Not tied to a recurring format · ${standalone.length} seed${standalone.length === 1 ? '' : 's'}`}
+          accent="#888"
+        >
+          {standalone.map(seed => (
+            <SeedCard
+              key={seed.id}
+              seed={seed}
+              expanded={expandedSeed === seed.id}
+              onToggle={() => setExpandedSeed(prev => prev === seed.id ? null : seed.id)}
+              onScore={() => onScore(seed)}
+              onArchive={() => onArchive(seed.id)}
+            />
+          ))}
+        </SeedGroup>
       )}
+    </div>
+  );
+}
+
+function SeedGroup({ headerLabel, headerSubtitle, accent, children }) {
+  return (
+    <div>
+      <div style={{
+        display: 'flex', alignItems: 'baseline', gap: 10,
+        padding: '6px 10px',
+        borderLeft: `2px solid ${accent}`,
+        marginBottom: 6,
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: accent, letterSpacing: 0.3 }}>
+          {headerLabel}
+        </div>
+        <div style={{ fontSize: 11, color: '#666' }}>
+          {headerSubtitle}
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {children}
+      </div>
     </div>
   );
 }

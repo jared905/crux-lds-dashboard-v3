@@ -21,7 +21,7 @@ import { supabase } from './supabaseClient';
 import claudeAPI from './claudeAPI';
 import { getCohortComposition } from './cohortRolesService';
 
-export const SEEDS_PROMPT_VERSION = 'v2-concept-seeds-no-series';
+export const SEEDS_PROMPT_VERSION = 'v3-concept-seeds-format-aware';
 const DEFAULT_MODEL = 'claude-sonnet-4-5';
 
 // ──────────────────────────────────────────────────
@@ -41,10 +41,11 @@ export async function generateConceptSeeds({ clientId, clientName = null, target
   if (!clientId) return { ok: false, error: 'clientId required' };
 
   // 1) Load required signals.
-  const [spine, clientChannel, cohortComp] = await Promise.all([
+  const [spine, clientChannel, cohortComp, activeFormats] = await Promise.all([
     loadSpine(clientId),
     loadClientChannel(clientId),
     getCohortComposition(clientId).catch(() => null),
+    loadActiveRecurringFormats(clientId),
   ]);
 
   if (!spine?.audience_persona) {
@@ -59,6 +60,7 @@ export async function generateConceptSeeds({ clientId, clientName = null, target
     clientName:  clientName || clientChannel?.name || 'this client',
     spine,
     cohortComp,
+    activeFormats,
     targetCount,
     isPrelaunch: !!clientChannel?.is_prelaunch,
   });
@@ -93,6 +95,7 @@ export async function generateConceptSeeds({ clientId, clientName = null, target
       estimated_length_minutes: seed.estimated_length_minutes || null,
       addresses_persona_claim: seed.addresses_persona_claim || null,
       addresses_evidence:      seed.addresses_evidence || null,
+      recurring_format_id:     resolveFormatId(seed.recurring_format_name, activeFormats),
       status:                  'draft',
     }));
 
@@ -114,13 +117,15 @@ export async function generateConceptSeeds({ clientId, clientName = null, target
 }
 
 /**
- * List concept seeds for a client.
+ * List concept seeds for a client. Each row includes a denormalized
+ * recurring_format snapshot ({ id, name, creative_execution }) for UI
+ * grouping; null when the seed is standalone.
  */
 export async function listConceptSeeds(clientId, { status = null, limit = 50 } = {}) {
   if (!supabase || !clientId) return [];
   let q = supabase
     .from('client_concept_seeds')
-    .select('*')
+    .select('*, recurring_format:client_recurring_formats(id, name, creative_execution)')
     .eq('client_id', clientId)
     .is('archived_at', null)
     .order('created_at', { ascending: false })
@@ -176,6 +181,29 @@ async function loadClientChannel(clientId) {
   return data || null;
 }
 
+/**
+ * Active (non-archived, non-draft) recurring formats — the strategic
+ * commitments the seed generator should respect. Draft formats are
+ * exploratory and excluded; only piloting + active count as commitments.
+ */
+async function loadActiveRecurringFormats(clientId) {
+  const { data } = await supabase
+    .from('client_recurring_formats')
+    .select('id, name, creative_execution, creative_execution_label, cadence, pillar_label, persona_rationale, estimated_episode_length')
+    .eq('client_id', clientId)
+    .is('archived_at', null)
+    .in('status', ['piloting', 'active'])
+    .order('format_position');
+  return data || [];
+}
+
+function resolveFormatId(formatName, activeFormats) {
+  if (!formatName || !activeFormats?.length) return null;
+  const target = String(formatName).trim().toLowerCase();
+  const match = activeFormats.find(f => f.name?.trim().toLowerCase() === target);
+  return match?.id || null;
+}
+
 // ──────────────────────────────────────────────────
 // Prompt
 // ──────────────────────────────────────────────────
@@ -193,7 +221,8 @@ OUTPUT FORMAT: Return ONLY valid JSON — no prose, no markdown fences, no pream
       "format_hint":               "shorts | long_form | either",
       "estimated_length_minutes":  null or a number (only for long_form when warranted),
       "addresses_persona_claim":   "field + specific claim from the persona this concept answers (e.g., 'questions_asked: How do I get my brand mentioned when customers ask ChatGPT')",
-      "addresses_evidence":        { "field": "questions_asked" | "pain_points" | "motivations" | "trust_signals", "value": "the specific persona entry" }
+      "addresses_evidence":        { "field": "questions_asked" | "pain_points" | "motivations" | "trust_signals", "value": "the specific persona entry" },
+      "recurring_format_name":     "EXACT name of one of the active recurring formats this concept would slot into, OR null if this is a standalone concept. Must match a provided format name verbatim — do not invent new formats."
     }
   ]
 }
@@ -208,7 +237,12 @@ GENERATION RULES:
 
 4. Format hint: default to long_form for educational / consultative / strategic content. Default to shorts for emotional resonance, single-stat reveals, or platform-discoverability-only plays. "either" when the topic could work both ways and the strategist should choose.
 
-5. Each seed is a STANDALONE video. Recurring creative-execution patterns (podcast format, talking-head explainer, expert interview series) are handled separately by the recurring formats generator. Do NOT propose narrative continuity or "Ep. 1, Ep. 2" sequencing.
+5. RECURRING FORMAT LINKAGE: when the client has active recurring formats (provided in the prompt), tag each seed with the "recurring_format_name" field set to ONE of those format names if the concept naturally slots in as an episode of that format. Set it to null if the concept stands alone. Rules:
+   - The format name MUST match a provided format name verbatim — do not invent new ones.
+   - A seed slots into a format ONLY if the concept genuinely fits the format's creative execution (e.g., a single-question explainer doesn't fit a "Weekly Interview" format; a Q&A topic does).
+   - Aim for a healthy mix: don't force every seed into a format. Standalone concepts are valid and often better when the topic doesn't reuse the format's production pattern.
+   - If the client has NO active formats provided, set this field to null on every seed.
+   - Each seed is still a STANDALONE specific video — do NOT propose narrative continuity or "Ep. 1, Ep. 2" sequencing even within a format.
 
 6. AVOID hype words: leverage, unlock, robust, innovative, compelling, drives, taps into, resonates with, powerful, game-changer, cutting-edge, transformative, elevate.
 
@@ -218,7 +252,7 @@ GENERATION RULES:
 
 9. Generate the requested target_count, no more, no less.`;
 
-function buildUserPrompt({ clientName, spine, cohortComp, targetCount, isPrelaunch }) {
+function buildUserPrompt({ clientName, spine, cohortComp, activeFormats, targetCount, isPrelaunch }) {
   const lines = [];
   lines.push(`CLIENT: ${clientName}`);
   if (isPrelaunch) lines.push('STATUS: pre-launch (no existing videos)');
@@ -260,16 +294,37 @@ function buildUserPrompt({ clientName, spine, cohortComp, targetCount, isPrelaun
   if (spine.guardrails)            lines.push(`SPINE guardrails (do NOT recommend): ${spine.guardrails}`);
   lines.push('');
 
-  // Cohort composition — for series-candidate evidence
+  // Cohort composition — light context for register / aspiration sanity-check
   if (cohortComp) {
-    lines.push('COHORT COMPOSITION (use as evidence for/against series-format candidates):');
-    lines.push(`- Peer-tagged channels: ${cohortComp.peer}${cohortComp.peer_avg_subscribers ? ` (avg ${cohortComp.peer_avg_subscribers.toLocaleString()} subs)` : ''}`);
+    lines.push('COHORT COMPOSITION (light context only):');
+    lines.push(`- Peer-tagged: ${cohortComp.peer}${cohortComp.peer_avg_subscribers ? ` (avg ${cohortComp.peer_avg_subscribers.toLocaleString()} subs)` : ''}`);
     lines.push(`- Aspirational: ${cohortComp.aspirational}${cohortComp.aspirational_avg_subscribers ? ` (avg ${cohortComp.aspirational_avg_subscribers.toLocaleString()} subs)` : ''}`);
     lines.push(`- Reference: ${cohortComp.reference}`);
     lines.push('');
   }
 
-  lines.push(`Generate the JSON now. ${targetCount} standalone concept seeds. No series logic — recurring formats are produced by a separate generator.`);
+  // Active recurring formats — strategic commitments the seeds should respect
+  if (activeFormats?.length) {
+    lines.push('ACTIVE RECURRING FORMATS (the client has committed to these production patterns — tag seeds with the EXACT name when they slot in as episodes, or null for standalone):');
+    activeFormats.forEach((f, i) => {
+      const exec = f.creative_execution === 'other'
+        ? (f.creative_execution_label || 'other')
+        : f.creative_execution;
+      const cadence = f.cadence ? ` · ${f.cadence}` : '';
+      const pillar  = f.pillar_label ? ` · pillar: ${f.pillar_label}` : '';
+      const length  = f.estimated_episode_length ? ` · ~${f.estimated_episode_length}` : '';
+      lines.push(`  ${i + 1}. "${f.name}" [${exec}${cadence}${length}${pillar}]`);
+      if (f.persona_rationale) lines.push(`     fit: ${f.persona_rationale}`);
+    });
+    lines.push('');
+    lines.push('Aim for a mix: some seeds should slot into a format (as future episodes), some should be standalone. Force-fitting every seed into a format is wrong.');
+    lines.push('');
+  } else {
+    lines.push('No active recurring formats — set recurring_format_name to null on every seed.');
+    lines.push('');
+  }
+
+  lines.push(`Generate the JSON now. ${targetCount} standalone concept seeds. Tag each seed's recurring_format_name to one of the provided format names (verbatim) OR null. No "Ep. 1 / Ep. 2" narrative continuity — each seed is one specific video.`);
   return lines.join('\n');
 }
 
@@ -280,17 +335,22 @@ function buildUserPrompt({ clientName, spine, cohortComp, targetCount, isPrelaun
 function parseConceptSeedsResponse(raw) {
   if (!raw) return null;
   let cleaned = raw.trim();
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\n?/i, '').replace(/```\s*$/, '').trim();
-  }
+  cleaned = cleaned.replace(/^```(?:json|JSON)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
   const firstBrace = cleaned.indexOf('{');
-  const lastBrace = cleaned.lastIndexOf('}');
-  if (firstBrace > 0 || lastBrace < cleaned.length - 1) {
-    if (firstBrace >= 0 && lastBrace > firstBrace) {
-      cleaned = cleaned.slice(firstBrace, lastBrace + 1);
-    }
+  const lastBrace  = cleaned.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
   }
-  try { return JSON.parse(cleaned); } catch { return null; }
+  try { return JSON.parse(cleaned); } catch { /* fall through */ }
+  const lenient = cleaned
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/^\s*\/\/.*$/gm, '')
+    .replace(/,(\s*[}\]])/g, '$1');
+  try { return JSON.parse(lenient); } catch (err) {
+    console.warn('[conceptSeeds] lenient JSON.parse also failed:', err?.message);
+    return null;
+  }
 }
 
 export default {
