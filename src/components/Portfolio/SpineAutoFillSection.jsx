@@ -24,12 +24,15 @@
  *     filled)" so the strategist knows what landed.
  */
 
-import React, { useState } from 'react';
-import { Sparkles, ChevronDown, ChevronRight, Check, X as XIcon, Loader } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Sparkles, ChevronDown, ChevronRight, Check, X as XIcon, Loader, FileText, Globe, Upload } from 'lucide-react';
 import {
   extractSpineFromWebsite,
+  extractSpineFromPdf,
   applySpineExtraction,
 } from '../../services/spineAutoFillService.js';
+
+const MAX_PDF_BYTES = 4_500_000;
 
 const SPINE_FIELDS = [
   { key: 'positioning_oneliner',  label: 'Positioning one-liner' },
@@ -43,7 +46,9 @@ const SPINE_FIELDS = [
 
 export default function SpineAutoFillSection({ clientId, clientName, spine, businessContext, onApplied }) {
   const [open, setOpen]             = useState(false);
+  const [mode, setMode]             = useState('url');  // 'url' | 'pdf'
   const [url, setUrl]               = useState(businessContext?.source_url || '');
+  const [pdfFile, setPdfFile]       = useState(null);
   const [extracting, setExtracting] = useState(false);
   const [applying, setApplying]     = useState(false);
   const [draft, setDraft]           = useState(null);
@@ -51,6 +56,7 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
   const [error, setError]           = useState(null);
   const [applyResult, setApplyResult] = useState(null);
   const [overwriteMode, setOverwriteMode] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Compute Spine completeness for the collapsed-state signal.
   const completeness = (() => {
@@ -62,14 +68,18 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
 
   const handleExtract = async (e) => {
     e?.preventDefault?.();
-    if (extracting || !url.trim()) return;
+    if (extracting) return;
+    if (mode === 'url' && !url.trim()) return;
+    if (mode === 'pdf' && !pdfFile)    return;
     setError(null);
     setApplyResult(null);
     setExtracting(true);
     setDraft(null);
     setFetched(null);
     try {
-      const r = await extractSpineFromWebsite({ clientId, url: url.trim(), clientName });
+      const r = mode === 'pdf'
+        ? await extractSpineFromPdf({ clientId, file: pdfFile, clientName })
+        : await extractSpineFromWebsite({ clientId, url: url.trim(), clientName });
       if (!r.ok) setError(r.error || 'extraction failed');
       else { setDraft(r.draft); setFetched(r.fetched || null); }
     } catch (err) {
@@ -77,6 +87,26 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
     } finally {
       setExtracting(false);
     }
+  };
+
+  const handlePdfPick = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') {
+      setError('File must be a PDF.');
+      return;
+    }
+    if (file.size > MAX_PDF_BYTES) {
+      setError(`PDF too large: ${(file.size / 1_000_000).toFixed(1)}MB. Max ${(MAX_PDF_BYTES / 1_000_000).toFixed(1)}MB.`);
+      return;
+    }
+    setError(null);
+    setPdfFile(file);
+  };
+
+  const handleClearPdf = () => {
+    setPdfFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleApply = async () => {
@@ -142,23 +172,84 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
       </div>
 
       <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5, marginBottom: 10 }}>
-        Fetches the URL via the same audit endpoint Business Context uses, then runs Claude to extract positioning, audience, editorial POV, voice/tone, competitive posture, and guardrails. Strategist reviews the draft below before applying.
+        Extract positioning, audience, editorial POV, voice/tone, competitive posture, and guardrails from
+        the client's website (multi-page crawl via sitemap.xml) <strong style={{ color: '#cde4d6' }}>or</strong> an
+        uploaded pitch deck / brand book PDF. Strategist reviews the draft below before applying.
       </div>
 
-      {/* URL form */}
-      <form onSubmit={handleExtract} style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-        <input
-          type="url"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-          placeholder="https://client.com/about"
+      {/* Mode picker */}
+      <div style={modeTabsStyle}>
+        <button
+          type="button"
+          onClick={() => { setMode('url'); setError(null); }}
           disabled={extracting}
-          style={inputStyle}
-        />
-        <button type="submit" disabled={!url.trim() || extracting} style={primaryBtnStyle}>
-          {extracting ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Extracting…</> : 'Extract'}
+          style={modeTabStyle(mode === 'url')}
+        >
+          <Globe size={12} /> Website
         </button>
-      </form>
+        <button
+          type="button"
+          onClick={() => { setMode('pdf'); setError(null); }}
+          disabled={extracting}
+          style={modeTabStyle(mode === 'pdf')}
+        >
+          <FileText size={12} /> PDF (deck / brand book)
+        </button>
+      </div>
+
+      {/* Source input */}
+      {mode === 'url' ? (
+        <form onSubmit={handleExtract} style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          <input
+            type="url"
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            placeholder="https://client.com/about"
+            disabled={extracting}
+            style={inputStyle}
+          />
+          <button type="submit" disabled={!url.trim() || extracting} style={primaryBtnStyle}>
+            {extracting ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Extracting…</> : 'Extract'}
+          </button>
+        </form>
+      ) : (
+        <div style={{ marginBottom: 10 }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={handlePdfPick}
+            disabled={extracting}
+            style={{ display: 'none' }}
+          />
+          {!pdfFile ? (
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={extracting} style={uploadBtnStyle}>
+              <Upload size={14} /> Choose PDF
+              <span style={{ fontSize: 11, color: '#666', marginLeft: 8 }}>
+                · max {(MAX_PDF_BYTES / 1_000_000).toFixed(1)}MB · text-based PDFs only (scanned images need OCR)
+              </span>
+            </button>
+          ) : (
+            <div style={pdfChosenStyle}>
+              <FileText size={14} style={{ color: '#a78bfa' }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: '#cde4d6', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {pdfFile.name}
+                </div>
+                <div style={{ fontSize: 11, color: '#666' }}>
+                  {(pdfFile.size / 1_000_000).toFixed(2)}MB
+                </div>
+              </div>
+              <button type="button" onClick={handleClearPdf} disabled={extracting} style={ghostBtnStyle}>
+                <XIcon size={11} /> Clear
+              </button>
+              <button type="button" onClick={handleExtract} disabled={extracting} style={primaryBtnStyle}>
+                {extracting ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Extracting…</> : 'Extract'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {error && (
         <div style={errorBoxStyle}>{error}</div>
@@ -176,7 +267,7 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
             </button>
           </div>
 
-          {fetched?.pagesFetched > 0 && (
+          {(fetched?.pagesFetched > 0 || fetched?.filename) && (
             <CrawlSummary fetched={fetched} />
           )}
 
@@ -260,6 +351,7 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
 
 function CrawlSummary({ fetched }) {
   const [open, setOpen] = useState(false);
+  const isPdf = !!fetched?.filename;
   const pages = Array.isArray(fetched?.pages) ? fetched.pages : [];
   const sourceLabel = {
     sitemap:             'sitemap.xml',
@@ -270,14 +362,24 @@ function CrawlSummary({ fetched }) {
   return (
     <div style={crawlSummaryStyle}>
       <button onClick={() => setOpen(o => !o)} style={crawlSummaryHeaderStyle}>
-        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-        <span>
-          Extracted from <strong style={{ color: '#cde4d6' }}>{fetched.pagesFetched} page{fetched.pagesFetched === 1 ? '' : 's'}</strong>
-          {' '}· discovery: <strong style={{ color: '#cde4d6' }}>{sourceLabel}</strong>
-          {fetched.sizeChars ? <> · {fetched.sizeChars.toLocaleString()} chars</> : null}
-        </span>
+        {(open && !isPdf) ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+        {isPdf ? (
+          <span>
+            Extracted from PDF{' '}
+            <strong style={{ color: '#cde4d6' }}>{fetched.filename}</strong>
+            {' '}· <strong style={{ color: '#cde4d6' }}>{fetched.pageCount} page{fetched.pageCount === 1 ? '' : 's'}</strong>
+            {fetched.sizeChars ? <> · {fetched.sizeChars.toLocaleString()} chars</> : null}
+            {fetched.truncated ? <span style={{ color: '#fbbf24' }}> · truncated</span> : null}
+          </span>
+        ) : (
+          <span>
+            Extracted from <strong style={{ color: '#cde4d6' }}>{fetched.pagesFetched} page{fetched.pagesFetched === 1 ? '' : 's'}</strong>
+            {' '}· discovery: <strong style={{ color: '#cde4d6' }}>{sourceLabel}</strong>
+            {fetched.sizeChars ? <> · {fetched.sizeChars.toLocaleString()} chars</> : null}
+          </span>
+        )}
       </button>
-      {open && pages.length > 0 && (
+      {open && pages.length > 0 && !isPdf && (
         <ul style={crawlPageListStyle}>
           {pages.map((p, i) => (
             <li key={i} style={crawlPageItemStyle}>
@@ -341,6 +443,42 @@ const inputStyle = {
   background: '#0e0e11', color: '#cde4d6',
   border: '1px solid #2a2a30', borderRadius: 5,
   padding: '7px 10px', fontSize: 12,
+};
+
+const modeTabsStyle = {
+  display: 'flex', gap: 4, marginBottom: 10,
+  borderBottom: '1px solid #2a2a30',
+};
+const modeTabStyle = (active) => ({
+  background: 'transparent',
+  color: active ? '#a78bfa' : '#888',
+  border: 'none',
+  borderBottom: active ? '2px solid #a78bfa' : '2px solid transparent',
+  padding: '6px 12px',
+  fontSize: 12, fontWeight: 600,
+  cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', gap: 5,
+  marginBottom: -1,
+});
+
+const uploadBtnStyle = {
+  background: '#0e0e11',
+  color: '#cde4d6',
+  border: '1px dashed rgba(167,139,250,0.4)',
+  borderRadius: 6,
+  padding: '14px 16px',
+  fontSize: 12, fontWeight: 600,
+  cursor: 'pointer', width: '100%',
+  display: 'inline-flex', alignItems: 'center', gap: 8,
+  textAlign: 'left',
+};
+
+const pdfChosenStyle = {
+  background: '#0e0e11',
+  border: '1px solid #2a2a30',
+  borderRadius: 5,
+  padding: '8px 10px',
+  display: 'flex', alignItems: 'center', gap: 8,
 };
 const primaryBtnStyle = {
   background: '#a78bfa', color: '#0a0a0e',

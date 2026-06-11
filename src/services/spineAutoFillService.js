@@ -84,14 +84,61 @@ export async function extractSpineFromWebsite({ clientId, url, clientName = null
 }
 
 /**
+ * Extract Strategy Spine fields from an uploaded PDF (pitch deck,
+ * brand book, positioning doc). Same extraction pipeline as the
+ * website auto-fill, just with PDF text in place of website HTML.
+ *
+ * @param {Object} args
+ * @param {string} args.clientId
+ * @param {File|Blob} args.file       — the PDF File from a <input type=file>
+ * @param {string} [args.clientName]
+ * @returns {Promise<{ ok, draft, fetched, model, promptVersion, error? }>}
+ *   fetched shape: { pageCount, filename, sizeChars, truncated, fetchedAt }
+ */
+export async function extractSpineFromPdf({ clientId, file, clientName = null }) {
+  if (!clientId) return { ok: false, error: 'clientId required' };
+  if (!file)     return { ok: false, error: 'file required' };
+  if (!/\.pdf$/i.test(file.name || '') && file.type !== 'application/pdf') {
+    return { ok: false, error: 'file must be a PDF' };
+  }
+
+  // 1) Read file as ArrayBuffer, base64-encode for JSON transport.
+  let pdfBase64;
+  try {
+    const ab = await file.arrayBuffer();
+    pdfBase64 = arrayBufferToBase64(ab);
+  } catch (err) {
+    return { ok: false, error: `could not read file: ${err?.message || 'unknown'}` };
+  }
+
+  // 2) POST to extraction endpoint.
+  const parsed = await postPdfExtract({ pdfBase64, filename: file.name });
+  if (!parsed.ok) return { ok: false, error: parsed.error || 'PDF parse failed' };
+  if (!parsed.text?.trim()) return { ok: false, error: 'PDF returned no text content' };
+
+  // 3) Claude extraction — treat as multi-page so the prompt instructs
+  // the extractor to synthesize across pages.
+  const extraction = await extractSpineFromText({
+    text:       parsed.text,
+    url:        null,
+    title:      file.name,
+    clientName,
+    isMultiPage: parsed.pageCount > 1,
+    pageCount:  parsed.pageCount,
+    sourceKind: 'pdf',
+  });
+  return { ...extraction, fetched: parsed };
+}
+
+/**
  * Same extraction but takes raw text. Use when the strategist pastes
  * deck contents or an About page they copied manually.
  */
-export async function extractSpineFromText({ text, url = null, title = null, clientName = null, isMultiPage = false, pageCount = 1 }) {
+export async function extractSpineFromText({ text, url = null, title = null, clientName = null, isMultiPage = false, pageCount = 1, sourceKind = 'website' }) {
   if (!text?.trim()) return { ok: false, error: 'text required' };
 
   try {
-    const userPrompt = buildUserPrompt({ text, url, title, clientName, isMultiPage, pageCount });
+    const userPrompt = buildUserPrompt({ text, url, title, clientName, isMultiPage, pageCount, sourceKind });
     const result = await claudeAPI.call(
       userPrompt,
       SYSTEM_PROMPT,
@@ -205,16 +252,19 @@ EXTRACTION RULES:
 
 If the website content is content-thin (under 500 chars of meaningful text), return partial extraction with explicit empty fields rather than fabricating.`;
 
-function buildUserPrompt({ text, url, title, clientName, isMultiPage, pageCount }) {
+function buildUserPrompt({ text, url, title, clientName, isMultiPage, pageCount, sourceKind = 'website' }) {
   const lines = [];
   if (clientName) lines.push(`CLIENT: ${clientName}`);
   if (url)        lines.push(`SOURCE URL: ${url}`);
   if (title)      lines.push(`SOURCE TITLE: ${title}`);
-  if (isMultiPage) {
+
+  if (sourceKind === 'pdf') {
+    lines.push(`SOURCE TYPE: uploaded PDF — pitch deck / brand book / positioning doc. ${pageCount} pages concatenated below, delimited by '## PAGE N' headers. Pitch-deck text often reads as fragments because PDF text extraction loses visual layout — synthesize meaning across fragments, prioritize early pages for positioning, and ignore page-number / chapter-marker noise.`);
+  } else if (isMultiPage) {
     lines.push(`SOURCE PAGES: ${pageCount} same-origin pages concatenated below. Each page is delimited by '## PAGE: <url>' headers — synthesize ACROSS pages, prefer corroborated claims, and treat the homepage as the canonical positioning anchor.`);
   }
   lines.push('');
-  lines.push('WEBSITE CONTENT:');
+  lines.push(sourceKind === 'pdf' ? 'PDF CONTENT:' : 'WEBSITE CONTENT:');
   lines.push(text);
   lines.push('');
   lines.push('Extract the Strategy Spine JSON now. Return ONLY the JSON object.');
@@ -264,8 +314,39 @@ async function fetchWebsite(url, { multiPage = false } = {}) {
   }
 }
 
+async function postPdfExtract({ pdfBase64, filename }) {
+  try {
+    const resp = await fetch('/api/spine-pdf-extract', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ pdfBase64, filename }),
+    });
+    const json = await resp.json();
+    if (!resp.ok) return { ok: false, error: json?.error || `HTTP ${resp.status}` };
+    return json;
+  } catch (err) {
+    return { ok: false, error: err?.message || 'network error' };
+  }
+}
+
+/**
+ * Browser ArrayBuffer → base64. Chunked to avoid call-stack overflow
+ * with large files (String.fromCharCode(...largeArray) blows up).
+ */
+function arrayBufferToBase64(ab) {
+  const bytes = new Uint8Array(ab);
+  const CHUNK = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    const slice = bytes.subarray(i, Math.min(i + CHUNK, bytes.length));
+    binary += String.fromCharCode.apply(null, slice);
+  }
+  return btoa(binary);
+}
+
 export default {
   extractSpineFromWebsite,
+  extractSpineFromPdf,
   extractSpineFromText,
   applySpineExtraction,
   SPINE_AUTOFILL_PROMPT_VERSION,

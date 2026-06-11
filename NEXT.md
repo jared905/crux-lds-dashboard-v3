@@ -4,7 +4,7 @@ What's parked, why, and when it earns its build slot.
 
 **Read this before suggesting "what should I build next" in a fresh conversation.** Items here have been considered and intentionally deferred — they're not forgotten; they're waiting on a trigger.
 
-Last updated: 2026-06-10
+Last updated: 2026-06-11
 
 ---
 
@@ -54,11 +54,8 @@ Last updated: 2026-06-10
 ### 6. ~~Sitemap multi-page crawl~~ — SHIPPED 2026-06-10
 **Status:** Done. `api/audit-website.js` now supports opt-in `multiPage: true` mode. Sitemap.xml discovery first (with relevance ranking — boosts /about, /team, /mission etc., penalizes /blog/ and pagination), common-path probing as fallback, up to 8 pages with 35K-char total budget and `## PAGE: <url>` section headers. `spineAutoFillService` uses multi-page by default; UI surfaces the page count + discovery source + per-page sizes.
 
-### 7. PDF / deck upload for Spine extraction · ~1-2 days
-**Status:** No file upload infrastructure exists.
-**Context:** Pitch decks and brand books contain canonical positioning that's clearer and more deliberate than website copy. New endpoint with `pdf-parse` (or pdfjs) + Claude extraction. Same draft→confirm pattern as website scrub.
-**Trigger:** Onboarding an institutional brand client that has a brand book / pitch deck but a thin marketing website.
-**Files:** new `api/spine-pdf-extract.js`, extend `src/services/spineAutoFillService.js`.
+### 7. ~~PDF / deck upload for Spine extraction~~ — SHIPPED 2026-06-11
+**Status:** Done. New `api/spine-pdf-extract.js` accepts base64 PDF (≤4.3MB), parses with `pdfjs-dist` legacy ESM in synchronous in-process mode, returns concatenated text with `## PAGE N` headers (60-page parse cap, 35K total char cap). `spineAutoFillService.extractSpineFromPdf` reuses the same Claude extraction pipeline; prompt v2-spine-autofill-multipage now routes by `sourceKind` ('website' vs 'pdf') with PDF-specific guidance (fragment-tolerant synthesis, early-page positioning anchor). UI: dual-mode tabs (Website / PDF) in SpineAutoFillSection with size-validated file picker and shared CrawlSummary for the post-extract diagnostic.
 
 ---
 
