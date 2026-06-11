@@ -165,7 +165,7 @@ PREVIOUS QUARTER (${p.label})
 // ── Tool: get_competitors ──
 server.tool(
   'get_competitors',
-  'Get competitive landscape for a client — shows how they stack up against peers in their category',
+  'Get competitive landscape for a client — shows how they stack up against tracked peer / aspirational / reference cohort channels. Works for both live and pre-launch clients (pre-launch clients use cohort medians as the baseline since they have no own-channel history yet).',
   {
     client_id: z.string().describe('Client channel ID (UUID)'),
     days: z.number().default(90).describe('Lookback period in days'),
@@ -175,10 +175,14 @@ server.tool(
     const result = await getCompetitorLandscape(client_id, { days, limit });
     if (result.error) return { content: [{ type: 'text', text: result.error }] };
 
-    const header = `Category: ${result.category} (${result.competitors.length} competitors, last ${days} days)\n`;
-    const rows = result.competitors.map((c, i) =>
-      `${i + 1}. ${c.name} — ${(c.subscribers || 0).toLocaleString()} subs · ${c.recentVideos} videos · ${c.avgViews.toLocaleString()} avg views · ${c.avgEngagement}% eng`
-    );
+    const prelaunchTag = result.isPrelaunch
+      ? ' [PRE-LAUNCH: client has no own-channel data yet — cohort is the baseline]'
+      : '';
+    const header = `${result.label || 'Competitors'} (${result.competitors.length} channels, last ${days} days)${prelaunchTag}\n`;
+    const rows = result.competitors.map((c, i) => {
+      const role = c.cohortRole ? ` [${c.cohortRole}]` : '';
+      return `${i + 1}. ${c.name}${role} — ${(c.subscribers || 0).toLocaleString()} subs · ${c.recentVideos} videos · ${c.avgViews.toLocaleString()} avg views · ${c.avgEngagement}% eng`;
+    });
     return { content: [{ type: 'text', text: header + rows.join('\n') }] };
   }
 );

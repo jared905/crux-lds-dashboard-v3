@@ -113,25 +113,81 @@ export async function getChannelMetrics(channelIds, days = 90) {
 }
 
 export async function getCompetitorLandscape(channelId, { days = 90, limit = 10 } = {}) {
-  // Get channel's category
+  // 1) Load client channel — need category as a fallback AND is_prelaunch
+  //    so we can return a sensible "pre-launch" mode label.
   const { data: ch } = await supabase
     .from('channels')
-    .select('category')
+    .select('id, name, category, is_prelaunch')
     .eq('id', channelId)
     .single();
 
-  if (!ch?.category) return { error: 'Channel has no category assigned' };
+  if (!ch) return { error: 'Client channel not found' };
 
+  // 2) Modern resolution: client_channels.cohort_role tagging.
+  //    The dashboard's cohort system writes peer / aspirational / reference
+  //    here; this is the authoritative competitor assignment going forward.
+  //    Used for both live and pre-launch clients.
+  const { data: cohortRows } = await supabase
+    .from('client_channels')
+    .select('channel_id, cohort_role')
+    .eq('client_id', channelId)
+    .in('cohort_role', ['peer', 'aspirational', 'reference']);
+
+  let resolvedVia    = null;     // 'cohort' | 'category' | null
+  let resolvedLabel  = null;     // human label for the response header
+  let competitorIds  = [];
+  let roleByChannel  = new Map();
+
+  if (cohortRows?.length) {
+    resolvedVia = 'cohort';
+    for (const row of cohortRows) {
+      competitorIds.push(row.channel_id);
+      roleByChannel.set(row.channel_id, row.cohort_role);
+    }
+    const counts = cohortRows.reduce((m, r) => { m[r.cohort_role] = (m[r.cohort_role] || 0) + 1; return m; }, {});
+    const parts = [];
+    if (counts.peer)         parts.push(`${counts.peer} peer`);
+    if (counts.aspirational) parts.push(`${counts.aspirational} aspirational`);
+    if (counts.reference)    parts.push(`${counts.reference} reference`);
+    resolvedLabel = `Cohort assignments (${parts.join(', ')})`;
+  } else if (ch.category) {
+    // 3) Legacy fallback: shared category. Only used when no cohort
+    //    assignments exist — kept for backwards compat with channels
+    //    onboarded before the cohort_role system.
+    resolvedVia   = 'category';
+    resolvedLabel = `Category: ${ch.category} (legacy)`;
+    const { data: catCompetitors } = await supabase
+      .from('channels')
+      .select('id')
+      .eq('category', ch.category)
+      .eq('is_competitor', true)
+      .neq('id', channelId);
+    competitorIds = (catCompetitors || []).map(c => c.id);
+  }
+
+  if (competitorIds.length === 0) {
+    return {
+      error: ch.is_prelaunch
+        ? `Pre-launch client "${ch.name}" has no cohort competitors tagged. Add peer / aspirational / reference channels at Strategy → Cohort Roles before running competitor analyses.`
+        : `Client "${ch.name}" has no competitors assigned. Tag cohort channels at Strategy → Cohort Roles (preferred) or set channels.category as a legacy fallback.`,
+      isPrelaunch: ch.is_prelaunch || false,
+      resolvedVia: null,
+    };
+  }
+
+  // 4) Fetch competitor channel rows. Order by subs desc, cap at limit.
   const { data: competitors } = await supabase
     .from('channels')
     .select('id, name, subscriber_count, size_tier, youtube_channel_id')
-    .eq('category', ch.category)
-    .eq('is_competitor', true)
+    .in('id', competitorIds)
     .order('subscriber_count', { ascending: false })
     .limit(limit);
 
-  if (!competitors?.length) return { category: ch.category, competitors: [] };
+  if (!competitors?.length) {
+    return { resolvedVia, label: resolvedLabel, competitors: [], isPrelaunch: ch.is_prelaunch || false };
+  }
 
+  // 5) Compute per-competitor recent-video stats over the requested window.
   const since = new Date(Date.now() - days * 86400000).toISOString();
   const result = [];
 
@@ -147,13 +203,22 @@ export async function getCompetitorLandscape(channelId, { days = 90, limit = 10 
       name: comp.name,
       subscribers: comp.subscriber_count,
       sizeTier: comp.size_tier,
+      cohortRole: roleByChannel.get(comp.id) || null,
       recentVideos: v.length,
       avgViews: v.length ? Math.round(v.reduce((s, x) => s + (x.view_count || 0), 0) / v.length) : 0,
       avgEngagement: v.length ? Math.round(v.reduce((s, x) => s + (x.engagement_rate || 0), 0) / v.length * 10000) / 100 : 0,
     });
   }
 
-  return { category: ch.category, competitors: result };
+  return {
+    resolvedVia,
+    label: resolvedLabel,
+    competitors: result,
+    isPrelaunch: ch.is_prelaunch || false,
+    // Keep `category` populated for backwards-compat with callers that
+    // still read it; matches what the legacy path used to return.
+    category: ch.category || null,
+  };
 }
 
 export async function getBrandContext(channelId) {
