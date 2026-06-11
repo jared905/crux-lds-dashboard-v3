@@ -11,6 +11,8 @@ import {
   getAuditSummary,
   getQuarterlyData,
   searchVideos,
+  getClientMeta,
+  prelaunchExplainer,
 } from './supabase.js';
 
 const server = new McpServer({
@@ -21,14 +23,16 @@ const server = new McpServer({
 // ── Tool: list_clients ──
 server.tool(
   'list_clients',
-  'List all clients in Full View Analytics with their channel info',
+  'List all clients in Full View Analytics with their channel info. Pre-launch clients are tagged so the difference between "no data yet because pre-launch" and "no data because something\'s broken" is obvious.',
   {},
   async () => {
     const clients = await listClients();
     if (!clients.length) return { content: [{ type: 'text', text: 'No clients found.' }] };
-    const summary = clients.map(c =>
-      `${c.name} (${(c.subscriber_count || 0).toLocaleString()} subs, ${c.size_tier || 'unknown'} tier) — ID: ${c.id}`
-    ).join('\n');
+    const summary = clients.map(c => {
+      const tag = c.is_prelaunch ? ' [PRE-LAUNCH]' : '';
+      const subs = c.is_prelaunch ? '— pre-launch' : `${(c.subscriber_count || 0).toLocaleString()} subs`;
+      return `${c.name}${tag} (${subs}, ${c.size_tier || 'unknown'} tier) — ID: ${c.id}`;
+    }).join('\n');
     return { content: [{ type: 'text', text: `${clients.length} clients:\n\n${summary}` }] };
   }
 );
@@ -45,6 +49,10 @@ server.tool(
     // client_id IS the channel UUID for the client's own row. Don't route
     // through getClientChannels — that helper queries the competitor
     // assignment junction and contaminates the result with non-client data.
+    const meta = await getClientMeta(client_id);
+    if (meta?.isPrelaunch) {
+      return { content: [{ type: 'text', text: prelaunchExplainer(meta) }] };
+    }
     const metrics = await getChannelMetrics([client_id], days);
     return { content: [{ type: 'text', text: JSON.stringify(metrics, null, 2) }] };
   }
@@ -65,6 +73,10 @@ server.tool(
     // client_id IS the channel UUID. Query the client's own videos
     // directly — don't go through getClientChannels (it routes through
     // the competitor-assignment junction and returns the wrong videos).
+    const meta = await getClientMeta(client_id);
+    if (meta?.isPrelaunch) {
+      return { content: [{ type: 'text', text: prelaunchExplainer(meta) }] };
+    }
     const videos = await getChannelVideos(client_id, {
       limit,
       sort,
@@ -107,6 +119,10 @@ server.tool(
     // Query the client's own videos directly. getClientChannels would
     // return competitor channels (assigned via the client_channels
     // junction) and contaminate the search results.
+    const meta = await getClientMeta(client_id);
+    if (meta?.isPrelaunch) {
+      return { content: [{ type: 'text', text: prelaunchExplainer(meta) }] };
+    }
     const results = await searchVideos([client_id], query, { limit });
 
     if (!results.length) return { content: [{ type: 'text', text: `No videos matching "${query}".` }] };
@@ -131,6 +147,10 @@ server.tool(
     // Query the client's own channel directly. Routing through
     // getClientChannels would pull in competitor assignments and produce
     // a quarterly report against the wrong data.
+    const meta = await getClientMeta(client_id);
+    if (meta?.isPrelaunch) {
+      return { content: [{ type: 'text', text: prelaunchExplainer(meta) }] };
+    }
     const report = await getQuarterlyData([client_id], year, quarter);
 
     const c = report.currentQuarter;
@@ -190,14 +210,84 @@ server.tool(
 // ── Tool: get_brand_context ──
 server.tool(
   'get_brand_context',
-  'Get the brand intelligence profile for a client — voice, audience, themes, goals, and constraints',
+  'Get the brand intelligence profile for a client — Strategy Spine positioning + voice + editorial POV, audience persona (pain points / questions / motivations), pillars (recurring topics), recurring formats (creative-execution patterns), and business context. Composite read from the modern Strategy Spine system with a legacy brand_context fallback. Works for pre-launch clients (Spine is rich even before a channel exists).',
   {
     client_id: z.string().describe('Client channel ID (UUID)'),
   },
   async ({ client_id }) => {
-    const ctx = await getBrandContext(client_id);
-    if (!ctx) return { content: [{ type: 'text', text: 'No brand context found for this client. It may not have been set up yet.' }] };
-    return { content: [{ type: 'text', text: JSON.stringify(ctx, null, 2) }] };
+    const [meta, ctx] = await Promise.all([
+      getClientMeta(client_id),
+      getBrandContext(client_id),
+    ]);
+
+    if (!ctx) {
+      const note = meta?.isPrelaunch
+        ? `No brand context found for pre-launch client "${meta.name}". Synthesize the Strategy Spine at Strategy → Spine and the audience persona at Strategy → Audience first — those are the inputs the MCP reads.`
+        : 'No brand context found for this client. Populate the Strategy Spine at Strategy → Spine to make this tool useful.';
+      return { content: [{ type: 'text', text: note }] };
+    }
+
+    const lines = [];
+    if (meta?.isPrelaunch) {
+      lines.push(`[PRE-LAUNCH] ${meta.name} — channel-side data won't exist yet, but Strategy Spine + persona below ARE populated and are the source of truth for positioning work.\n`);
+    }
+
+    // Sources summary up front so Claude knows what's solid vs missing
+    const present = Object.entries(ctx.sources).filter(([, v]) => v).map(([k]) => k);
+    const missing = Object.entries(ctx.sources).filter(([, v]) => !v).map(([k]) => k);
+    lines.push(`Sources populated: ${present.join(', ') || 'none'}${missing.length ? ` · missing: ${missing.join(', ')}` : ''}`);
+
+    if (ctx.spine) {
+      lines.push(`\nSTRATEGY SPINE`);
+      if (ctx.spine.positioning_oneliner)   lines.push(`Positioning: ${ctx.spine.positioning_oneliner}`);
+      if (ctx.spine.positioning_hypothesis) lines.push(`Positioning hypothesis: ${ctx.spine.positioning_hypothesis}`);
+      if (ctx.spine.audience_read)          lines.push(`Audience read: ${ctx.spine.audience_read}`);
+      if (ctx.spine.editorial_pov)          lines.push(`Editorial POV: ${ctx.spine.editorial_pov}`);
+      if (ctx.spine.voice_tone)             lines.push(`Voice + tone: ${ctx.spine.voice_tone}`);
+      if (ctx.spine.competitive_posture)    lines.push(`Competitive posture: ${ctx.spine.competitive_posture}`);
+      if (ctx.spine.guardrails)             lines.push(`Guardrails: ${ctx.spine.guardrails}`);
+      if (ctx.spine.host_archetype)         lines.push(`Host archetype: ${ctx.spine.host_archetype}`);
+    }
+
+    if (ctx.spine?.audience_persona) {
+      const p = ctx.spine.audience_persona;
+      lines.push(`\nAUDIENCE PERSONA (synthesized ${ctx.spine.audience_persona_synthesized_at ? new Date(ctx.spine.audience_persona_synthesized_at).toLocaleDateString() : 'unknown'})`);
+      if (p.pain_points?.length)        lines.push(`Pain points:\n  - ${p.pain_points.join('\n  - ')}`);
+      if (p.motivations?.length)        lines.push(`Motivations:\n  - ${p.motivations.join('\n  - ')}`);
+      if (p.questions_asked?.length)    lines.push(`Questions audience asks:\n  - "${p.questions_asked.join('"\n  - "')}"`);
+      if (p.voice_patterns?.length)     lines.push(`Voice patterns:\n  - ${p.voice_patterns.join('\n  - ')}`);
+      if (p.trust_signals?.length)      lines.push(`Trust signals:\n  - ${p.trust_signals.join('\n  - ')}`);
+      if (p.adjacent_interests?.length) lines.push(`Adjacent interests:\n  - ${p.adjacent_interests.join('\n  - ')}`);
+    }
+
+    if (ctx.pillars?.length) {
+      lines.push(`\nPILLARS (${ctx.pillars.length} active)`);
+      for (const p of ctx.pillars) {
+        lines.push(`• ${p.title}${p.format ? ` [${p.format}]` : ''}${p.creative_description ? ` — ${p.creative_description}` : ''}`);
+      }
+    }
+
+    if (ctx.recurringFormats?.length) {
+      lines.push(`\nRECURRING FORMATS (${ctx.recurringFormats.length} active)`);
+      for (const f of ctx.recurringFormats) {
+        const exec = f.creative_execution === 'other' ? (f.creative_execution_label || 'other') : f.creative_execution;
+        lines.push(`• "${f.name}" [${exec} · ${f.cadence}${f.pillar_label ? ` · pillar: ${f.pillar_label}` : ''} · ${f.production_complexity} complexity · ${f.status}]`);
+        if (f.persona_rationale)  lines.push(`    Why: ${f.persona_rationale}`);
+        if (f.counter_argument)   lines.push(`    Counter: ${f.counter_argument}`);
+      }
+    }
+
+    if (ctx.businessContext) {
+      lines.push(`\nBUSINESS CONTEXT`);
+      lines.push(JSON.stringify(ctx.businessContext, null, 2));
+    }
+
+    if (ctx.legacy && !ctx.spine) {
+      lines.push(`\nLEGACY BRAND CONTEXT (no Strategy Spine — read from legacy brand_context table)`);
+      lines.push(JSON.stringify(ctx.legacy, null, 2));
+    }
+
+    return { content: [{ type: 'text', text: lines.join('\n') }] };
   }
 );
 
@@ -209,8 +299,16 @@ server.tool(
     client_id: z.string().describe('Client channel ID (UUID)'),
   },
   async ({ client_id }) => {
-    const audit = await getAuditSummary(client_id);
-    if (!audit) return { content: [{ type: 'text', text: 'No completed audit found for this channel.' }] };
+    const [meta, audit] = await Promise.all([
+      getClientMeta(client_id),
+      getAuditSummary(client_id),
+    ]);
+    if (!audit) {
+      if (meta?.isPrelaunch) {
+        return { content: [{ type: 'text', text: `[PRE-LAUNCH] "${meta.name}" has no audits because there are no videos to audit yet — by design, not a missing-data bug. The repositioning audit machinery runs once a channel launches and accumulates ~10+ videos. For pre-launch strategic positioning, use get_brand_context (Strategy Spine + persona + pillars are populated).` }] };
+      }
+      return { content: [{ type: 'text', text: `No completed audit found for "${meta?.name || 'this channel'}". Run a repositioning audit at Strategy → Repositioning when the channel has ~10+ recent videos.` }] };
+    }
 
     const parts = [];
     parts.push(`AUDIT: ${audit.audit_type} (completed ${new Date(audit.created_at).toLocaleDateString()})`);

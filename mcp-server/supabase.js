@@ -14,6 +14,52 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
 
 // ── Query helpers ──
 
+/**
+ * Look up client meta — name, pre-launch flag, video count — so every
+ * tool can give honest pre-launch answers instead of silently returning
+ * zeros. Pre-launch clients have is_prelaunch=true and (usually) no
+ * videos; that's by design, not a missing-data bug.
+ */
+export async function getClientMeta(clientId) {
+  if (!clientId) return null;
+  const { data: ch } = await supabase
+    .from('channels')
+    .select('id, name, is_prelaunch, prelaunch_intended_launch_at, youtube_channel_id, subscriber_count')
+    .eq('id', clientId)
+    .maybeSingle();
+  if (!ch) return null;
+  const { count: videoCount } = await supabase
+    .from('videos')
+    .select('id', { count: 'exact', head: true })
+    .eq('channel_id', clientId);
+  return {
+    id:              ch.id,
+    name:            ch.name,
+    isPrelaunch:     !!ch.is_prelaunch,
+    intendedLaunchAt: ch.prelaunch_intended_launch_at || null,
+    youtubeChannelId: ch.youtube_channel_id || null,
+    subscriberCount: ch.subscriber_count || 0,
+    videoCount:      videoCount || 0,
+  };
+}
+
+/**
+ * Render the standard "this client is pre-launch — here's why empty
+ * channel-side queries are expected" callout. Returned by tools that
+ * read channel/video data when there's no own-channel history yet.
+ */
+export function prelaunchExplainer(meta) {
+  const days = meta.intendedLaunchAt
+    ? Math.round((new Date(meta.intendedLaunchAt).getTime() - Date.now()) / 86_400_000)
+    : null;
+  const launchPart = days != null
+    ? (days > 0 ? `Intended launch in ${days} day${days === 1 ? '' : 's'}.`
+       : days === 0 ? 'Launching today.'
+       : `${-days} day${days === -1 ? '' : 's'} past intended launch.`)
+    : 'No intended launch date set.';
+  return `[PRE-LAUNCH] ${meta.name} has no own-channel data yet — by design. ${launchPart}\n\nFor pre-launch analyses use:\n  • get_competitors — cohort medians serve as the baseline\n  • get_brand_context — positioning, voice, audience persona, pillars (all populated)\n  • get_competitor_comment_signals (if available) — for content-gap detection\n\nChannel-side metrics will populate after the channel launches and the daily sync runs.`;
+}
+
 export async function getClientChannels(clientId) {
   // Try junction table first (modern), fall back to legacy client_id
   const { data: junctions } = await supabase
@@ -38,7 +84,7 @@ export async function getClientChannels(clientId) {
 export async function listClients() {
   const { data } = await supabase
     .from('channels')
-    .select('id, name, youtube_channel_id, subscriber_count, size_tier, thumbnail_url, network_id, network_name, custom_url')
+    .select('id, name, youtube_channel_id, subscriber_count, size_tier, thumbnail_url, network_id, network_name, custom_url, is_prelaunch')
     .eq('is_client', true)
     .order('name');
   return data || [];
@@ -221,14 +267,85 @@ export async function getCompetitorLandscape(channelId, { days = 90, limit = 10 
   };
 }
 
+/**
+ * Compose brand context from the MODERN data model:
+ *   - client_strategy_spine: positioning, voice, editorial POV, audience
+ *     persona (the rich JSONB persona with pain_points / questions_asked
+ *     / voice_patterns / etc.), competitive posture, guardrails
+ *   - client_pillars: active pillars (topics) with creative descriptions
+ *   - client_business_context: business goals, value prop, target audience
+ *   - client_recurring_formats: active recurring creative-execution patterns
+ *   - brand_context: LEGACY fallback, kept for backwards compat with
+ *     channels onboarded before the Strategy Spine system
+ *
+ * Returns a composite object. Each section is independently optional —
+ * missing pieces become null rather than failing the whole call. This is
+ * the right shape for pre-launch clients where the Spine is rich but
+ * channel-side data doesn't exist yet.
+ */
 export async function getBrandContext(channelId) {
-  const { data } = await supabase
+  if (!channelId) return null;
+
+  // Modern Strategy Spine + persona (the rich source of truth)
+  const { data: spine } = await supabase
+    .from('client_strategy_spine')
+    .select('positioning_oneliner, positioning_hypothesis, audience_read, editorial_pov, voice_tone, competitive_posture, guardrails, host_archetype, audience_persona, audience_persona_synthesized_at')
+    .eq('client_id', channelId)
+    .maybeSingle();
+
+  // Active pillars (topics)
+  const { data: pillars } = await supabase
+    .from('client_pillars')
+    .select('title, creative_description, intended_audience, format, sort_order')
+    .eq('client_id', channelId)
+    .eq('status', 'active')
+    .order('sort_order');
+
+  // Active recurring creative-execution formats
+  const { data: formats } = await supabase
+    .from('client_recurring_formats')
+    .select('name, creative_execution, creative_execution_label, cadence, pillar_label, persona_rationale, counter_argument, production_complexity, status')
+    .eq('client_id', channelId)
+    .in('status', ['piloting', 'active'])
+    .is('archived_at', null)
+    .order('format_position');
+
+  // Business context
+  const { data: business } = await supabase
+    .from('client_business_context')
+    .select('*')
+    .eq('client_id', channelId)
+    .maybeSingle();
+
+  // Legacy brand_context (still kept for backwards compat — read but
+  // never relied on as the primary source)
+  const { data: legacy } = await supabase
     .from('brand_context')
     .select('brand_voice, messaging_priorities, audience_signals, content_themes, strategic_goals, resource_constraints, content_boundaries')
     .eq('channel_id', channelId)
     .eq('is_current', true)
-    .single();
-  return data;
+    .maybeSingle();
+
+  // If literally nothing exists, return null so the caller can render
+  // "no brand context found" rather than an empty-skeleton object.
+  if (!spine && !pillars?.length && !formats?.length && !business && !legacy) {
+    return null;
+  }
+
+  return {
+    spine:    spine || null,
+    pillars:  pillars || [],
+    recurringFormats: formats || [],
+    businessContext:  business || null,
+    legacy:   legacy || null,
+    sources: {
+      spine:    !!spine,
+      pillars:  !!(pillars && pillars.length),
+      formats:  !!(formats && formats.length),
+      business: !!business,
+      legacy:   !!legacy,
+    },
+  };
 }
 
 export async function getAuditSummary(channelId) {
