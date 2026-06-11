@@ -41,11 +41,14 @@ Last updated: 2026-06-11
 **Trigger:** First client who can actually provide outcome data. Kendall doesn't have a CRM integration; until someone does, Phase A is enough.
 **Files:** `src/services/calibrationService.js` (add new strategies to `deriveActualTiers`); needs a new `client_outcomes` table.
 
-### 5. Phase 2.75: audience-adjacency via comments mining · ~3-5 days
-**Status:** Speculative; nobody's asked for it concretely.
-**Context:** Titles + viewing patterns don't capture what an audience cares about — comments do. Mining competitor comments for repeated themes could surface "this audience cares about X, your titles don't mention X" type insights.
-**Trigger:** A strategist explicitly hits a "I don't know what this audience actually wants" wall. Don't build speculatively.
-**Files:** Would need YouTube Data API comments scope, a `client_comment_signals` table, an analysis service.
+### 5. ~~Competitor-comment sweep (Path A v1)~~ — SHIPPED 2026-06-11
+**Status:** Done. Built per 2026-06-10 deep-research synthesis. On-demand sweep tool, not a systematic pipeline: strategist picks one competitor channel → fetches recent uploads + top-relevance comments → regex-classifies into question / content_request / general → surfaces actionable signals as Strategy Spine *input candidates* (no auto-merge, per the participation-inequality finding). Migration 103, `api/youtube-comment-sweep.js`, `commentSweepService`, `CompetitorCommentsSection` embedded in AudienceWorkspace.
+
+**v1.1 deferred (build when sweep yield validates):**
+- **LLM theme clustering** — group recurring question themes across signals. Defer until we see real sweep data and know whether regex grouping is sufficient.
+- **Multi-channel batch** — sweep all cohort channels in one click, dedupe themes across them. Defer until single-channel sweep proves useful.
+- **Spine-merge action wiring** — currently `status='merged_to_spine'` is a flag; the actual prefill into persona / pillars / concept seeds is manual. Wire only after the strategist's actual workflow surfaces (don't pre-design).
+- **Sweep freshness** — when does a sweep go stale? Surface a "last swept" timestamp on the channel. Build after first repeat-sweep happens.
 
 ---
 

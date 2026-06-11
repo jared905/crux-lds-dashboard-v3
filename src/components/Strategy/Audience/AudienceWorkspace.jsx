@@ -32,6 +32,7 @@ import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 import NextStepCard from '../shared/NextStepCard.jsx';
 import ConceptSeedsSection from './ConceptSeedsSection.jsx';
 import RecurringFormatsSection from './RecurringFormatsSection.jsx';
+import CompetitorCommentsSection from './CompetitorCommentsSection.jsx';
 
 const FIELD_META = [
   { key: 'pain_points',         label: 'Pain points',         description: 'Specific anxieties, decisions, or frustrations the audience is wrestling with.' },
@@ -197,6 +198,8 @@ export default function AudienceWorkspace({ activeClient, onNavigate }) {
             hasPersona={!!persona}
             onNavigate={onNavigate}
           />
+
+          <CompetitorCommentsSection clientId={clientId} />
 
           <NextStepCard
             setTab={onNavigate}
