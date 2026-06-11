@@ -99,11 +99,25 @@ export async function loadChannelFreshness(clientId) {
   }
 
   // 3) Compute tiers.
+  // Silent-failure detection: the cron writes last_sync_attempt_at on
+  // every attempt and last_synced_at only on success. If attempt is
+  // meaningfully more recent than success, the cron ran but didn't
+  // complete — symptoms include "freshness chip says 15m ago, latest
+  // video is 3 days behind." Surface this loudly instead of letting
+  // last_synced_at masquerade as fresh.
+  const SILENT_GAP_MIN_MINUTES = 2;
+  const silentFailure = isSilentlyStale(
+    channel.last_synced_at,
+    channel.last_sync_attempt_at,
+    SILENT_GAP_MIN_MINUTES,
+  );
+
   const channelSync = {
     at: channel.last_synced_at,
-    tier: computeTier(channel.last_synced_at),
+    tier: silentFailure ? 'very_stale' : computeTier(channel.last_synced_at),
     errorMessage: channel.last_sync_error || null,
     lastAttemptAt: channel.last_sync_attempt_at,
+    silentFailure,
   };
   const oauthRefresh = {
     at: connection?.last_refreshed_at || null,
@@ -123,9 +137,16 @@ export async function loadChannelFreshness(clientId) {
     .map(t => t.tier)
     .filter(t => t !== 'missing');
   const worstTier = tiers.length ? worst(tiers) : 'missing';
-  const anyError = !!(channelSync.errorMessage || oauthRefresh.connectionError);
+  const anyError = !!(channelSync.errorMessage || oauthRefresh.connectionError || silentFailure);
 
   return { channel_sync: channelSync, oauth_refresh: oauthRefresh, surface_pull: surfacePull, worstTier, anyError };
+}
+
+function isSilentlyStale(syncedAt, attemptAt, minGapMinutes) {
+  if (!attemptAt) return false;
+  if (!syncedAt)  return true;   // attempted but never succeeded — silent fail
+  const gapMs = new Date(attemptAt).getTime() - new Date(syncedAt).getTime();
+  return gapMs > minGapMinutes * 60_000;
 }
 
 // ──────────────────────────────────────────────────

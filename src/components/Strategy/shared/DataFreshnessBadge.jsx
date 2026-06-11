@@ -7,7 +7,13 @@
  * failure mode.
  *
  * Renders inline as:
- *   [●] Channel: 2h ago  ·  Analytics: 1h ago  ·  Surface: 1d ago
+ *   [●] Channel: 2h ago  ·  OAuth: 1h ago  ·  Surface: 1d ago
+ *
+ * NB: "Channel" tracks last successful competitor-sync; "OAuth" tracks
+ * the token refresh on the channel's OAuth connection (NOT when
+ * analytics-side data was last pulled — that timestamp doesn't exist
+ * yet). The earlier "Analytics" label was misleading because token
+ * refresh can tick happily forward while data ingestion silently fails.
  *
  * Tier colors (worst across all sources wins for the dot icon):
  *   fresh (<24h)     → teal/green
@@ -88,10 +94,15 @@ export default function DataFreshnessBadge({ clientId, compact = false }) {
         title="Click for details"
       >
         <span style={dotStyle(dotColor)} />
-        <Chip label="Channel"   value={freshness.channel_sync}  />
-        <Chip label="Analytics" value={freshness.oauth_refresh} skipIfMissing />
-        <Chip label="Surface"   value={freshness.surface_pull}  skipIfMissing />
-        {freshness.anyError && (
+        <Chip label="Channel" value={freshness.channel_sync}  />
+        <Chip label="OAuth"   value={freshness.oauth_refresh} skipIfMissing />
+        <Chip label="Surface" value={freshness.surface_pull}  skipIfMissing />
+        {freshness.channel_sync?.silentFailure && (
+          <span style={errorBadgeStyle} title="Cron attempted recently but did not write a fresh last_synced_at — data is likely older than the chip suggests.">
+            ⚠ silent sync failure
+          </span>
+        )}
+        {freshness.anyError && !freshness.channel_sync?.silentFailure && (
           <span style={errorBadgeStyle}>⚠ error</span>
         )}
       </button>
@@ -150,13 +161,13 @@ function ExpandedDetails({ freshness }) {
   const rows = [
     {
       key: 'channel_sync',
-      label: 'Competitor sync (daily 06:00 UTC)',
+      label: 'Channel sync — videos, subs, view counts (daily 06:00 UTC)',
       value: freshness.channel_sync,
       showError: freshness.channel_sync.errorMessage,
     },
     {
       key: 'oauth_refresh',
-      label: 'OAuth token refresh',
+      label: 'OAuth token refresh — auth heartbeat only, NOT data ingestion',
       value: freshness.oauth_refresh,
       showError: freshness.oauth_refresh.connectionError,
       missingNote: !freshness.oauth_refresh.hasConnection
@@ -174,6 +185,23 @@ function ExpandedDetails({ freshness }) {
   ];
   return (
     <div style={expandedStyle}>
+      {/* Silent-failure callout pinned to the top so it isn't buried. */}
+      {freshness.channel_sync?.silentFailure && (
+        <div style={silentFailureNoteStyle}>
+          <strong style={{ color: '#ef6b6b', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>
+            Silent sync failure detected
+          </strong>
+          <div style={{ marginTop: 4, color: '#cde4d6', lineHeight: 1.5 }}>
+            The competitor-sync cron ran more recently ({formatRelativeAge(freshness.channel_sync.lastAttemptAt)})
+            than the last <em>successful</em> write to this channel
+            ({freshness.channel_sync.at ? formatRelativeAge(freshness.channel_sync.at) : 'never'}).
+            That gap means the latest cron attempt didn't update channel data — likely a quota cap mid-run,
+            a per-channel API error, or a partial-write bug. <strong>Recent uploads / view counts you see
+            may be older than the freshness chip suggests.</strong>
+          </div>
+        </div>
+      )}
+
       {rows.map(r => (
         <div key={r.key} style={rowStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -185,12 +213,12 @@ function ExpandedDetails({ freshness }) {
           </div>
           <div style={{ fontSize: 11, color: '#888', marginLeft: 14, marginTop: 2 }}>
             {r.value.at
-              ? <>Last pulled: {new Date(r.value.at).toLocaleString()} ({formatRelativeAge(r.value.at)})</>
+              ? <>Last successful: {new Date(r.value.at).toLocaleString()} ({formatRelativeAge(r.value.at)})</>
               : <>Not yet pulled.</>}
           </div>
-          {r.value.lastAttemptAt && r.value.errorMessage && (
-            <div style={{ fontSize: 11, color: '#ef6b6b', marginLeft: 14, marginTop: 2 }}>
-              Last attempt: {formatRelativeAge(r.value.lastAttemptAt)} — failed: {r.value.errorMessage}
+          {r.value.lastAttemptAt && r.value.lastAttemptAt !== r.value.at && (
+            <div style={{ fontSize: 11, color: r.value.errorMessage ? '#ef6b6b' : '#E8A82B', marginLeft: 14, marginTop: 2 }}>
+              Last attempt: {formatRelativeAge(r.value.lastAttemptAt)}{r.value.errorMessage ? ` — failed: ${r.value.errorMessage}` : ' (did not update — silent partial failure)'}
             </div>
           )}
           {r.showError && !r.value.lastAttemptAt && (
@@ -205,6 +233,16 @@ function ExpandedDetails({ freshness }) {
           )}
         </div>
       ))}
+
+      {/* Honest explanation footer — what's NOT tracked here. */}
+      <div style={honestyNoteStyle}>
+        <strong style={{ color: '#cde4d6' }}>What this badge does NOT track:</strong>{' '}
+        per-video analytics ingestion (Watch Hours, Retention, CTR, Subscribers Gained). The OAuth
+        chip above shows token-refresh time, not when those metrics were last pulled — there's no
+        per-channel "analytics ingested at" timestamp today. If you're seeing 0% for those KPIs on
+        a Brand-Account-owned channel, that's a known YouTube Analytics API limitation
+        (<code>dimensions=video</code> failures on managed Brand Account channels), not a missing pull.
+      </div>
     </div>
   );
 }
@@ -259,4 +297,24 @@ const expandedStyle = {
 const rowStyle = {
   paddingBottom: 8,
   borderBottom: '1px dashed #2a2a30',
+};
+
+const silentFailureNoteStyle = {
+  background: 'rgba(239,107,107,0.08)',
+  border: '1px solid rgba(239,107,107,0.30)',
+  borderLeft: '2px solid #ef6b6b',
+  borderRadius: 5,
+  padding: 10,
+  fontSize: 11,
+};
+
+const honestyNoteStyle = {
+  marginTop: 4,
+  background: 'rgba(255,255,255,0.02)',
+  border: '1px dashed #2a2a30',
+  borderRadius: 5,
+  padding: 10,
+  fontSize: 11,
+  color: '#888',
+  lineHeight: 1.55,
 };
