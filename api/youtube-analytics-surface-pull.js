@@ -393,15 +393,21 @@ export default async function handler(req, res) {
   if (req.method !== 'POST')   return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    // Auth
+    // Auth — accept either a Supabase user session OR the CRON_SECRET.
+    // The cron path (daily-sync.js) has no user session but needs to
+    // pull surface intelligence on a schedule.
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Authorization header required' });
     }
     const token = authHeader.slice(7);
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return res.status(401).json({ error: 'Invalid or expired session' });
+
+    const cronBypass = process.env.CRON_SECRET && token === process.env.CRON_SECRET;
+    if (!cronBypass) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !user) {
+        return res.status(401).json({ error: 'Invalid or expired session' });
+      }
     }
 
     const { connectionId, videoLimit, windowDays } = req.body;

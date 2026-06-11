@@ -219,8 +219,11 @@ export default async function handler(req, res) {
     const encryptedAccessToken = encryptToken(tokens.access_token);
     const encryptedRefreshToken = encryptToken(tokens.refresh_token);
 
-    // Store or update connection (upsert on user_id + channel_id)
-    const { error: upsertError } = await supabase
+    // Store or update connection (upsert on user_id + channel_id).
+    // Selecting the row so we can fire an immediate sync below — without
+    // it the user waits up to 24h for the next daily-sync cron firing,
+    // which is the "I connected but data is empty" UX problem.
+    const { data: upsertedConn, error: upsertError } = await supabase
       .from('youtube_oauth_connections')
       .upsert({
         user_id: stateRecord.user_id,
@@ -237,7 +240,9 @@ export default async function handler(req, res) {
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id,youtube_channel_id'
-      });
+      })
+      .select('id')
+      .single();
 
     if (upsertError) {
       console.error('Failed to store OAuth connection:', upsertError);
@@ -460,6 +465,27 @@ export default async function handler(req, res) {
         channel:       channelInfo.title,
       });
       return res.redirect(`${frontendUrl}?${guestParams.toString()}`);
+    }
+
+    // Trigger immediate first-sync (fire-and-forget) so the user sees
+    // data within seconds instead of waiting up to 24h for the next
+    // daily-sync cron firing. The cron endpoint accepts ?connectionId=
+    // to scope to one connection — added in this same commit.
+    // We intentionally DO NOT await the response; the redirect should
+    // happen instantly. Worst case the sync fails and the daily cron
+    // catches it tomorrow.
+    if (upsertedConn?.id && process.env.CRON_SECRET) {
+      const host = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : frontendUrl;
+      const syncUrl = `${host}/api/cron/daily-sync?manual=true&connectionId=${upsertedConn.id}`;
+      // Fire-and-forget. Use .catch to swallow rejection so we don't
+      // crash the callback if the cron endpoint hiccups.
+      fetch(syncUrl, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+      }).catch(err => console.warn('[OAuth callback] Immediate sync trigger failed (non-fatal):', err?.message));
+      console.log(`[OAuth callback] Fired immediate sync for connection ${upsertedConn.id}`);
     }
 
     // Standard authenticated-user flow — redirect to settings with success

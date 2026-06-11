@@ -7,13 +7,18 @@
  * failure mode.
  *
  * Renders inline as:
- *   [●] Channel: 2h ago  ·  OAuth: 1h ago  ·  Surface: 1d ago
+ *   [●] Channel: 2h ago · Analytics: 6h ago · Reporting: 1d ago · Surface: 12h ago · OAuth: 1h ago
  *
- * NB: "Channel" tracks last successful competitor-sync; "OAuth" tracks
- * the token refresh on the channel's OAuth connection (NOT when
- * analytics-side data was last pulled — that timestamp doesn't exist
- * yet). The earlier "Analytics" label was misleading because token
- * refresh can tick happily forward while data ingestion silently fails.
+ * Per-source freshness (migration 104, 2026-06-11):
+ *   - Channel    = YouTube Data API pulls (videos, sub counts, snapshots)
+ *   - Analytics  = YouTube Analytics API (Watch Hours, Retention, Subs Gained)
+ *   - Reporting  = YouTube Reporting API (impressions, CTR)
+ *   - Surface    = Surface intelligence (traffic sources, search queries)
+ *   - OAuth      = Token refresh heartbeat (auth liveness, NOT data ingestion)
+ *
+ * Each chip color reflects per-source tier: green fresh, amber stale,
+ * red very_stale OR error, gray missing. Errors win — if a source has
+ * a persisted error message, its chip turns red regardless of timestamp.
  *
  * Tier colors (worst across all sources wins for the dot icon):
  *   fresh (<24h)     → teal/green
@@ -33,6 +38,7 @@ const TIER_COLORS = {
   fresh:          '#3fa66a',
   stale:          '#E8A82B',
   very_stale:     '#ef6b6b',
+  error:          '#ef6b6b',
   missing:        '#666',
   not_applicable: '#a78bfa',  // pre-launch
 };
@@ -40,6 +46,7 @@ const TIER_LABELS = {
   fresh:          'Fresh',
   stale:          'Stale',
   very_stale:     'Very stale',
+  error:          'Error',
   missing:        'Never',
   not_applicable: 'N/A',
 };
@@ -94,15 +101,17 @@ export default function DataFreshnessBadge({ clientId, compact = false }) {
         title="Click for details"
       >
         <span style={dotStyle(dotColor)} />
-        <Chip label="Channel" value={freshness.channel_sync}  />
-        <Chip label="OAuth"   value={freshness.oauth_refresh} skipIfMissing />
-        <Chip label="Surface" value={freshness.surface_pull}  skipIfMissing />
-        {freshness.channel_sync?.silentFailure && (
-          <span style={errorBadgeStyle} title="Cron attempted recently but did not write a fresh last_synced_at — data is likely older than the chip suggests.">
+        <Chip value={freshness.data_api_pull}  />
+        <Chip value={freshness.analytics_pull} skipIfMissing />
+        <Chip value={freshness.reporting_pull} skipIfMissing />
+        <Chip value={freshness.surface_pull}   skipIfMissing />
+        <Chip value={freshness.oauth_refresh}  skipIfMissing />
+        {freshness.data_api_pull?.silentFailure && (
+          <span style={errorBadgeStyle} title="Cron attempted recently but did not write a fresh data_api timestamp — data is likely older than the chip suggests.">
             ⚠ silent sync failure
           </span>
         )}
-        {freshness.anyError && !freshness.channel_sync?.silentFailure && (
+        {freshness.anyError && !freshness.data_api_pull?.silentFailure && (
           <span style={errorBadgeStyle}>⚠ error</span>
         )}
       </button>
@@ -141,14 +150,23 @@ function PrelaunchFreshness({ launchAt, compact }) {
 // Chip — one source's freshness inline
 // ──────────────────────────────────────────────────
 
-function Chip({ label, value, skipIfMissing }) {
+function Chip({ value, skipIfMissing }) {
   if (!value) return null;
   if (skipIfMissing && value.tier === 'missing') return null;
-  const color = TIER_COLORS[value.tier];
+  const color = TIER_COLORS[value.tier] || '#666';
+  const label = value.label || 'Source';
+  const display = value.tier === 'error'
+    ? 'error'
+    : value.tier === 'missing'
+      ? 'never'
+      : formatRelativeAge(value.at);
   return (
-    <span style={chipStyle(color)}>
+    <span
+      style={chipStyle(color)}
+      title={value.errorMessage ? `${label}: ${value.errorMessage}` : undefined}
+    >
       <span style={{ color: '#888' }}>{label}:</span>{' '}
-      <strong style={{ color }}>{formatRelativeAge(value.at)}</strong>
+      <strong style={{ color }}>{display}</strong>
     </span>
   );
 }
@@ -160,44 +178,64 @@ function Chip({ label, value, skipIfMissing }) {
 function ExpandedDetails({ freshness }) {
   const rows = [
     {
-      key: 'channel_sync',
-      label: 'Channel sync — videos, subs, view counts (daily 06:00 UTC)',
-      value: freshness.channel_sync,
-      showError: freshness.channel_sync.errorMessage,
+      key: 'data_api_pull',
+      label: 'Channel data — videos, sub counts, snapshots (Data API)',
+      value: freshness.data_api_pull,
+      missingNote: freshness.data_api_pull.tier === 'missing'
+        ? 'Channel data has never been synced. The daily sync runs at 06:00 / 07:00 UTC; or click Sync in the OAuth panel to trigger immediately.'
+        : null,
     },
     {
-      key: 'oauth_refresh',
-      label: 'OAuth token refresh — auth heartbeat only, NOT data ingestion',
-      value: freshness.oauth_refresh,
-      showError: freshness.oauth_refresh.connectionError,
-      missingNote: !freshness.oauth_refresh.hasConnection
-        ? 'No OAuth connection — analytics-side pulls (per-video traffic, search queries) require owner OAuth. Send a guest invite from Settings → API Keys.'
+      key: 'analytics_pull',
+      label: 'Analytics — Watch Hours, Retention, Subs Gained (Analytics API)',
+      value: freshness.analytics_pull,
+      missingNote: freshness.analytics_pull.tier === 'missing'
+        ? 'Analytics has never been pulled. Runs nightly as part of daily-sync when the channel has an OAuth connection. Brand Account channels may need owner OAuth (not manager) to access per-video metrics.'
+        : null,
+      errorHint: freshness.analytics_pull.errorMessage?.match(/forbidden|dimensions=video|insufficient/i)
+        ? 'This looks like the documented Brand Account dimensions=video limitation. Per-video analytics requires owner-level OAuth on managed Brand Account channels.'
+        : null,
+    },
+    {
+      key: 'reporting_pull',
+      label: 'Reporting — impressions, CTR (Reporting API)',
+      value: freshness.reporting_pull,
+      missingNote: freshness.reporting_pull.tier === 'missing'
+        ? 'Reporting data hasn\'t arrived. Reporting jobs take 24–48h to produce their first CSV after creation; subsequent days are daily. "Never" right after connecting is expected.'
         : null,
     },
     {
       key: 'surface_pull',
-      label: 'Surface intelligence (traffic / search queries)',
+      label: 'Surface — traffic sources, search queries',
       value: freshness.surface_pull,
       missingNote: freshness.surface_pull.tier === 'missing'
-        ? 'Never pulled. Go to Strategy → Pre-flight and hit "Pull surface intelligence" on the connected channel.'
+        ? 'Surface intelligence hasn\'t been pulled. Runs nightly as part of daily-sync for OAuth-connected channels; or trigger manually at Strategy → Pre-flight.'
+        : null,
+    },
+    {
+      key: 'oauth_refresh',
+      label: 'OAuth — token refresh heartbeat (auth liveness only)',
+      value: freshness.oauth_refresh,
+      missingNote: !freshness.oauth_refresh.hasConnection
+        ? 'No OAuth connection. Most analytics-side pulls require owner OAuth. Send an invite from Settings → API Keys.'
         : null,
     },
   ];
   return (
     <div style={expandedStyle}>
       {/* Silent-failure callout pinned to the top so it isn't buried. */}
-      {freshness.channel_sync?.silentFailure && (
+      {freshness.data_api_pull?.silentFailure && (
         <div style={silentFailureNoteStyle}>
           <strong style={{ color: '#ef6b6b', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>
             Silent sync failure detected
           </strong>
           <div style={{ marginTop: 4, color: '#cde4d6', lineHeight: 1.5 }}>
-            The competitor-sync cron ran more recently ({formatRelativeAge(freshness.channel_sync.lastAttemptAt)})
-            than the last <em>successful</em> write to this channel
-            ({freshness.channel_sync.at ? formatRelativeAge(freshness.channel_sync.at) : 'never'}).
+            The sync cron ran more recently ({formatRelativeAge(freshness.data_api_pull.lastAttemptAt)})
+            than the last <em>successful</em> Data API pull
+            ({freshness.data_api_pull.at ? formatRelativeAge(freshness.data_api_pull.at) : 'never'}).
             That gap means the latest cron attempt didn't update channel data — likely a quota cap mid-run,
             a per-channel API error, or a partial-write bug. <strong>Recent uploads / view counts you see
-            may be older than the freshness chip suggests.</strong>
+            may be older than the chip suggests.</strong>
           </div>
         </div>
       )}
@@ -213,36 +251,26 @@ function ExpandedDetails({ freshness }) {
           </div>
           <div style={{ fontSize: 11, color: '#888', marginLeft: 14, marginTop: 2 }}>
             {r.value.at
-              ? <>Last successful: {new Date(r.value.at).toLocaleString()} ({formatRelativeAge(r.value.at)})</>
+              ? <>Last successful: {new Date(r.value.at).toLocaleString()} ({formatRelativeAge(r.value.at)}){r.value.isFallback ? ' (legacy last_synced_at — per-source column not populated yet)' : ''}</>
               : <>Not yet pulled.</>}
           </div>
-          {r.value.lastAttemptAt && r.value.lastAttemptAt !== r.value.at && (
-            <div style={{ fontSize: 11, color: r.value.errorMessage ? '#ef6b6b' : '#E8A82B', marginLeft: 14, marginTop: 2 }}>
-              Last attempt: {formatRelativeAge(r.value.lastAttemptAt)}{r.value.errorMessage ? ` — failed: ${r.value.errorMessage}` : ' (did not update — silent partial failure)'}
+          {r.value.errorMessage && (
+            <div style={{ fontSize: 11, color: '#ef6b6b', marginLeft: 14, marginTop: 2, lineHeight: 1.4 }}>
+              Error: {r.value.errorMessage}
             </div>
           )}
-          {r.showError && !r.value.lastAttemptAt && (
-            <div style={{ fontSize: 11, color: '#ef6b6b', marginLeft: 14, marginTop: 2 }}>
-              Error: {r.showError}
+          {r.errorHint && (
+            <div style={{ fontSize: 11, color: '#E8A82B', marginLeft: 14, marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>
+              → {r.errorHint}
             </div>
           )}
-          {r.missingNote && (
-            <div style={{ fontSize: 11, color: '#E8A82B', marginLeft: 14, marginTop: 2, lineHeight: 1.4 }}>
+          {r.missingNote && r.value.tier === 'missing' && (
+            <div style={{ fontSize: 11, color: '#888', marginLeft: 14, marginTop: 2, lineHeight: 1.4 }}>
               {r.missingNote}
             </div>
           )}
         </div>
       ))}
-
-      {/* Honest explanation footer — what's NOT tracked here. */}
-      <div style={honestyNoteStyle}>
-        <strong style={{ color: '#cde4d6' }}>What this badge does NOT track:</strong>{' '}
-        per-video analytics ingestion (Watch Hours, Retention, CTR, Subscribers Gained). The OAuth
-        chip above shows token-refresh time, not when those metrics were last pulled — there's no
-        per-channel "analytics ingested at" timestamp today. If you're seeing 0% for those KPIs on
-        a Brand-Account-owned channel, that's a known YouTube Analytics API limitation
-        (<code>dimensions=video</code> failures on managed Brand Account channels), not a missing pull.
-      </div>
     </div>
   );
 }

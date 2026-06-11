@@ -221,21 +221,26 @@ async function syncChannel(channel, apiKey) {
 
   // Fetch fresh data from YouTube. On failure, persist the error so the row
   // doesn't look "merely stale" — caller catches and re-throws.
+  // Migration 104: also write per-source freshness so the badge can show
+  // "data_api: error" instead of letting the row look fresh.
   let channelDetails;
   try {
     channelDetails = await fetchChannelDetails(channel.youtube_channel_id, apiKey);
   } catch (err) {
+    const msg = (err.message || String(err)).slice(0, 500);
     await supabase
       .from('channels')
       .update({
         last_sync_attempt_at: attemptAt,
-        last_sync_error: (err.message || String(err)).slice(0, 500),
+        last_sync_error: msg,
+        last_data_api_pull_error: msg,
       })
       .eq('id', channel.id);
     throw err;
   }
 
   // Update channel record (success path clears any prior error)
+  const nowIso = new Date().toISOString();
   await supabase
     .from('channels')
     .update({
@@ -243,9 +248,11 @@ async function syncChannel(channel, apiKey) {
       subscriber_count: channelDetails.subscriber_count,
       total_view_count: channelDetails.total_view_count,
       video_count: channelDetails.video_count,
-      last_synced_at: new Date().toISOString(),
+      last_synced_at: nowIso,
       last_sync_attempt_at: attemptAt,
       last_sync_error: null,
+      last_data_api_pull_at: nowIso,
+      last_data_api_pull_error: null,
     })
     .eq('id', channel.id);
 

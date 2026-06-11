@@ -509,6 +509,71 @@ async function discoverVideos(accessToken, youtubeChannelId, dbChannelId, channe
 }
 
 // Sync a single connection
+/**
+ * Persist per-source freshness on the channels row. Call after each
+ * distinct data-source attempt:
+ *   - On success: { at: NOW(), error: null }  → cleared error
+ *   - On failure: { error: msg }              → at stays at last success
+ *
+ * Migration 104 added these columns so the freshness badge can show
+ * honest per-source state instead of one fake "last_synced_at."
+ *
+ * @param {string} channelId — channels.id (UUID)
+ * @param {'data_api'|'analytics'|'reporting'|'surface'} source
+ * @param {Object} state
+ * @param {boolean} state.ok
+ * @param {string} [state.error]
+ */
+async function recordSourceFreshness(channelId, source, state) {
+  if (!channelId) return;
+  const colAt    = `last_${source}_pull_at`;
+  const colError = `last_${source}_pull_error`;
+  const patch = state.ok
+    ? { [colAt]: new Date().toISOString(), [colError]: null }
+    : { [colError]: (state.error || 'unknown error').toString().slice(0, 500) };
+  try {
+    await supabase.from('channels').update(patch).eq('id', channelId);
+  } catch (e) {
+    console.warn(`[Daily Sync] recordSourceFreshness(${source}) write failed:`, e.message);
+  }
+}
+
+/**
+ * Internal call to /api/youtube-analytics-surface-pull. The endpoint
+ * accepts a CRON_SECRET Bearer as a bypass for the user-session check
+ * so the cron can hit it without a browser context. Returns
+ * { ok, error?, summary? } so the caller can persist per-source state.
+ */
+async function runSurfaceIntelligencePull(_accessToken, _youtubeChannelId, _dbChannelId, connectionId) {
+  if (!process.env.CRON_SECRET) {
+    return { ok: false, error: 'CRON_SECRET not configured' };
+  }
+  // Vercel-internal host: VERCEL_URL is the deployment URL without
+  // protocol; fall back to the public FRONTEND_URL for local dev.
+  const host = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : (process.env.FRONTEND_URL || null);
+  if (!host) return { ok: false, error: 'No host URL available for internal call' };
+
+  try {
+    const resp = await fetch(`${host}/api/youtube-analytics-surface-pull`, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${process.env.CRON_SECRET}`,
+      },
+      body: JSON.stringify({ connectionId }),
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok || !body?.ok) {
+      return { ok: false, error: body?.error || `HTTP ${resp.status}` };
+    }
+    return { ok: true, summary: body.summary || null };
+  } catch (e) {
+    return { ok: false, error: e.message || 'fetch failed' };
+  }
+}
+
 async function syncConnection(connection) {
   const results = {
     connectionId: connection.id,
@@ -521,6 +586,7 @@ async function syncConnection(connection) {
       basicReporting: false,   // views, subs, watch from Reporting API
       dataAPI: false,          // cumulative video stats
       channelSnapshot: false,  // channel-level subscriber tracking
+      surfacePull: false,      // traffic sources, search queries
     },
     errors: []
   };
@@ -549,8 +615,10 @@ async function syncConnection(connection) {
       console.log(`[Daily Sync] Discovered/updated ${discovered} videos for ${connection.youtube_channel_title}`);
       results.videosDiscovered = discovered;
       results.dataSources.dataAPI = true;
+      await recordSourceFreshness(dbChannel.id, 'data_api', { ok: true });
     } catch (e) {
       results.errors.push(`Video discovery: ${e.message}`);
+      await recordSourceFreshness(dbChannel.id, 'data_api', { ok: false, error: `Video discovery: ${e.message}` });
     }
 
     // Fetch per-day analytics for the last 7 days (one API call per day)
@@ -563,6 +631,7 @@ async function syncConnection(connection) {
     let analyticsData = {};
     // analyticsByDay[date][videoId] = single-day metrics (used for accurate snapshots)
     let analyticsByDay = {};
+    const analyticsErrors = [];
 
     for (const date of syncDates) {
       try {
@@ -602,6 +671,7 @@ async function syncConnection(connection) {
         }
       } catch (e) {
         results.errors.push(`Analytics ${date}: ${e.message}`);
+        analyticsErrors.push(`${date}: ${e.message}`);
       }
       // Rate limit between API calls
       await new Promise(r => setTimeout(r, 100));
@@ -663,7 +733,23 @@ async function syncConnection(connection) {
         }
       } catch (e) {
         console.warn(`[Daily Sync] Channel analytics fallback failed: ${e.message}`);
+        analyticsErrors.push(`channel-level fallback: ${e.message}`);
       }
+    }
+
+    // Persist analytics per-source freshness. Success = at least one
+    // analytics call landed (per-video OR channel-level fallback).
+    // Failure = every attempt errored — surface the first error so the
+    // strategist sees "dimensions=video forbidden (Brand Account)" or
+    // "quota exceeded" instead of a silent zero.
+    const analyticsLanded = results.dataSources.analyticsAPI || results.dataSources.channelAnalytics;
+    if (analyticsLanded) {
+      await recordSourceFreshness(dbChannel.id, 'analytics', { ok: true });
+    } else if (analyticsErrors.length > 0) {
+      await recordSourceFreshness(dbChannel.id, 'analytics', {
+        ok: false,
+        error: `Analytics API: ${analyticsErrors[0]} (and ${analyticsErrors.length - 1} more)`,
+      });
     }
 
     // Fetch reporting data from BOTH report types:
@@ -672,12 +758,14 @@ async function syncConnection(connection) {
     let reportingData = null;
     let basicReportingData = null;
 
+    const reportingErrors = [];
     if (connection.reporting_job_id) {
       try {
         reportingData = await fetchReportingData(accessToken, connection.reporting_job_id);
         if (reportingData) results.dataSources.reachReporting = true;
       } catch (e) {
         results.errors.push(`Reach reporting: ${e.message}`);
+        reportingErrors.push(`reach: ${e.message}`);
       }
     }
 
@@ -687,7 +775,21 @@ async function syncConnection(connection) {
         if (basicReportingData) results.dataSources.basicReporting = true;
       } catch (e) {
         results.errors.push(`Basic reporting: ${e.message}`);
+        reportingErrors.push(`basic: ${e.message}`);
       }
+    }
+
+    // Persist reporting per-source freshness. Success = at least one
+    // job returned data. Failure with no jobs configured is NOT an
+    // error (Reporting jobs take 24-48h to produce first report after
+    // creation) — only flag when a job exists and the fetch errored.
+    if (results.dataSources.reachReporting || results.dataSources.basicReporting) {
+      await recordSourceFreshness(dbChannel.id, 'reporting', { ok: true });
+    } else if (reportingErrors.length > 0) {
+      await recordSourceFreshness(dbChannel.id, 'reporting', {
+        ok: false,
+        error: `Reporting API: ${reportingErrors.join('; ')}`,
+      });
     }
 
     // Merge basic report data into reporting data (basic has views/subs/watch, reach has impressions/CTR)
@@ -991,10 +1093,40 @@ async function syncConnection(connection) {
 
           results.channelSnapshot = { subscribers: subCount, views: viewCount };
           results.dataSources.channelSnapshot = true;
+          // Channel snapshot uses the YouTube Data API, so a successful
+          // snapshot is a fresh data_api pull too. Cover the case where
+          // discoverVideos errored but the lighter-weight channels.list
+          // call still succeeded.
+          await recordSourceFreshness(dbChannel.id, 'data_api', { ok: true });
         }
       }
     } catch (snapErr) {
       results.errors.push(`Channel snapshot: ${snapErr.message}`);
+    }
+
+    // Surface intelligence pull — traffic sources, search queries, etc.
+    // Previously manual-only (Strategy → Pre-flight). Now run as part of
+    // the daily cron so the freshness chip reflects scheduled coverage
+    // for every connected channel, not just channels where a strategist
+    // remembered to click "Pull surface intelligence."
+    try {
+      const surfaceResult = await runSurfaceIntelligencePull(accessToken, channelId, dbChannel.id, connection.id);
+      if (surfaceResult.ok) {
+        results.dataSources.surfacePull = true;
+        await recordSourceFreshness(dbChannel.id, 'surface', { ok: true });
+        // last_surface_pull_at is the canonical column read by
+        // freshness service — keep it in sync.
+        await supabase
+          .from('channels')
+          .update({ last_surface_pull_at: new Date().toISOString() })
+          .eq('id', dbChannel.id);
+      } else {
+        results.errors.push(`Surface pull: ${surfaceResult.error}`);
+        await recordSourceFreshness(dbChannel.id, 'surface', { ok: false, error: surfaceResult.error });
+      }
+    } catch (e) {
+      results.errors.push(`Surface pull: ${e.message}`);
+      await recordSourceFreshness(dbChannel.id, 'surface', { ok: false, error: e.message });
     }
 
     // Update connection last sync time
@@ -1686,12 +1818,21 @@ export default async function handler(req, res) {
   console.log('[Daily Sync] Starting...');
   const startTime = Date.now();
 
+  // Single-connection mode: when called immediately after OAuth callback
+  // with ?connectionId=<id>, sync just that connection so the user sees
+  // data within seconds instead of waiting for the next cron firing.
+  const targetConnectionId = req.query?.connectionId || null;
+
   try {
-    // Get all active OAuth connections
-    const { data: connections, error: connError } = await supabase
+    // Get active OAuth connections — filtered if targetConnectionId set.
+    let connQuery = supabase
       .from('youtube_oauth_connections')
       .select('*')
       .eq('is_active', true);
+    if (targetConnectionId) {
+      connQuery = connQuery.eq('id', targetConnectionId);
+    }
+    const { data: connections, error: connError } = await connQuery;
 
     if (connError) {
       throw connError;

@@ -7,26 +7,33 @@
  * to their current view are, without having to open Settings → API
  * Keys to check.
  *
- * Sources surfaced:
- *   - channel_sync        — competitor sync cron (06:00 UTC daily)
- *                           reads channels.last_synced_at
- *   - oauth_refresh       — token refresh timestamp on the channel's
- *                           OAuth connection (team-OAuth model — any
- *                           user's connection counts)
- *                           reads youtube_oauth_connections.last_refreshed_at
- *   - surface_pull        — surface-intelligence pull timestamp
- *                           (traffic sources, search queries — set by
- *                           /api/youtube-analytics-surface-pull)
- *                           reads channels.last_surface_pull_at (migration 097)
+ * Per-source freshness model (migration 104, 2026-06-11):
+ *   - data_api_pull   — YouTube Data API (videos, sub counts, snapshots)
+ *                       reads channels.last_data_api_pull_at + _error
+ *   - analytics_pull  — YouTube Analytics API (Watch Hours, Retention,
+ *                       Subs Gained — per-video OR channel-level fallback)
+ *                       reads channels.last_analytics_pull_at + _error
+ *   - reporting_pull  — YouTube Reporting API (impressions, CTR)
+ *                       reads channels.last_reporting_pull_at + _error
+ *   - surface_pull    — Surface intelligence (traffic sources, search queries)
+ *                       reads channels.last_surface_pull_at + _error
+ *   - oauth_refresh   — OAuth token refresh heartbeat (NOT data ingestion)
+ *                       reads youtube_oauth_connections.last_refreshed_at
  *
- * Freshness tiers (per source):
- *   - fresh:  < 24h ago     → green
- *   - stale:  24h–72h ago   → amber
- *   - very_stale: > 72h ago → red
- *   - missing: null         → gray (never pulled)
+ * Each per-source state surfaces:
+ *   - at:    last successful pull (null when never pulled)
+ *   - tier:  fresh / stale / very_stale / missing / error
+ *   - error: persisted error message from last failed attempt (if any)
  *
- * The component renders the overall worst-case tier as the icon color,
- * with each source shown as a chip with relative time.
+ * Tiers (per source):
+ *   - error:      _error column is set    → red (highest severity)
+ *   - fresh:      < 24h ago               → green
+ *   - stale:      24h–72h ago             → amber
+ *   - very_stale: > 72h ago               → red
+ *   - missing:    at: null, no error      → gray (never pulled)
+ *
+ * The badge renders the overall worst-case tier as the dot icon and
+ * each source as a chip with relative time + inline error if present.
  */
 
 import { supabase } from './supabaseClient';
@@ -58,35 +65,43 @@ export async function loadChannelFreshness(clientId) {
     return emptyFreshness();
   }
 
-  // 1) Channel-level timestamps (sync + surface pull) plus pre-launch
-  //    flag so the badge can short-circuit for clients without a channel.
+  // 1) Channel row with per-source columns (migration 104). Falls back
+  // gracefully when the migration hasn't been applied — undefined
+  // columns become null and surface as 'missing' tiers.
   const { data: channel, error: chErr } = await supabase
     .from('channels')
-    .select('id, youtube_channel_id, last_synced_at, last_sync_attempt_at, last_sync_error, last_surface_pull_at, is_prelaunch, prelaunch_intended_launch_at')
+    .select(`
+      id, youtube_channel_id,
+      last_synced_at, last_sync_attempt_at, last_sync_error,
+      last_data_api_pull_at, last_data_api_pull_error,
+      last_analytics_pull_at, last_analytics_pull_error,
+      last_reporting_pull_at, last_reporting_pull_error,
+      last_surface_pull_at, last_surface_pull_error,
+      is_prelaunch, prelaunch_intended_launch_at
+    `)
     .eq('id', clientId)
     .maybeSingle();
 
   if (chErr || !channel) return emptyFreshness();
 
-  // 2026-06-09: pre-launch clients have no channel by definition.
-  // Don't render sync/oauth/surface chips OR fire downstream queries —
-  // freshness is conceptually N/A, not "stale" or "error." The UI
-  // renders a single calm purple chip instead.
+  // Pre-launch short-circuit (2026-06-09).
   if (channel.is_prelaunch) {
+    const na = (label) => ({ at: null, tier: 'not_applicable', label });
     return {
       is_prelaunch:                 true,
       prelaunch_intended_launch_at: channel.prelaunch_intended_launch_at || null,
-      channel_sync:                 { at: null, tier: 'not_applicable' },
+      data_api_pull:                na('Channel'),
+      analytics_pull:               na('Analytics'),
+      reporting_pull:               na('Reporting'),
+      surface_pull:                 na('Surface'),
       oauth_refresh:                { at: null, tier: 'not_applicable', hasConnection: false },
-      surface_pull:                 { at: null, tier: 'not_applicable' },
       worstTier:                    'not_applicable',
       anyError:                     false,
     };
   }
 
-  // 2) OAuth connection timestamps — team-OAuth model means we want
-  // the freshest connection for this youtube_channel_id, regardless of
-  // which user OAuthed it.
+  // 2) OAuth connection — team-OAuth model: freshest connection for the
+  // youtube_channel_id, regardless of which user owns it.
   let connection = null;
   if (channel.youtube_channel_id) {
     const { data: conns } = await supabase
@@ -98,48 +113,101 @@ export async function loadChannelFreshness(clientId) {
     connection = conns?.[0] || null;
   }
 
-  // 3) Compute tiers.
-  // Silent-failure detection: the cron writes last_sync_attempt_at on
-  // every attempt and last_synced_at only on success. If attempt is
-  // meaningfully more recent than success, the cron ran but didn't
-  // complete — symptoms include "freshness chip says 15m ago, latest
-  // video is 3 days behind." Surface this loudly instead of letting
-  // last_synced_at masquerade as fresh.
+  // 3) Build per-source state. Each source gets its own honest tier
+  // based on its own _at + _error columns. Errors win over staleness;
+  // the badge surfaces the actual reason.
+  const data_api_pull = buildSource({
+    label: 'Channel',
+    at:    channel.last_data_api_pull_at,
+    error: channel.last_data_api_pull_error,
+    // Fallback to legacy last_synced_at when migration 104 hasn't been
+    // applied or when the cron hasn't run a per-source write yet —
+    // existing data shouldn't suddenly read as "never pulled."
+    fallbackAt: channel.last_synced_at,
+  });
+  const analytics_pull = buildSource({
+    label: 'Analytics',
+    at:    channel.last_analytics_pull_at,
+    error: channel.last_analytics_pull_error,
+  });
+  const reporting_pull = buildSource({
+    label: 'Reporting',
+    at:    channel.last_reporting_pull_at,
+    error: channel.last_reporting_pull_error,
+  });
+  const surface_pull = buildSource({
+    label: 'Surface',
+    at:    channel.last_surface_pull_at,
+    error: channel.last_surface_pull_error,
+  });
+
+  const oauth_refresh = {
+    at:              connection?.last_refreshed_at || null,
+    tier:            connection ? computeTier(connection.last_refreshed_at) : 'missing',
+    errorMessage:    connection?.connection_error || null,
+    hasConnection:   !!connection,
+    isActive:        connection?.is_active ?? null,
+    label:           'OAuth',
+  };
+
+  // 4) Silent-failure detection on the legacy last_synced_at path:
+  // if a sync was attempted recently but no success column moved, flag
+  // the data_api source even when its own _error wasn't persisted.
   const SILENT_GAP_MIN_MINUTES = 2;
   const silentFailure = isSilentlyStale(
     channel.last_synced_at,
     channel.last_sync_attempt_at,
     SILENT_GAP_MIN_MINUTES,
   );
+  if (silentFailure) {
+    data_api_pull.tier = 'very_stale';
+    data_api_pull.silentFailure = true;
+    data_api_pull.lastAttemptAt = channel.last_sync_attempt_at;
+    if (!data_api_pull.errorMessage && channel.last_sync_error) {
+      data_api_pull.errorMessage = channel.last_sync_error;
+    }
+  }
 
-  const channelSync = {
-    at: channel.last_synced_at,
-    tier: silentFailure ? 'very_stale' : computeTier(channel.last_synced_at),
-    errorMessage: channel.last_sync_error || null,
-    lastAttemptAt: channel.last_sync_attempt_at,
-    silentFailure,
-  };
-  const oauthRefresh = {
-    at: connection?.last_refreshed_at || null,
-    tier: connection ? computeTier(connection.last_refreshed_at) : 'missing',
-    connectionError: connection?.connection_error || null,
-    hasConnection: !!connection,
-    isActive: connection?.is_active ?? null,
-  };
-  const surfacePull = {
-    at: channel.last_surface_pull_at,
-    tier: computeTier(channel.last_surface_pull_at),
-  };
+  // 5) Worst-case tier across all sources for the badge dot color.
+  // Errors are treated as 'very_stale' severity. 'missing' is excluded
+  // unless every source is missing (no data yet).
+  const sources = [data_api_pull, analytics_pull, reporting_pull, surface_pull, oauth_refresh];
+  const visibleTiers = sources
+    .map(s => s.tier === 'error' ? 'very_stale' : s.tier)
+    .filter(t => t !== 'missing' && t !== 'not_applicable');
+  const worstTier = visibleTiers.length ? worst(visibleTiers) : 'missing';
+  const anyError = sources.some(s => !!s.errorMessage) || silentFailure;
 
-  // 4) Compute overall worst-case tier (ignoring "missing" — that's
-  // typed as gray, not red). If everything is missing, surface that.
-  const tiers = [channelSync, oauthRefresh, surfacePull]
-    .map(t => t.tier)
-    .filter(t => t !== 'missing');
-  const worstTier = tiers.length ? worst(tiers) : 'missing';
-  const anyError = !!(channelSync.errorMessage || oauthRefresh.connectionError || silentFailure);
+  return {
+    data_api_pull,
+    analytics_pull,
+    reporting_pull,
+    surface_pull,
+    oauth_refresh,
+    worstTier,
+    anyError,
+  };
+}
 
-  return { channel_sync: channelSync, oauth_refresh: oauthRefresh, surface_pull: surfacePull, worstTier, anyError };
+/**
+ * Build a per-source state object. Errors win over staleness:
+ *   - error present     → tier: 'error'
+ *   - at null, no error → tier: 'missing'
+ *   - at present        → tier: computeTier(at)
+ */
+function buildSource({ label, at, error, fallbackAt = null }) {
+  const effectiveAt = at || fallbackAt || null;
+  let tier;
+  if (error)                  tier = 'error';
+  else if (!effectiveAt)      tier = 'missing';
+  else                        tier = computeTier(effectiveAt);
+  return {
+    label,
+    at:            effectiveAt,
+    tier,
+    errorMessage:  error || null,
+    isFallback:    !at && !!fallbackAt,
+  };
 }
 
 function isSilentlyStale(syncedAt, attemptAt, minGapMinutes) {
@@ -154,12 +222,15 @@ function isSilentlyStale(syncedAt, attemptAt, minGapMinutes) {
 // ──────────────────────────────────────────────────
 
 function emptyFreshness() {
+  const empty = (label) => ({ at: null, tier: 'missing', errorMessage: null, label });
   return {
-    channel_sync:  { at: null, tier: 'missing' },
-    oauth_refresh: { at: null, tier: 'missing', hasConnection: false },
-    surface_pull:  { at: null, tier: 'missing' },
-    worstTier:     'missing',
-    anyError:      false,
+    data_api_pull:  empty('Channel'),
+    analytics_pull: empty('Analytics'),
+    reporting_pull: empty('Reporting'),
+    surface_pull:   empty('Surface'),
+    oauth_refresh:  { at: null, tier: 'missing', errorMessage: null, hasConnection: false, label: 'OAuth' },
+    worstTier:      'missing',
+    anyError:       false,
   };
 }
 
