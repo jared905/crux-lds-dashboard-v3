@@ -396,7 +396,12 @@ export default async function handler(req, res) {
           subscriber_count:   0,
           total_view_count:   0,
           video_count:        0,
-          last_synced_at:     new Date().toISOString(),
+          // NB: last_synced_at intentionally NOT set here. OAuth connection
+          // ≠ data sync. Stamping last_synced_at without actually fetching
+          // videos makes the freshness badge lie about data recency and
+          // hides "user never clicked Sync" as a state. The freshness chip
+          // will correctly read "Channel: never" until syncOAuthChannelVideos
+          // (or the daily competitor-sync cron) actually populates the row.
         })
         .select('id, name, is_client, is_competitor')
         .single();
