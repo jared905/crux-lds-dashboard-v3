@@ -114,6 +114,23 @@ export default function WeeklyBriefWorkspace({ activeClient }) {
           prompt_version:             result.promptVersion,
           model:                      result.model,
         });
+      } else {
+        // 2026-06-12: previously this branch did nothing, so a save
+        // failure (e.g. missing migration) looked like "brief didn't
+        // generate." Surface the error and the generated brief in
+        // memory so the strategist can at least copy the text.
+        setGenError(saved?.error
+          ? `Brief generated but save failed: ${saved.error}`
+          : 'Brief generated but save returned no confirmation');
+        setSelectedBrief({
+          id:                         null,
+          created_at:                 new Date().toISOString(),
+          source_audit_id:            result.sourceAuditId,
+          source_calibration_run_id:  result.sourceCalibrationRunId,
+          brief_markdown:             result.text,
+          prompt_version:             result.promptVersion,
+          model:                      result.model,
+        });
       }
     } catch (err) {
       setGenError(err?.message || 'generation failed');

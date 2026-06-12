@@ -28,29 +28,57 @@ export async function saveBrief({
   if (!supabase) return { ok: false, error: 'supabase not configured' };
   if (!clientId || !briefMarkdown?.trim()) return { ok: false, error: 'clientId + briefMarkdown required' };
 
-  const { data, error } = await supabase
+  const baseRow = {
+    client_id:                  clientId,
+    created_by:                 createdBy,
+    source_audit_id:            sourceAuditId,
+    source_calibration_run_id:  sourceCalibrationRunId,
+    brief_markdown:             briefMarkdown,
+    prompt_version:             promptVersion,
+    model,
+    title,
+  };
+  const v6Row = {
+    ...baseRow,
+    draft_markdown:             draftMarkdown,
+    critique_markdown:          critiqueMarkdown,
+    revision_applied:           revisionApplied,
+  };
+
+  // Try the v6 insert first (includes critique columns from migration
+  // 107). If it fails with a schema error — e.g. migration 107 hasn't
+  // been applied yet — retry with the base row so the brief still
+  // saves, just without diagnostic columns. Brief generation must
+  // succeed even when the diagnostic store isn't ready.
+  let { data, error } = await supabase
     .from(TABLE)
-    .insert({
-      client_id:                  clientId,
-      created_by:                 createdBy,
-      source_audit_id:            sourceAuditId,
-      source_calibration_run_id:  sourceCalibrationRunId,
-      brief_markdown:             briefMarkdown,
-      prompt_version:             promptVersion,
-      model,
-      title,
-      draft_markdown:             draftMarkdown,
-      critique_markdown:          critiqueMarkdown,
-      revision_applied:           revisionApplied,
-    })
+    .insert(v6Row)
     .select('id, created_at')
     .single();
+
+  if (error && isSchemaMissingError(error)) {
+    console.warn('[weeklyBriefs] migration 107 not applied — saving without critique columns');
+    ({ data, error } = await supabase
+      .from(TABLE)
+      .insert(baseRow)
+      .select('id, created_at')
+      .single());
+  }
 
   if (error) {
     console.warn('[weeklyBriefs] save failed:', error);
     return { ok: false, error: error.message };
   }
   return { ok: true, id: data.id, createdAt: data.created_at };
+}
+
+function isSchemaMissingError(err) {
+  if (!err) return false;
+  const msg = `${err.message || ''} ${err.details || ''} ${err.hint || ''}`.toLowerCase();
+  // PostgREST returns PGRST204 for "column not found in schema cache"
+  // and 42703 for unknown column. Match either as "schema missing".
+  return err.code === 'PGRST204' || err.code === '42703'
+    || /could not find.*column|column.*does not exist/.test(msg);
 }
 
 export async function listBriefsForClient(clientId, { limit = 12 } = {}) {
