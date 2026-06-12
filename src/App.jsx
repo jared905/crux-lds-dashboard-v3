@@ -40,6 +40,7 @@ import CalibrationWorkspace from "./components/Strategy/Calibration/CalibrationW
 import CohortRolesWorkspace from "./components/Strategy/CohortRoles/CohortRolesWorkspace.jsx";
 import WeeklyBriefWorkspace from "./components/Strategy/WeeklyBrief/WeeklyBriefWorkspace.jsx";
 import AudienceWorkspace from "./components/Strategy/Audience/AudienceWorkspace.jsx";
+import StrategistInstallWorkspace from "./components/Strategy/Install/StrategistInstallWorkspace.jsx";
 import ThisWeekWorkspace from "./components/Operate/ThisWeek/ThisWeekWorkspace.jsx";
 import CommentAnalysis from "./components/Research/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContentIntelligence.jsx";
@@ -1392,6 +1393,10 @@ export default function App() {
 
             {tab === "calibration" && (
               <CalibrationWorkspace activeClient={activeClient} onNavigate={setTab} />
+            )}
+
+            {tab === "install" && (
+              <StrategistInstallWorkspace activeClient={activeClient} onNavigate={setTab} />
             )}
 
             {tab === "cohort-roles" && (

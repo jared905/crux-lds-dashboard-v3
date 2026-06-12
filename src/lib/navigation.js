@@ -83,6 +83,11 @@ export const MAIN_SECTIONS = [
       { id: "weekly-brief", label: "Brief", icon: ScrollText, group: "Act", recommended: true },
       { id: "pre-flight", label: "Pre-flight", icon: Crosshair, group: "Act" },
       // ── Diagnose: understand the channel's strategic position ──
+      // 2026-06-11: Install — Crux Installation Instrument Part 1.
+      // Sits at the head of Diagnose because it's the first thing run
+      // on a new client; populates intake answers the rest of the
+      // workspace inherits.
+      { id: "install", label: "Install", icon: ClipboardCheck, group: "Diagnose" },
       { id: "cohort-roles", label: "Cohort", icon: Users2, group: "Diagnose" },
       // 2026-06-09: Audience workspace — synthesizes structured persona
       // from existing signals; lives on the Spine; inherited by every
