@@ -76,6 +76,16 @@ export async function loadCommandCenter() {
     const alertSeverityMax = myAlerts.length
       ? maxSeverity(myAlerts.map(a => a.severity))
       : null;
+    // Top alert = highest severity, then most recent. This is what the
+    // user is shown inline + what the card click routes to when alerts
+    // exist (the "fix the issues" intent the strategist actually has
+    // when they click a flagged card — reported 2026-06-12).
+    const topAlert = myAlerts.length
+      ? [...myAlerts].sort((a, b) =>
+          (SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity])
+          || (new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+        )[0]
+      : null;
     return {
       id:                    c.id,
       name:                  c.name,
@@ -87,6 +97,20 @@ export async function loadCommandCenter() {
       hasSyncError:          !!c.last_sync_error,
       alertCount:            myAlerts.length,
       alertSeverityMax,
+      // Pass slimmed alerts so the card can render an inline list
+      // when count is small enough, and so the click handler can
+      // route to a specific surface instead of the dashboard.
+      alerts: myAlerts.map(a => ({
+        severity:   a.severity,
+        label:      a.label,
+        targetTab:  a.targetTab,
+        type:       a.type,
+      })),
+      topAlert: topAlert ? {
+        severity:  topAlert.severity,
+        label:     topAlert.label,
+        targetTab: topAlert.targetTab,
+      } : null,
       installCompletionPct:  intake ? intake.completion_pct : 0,
       intakeAnswered:        intake ? intake.answered : 0,
       intakeConfirmed:       intake ? intake.confirmed : 0,

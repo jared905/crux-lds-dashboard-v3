@@ -55,11 +55,19 @@ export default function CommandCenter({ clients, onClientChange, onNavigate }) {
     return () => { cancelled = true; };
   }, [refreshTick]);
 
-  const handleOpenClient = (card) => {
+  const handleOpenClient = (card, { forceTab = null } = {}) => {
     // Resolve the full client object from the parent's clients list
     const full = (clients || []).find(c => c.id === card.id) || { id: card.id, name: card.name };
     if (typeof onClientChange === 'function') onClientChange(full);
-    if (typeof onNavigate === 'function') onNavigate('dashboard');
+    // 2026-06-12 fix: when an alerted card is clicked, the strategist's
+    // intent is to FIX the issue, not see the performance dashboard.
+    // Route to the top alert's targetTab. Healthy cards (no alerts) and
+    // explicit 'view performance' clicks still go to the single-client
+    // dashboard.
+    const targetTab = forceTab
+      || (card.topAlert?.targetTab)
+      || 'dashboard';
+    if (typeof onNavigate === 'function') onNavigate(targetTab);
   };
 
   const handleAlertClick = (alert) => {
@@ -109,7 +117,7 @@ export default function CommandCenter({ clients, onClientChange, onNavigate }) {
           {data.clientCards.length === 0 ? (
             <Note tone="info">No clients yet. Add one at Operate → Clients.</Note>
           ) : (
-            <ClientGrid cards={data.clientCards} onOpen={handleOpenClient} />
+            <ClientGrid cards={data.clientCards} onOpen={(card, opts) => handleOpenClient(card, opts)} />
           )}
         </>
       )}
@@ -207,71 +215,106 @@ function ClientGrid({ cards, onOpen }) {
       </div>
       <div style={gridStyle}>
         {cards.map(c => (
-          <ClientCard key={c.id} card={c} onOpen={() => onOpen(c)} />
+          <ClientCard
+            key={c.id}
+            card={c}
+            onOpen={() => onOpen(c)}
+            onOpenPerformance={() => onOpen(c, { forceTab: 'dashboard' })}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function ClientCard({ card, onOpen }) {
+function ClientCard({ card, onOpen, onOpenPerformance }) {
   const sevColor = card.alertSeverityMax ? SEVERITY_COLOR[card.alertSeverityMax] : null;
   const installColor = card.installCompletionPct >= 75 ? '#3fa66a'
     : card.installCompletionPct >= 40 ? '#E8A82B' : '#666';
+  const hasAlerts = card.alertCount > 0;
+  const TopSeverityIcon = card.alertSeverityMax ? SEVERITY_ICON[card.alertSeverityMax] : null;
   return (
-    <button onClick={onOpen} style={cardStyle(card.alertSeverityMax)}>
-      <div style={cardHeaderStyle}>
-        {card.thumbnailUrl
-          ? <img src={card.thumbnailUrl} alt="" style={cardThumbStyle} />
-          : <div style={{ ...cardThumbStyle, background: '#1a1a1f', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#666', fontWeight: 700 }}>{(card.name || '?').slice(0, 2).toUpperCase()}</div>
-        }
-        <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-          <div style={cardNameStyle}>{card.name}</div>
-          <div style={{ fontSize: 10, color: '#888', marginTop: 2, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {card.isPrelaunch ? (
-              <span style={prelaunchTagStyle}>PRE-LAUNCH</span>
+    <div style={cardStyle(card.alertSeverityMax)}>
+      {/* Main click target — routes to alert resolution when alerted,
+          dashboard otherwise. Per the 2026-06-12 fix. */}
+      <button onClick={onOpen} style={cardButtonStyle} aria-label={hasAlerts ? `Fix ${card.alertCount} alert(s) for ${card.name}` : `Open ${card.name}`}>
+        <div style={cardHeaderStyle}>
+          {card.thumbnailUrl
+            ? <img src={card.thumbnailUrl} alt="" style={cardThumbStyle} />
+            : <div style={{ ...cardThumbStyle, background: '#1a1a1f', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#666', fontWeight: 700 }}>{(card.name || '?').slice(0, 2).toUpperCase()}</div>
+          }
+          <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+            <div style={cardNameStyle}>{card.name}</div>
+            <div style={{ fontSize: 10, color: '#888', marginTop: 2, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {card.isPrelaunch ? (
+                <span style={prelaunchTagStyle}>PRE-LAUNCH</span>
+              ) : (
+                <>{card.subscriberCount.toLocaleString()} subs</>
+              )}
+              {card.lifecycleStage && <span style={{ color: '#666' }}>· {card.lifecycleStage.replace(/_/g, ' ')}</span>}
+            </div>
+          </div>
+        </div>
+
+        <div style={cardBodyStyle}>
+          {/* Install completion bar */}
+          <div style={cardMetricRowStyle}>
+            <span style={cardMetricLabelStyle}>Install</span>
+            <div style={installBarShellStyle}>
+              <div style={{ width: `${card.installCompletionPct}%`, height: '100%', background: installColor }} />
+            </div>
+            <span style={cardMetricValueStyle(installColor)}>{card.installCompletionPct}%</span>
+          </div>
+
+          <div style={cardMetaRowStyle}>
+            {hasAlerts ? (
+              <span style={metaPillStyle(sevColor)}>
+                {TopSeverityIcon && <TopSeverityIcon size={9} />}
+                {card.alertCount} alert{card.alertCount === 1 ? '' : 's'}
+              </span>
             ) : (
-              <>{card.subscriberCount.toLocaleString()} subs</>
+              <span style={metaPillStyle('#3fa66a')}>✓ healthy</span>
             )}
-            {card.lifecycleStage && <span style={{ color: '#666' }}>· {card.lifecycleStage.replace(/_/g, ' ')}</span>}
+            {card.hasSyncError && (
+              <span style={metaPillStyle('#ef6b6b')}>sync error</span>
+            )}
+            {card.intakeConfirmed < card.intakeAnswered && (
+              <span style={metaPillStyle('#E8A82B')}>
+                {card.intakeAnswered - card.intakeConfirmed} intake to confirm
+              </span>
+            )}
+          </div>
+
+          {/* Top alert inline — surfaces what the click will route to,
+              so the user isn't guessing what "fix the issue" means. */}
+          {hasAlerts && card.topAlert && (
+            <div style={topAlertInlineStyle(sevColor)}>
+              <span style={{ color: sevColor, fontWeight: 700 }}>→ Fix:</span>{' '}
+              <span style={{ color: '#cde4d6' }}>{card.topAlert.label}</span>
+            </div>
+          )}
+
+          <div style={cardFooterRowStyle}>
+            <span style={{ fontSize: 10, color: '#666' }}>
+              {card.lastSyncedAt ? `Last sync ${formatAge(card.lastSyncedAt)} ago` : 'Never synced'}
+            </span>
+            {/* Escape hatch — even on alerted cards, sometimes the
+                strategist just wants the performance dashboard. */}
+            {hasAlerts && (
+              <span
+                onClick={(e) => { e.stopPropagation(); onOpenPerformance(); }}
+                style={escapeLinkStyle}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onOpenPerformance(); } }}
+              >
+                Performance <ChevronRight size={9} />
+              </span>
+            )}
           </div>
         </div>
-      </div>
-
-      <div style={cardBodyStyle}>
-        {/* Install completion bar */}
-        <div style={cardMetricRowStyle}>
-          <span style={cardMetricLabelStyle}>Install</span>
-          <div style={installBarShellStyle}>
-            <div style={{ width: `${card.installCompletionPct}%`, height: '100%', background: installColor }} />
-          </div>
-          <span style={cardMetricValueStyle(installColor)}>{card.installCompletionPct}%</span>
-        </div>
-
-        <div style={cardMetaRowStyle}>
-          {card.alertCount > 0 ? (
-            <span style={metaPillStyle(sevColor)}>
-              {(() => { const Icon = SEVERITY_ICON[card.alertSeverityMax]; return <Icon size={9} />; })()}
-              {card.alertCount} alert{card.alertCount === 1 ? '' : 's'}
-            </span>
-          ) : (
-            <span style={metaPillStyle('#3fa66a')}>✓ healthy</span>
-          )}
-          {card.hasSyncError && (
-            <span style={metaPillStyle('#ef6b6b')}>sync error</span>
-          )}
-          {card.intakeConfirmed < card.intakeAnswered && (
-            <span style={metaPillStyle('#E8A82B')}>
-              {card.intakeAnswered - card.intakeConfirmed} intake to confirm
-            </span>
-          )}
-        </div>
-
-        <div style={{ fontSize: 10, color: '#666', marginTop: 6 }}>
-          {card.lastSyncedAt ? `Last sync ${formatAge(card.lastSyncedAt)} ago` : 'Never synced'}
-        </div>
-      </div>
-    </button>
+      </button>
+    </div>
   );
 }
 
@@ -397,11 +440,20 @@ const cardStyle = (sevMax) => ({
   background: '#0e0e11',
   border: '1px solid #2a2a30',
   borderLeft: `2px solid ${sevMax ? SEVERITY_COLOR[sevMax] : '#2a2a30'}`,
-  borderRadius: 6, padding: 14,
-  textAlign: 'left', cursor: 'pointer',
-  width: '100%',
+  borderRadius: 6,
   transition: 'border-color 0.15s',
+  // Card is now the wrapper; inner button handles the click.
+  position: 'relative',
 });
+const cardButtonStyle = {
+  background: 'transparent',
+  border: 'none',
+  width: '100%', padding: 14,
+  textAlign: 'left',
+  cursor: 'pointer',
+  color: 'inherit',
+  fontFamily: 'inherit',
+};
 const cardHeaderStyle = {
   display: 'flex', gap: 10, alignItems: 'flex-start',
   marginBottom: 10,
@@ -450,3 +502,24 @@ const metaPillStyle = (color) => ({
   borderRadius: 3, padding: '1px 6px',
   fontSize: 9, fontWeight: 700, letterSpacing: 0.3,
 });
+
+const topAlertInlineStyle = (color) => ({
+  marginTop: 8,
+  padding: '5px 8px',
+  background: `${color || '#666'}10`,
+  border: `1px dashed ${color || '#666'}55`,
+  borderRadius: 4,
+  fontSize: 11, lineHeight: 1.4,
+});
+
+const cardFooterRowStyle = {
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+  marginTop: 8, gap: 6,
+};
+const escapeLinkStyle = {
+  fontSize: 10, color: '#666',
+  cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', gap: 2,
+  padding: '2px 5px',
+  borderRadius: 3,
+};
