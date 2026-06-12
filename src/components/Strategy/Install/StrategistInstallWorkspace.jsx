@@ -28,6 +28,7 @@ import React, { useEffect, useState } from 'react';
 import {
   CheckCircle, Circle, Loader, Sparkles, Save, ChevronDown, ChevronRight,
   ClipboardCheck, AlertTriangle, MessageSquare, UserCheck, Wand2,
+  Link2, Copy, Send,
 } from 'lucide-react';
 import {
   INTAKE_QUESTIONS, INTAKE_SECTIONS, INSTALL_INTAKE_VERSION, questionsBySection,
@@ -35,7 +36,9 @@ import {
 import {
   loadIntakeAnswers, upsertStrategistAnswer, confirmStrategistAnswer,
   suggestPrePopulatedAnswers, savePrePopulatedDraft, getIntakeCompletion,
+  listIntakeTokens, revokeIntakeToken,
 } from '../../../services/installIntakeService.js';
+import { supabase } from '../../../services/supabaseClient.js';
 import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 
 export default function StrategistInstallWorkspace({ activeClient, onNavigate }) {
@@ -46,25 +49,77 @@ export default function StrategistInstallWorkspace({ activeClient, onNavigate })
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
   const [expandedSection, setExpandedSection] = useState({ A: true, B: true, C: true, D: true, E: true });
+  const [tokens, setTokens] = useState([]);
+  const [issuingToken, setIssuingToken] = useState(false);
+  const [showIssueForm, setShowIssueForm] = useState(false);
+  const [tokenForm, setTokenForm] = useState({ recipientName: '', recipientEmail: '', expiresInDays: 14 });
+  const [tokenIssueResult, setTokenIssueResult] = useState(null);
 
   useEffect(() => {
     if (!clientId) { setLoading(false); return undefined; }
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const [a, c, s] = await Promise.all([
+      const [a, c, s, tks] = await Promise.all([
         loadIntakeAnswers(clientId),
         getIntakeCompletion(clientId),
         suggestPrePopulatedAnswers(clientId),
+        listIntakeTokens(clientId),
       ]);
       if (cancelled) return;
       setAnswers(a);
       setCompletion(c);
       setSuggestions(s);
+      setTokens(tks);
       setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [clientId]);
+
+  const handleIssueToken = async () => {
+    setIssuingToken(true);
+    setTokenIssueResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setTokenIssueResult({ ok: false, error: 'Not authenticated — log in to issue tokens' });
+        return;
+      }
+      const r = await fetch('/api/intake-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: 'issue',
+          client_id:                clientId,
+          expires_in_days:          Number(tokenForm.expiresInDays) || 14,
+          intended_recipient_name:  tokenForm.recipientName || null,
+          intended_recipient_email: tokenForm.recipientEmail || null,
+        }),
+      });
+      const json = await r.json();
+      if (!r.ok || !json.ok) {
+        setTokenIssueResult({ ok: false, error: json.error || `HTTP ${r.status}` });
+      } else {
+        setTokenIssueResult({ ok: true, url: json.url, expires_at: json.expires_at });
+        const tks = await listIntakeTokens(clientId);
+        setTokens(tks);
+      }
+    } finally {
+      setIssuingToken(false);
+    }
+  };
+
+  const handleRevokeToken = async (tokenId) => {
+    if (!window.confirm('Revoke this token? Anyone holding it will no longer be able to submit answers.')) return;
+    const r = await revokeIntakeToken(tokenId, 'strategist revoked');
+    if (r.ok) {
+      const tks = await listIntakeTokens(clientId);
+      setTokens(tks);
+    }
+  };
 
   const refreshCompletion = async () => {
     const c = await getIntakeCompletion(clientId);
@@ -152,6 +207,19 @@ export default function StrategistInstallWorkspace({ activeClient, onNavigate })
         <CompletionStrip completion={completion} />
       )}
 
+      {/* Client pre-work token panel */}
+      <TokenPanel
+        tokens={tokens}
+        showIssueForm={showIssueForm}
+        setShowIssueForm={setShowIssueForm}
+        tokenForm={tokenForm}
+        setTokenForm={setTokenForm}
+        onIssue={handleIssueToken}
+        onRevoke={handleRevokeToken}
+        issuing={issuingToken}
+        issueResult={tokenIssueResult}
+      />
+
       {/* Pre-populated suggestions panel */}
       {Object.keys(suggestions).length > 0 && (
         <SuggestionsPanel
@@ -228,6 +296,110 @@ function CompletionStrip({ completion }) {
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────
+// Client pre-work token panel
+// ──────────────────────────────────────────────────
+
+function TokenPanel({ tokens, showIssueForm, setShowIssueForm, tokenForm, setTokenForm, onIssue, onRevoke, issuing, issueResult }) {
+  const active = tokens.filter(t => !t.revoked_at && new Date(t.expires_at).getTime() > Date.now());
+
+  return (
+    <div style={tokenPanelStyle}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
+        <Link2 size={14} style={{ color: '#0A919B', marginTop: 2 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <strong style={{ fontSize: 12, color: '#0A919B', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+            Client pre-work
+          </strong>
+          <div style={{ fontSize: 12, color: '#888', marginTop: 4, lineHeight: 1.5 }}>
+            Send the client a tokenized URL — they answer the 7 client-facing questions async, you focus the
+            discovery call on the 9 high-judgment questions. Their submissions appear here as <em>client-submitted · awaiting confirm</em>.
+          </div>
+        </div>
+        <button onClick={() => setShowIssueForm(s => !s)} style={issueBtnStyle}>
+          <Send size={11} /> {showIssueForm ? 'Cancel' : 'Issue link'}
+        </button>
+      </div>
+
+      {showIssueForm && (
+        <div style={issueFormStyle}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 110px', gap: 8 }}>
+            <input
+              type="text"
+              placeholder="Recipient name (optional)"
+              value={tokenForm.recipientName}
+              onChange={e => setTokenForm({ ...tokenForm, recipientName: e.target.value })}
+              style={inputStyle}
+            />
+            <input
+              type="email"
+              placeholder="Recipient email (optional)"
+              value={tokenForm.recipientEmail}
+              onChange={e => setTokenForm({ ...tokenForm, recipientEmail: e.target.value })}
+              style={inputStyle}
+            />
+            <input
+              type="number"
+              min="1" max="60"
+              value={tokenForm.expiresInDays}
+              onChange={e => setTokenForm({ ...tokenForm, expiresInDays: e.target.value })}
+              title="Days until expiration"
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, justifyContent: 'flex-end' }}>
+            <button onClick={onIssue} disabled={issuing} style={issueBtnPrimaryStyle(issuing)}>
+              {issuing ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Issuing…</> : 'Issue token'}
+            </button>
+          </div>
+          {issueResult?.ok === false && (
+            <div style={{ marginTop: 8, fontSize: 11, color: '#ef6b6b' }}>
+              {issueResult.error}
+            </div>
+          )}
+          {issueResult?.ok && (
+            <div style={tokenIssuedBoxStyle}>
+              <div style={{ fontSize: 11, color: '#3fa66a', fontWeight: 700, marginBottom: 4 }}>
+                Token issued · expires {new Date(issueResult.expires_at).toLocaleDateString()}
+              </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <code style={tokenUrlStyle}>{issueResult.url}</code>
+                <button onClick={() => navigator.clipboard?.writeText(issueResult.url)} style={copyBtnStyle} title="Copy URL">
+                  <Copy size={11} />
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
+                Send this to the client. They can return and edit until the link expires.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {active.length > 0 && (
+        <div style={{ marginTop: 10, fontSize: 11, color: '#888' }}>
+          <strong style={{ color: '#cde4d6' }}>{active.length} active token{active.length === 1 ? '' : 's'}</strong>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+            {active.map(t => (
+              <div key={t.id} style={tokenRowStyle}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {t.intended_recipient_name || t.intended_recipient_email || '(no recipient set)'} ·
+                  <span style={{ color: '#666' }}>
+                    {' '}expires {new Date(t.expires_at).toLocaleDateString()}
+                    {t.first_accessed_at && ` · opened ${new Date(t.first_accessed_at).toLocaleDateString()}`}
+                    {t.last_submitted_at && ` · submitted ${new Date(t.last_submitted_at).toLocaleDateString()}`}
+                  </span>
+                </div>
+                <button onClick={() => onRevoke(t.id)} style={revokeBtnStyle} title="Revoke">Revoke</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -436,6 +608,71 @@ const completionStripStyle = {
 const progressBarStyle = {
   flex: 1, minWidth: 200, height: 6,
   background: '#1a1a1f', borderRadius: 3, overflow: 'hidden',
+};
+
+const tokenPanelStyle = {
+  background: 'rgba(10,145,155,0.04)',
+  border: '1px solid rgba(10,145,155,0.30)',
+  borderLeft: '2px solid #0A919B',
+  borderRadius: 6, padding: 14,
+  marginBottom: 16,
+};
+const issueBtnStyle = {
+  background: 'transparent', color: '#0A919B',
+  border: '1px solid rgba(10,145,155,0.40)', borderRadius: 4,
+  padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', gap: 4,
+  whiteSpace: 'nowrap', flexShrink: 0,
+};
+const issueBtnPrimaryStyle = (busy) => ({
+  background: busy ? '#1a1a1f' : '#0A919B',
+  color: busy ? '#666' : '#0a0a0e',
+  border: busy ? '1px solid #2a2a30' : 'none',
+  borderRadius: 4,
+  padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer',
+  display: 'inline-flex', alignItems: 'center', gap: 4,
+});
+const issueFormStyle = {
+  marginTop: 10, padding: 10,
+  background: '#0e0e11',
+  border: '1px solid #2a2a30',
+  borderRadius: 5,
+};
+const inputStyle = {
+  background: '#1a1a1f', color: '#cde4d6',
+  border: '1px solid #2a2a30', borderRadius: 4,
+  padding: '6px 8px', fontSize: 12, fontFamily: 'inherit',
+};
+const tokenIssuedBoxStyle = {
+  marginTop: 10, padding: 10,
+  background: 'rgba(63,166,106,0.06)',
+  border: '1px solid rgba(63,166,106,0.30)',
+  borderRadius: 5,
+};
+const tokenUrlStyle = {
+  flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  background: '#0a0a0e', color: '#cde4d6',
+  border: '1px solid #2a2a30', borderRadius: 3,
+  padding: '4px 8px', fontSize: 11, fontFamily: 'ui-monospace, Menlo, monospace',
+};
+const copyBtnStyle = {
+  background: 'transparent', color: '#0A919B',
+  border: '1px solid rgba(10,145,155,0.40)', borderRadius: 3,
+  padding: '4px 8px', cursor: 'pointer', flexShrink: 0,
+};
+const tokenRowStyle = {
+  display: 'flex', alignItems: 'center', gap: 6,
+  padding: '4px 8px',
+  background: 'rgba(255,255,255,0.02)',
+  border: '1px solid #2a2a30',
+  borderRadius: 4,
+  fontSize: 11,
+};
+const revokeBtnStyle = {
+  background: 'transparent', color: '#888',
+  border: '1px solid #2a2a30', borderRadius: 3,
+  padding: '3px 8px', fontSize: 10, cursor: 'pointer', flexShrink: 0,
 };
 
 const suggestionsPanelStyle = {

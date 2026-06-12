@@ -41,6 +41,7 @@ import CohortRolesWorkspace from "./components/Strategy/CohortRoles/CohortRolesW
 import WeeklyBriefWorkspace from "./components/Strategy/WeeklyBrief/WeeklyBriefWorkspace.jsx";
 import AudienceWorkspace from "./components/Strategy/Audience/AudienceWorkspace.jsx";
 import StrategistInstallWorkspace from "./components/Strategy/Install/StrategistInstallWorkspace.jsx";
+import ClientIntakePage from "./components/Intake/ClientIntakePage.jsx";
 import ThisWeekWorkspace from "./components/Operate/ThisWeek/ThisWeekWorkspace.jsx";
 import CommentAnalysis from "./components/Research/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContentIntelligence.jsx";
@@ -1008,6 +1009,10 @@ export default function App() {
   // Guest OAuth invite landing — the channel owner clicks a link from
   // the strategist and lands here WITHOUT a Crux account. Public route.
   if (tab === "guest-oauth" || pathname === "/grant-youtube-access") return <GuestOAuthPage />;
+  // Crux Installation pre-work — client receives a tokenized URL from
+  // the strategist (/intake/<token>) and lands here. Public route;
+  // token IS the auth.
+  if (pathname.startsWith("/intake/")) return <ClientIntakePage />;
 
   // Show loading state while checking auth
   if (authLoading) {
