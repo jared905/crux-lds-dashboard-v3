@@ -142,12 +142,13 @@ export default function CommandCenter({ clients, onClientChange, onNavigate }) {
 // ──────────────────────────────────────────────────
 
 function PulseStrip({ pulse }) {
+  const intakePct = pulse.avgIntakeCompletionPct;
   const items = [
-    { icon: Users,          label: 'Clients',              value: pulse.totalClients,                  detail: `${pulse.prelaunchCount} pre-launch` },
-    { icon: Wifi,           label: 'OAuth health',         value: `${pulse.oauthHealthPct}%`,          detail: `${pulse.oauthActiveCount} active`, accent: pulse.oauthHealthPct >= 80 ? '#3fa66a' : pulse.oauthHealthPct >= 50 ? '#E8A82B' : '#ef6b6b' },
-    { icon: AlertCircle,    label: 'Alerts',               value: pulse.alertsBySeverity.total,        detail: `${pulse.alertsBySeverity.high} high · ${pulse.alertsBySeverity.medium} med`, accent: pulse.alertsBySeverity.high > 0 ? '#ef6b6b' : pulse.alertsBySeverity.medium > 0 ? '#E8A82B' : '#3fa66a' },
-    { icon: ClipboardCheck, label: 'Install completion',   value: `${pulse.avgInstallCompletionPct}%`, detail: `avg across active clients`, accent: pulse.avgInstallCompletionPct >= 75 ? '#3fa66a' : pulse.avgInstallCompletionPct >= 40 ? '#E8A82B' : '#666' },
-    { icon: Activity,       label: 'Intake pending',       value: pulse.intakePendingCount,            detail: `awaiting confirmation`, accent: pulse.intakePendingCount > 0 ? '#E8A82B' : '#666' },
+    { icon: Users,          label: 'Clients',          value: pulse.totalClients,                                   detail: `${pulse.prelaunchCount} pre-launch` },
+    { icon: Wifi,           label: 'OAuth health',     value: `${pulse.oauthHealthPct}%`,                           detail: `${pulse.oauthActiveCount} active`, accent: pulse.oauthHealthPct >= 80 ? '#3fa66a' : pulse.oauthHealthPct >= 50 ? '#E8A82B' : '#ef6b6b' },
+    { icon: AlertCircle,    label: 'Alerts',           value: pulse.alertsBySeverity.total,                         detail: `${pulse.alertsBySeverity.high} high · ${pulse.alertsBySeverity.medium} med`, accent: pulse.alertsBySeverity.high > 0 ? '#ef6b6b' : pulse.alertsBySeverity.medium > 0 ? '#E8A82B' : '#3fa66a' },
+    { icon: ClipboardCheck, label: 'Intake (avg)',     value: intakePct == null ? '—' : `${intakePct}%`,           detail: intakePct == null ? 'no installs started' : `across ${pulse.intakeStartedClients} client${pulse.intakeStartedClients === 1 ? '' : 's'}`, accent: intakePct == null ? '#666' : intakePct >= 75 ? '#3fa66a' : intakePct >= 40 ? '#E8A82B' : '#666' },
+    { icon: Activity,       label: 'Intake pending',   value: pulse.intakePendingCount,                             detail: `awaiting confirmation`, accent: pulse.intakePendingCount > 0 ? '#E8A82B' : '#666' },
   ];
   return (
     <div style={pulseStripStyle}>
@@ -277,14 +278,27 @@ function ClientGrid({ cards, onOpen }) {
 
 function ClientCard({ card, onOpen, onOpenPerformance }) {
   const sevColor = card.alertSeverityMax ? SEVERITY_COLOR[card.alertSeverityMax] : null;
-  const installColor = card.installCompletionPct >= 75 ? '#3fa66a'
-    : card.installCompletionPct >= 40 ? '#E8A82B' : '#666';
+  const intakeColor = card.intakeCompletionPct == null ? '#444'
+    : card.intakeCompletionPct >= 75 ? '#3fa66a'
+    : card.intakeCompletionPct >= 40 ? '#E8A82B' : '#666';
   const hasAlerts = card.alertCount > 0;
   const TopSeverityIcon = card.alertSeverityMax ? SEVERITY_ICON[card.alertSeverityMax] : null;
+
+  // Activity heartbeat — channel-pulse line shown for non-prospect clients
+  const activityLine = (() => {
+    if (card.noChannelStage) return null;
+    if (card.videosLast30d > 0) {
+      const lastUploadAge = card.lastUploadAt ? formatAge(card.lastUploadAt) : '?';
+      return `${card.videosLast30d} video${card.videosLast30d === 1 ? '' : 's'} / 30d · last ${lastUploadAge} ago`;
+    }
+    if (card.lastUploadAt) {
+      return `Quiet ${formatAge(card.lastUploadAt)}`;
+    }
+    return null;
+  })();
+
   return (
     <div style={cardStyle(card.alertSeverityMax)}>
-      {/* Main click target — routes to alert resolution when alerted,
-          dashboard otherwise. Per the 2026-06-12 fix. */}
       <button onClick={onOpen} style={cardButtonStyle} aria-label={hasAlerts ? `Fix ${card.alertCount} alert(s) for ${card.name}` : `Open ${card.name}`}>
         <div style={cardHeaderStyle}>
           {card.thumbnailUrl
@@ -292,27 +306,49 @@ function ClientCard({ card, onOpen, onOpenPerformance }) {
             : <div style={{ ...cardThumbStyle, background: '#1a1a1f', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#666', fontWeight: 700 }}>{(card.name || '?').slice(0, 2).toUpperCase()}</div>
           }
           <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-            <div style={cardNameStyle}>{card.name}</div>
-            <div style={{ fontSize: 10, color: '#888', marginTop: 2, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {card.isPrelaunch ? (
-                <span style={prelaunchTagStyle}>PRE-LAUNCH</span>
+            <div style={cardHeaderTopRowStyle}>
+              <div style={cardNameStyle}>{card.name}</div>
+              <StageBadge stage={card.lifecycleStage} isPrelaunch={card.isPrelaunch} />
+            </div>
+            <div style={cardSubLineStyle}>
+              {card.noChannelStage ? (
+                <span>No channel yet</span>
               ) : (
-                <>{card.subscriberCount.toLocaleString()} subs</>
+                <>
+                  <span style={{ color: '#cde4d6', fontWeight: 600 }}>{formatCompact(card.subscriberCount)}</span>
+                  <span style={{ color: '#666' }}>subs</span>
+                  {card.subDelta30d != null && card.subDelta30d !== 0 && (
+                    <span style={{ color: card.subDelta30d > 0 ? '#3fa66a' : '#ef6b6b', fontWeight: 600 }}>
+                      {card.subDelta30d > 0 ? '+' : ''}{formatCompact(card.subDelta30d)} 30d
+                    </span>
+                  )}
+                  {card.peerCohortCount > 0 && (
+                    <span style={{ color: '#666' }}>· {card.peerCohortCount} peer{card.peerCohortCount === 1 ? '' : 's'}</span>
+                  )}
+                </>
               )}
-              {card.lifecycleStage && <span style={{ color: '#666' }}>· {card.lifecycleStage.replace(/_/g, ' ')}</span>}
             </div>
           </div>
         </div>
 
         <div style={cardBodyStyle}>
-          {/* Install completion bar */}
+          {/* Intake completion bar — null state shows "—" not 0% */}
           <div style={cardMetricRowStyle}>
-            <span style={cardMetricLabelStyle}>Install</span>
+            <span style={cardMetricLabelStyle}>Intake</span>
             <div style={installBarShellStyle}>
-              <div style={{ width: `${card.installCompletionPct}%`, height: '100%', background: installColor }} />
+              {card.intakeCompletionPct != null && (
+                <div style={{ width: `${card.intakeCompletionPct}%`, height: '100%', background: intakeColor }} />
+              )}
             </div>
-            <span style={cardMetricValueStyle(installColor)}>{card.installCompletionPct}%</span>
+            <span style={cardMetricValueStyle(intakeColor)}>
+              {card.intakeCompletionPct == null ? '—' : `${card.intakeCompletionPct}%`}
+            </span>
           </div>
+
+          {/* Activity heartbeat (real channels only) */}
+          {activityLine && (
+            <div style={activityLineStyle}>{activityLine}</div>
+          )}
 
           <div style={cardMetaRowStyle}>
             {hasAlerts ? (
@@ -328,13 +364,17 @@ function ClientCard({ card, onOpen, onOpenPerformance }) {
             )}
             {card.intakeConfirmed < card.intakeAnswered && (
               <span style={metaPillStyle('#E8A82B')}>
-                {card.intakeAnswered - card.intakeConfirmed} intake to confirm
+                {card.intakeAnswered - card.intakeConfirmed} to confirm
+              </span>
+            )}
+            {card.latestBriefAgeDays != null && (
+              <span style={metaPillStyle(card.latestBriefAgeDays <= 7 ? '#3fa66a' : card.latestBriefAgeDays <= 14 ? '#E8A82B' : '#888')}>
+                Brief {card.latestBriefAgeDays}d
               </span>
             )}
           </div>
 
-          {/* Top alert inline — surfaces what the click will route to,
-              so the user isn't guessing what "fix the issue" means. */}
+          {/* Top alert inline */}
           {hasAlerts && card.topAlert && (
             <div style={topAlertInlineStyle(sevColor)}>
               <span style={{ color: sevColor, fontWeight: 700 }}>→ Fix:</span>{' '}
@@ -345,11 +385,9 @@ function ClientCard({ card, onOpen, onOpenPerformance }) {
           <div style={cardFooterRowStyle}>
             <span style={{ fontSize: 10, color: '#666' }}>
               {card.noChannelStage
-                ? (card.isPrelaunch ? 'No channel — pre-launch' : 'No channel — prospect')
+                ? (card.isPrelaunch ? 'Pre-launch · awaiting channel' : 'Prospect · no channel yet')
                 : card.lastSyncedAt ? `Last sync ${formatAge(card.lastSyncedAt)} ago` : 'Never synced'}
             </span>
-            {/* Escape hatch — even on alerted cards, sometimes the
-                strategist just wants the performance dashboard. */}
             {hasAlerts && (
               <span
                 onClick={(e) => { e.stopPropagation(); onOpenPerformance(); }}
@@ -366,6 +404,28 @@ function ClientCard({ card, onOpen, onOpenPerformance }) {
       </button>
     </div>
   );
+}
+
+function StageBadge({ stage, isPrelaunch }) {
+  if (isPrelaunch) return <span style={stageBadgeStyle('#a78bfa')}>PRE-LAUNCH</span>;
+  if (!stage) return null;
+  const labels = {
+    prospect:      { text: 'PROSPECT',   color: '#a78bfa' },
+    non_oauth:     { text: 'NON-OAUTH',  color: '#60a5fa' },
+    oauth_active:  { text: 'ACTIVE',     color: '#3fa66a' },
+    oauth_renewal: { text: 'RENEWAL',    color: '#E8A82B' },
+  };
+  const meta = labels[stage];
+  if (!meta) return null;
+  return <span style={stageBadgeStyle(meta.color)}>{meta.text}</span>;
+}
+
+function formatCompact(n) {
+  if (n == null) return '—';
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000)     return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
 }
 
 // ──────────────────────────────────────────────────
@@ -559,12 +619,26 @@ const cardThumbStyle = {
 const cardNameStyle = {
   fontSize: 13, fontWeight: 700, color: '#e8e2d0',
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  flex: 1, minWidth: 0,
 };
-const prelaunchTagStyle = {
-  background: 'rgba(167,139,250,0.15)', color: '#a78bfa',
-  border: '1px solid rgba(167,139,250,0.40)',
-  borderRadius: 3, padding: '1px 5px',
-  fontSize: 9, fontWeight: 700, letterSpacing: 0.4,
+const cardHeaderTopRowStyle = {
+  display: 'flex', alignItems: 'center', gap: 6,
+};
+const cardSubLineStyle = {
+  fontSize: 10, color: '#888', marginTop: 3,
+  display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center',
+};
+const stageBadgeStyle = (color) => ({
+  background: `${color}18`, color,
+  border: `1px solid ${color}55`,
+  borderRadius: 3, padding: '1px 6px',
+  fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
+  flexShrink: 0,
+});
+const activityLineStyle = {
+  fontSize: 10, color: '#888',
+  padding: '4px 0', marginBottom: 4,
+  borderBottom: '1px dashed rgba(255,255,255,0.04)',
 };
 
 const cardBodyStyle = {};
