@@ -26,7 +26,7 @@ import { supabase } from './supabaseClient';
 import claudeAPI from './claudeAPI';
 import { getCohortComposition } from './cohortRolesService';
 
-export const BRIEF_PROMPT_VERSION = 'v4-weekly-brief-prelaunch-aware';
+export const BRIEF_PROMPT_VERSION = 'v5-weekly-brief-evidence-discipline';
 const DEFAULT_MODEL = 'claude-sonnet-4-5';
 
 // ──────────────────────────────────────────────────
@@ -217,6 +217,18 @@ EACH BULLET MUST:
 3. Honestly acknowledge calibration confidence — if a dimension or format has low calibration accuracy, frame its read as a hypothesis worth testing, not a verdict
 4. Stay within the brand register declared in the Strategy Spine
 5. NAME SPECIFIC VIDEOS when recommending a test. If a bullet says "test a title rewrite on an older underperforming video" or "investigate the runtime on a long-form video," the bullet MUST name a specific video from the calibration mismatches list or audit data. NEVER use placeholder phrases like "a similar video", "an older video", "one of your existing videos" — those phrases mean the brief is suggesting work the strategist still has to plan. Name the candidate video by title.
+
+EVIDENCE DISCIPLINE — every claim is one of two kinds, and you must label them:
+- DATA-BACKED: a claim traceable to a specific supplied data point (cohort composition counts, calibration accuracy %, audit finding, persona trust signal, business context line, named video). Write these as normal prose. The cited fact is the warrant.
+- HYPOTHESIS: a claim that requires inference beyond the supplied data — including "the cohort likely skews technical", "this audience probably prefers shorter videos", "this category tends to peak at 11pm", or any "likely/probably/typically/seems" assertion. These MUST be prefixed with **"Hypothesis (validate with: <specific data source the strategist could fetch>)"**. Example: "Hypothesis (validate with: a title-pattern audit of peer cohort videos): the cohort over-indexes on tool-tutorial titles." If you cannot name a concrete validation source, the hypothesis is too speculative to include — cut it.
+This is not optional. A bullet without a labeled hypothesis section may not contain any inferred claims at all. Speculation framed as data is the failure mode this rule prevents. The hypothesis label is a feature, not an admission of weakness — it converts the brief into a partial research agenda, which makes it more rigorous, not less.
+
+PERSONA COVERAGE — before finalizing the bullets, run two passes against the persona:
+- Trust signals coverage: for each trust signal in the persona, decide whether a recommendation addresses it OR explicitly defer it with a reason. If a trust signal goes uncovered and undeferred, the brief is incomplete; add a bullet or a deferral line.
+- Pain points coverage: same discipline. Every pain point either gets surfaced in a recommendation or is explicitly deferred with reason (e.g., "Deferred: stakeholder-buy-in pain point — addressed in the executive memo, not the brief.").
+If the brief covers fewer than half of the persona's trust signals and pain points across the bullet set, you are leaving the highest-leverage material on the table; restructure before returning.
+
+META-OPPORTUNITY (recursive proof check) — if the client's offering relates to content, discoverability, media, audience-building, or AI-era visibility, ALWAYS evaluate whether the channel itself can serve as live proof of the offering. The most credible artifact for "we make brands discoverable in LLMs" is a Crux-client channel that demonstrably is. When this applies, include a bullet about how the upcoming content slate either does or does not function as dog-fooded evidence — and what's needed to make it so. Skip this check only when the client's offering is unrelated to media/discoverability/audience.
 
 THE 4-5 BULLETS SHOULD COLLECTIVELY:
 - Name what's working (so the client doesn't second-guess strengths)
