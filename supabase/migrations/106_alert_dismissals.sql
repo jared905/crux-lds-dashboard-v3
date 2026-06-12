@@ -41,9 +41,15 @@ CREATE TABLE IF NOT EXISTS alert_dismissals (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_alert_dismissals_active
   ON alert_dismissals(COALESCE(client_id, '00000000-0000-0000-0000-000000000000'::uuid), alert_type);
 
-CREATE INDEX IF NOT EXISTS idx_alert_dismissals_active
-  ON alert_dismissals(client_id, alert_type)
-  WHERE snooze_until IS NULL OR snooze_until > NOW();
+-- Secondary index for the per-client lookup path. We intentionally do
+-- NOT use a `WHERE snooze_until IS NULL OR snooze_until > NOW()`
+-- predicate because Postgres rejects non-IMMUTABLE functions
+-- (including NOW()) in index predicates — the index would need to
+-- be reorganized as time advances, which the planner can't do.
+-- The runtime query in loadActiveDismissals applies the snooze_until
+-- filter parametrically, which uses this index normally.
+CREATE INDEX IF NOT EXISTS idx_alert_dismissals_lookup
+  ON alert_dismissals(client_id, alert_type);
 
 COMMENT ON TABLE alert_dismissals IS
   'Strategist-side snooze for the This Week / Command Center alerts feed (2026-06-12). One active row per (client, alert_type). snooze_until=NULL means permanent dismissal; non-null means resurfaces after that timestamp. Service-layer filtering in thisWeekService treats expired snoozes as no-op so resurfaced alerts behave correctly.';
