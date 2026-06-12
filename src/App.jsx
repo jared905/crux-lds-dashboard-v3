@@ -42,6 +42,7 @@ import WeeklyBriefWorkspace from "./components/Strategy/WeeklyBrief/WeeklyBriefW
 import AudienceWorkspace from "./components/Strategy/Audience/AudienceWorkspace.jsx";
 import StrategistInstallWorkspace from "./components/Strategy/Install/StrategistInstallWorkspace.jsx";
 import ClientIntakePage from "./components/Intake/ClientIntakePage.jsx";
+import CommandCenter from "./components/Operate/CommandCenter/CommandCenter.jsx";
 import ThisWeekWorkspace from "./components/Operate/ThisWeek/ThisWeekWorkspace.jsx";
 import CommentAnalysis from "./components/Research/CommentAnalysis.jsx";
 import EnhancedContentIntelligence from "./components/ContentLab/EnhancedContentIntelligence.jsx";
@@ -89,7 +90,10 @@ export default function App() {
         : window.location.pathname;
       window.history.replaceState({}, '', newUrl);
     }
-    return urlTab || 'dashboard';
+    // 2026-06-12: default landing changed from 'dashboard' (single-client)
+    // to 'command-center' (cross-portfolio overview). The single-client
+    // dashboard remains accessible via Command Center → click-into-client.
+    return urlTab || 'command-center';
   });
   
   // Draft loading state (for Saved Reports → PDFExport handoff)
@@ -1330,6 +1334,17 @@ export default function App() {
         {error && <div style={{ background: "rgba(207, 102, 121, 0.1)", padding: "20px", borderRadius: "12px", color: "#CF6679" }}>{error}</div>}
 
         {tab === "standardizer" && <DataStandardizer />}
+
+        {/* Command Center — cross-portfolio landing. Default first-page
+            experience (2026-06-12). Click any client card → drills into
+            that client's single-client dashboard via onClientChange + setTab. */}
+        {tab === "command-center" && (
+          <CommandCenter
+            clients={clients}
+            onClientChange={handleClientChange}
+            onNavigate={setTab}
+          />
+        )}
 
         {/* This Week — cross-client alerts feed, renders regardless of
             whether an active client is selected. */}

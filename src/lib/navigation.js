@@ -27,7 +27,11 @@ export const MAIN_SECTIONS = [
     // Brand Context and Audits are client-onboarding artifacts that
     // belong with the client they're for, not in a utility menu.
     tabs: [
-      { id: "this-week", label: "This Week", icon: AlertCircle, group: "Daily", recommended: true },
+      // 2026-06-12: Command Center is the new default landing —
+      // cross-portfolio overview. Sits above This Week so the daily
+      // sequence is "scan the portfolio → drill into what needs attention."
+      { id: "command-center", label: "Command Center", icon: Home, group: "Daily", recommended: true },
+      { id: "this-week", label: "This Week", icon: AlertCircle, group: "Daily" },
       { id: "portfolio", label: "Clients", icon: Users, group: "Clients" },
       { id: "audits", label: "Audits", icon: ClipboardCheck, group: "Clients" },
       { id: "brand-context", label: "Brand Context", icon: Palette, group: "Clients" },
