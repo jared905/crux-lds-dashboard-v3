@@ -26,7 +26,7 @@ import { supabase } from './supabaseClient';
 import claudeAPI from './claudeAPI';
 import { getCohortComposition } from './cohortRolesService';
 
-export const BRIEF_PROMPT_VERSION = 'v5-weekly-brief-evidence-discipline';
+export const BRIEF_PROMPT_VERSION = 'v6-weekly-brief-distributions-critic';
 const DEFAULT_MODEL = 'claude-sonnet-4-5';
 
 // ──────────────────────────────────────────────────
@@ -52,12 +52,13 @@ export async function generateWeeklyBrief({
   if (!clientId) return { error: 'clientId required' };
 
   // 1) Load all source data in parallel.
-  const [spine, businessContext, audit, calibration, cohortComp, clientChannel] = await Promise.all([
+  const [spine, businessContext, audit, calibration, cohortComp, cohortDist, clientChannel] = await Promise.all([
     loadSpine(clientId),
     loadActiveBusinessContext(clientId),
     auditId ? loadAuditById(auditId) : loadLatestAudit(clientId),
     calibrationRunId ? loadCalibrationById(calibrationRunId) : loadLatestCalibration(clientId),
     getCohortComposition(clientId).catch(() => null),
+    loadCohortDistributions(clientId).catch(() => null),
     loadClientChannel(clientId),
   ]);
 
@@ -90,23 +91,66 @@ export async function generateWeeklyBrief({
     audit,
     calibration,
     cohortComp,
+    cohortDist,
     isPrelaunch,
   });
 
-  // 3) Call Claude.
+  // 3) Draft → critique → revise loop. Three calls:
+  //    a. DRAFT — the brief writer makes the v1 brief.
+  //    b. CRITIQUE — an adversarial reviewer scores it against the same
+  //       context, calling out unlabeled hypotheses, persona coverage
+  //       gaps, missing dog-fooding, and any unsupported inference.
+  //    c. REVISE — the writer integrates the critique. Final brief.
+  //
+  // Targets the failure class identified 2026-06-12: prompt rules
+  // applied probabilistically catch some hypothesis-label violations
+  // and miss others. The critic pass is the structural fix.
   try {
-    const result = await claudeAPI.call(
+    // ─── a. Draft ───
+    const draftResult = await claudeAPI.call(
       userPrompt,
       SYSTEM_PROMPT,
-      'weekly_strategist_brief',
-      2200,                       // ~4-5 bullets fits comfortably
+      'weekly_strategist_brief_draft',
+      2200,
     );
-    const text = (result?.text || '').trim();
-    if (!text) {
-      return { error: 'LLM returned empty brief', promptVersion: BRIEF_PROMPT_VERSION };
+    const draftText = (draftResult?.text || '').trim();
+    if (!draftText) {
+      return { error: 'LLM returned empty draft', promptVersion: BRIEF_PROMPT_VERSION };
     }
+
+    // ─── b. Critique ───
+    const critiquePrompt = buildCritiquePrompt({ draftText, userPrompt });
+    const critiqueResult = await claudeAPI.call(
+      critiquePrompt,
+      CRITIQUE_SYSTEM_PROMPT,
+      'weekly_strategist_brief_critique',
+      1800,
+    );
+    const critiqueText = (critiqueResult?.text || '').trim();
+
+    // ─── c. Revise ───
+    // If the critique is empty or signals "no material issues", skip
+    // the revision and return the draft. Saves a Claude call when the
+    // first pass was clean.
+    const skipRevision = !critiqueText || /\bNO MATERIAL ISSUES\b/i.test(critiqueText);
+    let finalText = draftText;
+    if (!skipRevision) {
+      const revisePrompt = buildRevisePrompt({ draftText, critiqueText, userPrompt });
+      const reviseResult = await claudeAPI.call(
+        revisePrompt,
+        REVISE_SYSTEM_PROMPT,
+        'weekly_strategist_brief_revise',
+        2200,
+      );
+      const revisedText = (reviseResult?.text || '').trim();
+      if (revisedText) finalText = revisedText;
+    }
+
     return {
-      text,
+      text:                   finalText,
+      draftText,
+      critiqueText:           skipRevision ? null : critiqueText,
+      revisionApplied:        !skipRevision,
       promptVersion:          BRIEF_PROMPT_VERSION,
       // Pre-launch clients have null audit/calibration — the migration
       // 095 schema allows null on these FK columns, so we just pass
@@ -203,6 +247,153 @@ async function loadClientChannel(clientId) {
   return data || null;
 }
 
+/**
+ * Peer cohort distributions — the structural fix for the 344.7K-class
+ * failure (reported 2026-06-12). Single aggregates ("avg 344.7K subs")
+ * let the model invent narrative; distributions give it the actual
+ * shape so claims can be cited or labeled as hypotheses honestly.
+ *
+ * Returns:
+ *   {
+ *     channelCount:       N peer channels analyzed
+ *     subDistribution:    { p25, p50, p75 } sub counts across peers
+ *     videoCount:         N peer videos in the last 90 days
+ *     formatMix:          { shorts_pct, long_pct, shorts_n, long_n }
+ *     lengthHistogram:    long-form bucket counts (0-5m / 5-10m / 10-20m / 20-40m / 40m+)
+ *     uploadCadence:      { medianPerWeek, p25PerWeek, p75PerWeek }
+ *     titleTokens:        top 10 recurring tokens in peer top-quartile videos
+ *     topVideos:          top 10 cohort videos by views (title, channel name, views, length, format)
+ *   }
+ *
+ * Window: 90 days (matches the cadence the brief speaks to). Null when
+ * peer cohort empty or no video data.
+ */
+async function loadCohortDistributions(clientId) {
+  if (!supabase) return null;
+
+  // 1. Resolve peer cohort channel IDs
+  const { data: links } = await supabase
+    .from('client_channels')
+    .select('channel_id, cohort_role')
+    .eq('client_id', clientId)
+    .eq('cohort_role', 'peer');
+  const peerIds = (links || []).map(l => l.channel_id);
+  if (peerIds.length === 0) return null;
+
+  // 2. Peer channel meta + videos in last 90d, in parallel
+  const sinceIso = new Date(Date.now() - 90 * 86_400_000).toISOString();
+  const [{ data: channels }, { data: videos }] = await Promise.all([
+    supabase
+      .from('channels')
+      .select('id, name, subscriber_count')
+      .in('id', peerIds),
+    supabase
+      .from('videos')
+      .select('channel_id, title, view_count, duration_seconds, is_short, published_at')
+      .in('channel_id', peerIds)
+      .gte('published_at', sinceIso)
+      .order('view_count', { ascending: false })
+      .limit(500),  // cap for prompt size; top 500 by views across peers
+  ]);
+
+  const channelById = new Map((channels || []).map(c => [c.id, c]));
+  const vids = videos || [];
+
+  // 3. Sub distribution (p25/p50/p75)
+  const subCounts = (channels || []).map(c => c.subscriber_count || 0).sort((a, b) => a - b);
+  const subDistribution = subCounts.length ? {
+    p25: subCounts[Math.floor(subCounts.length * 0.25)] || 0,
+    p50: subCounts[Math.floor(subCounts.length * 0.50)] || 0,
+    p75: subCounts[Math.floor(subCounts.length * 0.75)] || 0,
+    min: subCounts[0],
+    max: subCounts[subCounts.length - 1],
+  } : null;
+
+  // 4. Format mix
+  const shortsCount = vids.filter(v => v.is_short).length;
+  const longCount   = vids.length - shortsCount;
+  const formatMix = vids.length ? {
+    shorts_pct: Math.round((shortsCount / vids.length) * 100),
+    long_pct:   Math.round((longCount / vids.length) * 100),
+    shorts_n:   shortsCount,
+    long_n:     longCount,
+  } : null;
+
+  // 5. Length histogram (long-form only — Shorts are <60s by definition)
+  const longVids = vids.filter(v => !v.is_short && v.duration_seconds > 0);
+  const buckets = { '0-5m': 0, '5-10m': 0, '10-20m': 0, '20-40m': 0, '40m+': 0 };
+  for (const v of longVids) {
+    const m = v.duration_seconds / 60;
+    if      (m < 5)  buckets['0-5m']++;
+    else if (m < 10) buckets['5-10m']++;
+    else if (m < 20) buckets['10-20m']++;
+    else if (m < 40) buckets['20-40m']++;
+    else             buckets['40m+']++;
+  }
+  const lengthHistogram = longVids.length ? buckets : null;
+
+  // 6. Upload cadence per channel (videos / week over the 90d window)
+  const weeks = 90 / 7;
+  const byChannel = new Map();
+  for (const v of vids) {
+    if (!byChannel.has(v.channel_id)) byChannel.set(v.channel_id, 0);
+    byChannel.set(v.channel_id, byChannel.get(v.channel_id) + 1);
+  }
+  const perWeekRates = [...byChannel.values()].map(n => n / weeks).sort((a, b) => a - b);
+  const uploadCadence = perWeekRates.length ? {
+    medianPerWeek: round1(perWeekRates[Math.floor(perWeekRates.length * 0.5)]),
+    p25PerWeek:    round1(perWeekRates[Math.floor(perWeekRates.length * 0.25)]),
+    p75PerWeek:    round1(perWeekRates[Math.floor(perWeekRates.length * 0.75)]),
+  } : null;
+
+  // 7. Title token patterns — top 10 recurring tokens in top-quartile videos
+  const topQuartile = vids.slice(0, Math.max(1, Math.floor(vids.length / 4)));
+  const stopWords = new Set(['the','a','an','to','of','for','and','or','in','on','with','is','it','this','that','your','my','i','you','we','they','at','as','from','by','how','what','why','when','do','can','will','vs','&','-','|','|']);
+  const tokenCounts = new Map();
+  for (const v of topQuartile) {
+    const tokens = (v.title || '')
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(t => t.length >= 3 && !stopWords.has(t));
+    const seen = new Set();
+    for (const t of tokens) {
+      if (seen.has(t)) continue;        // count per-video, not per-occurrence
+      seen.add(t);
+      tokenCounts.set(t, (tokenCounts.get(t) || 0) + 1);
+    }
+  }
+  const titleTokens = [...tokenCounts.entries()]
+    .filter(([, n]) => n >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([token, count]) => ({ token, channels: count }));
+
+  // 8. Top 10 cohort videos by views (with attribution)
+  const topVideos = vids.slice(0, 10).map(v => ({
+    title:           v.title,
+    channelName:     channelById.get(v.channel_id)?.name || 'Unknown',
+    views:           v.view_count || 0,
+    durationSeconds: v.duration_seconds || 0,
+    format:          v.is_short ? 'short' : 'long',
+    publishedAt:     v.published_at,
+  }));
+
+  return {
+    channelCount:    peerIds.length,
+    videosAnalyzed:  vids.length,
+    windowDays:      90,
+    subDistribution,
+    formatMix,
+    lengthHistogram,
+    uploadCadence,
+    titleTokens,
+    topVideos,
+  };
+}
+
+function round1(n) { return Math.round(n * 10) / 10; }
+
 // ──────────────────────────────────────────────────
 // Prompt construction
 // ──────────────────────────────────────────────────
@@ -251,7 +442,7 @@ WHAT NOT TO INCLUDE:
 
 This brief is what makes the strategist's job legible to the client. Write it like the senior person in the room writing it.`;
 
-function buildUserPrompt({ clientName, clientChannel, spine, businessContext, audit, calibration, cohortComp, isPrelaunch }) {
+function buildUserPrompt({ clientName, clientChannel, spine, businessContext, audit, calibration, cohortComp, cohortDist, isPrelaunch }) {
   const lines = [];
 
   // ── Client header ──
@@ -344,6 +535,44 @@ function buildUserPrompt({ clientName, clientChannel, spine, businessContext, au
     lines.push('');
   }
 
+  // ── Cohort distributions ──
+  // Per the 2026-06-12 critique: pass shapes, not single averages, so the
+  // model cites real claims about cohort behavior instead of inventing
+  // narrative from an aggregate stat. Any claim about cohort behavior in
+  // the brief MUST be traceable to one of these distributions, OR labeled
+  // as a hypothesis with the validation method specified.
+  if (cohortDist) {
+    lines.push(`PEER COHORT DISTRIBUTIONS (${cohortDist.channelCount} peer channels, ${cohortDist.videosAnalyzed} videos in the last ${cohortDist.windowDays} days — cite these directly; do not invent cohort claims):`);
+    if (cohortDist.subDistribution) {
+      const sd = cohortDist.subDistribution;
+      lines.push(`- Subscriber distribution: p25 ${formatN(sd.p25)} / p50 ${formatN(sd.p50)} / p75 ${formatN(sd.p75)} (min ${formatN(sd.min)}, max ${formatN(sd.max)})`);
+    }
+    if (cohortDist.formatMix) {
+      const f = cohortDist.formatMix;
+      lines.push(`- Format mix: ${f.long_pct}% long-form (n=${f.long_n}) / ${f.shorts_pct}% Shorts (n=${f.shorts_n})`);
+    }
+    if (cohortDist.lengthHistogram) {
+      const lh = cohortDist.lengthHistogram;
+      lines.push(`- Long-form length histogram: 0-5m: ${lh['0-5m']}, 5-10m: ${lh['5-10m']}, 10-20m: ${lh['10-20m']}, 20-40m: ${lh['20-40m']}, 40m+: ${lh['40m+']}`);
+    }
+    if (cohortDist.uploadCadence) {
+      const u = cohortDist.uploadCadence;
+      lines.push(`- Upload cadence: median ${u.medianPerWeek} videos/week per peer (p25 ${u.p25PerWeek} / p75 ${u.p75PerWeek})`);
+    }
+    if (cohortDist.titleTokens?.length) {
+      const tokensStr = cohortDist.titleTokens.map(t => `"${t.token}" (${t.channels} videos)`).join(', ');
+      lines.push(`- Top-quartile title tokens (recurring across top-performing peer videos): ${tokensStr}`);
+    }
+    if (cohortDist.topVideos?.length) {
+      lines.push('- Top 10 peer videos by views (last 90d):');
+      cohortDist.topVideos.forEach((v, i) => {
+        const mins = v.durationSeconds ? `${Math.round(v.durationSeconds / 60)}m` : '?';
+        lines.push(`    ${i + 1}. "${v.title}" — ${v.channelName} · ${formatN(v.views)} views · ${mins} · ${v.format}`);
+      });
+    }
+    lines.push('');
+  }
+
   // ── Repositioning audit findings ──
   // Skip entirely for pre-launch clients — no audit exists, no fields
   // to render. (The PRE-LAUNCH MODE block above tells the LLM not to
@@ -427,6 +656,92 @@ function formatN(n) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
+}
+
+// ──────────────────────────────────────────────────
+// Critique + revise (2026-06-12)
+// ──────────────────────────────────────────────────
+
+const CRITIQUE_SYSTEM_PROMPT = `You are a skeptical senior strategist reviewing a junior strategist's draft weekly brief. You have the same context the writer had. Your job is to surface every flaw the writer would defend in person but cannot defend on paper.
+
+You are NOT writing the revision. You are writing a critique. Be direct, specific, and harsh — the writer is a strong professional who will use clear feedback to ship a better artifact.
+
+CHECK FOR:
+
+1. UNLABELED HYPOTHESES — every claim must be either (a) traceable to a specific supplied data point, OR (b) prefixed with "Hypothesis (validate with: <concrete source>)". Speculation framed as fact is the #1 failure to flag. Examples of language that ALWAYS requires a hypothesis label: "likely", "probably", "typically", "tends to", "this category usually", "the cohort skews", "audiences in this space prefer". If the writer used any of these without the prefix, FLAG IT BY BULLET NUMBER.
+
+2. UNSUPPORTED INFERENCE FROM AGGREGATES — single aggregate stats (avg subscriber count, single view-count number) cannot support claims about saturation, headroom, audience preference, or category dynamics. If the writer cited an average and then made causal/structural claims downstream, that's overreach. Flag specifically.
+
+3. COHORT CLAIMS NOT TRACEABLE TO DISTRIBUTIONS — the user prompt supplied peer cohort distributions (format mix, length histogram, upload cadence, title tokens, top videos). Any cohort behavior claim in the brief MUST cite from one of these distributions explicitly. If the writer made a cohort claim without naming the distribution it came from, flag it.
+
+4. PERSONA COVERAGE GAPS — count the persona's trust signals and pain points. Identify which are addressed in the bullets, which are explicitly deferred with reason, and which are silently missed. Silent misses are flaws — flag each one.
+
+5. PLATFORM HEURISTICS GAPS — strategy without craft is half a brief. The brief should not be silent on hook structure, retention mechanics, packaging (title + thumbnail interplay), or first-30-second physics WHEN those are relevant to the recommendations. If the writer recommended a new content type or test without naming how it must work as a video, flag it.
+
+6. META-OPPORTUNITY MISS — for clients in content / discoverability / media / audience-building / AI-visibility, the brief must evaluate whether the channel itself functions as live proof of the offering. If missing, flag.
+
+7. NAMED-VIDEO RULE VIOLATION — bullets recommending a test on existing content must name the specific video. Phrases like "a similar video" or "one of your videos" are flaws. Flag each.
+
+8. TONE — hype words, view-count promises, generic "post consistently"-class advice. Flag each.
+
+OUTPUT FORMAT:
+
+If the draft is clean and you find no material issues, output exactly:
+NO MATERIAL ISSUES
+
+Otherwise, output a numbered list of issues. For each issue:
+- Cite the bullet number from the draft
+- Quote the offending phrase (in quotes, ≤15 words)
+- State the rule violated (one short sentence)
+- Specify the fix (one short sentence — what should change)
+
+Be ruthless about real flaws; do not invent ones. If a claim IS supported by the supplied data, do not flag it just to fill space.`;
+
+const REVISE_SYSTEM_PROMPT = `You are the same senior strategist who drafted the brief, now revising it based on a skeptical reviewer's critique. The critique is concrete; you apply each item where it has merit, push back (briefly, internally) on items that don't, and ship a revised brief that defends every claim.
+
+YOU MUST:
+- Preserve everything the critique did not flag — do not rewrite from scratch
+- For each flagged claim: either cite the specific data point that supports it, OR prefix with "Hypothesis (validate with: <concrete source>)", OR cut it
+- For persona coverage gaps the critique surfaced: either add a bullet, or merge the gap into an existing bullet, or add an explicit deferral line ("Deferred: <signal/pain> — <reason>")
+- For platform-heuristics gaps: only add craft guidance that is grounded in known YouTube physics; do not invent
+- For meta-opportunity miss: if applicable, add a dedicated bullet about the channel as live proof of the offering
+- Hold to the 4-5 bullet format. If the critique adds material, prefer densifying existing bullets over adding a sixth
+
+OUTPUT: the revised brief only. Same format as the original (numbered list, markdown). No preamble, no closing remarks, no meta-commentary about what changed.`;
+
+function buildCritiquePrompt({ draftText, userPrompt }) {
+  return `CONTEXT THE WRITER HAD:
+
+${userPrompt}
+
+═══════════════════════════════════════════════════════
+THE WRITER'S DRAFT BRIEF:
+
+${draftText}
+
+═══════════════════════════════════════════════════════
+
+Review the draft against the rubric. Output the critique now.`;
+}
+
+function buildRevisePrompt({ draftText, critiqueText, userPrompt }) {
+  return `CONTEXT YOU HAD:
+
+${userPrompt}
+
+═══════════════════════════════════════════════════════
+YOUR DRAFT:
+
+${draftText}
+
+═══════════════════════════════════════════════════════
+THE REVIEWER'S CRITIQUE:
+
+${critiqueText}
+
+═══════════════════════════════════════════════════════
+
+Apply the critique. Output the revised brief now.`;
 }
 
 export default { generateWeeklyBrief, BRIEF_PROMPT_VERSION };

@@ -19,6 +19,11 @@ export async function saveBrief({
   promptVersion,
   model = null,
   title = null,
+  // 2026-06-12: persisted alongside the final brief for diagnostic
+  // comparison. Optional — callers that don't have them just store NULL.
+  draftMarkdown = null,
+  critiqueMarkdown = null,
+  revisionApplied = null,
 }) {
   if (!supabase) return { ok: false, error: 'supabase not configured' };
   if (!clientId || !briefMarkdown?.trim()) return { ok: false, error: 'clientId + briefMarkdown required' };
@@ -34,6 +39,9 @@ export async function saveBrief({
       prompt_version:             promptVersion,
       model,
       title,
+      draft_markdown:             draftMarkdown,
+      critique_markdown:          critiqueMarkdown,
+      revision_applied:           revisionApplied,
     })
     .select('id, created_at')
     .single();

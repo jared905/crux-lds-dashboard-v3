@@ -96,6 +96,10 @@ export default function WeeklyBriefWorkspace({ activeClient }) {
         briefMarkdown:         result.text,
         promptVersion:         result.promptVersion,
         model:                 result.model,
+        // v6 (2026-06-12): persist draft + critique for diagnostics.
+        draftMarkdown:         result.draftText || null,
+        critiqueMarkdown:      result.critiqueText || null,
+        revisionApplied:       result.revisionApplied ?? null,
       });
 
       if (saved?.ok) {
