@@ -31,6 +31,7 @@
  */
 
 import { supabase } from './supabaseClient';
+import { loadActiveDismissals, makeKey as makeDismissKey } from './alertDismissService';
 
 const WEEK_MS  = 7 * 86_400_000;
 const MONTH_MS = 28 * 86_400_000;
@@ -59,7 +60,7 @@ export async function loadThisWeekAlerts({ clientIds }) {
   // Run each signal pull in parallel.
   const [
     audits, calibrations, briefs, oauthConns, invites, channelMeta,
-    intakePending, intakeTokens,
+    intakePending, intakeTokens, dismissals,
   ] = await Promise.all([
     loadLatestAudits(clientIds),
     loadLatestCalibrations(clientIds),
@@ -69,6 +70,7 @@ export async function loadThisWeekAlerts({ clientIds }) {
     loadChannelMeta(clientIds),
     loadIntakePendingByClient(clientIds),
     loadIntakeTokensByClient(clientIds),
+    loadActiveDismissals(clientIds),
   ]);
 
   const alerts = [];
@@ -78,10 +80,11 @@ export async function loadThisWeekAlerts({ clientIds }) {
     const client = channelMeta[clientId];
     if (!client) continue;
 
-    // Stale repositioning audit
+    // Stale repositioning audit — only fires when there's a channel
+    // with videos to audit. Skip for prospect + pre-launch.
     const audit = audits[clientId];
     const ageAudit = audit ? now - new Date(audit.created_at).getTime() : Infinity;
-    if (!audit) {
+    if (!audit && !isNoChannelStage(client)) {
       alerts.push(make({
         clientId, clientName: client.name, severity: 'medium',
         type: 'stale_repositioning_audit',
@@ -90,7 +93,7 @@ export async function loadThisWeekAlerts({ clientIds }) {
         targetTab: 'repositioning',
         createdAt: client.created_at,
       }));
-    } else if (ageAudit > MONTH_MS && !client.is_prelaunch) {
+    } else if (ageAudit > MONTH_MS && !isNoChannelStage(client)) {
       alerts.push(make({
         clientId, clientName: client.name, severity: 'medium',
         type: 'stale_repositioning_audit',
@@ -101,9 +104,12 @@ export async function loadThisWeekAlerts({ clientIds }) {
       }));
     }
 
-    // Stale calibration relative to latest audit
+    // Stale calibration relative to latest audit — calibration is
+    // audit-dependent so the prospect skip above handles the upstream
+    // case; still guard here in case an audit exists but the client
+    // was re-staged to prospect.
     const calib = calibrations[clientId];
-    if (audit && !calib) {
+    if (audit && !calib && !isNoChannelStage(client)) {
       alerts.push(make({
         clientId, clientName: client.name, severity: 'medium',
         type: 'stale_calibration',
@@ -112,7 +118,7 @@ export async function loadThisWeekAlerts({ clientIds }) {
         targetTab: 'calibration',
         createdAt: audit.created_at,
       }));
-    } else if (audit && calib && new Date(calib.created_at) < new Date(audit.created_at)) {
+    } else if (audit && calib && new Date(calib.created_at) < new Date(audit.created_at) && !isNoChannelStage(client)) {
       alerts.push(make({
         clientId, clientName: client.name, severity: 'low',
         type: 'stale_calibration',
@@ -123,10 +129,11 @@ export async function loadThisWeekAlerts({ clientIds }) {
       }));
     }
 
-    // Stale brief
+    // Stale brief — only fires once there's a channel actively producing
+    // content to brief on. Prospects + pre-launch don't.
     const brief = briefs[clientId];
     const ageBrief = brief ? now - new Date(brief.created_at).getTime() : Infinity;
-    if (!brief && !client.is_prelaunch) {
+    if (!brief && !isNoChannelStage(client)) {
       alerts.push(make({
         clientId, clientName: client.name, severity: 'medium',
         type: 'stale_brief',
@@ -135,7 +142,7 @@ export async function loadThisWeekAlerts({ clientIds }) {
         targetTab: 'weekly-brief',
         createdAt: client.created_at,
       }));
-    } else if (brief && ageBrief > WEEK_MS) {
+    } else if (brief && ageBrief > WEEK_MS && !isNoChannelStage(client)) {
       alerts.push(make({
         clientId, clientName: client.name, severity: 'medium',
         type: 'stale_brief',
@@ -146,8 +153,9 @@ export async function loadThisWeekAlerts({ clientIds }) {
       }));
     }
 
-    // Channel sync error
-    if (client.last_sync_error) {
+    // Channel sync error — skip for clients with no channel to sync
+    // (prospect lifecycle, pre-launch). They legitimately have no sync.
+    if (client.last_sync_error && !isNoChannelStage(client)) {
       alerts.push(make({
         clientId, clientName: client.name, severity: 'high',
         type: 'sync_error',
@@ -162,9 +170,10 @@ export async function loadThisWeekAlerts({ clientIds }) {
 
     // Empty peer cohort (after migration 093 every channel defaults
     // to peer, so this only fires when client_channels has zero rows
-    // OR all rows are tagged aspirational/reference)
+    // OR all rows are tagged aspirational/reference). Prospects don't
+    // need a peer cohort yet.
     const peerCount = (oauthConns[clientId]?.peerChannelCount) ?? null;
-    if (peerCount === 0 && !client.is_prelaunch) {
+    if (peerCount === 0 && !isNoChannelStage(client)) {
       alerts.push(make({
         clientId, clientName: client.name, severity: 'high',
         type: 'empty_peer_cohort',
@@ -191,9 +200,10 @@ export async function loadThisWeekAlerts({ clientIds }) {
       }
     }
 
-    // OAuth connection error for this client's channel
+    // OAuth connection error for this client's channel — skip when
+    // there's no channel to connect to.
     const conn = oauthConns[clientId]?.connection;
-    if (conn?.connection_error) {
+    if (conn?.connection_error && !isNoChannelStage(client)) {
       alerts.push(make({
         clientId, clientName: client.name, severity: 'high',
         type: 'oauth_connection_error',
@@ -259,8 +269,16 @@ export async function loadThisWeekAlerts({ clientIds }) {
     }
   }
 
+  // Apply dismissal filter — strategist-side snooze for the alerts
+  // feed (migration 106). A dismissed (clientId, type) pair is hidden
+  // until the snooze expires (or forever if permanent).
+  const dismissKeys = dismissals?.keys || new Set();
+  const dismissedCount = alerts.length;
+  const visibleAlerts = alerts.filter(a => !dismissKeys.has(makeDismissKey(a.clientId, a.type)));
+  const numDismissed = dismissedCount - visibleAlerts.length;
+
   // Sort: severity desc, recency desc
-  alerts.sort((a, b) => {
+  visibleAlerts.sort((a, b) => {
     const sevDiff = SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity];
     if (sevDiff !== 0) return sevDiff;
     return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
@@ -268,20 +286,21 @@ export async function loadThisWeekAlerts({ clientIds }) {
 
   // Group by client + summary counts
   const byClient = {};
-  for (const a of alerts) {
+  for (const a of visibleAlerts) {
     if (!a.clientId) continue;
     if (!byClient[a.clientId]) byClient[a.clientId] = [];
     byClient[a.clientId].push(a);
   }
 
   const summary = {
-    total:               alerts.length,
-    high:                alerts.filter(a => a.severity === 'high').length,
-    medium:              alerts.filter(a => a.severity === 'medium').length,
-    low:                 alerts.filter(a => a.severity === 'low').length,
+    total:               visibleAlerts.length,
+    high:                visibleAlerts.filter(a => a.severity === 'high').length,
+    medium:              visibleAlerts.filter(a => a.severity === 'medium').length,
+    low:                 visibleAlerts.filter(a => a.severity === 'low').length,
     clientsWithAlerts:   Object.keys(byClient).length,
+    dismissedCount:      numDismissed,
   };
-  return { alerts, byClient, summary };
+  return { alerts: visibleAlerts, byClient, summary };
 }
 
 // ──────────────────────────────────────────────────
@@ -372,11 +391,25 @@ async function loadPendingInvites() {
 async function loadChannelMeta(clientIds) {
   const { data } = await supabase
     .from('channels')
-    .select('id, name, last_synced_at, last_sync_attempt_at, last_sync_error, is_prelaunch, prelaunch_intended_launch_at, created_at')
+    .select('id, name, lifecycle_stage, last_synced_at, last_sync_attempt_at, last_sync_error, is_prelaunch, prelaunch_intended_launch_at, created_at')
     .in('id', clientIds);
   const map = {};
   for (const c of (data || [])) map[c.id] = c;
   return map;
+}
+
+/**
+ * A "no channel to sync" client — prospect lifecycle OR pre-launch
+ * flag. These should NEVER receive sync-shaped alerts (sync_error,
+ * oauth_connection_error, stale_brief, etc.) because there's no
+ * channel to be measured against. Reported 2026-06-12: sync errors
+ * were firing for prospects who don't have a channel yet.
+ */
+function isNoChannelStage(client) {
+  if (!client) return false;
+  if (client.is_prelaunch) return true;
+  if (client.lifecycle_stage === 'prospect') return true;
+  return false;
 }
 
 /**

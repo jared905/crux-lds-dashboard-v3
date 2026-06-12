@@ -22,8 +22,10 @@ import React, { useEffect, useState } from 'react';
 import {
   Loader, AlertTriangle, AlertCircle, Info, ChevronRight,
   Users, Activity, ClipboardCheck, Wifi, Sparkles, RefreshCw,
+  EyeOff, MoreVertical,
 } from 'lucide-react';
 import { loadCommandCenter } from '../../../services/commandCenterService.js';
+import { dismissAlert, SNOOZE_OPTIONS } from '../../../services/alertDismissService.js';
 
 const SEVERITY_COLOR = {
   high:   '#ef6b6b',
@@ -78,6 +80,16 @@ export default function CommandCenter({ clients, onClientChange, onNavigate }) {
     if (alert.targetTab && typeof onNavigate === 'function') onNavigate(alert.targetTab);
   };
 
+  const handleDismiss = async (alert, snoozeDays) => {
+    await dismissAlert({
+      clientId:   alert.clientId || null,
+      alertType:  alert.type,
+      snoozeDays,
+    });
+    // Refresh data so the alert disappears immediately
+    setRefreshTick(t => t + 1);
+  };
+
   return (
     <div style={shellStyle}>
       <div style={headerRowStyle}>
@@ -108,7 +120,7 @@ export default function CommandCenter({ clients, onClientChange, onNavigate }) {
 
           {/* ─── Top alerts ─── */}
           {data.topAlerts.length > 0 ? (
-            <TopAlerts alerts={data.topAlerts} onClick={handleAlertClick} totalAlerts={data.pulse.alertsBySeverity.total} onSeeAll={() => onNavigate?.('this-week')} />
+            <TopAlerts alerts={data.topAlerts} onClick={handleAlertClick} onDismiss={handleDismiss} totalAlerts={data.pulse.alertsBySeverity.total} onSeeAll={() => onNavigate?.('this-week')} />
           ) : (
             <NoAlertsCard />
           )}
@@ -157,7 +169,7 @@ function PulseStrip({ pulse }) {
 // Top alerts
 // ──────────────────────────────────────────────────
 
-function TopAlerts({ alerts, onClick, totalAlerts, onSeeAll }) {
+function TopAlerts({ alerts, onClick, onDismiss, totalAlerts, onSeeAll }) {
   return (
     <div style={alertsSectionStyle}>
       <div style={sectionHeaderStyle}>
@@ -169,23 +181,59 @@ function TopAlerts({ alerts, onClick, totalAlerts, onSeeAll }) {
         )}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {alerts.map((a, i) => {
-          const Icon = SEVERITY_ICON[a.severity] || Info;
-          const color = SEVERITY_COLOR[a.severity] || '#666';
-          return (
-            <button key={i} onClick={() => onClick(a)} style={alertRowStyle(color)}>
-              <Icon size={14} style={{ color, flexShrink: 0, marginTop: 2 }} />
-              <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                <div style={{ fontSize: 12, color: '#cde4d6', fontWeight: 600, marginBottom: 2 }}>
-                  {a.clientName && <span style={{ color: '#888', marginRight: 6 }}>{a.clientName} ·</span>}
-                  {a.label}
-                </div>
-                <div style={{ fontSize: 11, color: '#888', lineHeight: 1.4 }}>{a.description}</div>
+        {alerts.map((a, i) => (
+          <AlertRow key={i} alert={a} onClick={() => onClick(a)} onDismiss={(days) => onDismiss(a, days)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AlertRow({ alert, onClick, onDismiss }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const Icon = SEVERITY_ICON[alert.severity] || Info;
+  const color = SEVERITY_COLOR[alert.severity] || '#666';
+  return (
+    <div style={alertRowWrapStyle(color)}>
+      <button onClick={onClick} style={alertRowButtonStyle}>
+        <Icon size={14} style={{ color, flexShrink: 0, marginTop: 2 }} />
+        <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+          <div style={{ fontSize: 12, color: '#cde4d6', fontWeight: 600, marginBottom: 2 }}>
+            {alert.clientName && <span style={{ color: '#888', marginRight: 6 }}>{alert.clientName} ·</span>}
+            {alert.label}
+          </div>
+          <div style={{ fontSize: 11, color: '#888', lineHeight: 1.4 }}>{alert.description}</div>
+        </div>
+        <ChevronRight size={12} style={{ color: '#666', flexShrink: 0, marginTop: 4 }} />
+      </button>
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(m => !m); }}
+          style={alertMenuBtnStyle}
+          title="Ignore options"
+          aria-label="Ignore alert"
+        >
+          <MoreVertical size={12} />
+        </button>
+        {menuOpen && (
+          <>
+            <div onClick={() => setMenuOpen(false)} style={menuBackdropStyle} />
+            <div style={dismissMenuStyle}>
+              <div style={dismissMenuHeaderStyle}>
+                <EyeOff size={10} /> Ignore for
               </div>
-              <ChevronRight size={12} style={{ color: '#666', flexShrink: 0, marginTop: 4 }} />
-            </button>
-          );
-        })}
+              {SNOOZE_OPTIONS.map(opt => (
+                <button
+                  key={opt.label}
+                  onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDismiss(opt.value); }}
+                  style={dismissMenuItemStyle}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -296,7 +344,9 @@ function ClientCard({ card, onOpen, onOpenPerformance }) {
 
           <div style={cardFooterRowStyle}>
             <span style={{ fontSize: 10, color: '#666' }}>
-              {card.lastSyncedAt ? `Last sync ${formatAge(card.lastSyncedAt)} ago` : 'Never synced'}
+              {card.noChannelStage
+                ? (card.isPrelaunch ? 'No channel — pre-launch' : 'No channel — prospect')
+                : card.lastSyncedAt ? `Last sync ${formatAge(card.lastSyncedAt)} ago` : 'Never synced'}
             </span>
             {/* Escape hatch — even on alerted cards, sometimes the
                 strategist just wants the performance dashboard. */}
@@ -409,16 +459,60 @@ const seeAllBtnStyle = {
   fontSize: 11, fontWeight: 600,
   display: 'inline-flex', alignItems: 'center', gap: 2,
 };
-const alertRowStyle = (color) => ({
+const alertRowWrapStyle = (color) => ({
   background: '#0e0e11',
   border: '1px solid #2a2a30',
   borderLeft: `2px solid ${color}`,
   borderRadius: 5,
+  display: 'flex', alignItems: 'stretch',
+});
+const alertRowButtonStyle = {
+  background: 'transparent',
+  border: 'none',
   padding: '10px 12px',
   display: 'flex', alignItems: 'flex-start', gap: 10,
-  width: '100%', cursor: 'pointer',
+  flex: 1, minWidth: 0,
+  cursor: 'pointer',
+  color: 'inherit', fontFamily: 'inherit',
   textAlign: 'left',
-});
+};
+const alertMenuBtnStyle = {
+  background: 'transparent', color: '#666',
+  border: 'none', borderLeft: '1px solid #2a2a30',
+  padding: '8px 10px',
+  cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  borderRadius: '0 4px 4px 0',
+};
+
+const menuBackdropStyle = {
+  position: 'fixed', inset: 0, zIndex: 50,
+  background: 'transparent',
+};
+const dismissMenuStyle = {
+  position: 'absolute', top: '100%', right: 0, marginTop: 4,
+  background: '#0e0e11',
+  border: '1px solid #2a2a30',
+  borderRadius: 5, padding: 4,
+  minWidth: 140, zIndex: 51,
+  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+  display: 'flex', flexDirection: 'column', gap: 2,
+};
+const dismissMenuHeaderStyle = {
+  fontSize: 9, color: '#888', fontWeight: 700,
+  letterSpacing: 0.5, textTransform: 'uppercase',
+  padding: '6px 8px 4px',
+  display: 'flex', alignItems: 'center', gap: 4,
+  borderBottom: '1px solid #2a2a30',
+  marginBottom: 2,
+};
+const dismissMenuItemStyle = {
+  background: 'transparent', color: '#cde4d6',
+  border: 'none', padding: '6px 8px',
+  fontSize: 11, fontWeight: 600,
+  cursor: 'pointer', textAlign: 'left',
+  borderRadius: 3,
+};
 const noAlertsStyle = {
   display: 'flex', alignItems: 'center', gap: 8,
   background: 'rgba(63,166,106,0.04)',

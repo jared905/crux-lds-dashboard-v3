@@ -73,6 +73,10 @@ export async function loadCommandCenter() {
   const clientCards = clients.map(c => {
     const myAlerts = alertsByClient[c.id] || [];
     const intake   = intakeByClient[c.id] || null;
+    // Prospect / pre-launch clients have no channel to sync, so a
+    // last_sync_error from a prior staged run is not a current
+    // failure — suppress on the card UI. Reported 2026-06-12.
+    const noChannel = !!c.is_prelaunch || c.lifecycle_stage === 'prospect';
     const alertSeverityMax = myAlerts.length
       ? maxSeverity(myAlerts.map(a => a.severity))
       : null;
@@ -94,7 +98,8 @@ export async function loadCommandCenter() {
       isPrelaunch:           !!c.is_prelaunch,
       subscriberCount:       c.subscriber_count || 0,
       lastSyncedAt:          c.last_data_api_pull_at || c.last_synced_at || null,
-      hasSyncError:          !!c.last_sync_error,
+      hasSyncError:          !!c.last_sync_error && !noChannel,
+      noChannelStage:        noChannel,
       alertCount:            myAlerts.length,
       alertSeverityMax,
       // Pass slimmed alerts so the card can render an inline list
