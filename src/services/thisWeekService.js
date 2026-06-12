@@ -16,6 +16,11 @@
  *   - sync_error                 — channels.last_sync_error set for client channel
  *   - empty_peer_cohort          — client has no peer-tagged channels yet
  *   - prelaunch_past_launch_date — pre-launch client whose intended launch is past
+ *   - intake_pending_confirm     — install intake has client/pre_populated answers
+ *                                  not yet confirmed by strategist (the trigger for
+ *                                  "client submitted while you weren't looking")
+ *   - intake_token_unopened      — issued install intake token never accessed
+ *                                  by the client and 3+ days old (follow-up time)
  *
  * Severity tiers:
  *   high   — blocks core workflow (sync errors, OAuth errors, no peer cohort)
@@ -54,6 +59,7 @@ export async function loadThisWeekAlerts({ clientIds }) {
   // Run each signal pull in parallel.
   const [
     audits, calibrations, briefs, oauthConns, invites, channelMeta,
+    intakePending, intakeTokens,
   ] = await Promise.all([
     loadLatestAudits(clientIds),
     loadLatestCalibrations(clientIds),
@@ -61,6 +67,8 @@ export async function loadThisWeekAlerts({ clientIds }) {
     loadOauthConnectionsForClients(clientIds),
     loadPendingInvites(),
     loadChannelMeta(clientIds),
+    loadIntakePendingByClient(clientIds),
+    loadIntakeTokensByClient(clientIds),
   ]);
 
   const alerts = [];
@@ -193,6 +201,42 @@ export async function loadThisWeekAlerts({ clientIds }) {
         description: conn.connection_error.length > 140 ? conn.connection_error.slice(0, 140) + '…' : conn.connection_error,
         targetTab: 'api-keys',
         createdAt: conn.updated_at || conn.last_refreshed_at,
+      }));
+    }
+
+    // Install intake — client (or pre-population) answers waiting for
+    // strategist confirmation. The "you don't know the client submitted
+    // unless you go check" gap (reported 2026-06-12).
+    const pendingIntake = intakePending[clientId];
+    if (pendingIntake?.count > 0) {
+      const clientCount = pendingIntake.bySource.client || 0;
+      const preCount    = pendingIntake.bySource.pre_populated || 0;
+      const parts = [];
+      if (clientCount) parts.push(`${clientCount} client-submitted`);
+      if (preCount)    parts.push(`${preCount} pre-populated`);
+      alerts.push(make({
+        clientId, clientName: client.name, severity: 'medium',
+        type: 'intake_pending_confirm',
+        label: `${pendingIntake.count} install intake answer${pendingIntake.count === 1 ? '' : 's'} awaiting confirmation`,
+        description: `${parts.join(', ')} — confirm each in the install workspace ("I checked this with the client"). Client async answers never enter the Spine until you stamp them.`,
+        targetTab: 'install',
+        createdAt: pendingIntake.mostRecentSubmittedAt || client.created_at,
+      }));
+    }
+
+    // Install intake — token issued but never opened. Strategist
+    // probably needs to follow up on the email send.
+    const tokenInfo = intakeTokens[clientId];
+    if (tokenInfo?.unopenedStaleToken) {
+      const t = tokenInfo.unopenedStaleToken;
+      const ageDays = Math.round((now - new Date(t.created_at).getTime()) / 86_400_000);
+      alerts.push(make({
+        clientId, clientName: client.name, severity: 'low',
+        type: 'intake_token_unopened',
+        label: `Pre-work link sent ${ageDays}d ago, never opened`,
+        description: `Recipient: ${t.intended_recipient_name || t.intended_recipient_email || '(unspecified)'}. Worth a nudge — the discovery call works better when the factual surface is filled in first.`,
+        targetTab: 'install',
+        createdAt: t.created_at,
       }));
     }
   }
@@ -333,6 +377,60 @@ async function loadChannelMeta(clientIds) {
   const map = {};
   for (const c of (data || [])) map[c.id] = c;
   return map;
+}
+
+/**
+ * For each client, count unconfirmed install-intake rows (client or
+ * pre_populated source) and capture the most recent submitted_at so
+ * the alert sort order reflects recency.
+ * Returns { [clientId]: { count, bySource: { client, pre_populated }, mostRecentSubmittedAt } }.
+ */
+async function loadIntakePendingByClient(clientIds) {
+  if (!clientIds?.length) return {};
+  const { data } = await supabase
+    .from('client_install_intake')
+    .select('client_id, source, submitted_at')
+    .in('client_id', clientIds)
+    .in('source', ['client', 'pre_populated'])
+    .is('confirmed_by_strategist_at', null);
+  const byClient = {};
+  for (const row of data || []) {
+    if (!byClient[row.client_id]) {
+      byClient[row.client_id] = { count: 0, bySource: {}, mostRecentSubmittedAt: null };
+    }
+    const entry = byClient[row.client_id];
+    entry.count += 1;
+    entry.bySource[row.source] = (entry.bySource[row.source] || 0) + 1;
+    if (!entry.mostRecentSubmittedAt || row.submitted_at > entry.mostRecentSubmittedAt) {
+      entry.mostRecentSubmittedAt = row.submitted_at;
+    }
+  }
+  return byClient;
+}
+
+/**
+ * Surface a token that was issued ≥3 days ago, never accessed, and
+ * still has time remaining before expiry — the strategist forgot to
+ * remind the client. One token per client (the oldest stale one).
+ */
+async function loadIntakeTokensByClient(clientIds) {
+  if (!clientIds?.length) return {};
+  const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000).toISOString();
+  const nowIso       = new Date().toISOString();
+  const { data } = await supabase
+    .from('install_intake_tokens')
+    .select('client_id, token, created_at, expires_at, first_accessed_at, intended_recipient_name, intended_recipient_email, revoked_at')
+    .in('client_id', clientIds)
+    .is('first_accessed_at', null)
+    .is('revoked_at', null)
+    .lte('created_at', threeDaysAgo)
+    .gte('expires_at', nowIso)
+    .order('created_at', { ascending: true });
+  const byClient = {};
+  for (const row of data || []) {
+    if (!byClient[row.client_id]) byClient[row.client_id] = { unopenedStaleToken: row };
+  }
+  return byClient;
 }
 
 function takeLatestByClient(rows, clientKey) {
