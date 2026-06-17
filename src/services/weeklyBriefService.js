@@ -25,8 +25,9 @@
 import { supabase } from './supabaseClient';
 import claudeAPI from './claudeAPI';
 import { getCohortComposition } from './cohortRolesService';
+import { renderForSystemPrompt, renderForCritiquePrompt, PLATFORM_MECHANICS_VERSION } from '../lib/platformMechanics.js';
 
-export const BRIEF_PROMPT_VERSION = 'v6-weekly-brief-distributions-critic';
+export const BRIEF_PROMPT_VERSION = 'v7-weekly-brief-platform-mechanics';
 const DEFAULT_MODEL = 'claude-sonnet-4-5';
 
 // ──────────────────────────────────────────────────
@@ -421,6 +422,10 @@ If the brief covers fewer than half of the persona's trust signals and pain poin
 
 META-OPPORTUNITY (recursive proof check) — if the client's offering relates to content, discoverability, media, audience-building, or AI-era visibility, ALWAYS evaluate whether the channel itself can serve as live proof of the offering. The most credible artifact for "we make brands discoverable in LLMs" is a Crux-client channel that demonstrably is. When this applies, include a bullet about how the upcoming content slate either does or does not function as dog-fooded evidence — and what's needed to make it so. Skip this check only when the client's offering is unrelated to media/discoverability/audience.
 
+PLATFORM MECHANICS — the verified craft-knowledge layer. Recommendations must align with how YouTube's recommender actually works, per verified primary research. When a recommendation invokes one of the mechanics below, CITE THE RULE NUMBER (e.g., "per Mechanic 2: channel-level memory is a first-class ranking feature"). When a recommendation would contradict a mechanic, either cut it or label it Hypothesis with the contradiction made explicit. Industry-folklore advice that is not in the mechanics list ("the algorithm rewards X," "the 5-Video Rule," "vocalize entities in first 30 seconds," specific cadence numbers, specific CTR thresholds) is NOT sourceable to platform research and must not appear as fact. Use the mechanics as the substrate for craft guidance instead.
+
+${renderForSystemPrompt()}
+
 THE 4-5 BULLETS SHOULD COLLECTIVELY:
 - Name what's working (so the client doesn't second-guess strengths)
 - Name the highest-leverage thing to change THIS WEEK (specific, testable)
@@ -676,7 +681,13 @@ CHECK FOR:
 
 4. PERSONA COVERAGE GAPS — count the persona's trust signals and pain points. Identify which are addressed in the bullets, which are explicitly deferred with reason, and which are silently missed. Silent misses are flaws — flag each one.
 
-5. PLATFORM HEURISTICS GAPS — strategy without craft is half a brief. The brief should not be silent on hook structure, retention mechanics, packaging (title + thumbnail interplay), or first-30-second physics WHEN those are relevant to the recommendations. If the writer recommended a new content type or test without naming how it must work as a video, flag it.
+5. PLATFORM MECHANICS COMPLIANCE — the writer was given 12 verified platform mechanics (numbered, each cited to primary Google/YouTube research). Check each recommendation against the mechanics:
+   a. Does the recommendation invoke a mechanic? If yes, was the mechanic cited by number? Flag missing citations.
+   b. Does the recommendation contradict a mechanic? Flag the contradiction and name the mechanic by number.
+   c. Did the writer assert a craft claim that is NOT covered by any mechanic and is not labeled Hypothesis? That's industry folklore presented as platform fact — flag and require either a mechanic citation or a Hypothesis label.
+
+The mechanics are:
+${renderForCritiquePrompt()}
 
 6. META-OPPORTUNITY MISS — for clients in content / discoverability / media / audience-building / AI-visibility, the brief must evaluate whether the channel itself functions as live proof of the offering. If missing, flag.
 
