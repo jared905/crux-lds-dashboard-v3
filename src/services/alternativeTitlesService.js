@@ -20,7 +20,9 @@
 
 import { supabase } from './supabaseClient';
 
-export const ALT_TITLES_PROMPT_VERSION = 'v2-alt-titles-persona';
+import { renderForSystemPrompt as renderPlatformMechanics } from '../lib/platformMechanics.js';
+
+export const ALT_TITLES_PROMPT_VERSION = 'v3-alt-titles-platform-mechanics';
 
 const CACHE_TTL_HOURS = 24 * 7;     // 1 week — short-ish; brand voice evolves
 const CACHE_TABLE = 'competitor_intelligence_cache';
@@ -97,7 +99,18 @@ Rules:
 - For a Suggested-targeting concept: optimize for pairing with adjacent topical content; alternatives should feel like a natural next-watch.
 - No hype-tells: "leverage", "unlock", "robust", "innovative", "stands out", "compelling", "powerful", "game-changer", "cutting-edge".
 - One alternative per cell — don't repeat the same structural template across all 5.
-- Return ONLY valid JSON in the shape: { "alternatives": [ { "title": "<text>", "addresses": "<which weakness>", "rationale": "<1 sentence why this fixes it>" } ] }. No markdown, no commentary outside the JSON.`;
+
+PLATFORM MECHANICS — verified-to-primary-research rules about how YouTube's recommender ranks titles. Every alternative must respect these. Most relevant to title editing:
+- Mechanic 1 (CTR-alone-is-not-the-objective): A title that wins clicks but loses completion is penalized by the watch-time-weighted ranker. Reject any alternative that overpromises relative to the concept's actual delivery.
+- Mechanic 4 (impression churn): A title that doesn't earn the click on first impression gets the same video demoted on the next page load for that viewer. First-impression packaging matters disproportionately — there is no second free swing.
+- Mechanic 6 (position bias removed): Don't write titles assuming a specific shelf placement. The model corrects for shelf position; the title's job is to win irrespective of where the system shows it.
+- Mechanic 9 (semantic clarity strengthens Semantic ID signal): Vague packaging dilutes the content-derived Semantic ID; entity-clear titles strengthen it. Specificity is a ranking input, not just a CTR move.
+
+When an alternative invokes one of these mechanics in its rationale, CITE THE NUMBER (e.g., "per Mechanic 1: removes the overpromise gap"). When an alternative would contradict a mechanic, cut it.
+
+${renderPlatformMechanics()}
+
+- Return ONLY valid JSON in the shape: { "alternatives": [ { "title": "<text>", "addresses": "<which weakness>", "rationale": "<1 sentence why this fixes it, citing Mechanic N if applicable>" } ] }. No markdown, no commentary outside the JSON.`;
 
 function buildUserPrompt({ input, scoringOutput, spine, cohortSummary }) {
   const lines = [];

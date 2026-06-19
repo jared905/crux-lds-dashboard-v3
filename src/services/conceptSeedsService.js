@@ -21,7 +21,9 @@ import { supabase } from './supabaseClient';
 import claudeAPI from './claudeAPI';
 import { getCohortComposition } from './cohortRolesService';
 
-export const SEEDS_PROMPT_VERSION = 'v3-concept-seeds-format-aware';
+import { renderForSystemPrompt as renderPlatformMechanics } from '../lib/platformMechanics.js';
+
+export const SEEDS_PROMPT_VERSION = 'v4-concept-seeds-platform-mechanics';
 const DEFAULT_MODEL = 'claude-sonnet-4-5';
 
 // ──────────────────────────────────────────────────
@@ -250,7 +252,18 @@ GENERATION RULES:
 
 8. PRE-LAUNCH CONTEXT: if told the client is pre-launch, seeds are LAUNCH CONCEPTS — what the first 5-10 videos should establish. Anchor each to a persona claim AND a strategic positioning purpose (category-defining, trust-establishing, organizational-buy-in-enabling).
 
-9. Generate the requested target_count, no more, no less.`;
+9. Generate the requested target_count, no more, no less.
+
+PLATFORM MECHANICS — verified-to-primary-research rules about how YouTube's recommender actually works. Seeds must respect these mechanics. The ones most relevant to concept-seed generation:
+- Mechanic 1 (CTR-alone-is-not-the-objective): A concept whose title-thumbnail pair would overpromise relative to its actual delivery is penalized by the watch-time-weighted ranker. Don't propose clickbait-shaped premises.
+- Mechanic 2 (channel-level memory): Seeds that build a returning-viewer relationship to the channel — recurring topics the persona engages with — are mechanically rewarded. This reinforces the recurring_format_name linkage.
+- Mechanic 3 (topic-recency): Seeds that exploit currently-relevant topic clusters where the persona has recent engagement on the platform have ranking advantage. When generating seeds tied to news/event/seasonality, name the topic cluster explicitly.
+- Mechanic 7 (cumulative reward / session-pull): Seeds that work as session-openers or sustainers (clear next-watch implication, evergreen-replayable, or part of a recurring format) outrank session-enders. Avoid concepts that feel terminal.
+- Mechanic 9 (semantic clarity strengthens Semantic ID signal): Titles and hooks that have entity-clear language strengthen the Semantic ID; vague packaging dilutes it. This is mechanical, not aesthetic — specificity is a ranking input.
+
+When a seed's structure leverages a mechanic, include the citation in addresses_persona_claim or outline (e.g., "leverages Mechanic 2: builds returning-viewer signal via the Weekly CMO Conversation format"). Industry-folklore advice ("the algorithm rewards X," 5-Video Rule, vocalize-entities-in-first-30s, specific cadence numbers) is NOT in the mechanics list and must not be assumed as platform fact.
+
+${renderPlatformMechanics()}`;
 
 function buildUserPrompt({ clientName, spine, cohortComp, activeFormats, targetCount, isPrelaunch }) {
   const lines = [];
