@@ -564,9 +564,41 @@ async function runSurfaceIntelligencePull(_accessToken, _youtubeChannelId, _dbCh
       },
       body: JSON.stringify({ connectionId }),
     });
-    const body = await resp.json().catch(() => ({}));
+
+    // Read as text first so we can diagnose the "HTTP 200 with empty
+    // body" case that bit us on 2026-06-29: the freshness chip showed
+    // "Error: HTTP 200" because body?.error was undefined when the
+    // surface-pull endpoint returned a 200 with a body our JSON parse
+    // couldn't read (or no body at all — Vercel deployment-protection
+    // HTML auth page on the deployment URL, for instance). Reading
+    // as text first lets us surface the actual response shape in the
+    // error instead of a context-free "HTTP 200".
+    const rawText = await resp.text();
+    let body;
+    try {
+      body = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      // Non-JSON response — likely deployment protection HTML auth
+      // wall or Vercel error page. Surface the first chunk so the
+      // strategist can tell what's actually happening.
+      const snippet = rawText.replace(/\s+/g, ' ').trim().slice(0, 200);
+      return {
+        ok: false,
+        error: `Surface-pull returned HTTP ${resp.status} with non-JSON body (likely auth wall or deployment-protection page). First 200 chars: ${snippet || '(empty)'}`,
+      };
+    }
+
     if (!resp.ok || !body?.ok) {
-      return { ok: false, error: body?.error || `HTTP ${resp.status}` };
+      // Prefer body.error when populated; otherwise include shape diagnostics
+      // so we don't hide what's wrong behind a bare status code.
+      if (body?.error) {
+        return { ok: false, error: body.error };
+      }
+      const shape = JSON.stringify(body).slice(0, 200);
+      return {
+        ok: false,
+        error: `Surface-pull HTTP ${resp.status} with body.ok=${body?.ok}. Body shape: ${shape || '(empty)'}`,
+      };
     }
     return { ok: true, summary: body.summary || null };
   } catch (e) {
