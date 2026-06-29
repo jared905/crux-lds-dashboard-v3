@@ -548,11 +548,28 @@ async function runSurfaceIntelligencePull(_accessToken, _youtubeChannelId, _dbCh
   if (!process.env.CRON_SECRET) {
     return { ok: false, error: 'CRON_SECRET not configured' };
   }
-  // Vercel-internal host: VERCEL_URL is the deployment URL without
-  // protocol; fall back to the public FRONTEND_URL for local dev.
-  const host = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : (process.env.FRONTEND_URL || null);
+  // Internal host resolution — order matters.
+  //
+  // 2026-06-29 fix: prefer VERCEL_PROJECT_PRODUCTION_URL over VERCEL_URL.
+  // VERCEL_URL is the per-deployment URL (e.g.,
+  // crux-lds-dashboard-v3-git-main-xyz.vercel.app) which has Vercel
+  // Deployment Protection enabled — internal fetches to it get the
+  // HTML auth wall back, surface-pull silently fails, and the freshness
+  // chip showed "HTTP 200" for weeks while the response body was
+  // actually Vercel's auth page HTML.
+  //
+  // VERCEL_PROJECT_PRODUCTION_URL is the production-domain URL (e.g.,
+  // crux-lds-dashboard-v3.vercel.app or your custom domain), which
+  // is exempt from deployment protection by design — that's what
+  // browser users hit and what cron-style internal calls should hit.
+  //
+  // BASE_URL override: explicit env-var escape hatch if either Vercel
+  // env var is missing or wrong for some deploy topology.
+  const host = process.env.BASE_URL
+    || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null)
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+    || process.env.FRONTEND_URL
+    || null;
   if (!host) return { ok: false, error: 'No host URL available for internal call' };
 
   try {

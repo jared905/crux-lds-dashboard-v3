@@ -107,7 +107,14 @@ export default async function handler(req, res) {
         let generationCost = 0;
 
         try {
-          const claudeRes = await fetch(`${process.env.FRONTEND_URL || `https://${process.env.VERCEL_URL}`}/api/claude-proxy`, {
+          // 2026-06-29: prefer VERCEL_PROJECT_PRODUCTION_URL over VERCEL_URL —
+          // the per-deployment URL is behind Vercel Deployment Protection
+          // and returns the HTML auth wall for internal fetches. See the
+          // matching comment in api/cron/daily-sync.js for the full diagnosis.
+          const internalHost = process.env.FRONTEND_URL
+            || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null)
+            || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
+          const claudeRes = await fetch(`${internalHost}/api/claude-proxy`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
