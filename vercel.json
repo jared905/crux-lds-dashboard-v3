@@ -17,7 +17,7 @@
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/daily-sync",
+      "path": "/api/cron/sync-fanout",
       "schedule": "0 7 * * *"
     },
     {

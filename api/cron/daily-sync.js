@@ -1849,6 +1849,38 @@ export default async function handler(req, res) {
 
     console.log(`[Daily Sync] Syncing ${connections.length} connection(s)`);
 
+    // STARVATION FIX (2026-06-29): With ~50s per syncConnection and a
+    // 270s Vercel budget, this cron completes ~5 channels per run.
+    // Without rotation, the SAME 5 channels (those at the head of
+    // Supabase's default ordering) got synced every day and the rest
+    // never got covered. Diagnostic on 2026-06-29 showed 19 active
+    // connections — 14 of them had stale data going back 6+ days.
+    //
+    // Stopgap: deterministic day-of-year rotation. Each day, iteration
+    // starts at a different offset, so every channel cycles through
+    // the "covered" window over ~ceil(N/budget) days. Predictable —
+    // channel X on day D always rotates the same way, so you can
+    // diagnose "why didn't X sync today" from the date alone.
+    //
+    // PROPER FIX (deferred): fan-out orchestrator that fires one
+    // serverless invocation per connection (each with its own 300s
+    // budget). Removes the starvation problem entirely instead of
+    // distributing it. See conversation log 2026-06-29 for the
+    // Fix 3 design (~1-2 hours of work).
+    //
+    // For single-connection mode (?connectionId=X), rotation is a
+    // no-op because the array has one element.
+    if (connections.length > 1 && !targetConnectionId) {
+      const dayOfYear = Math.floor(
+        (Date.now() - new Date(new Date().getUTCFullYear(), 0, 0).getTime()) / 86_400_000
+      );
+      const offset = dayOfYear % connections.length;
+      const rotated = [...connections.slice(offset), ...connections.slice(0, offset)];
+      connections.length = 0;
+      connections.push(...rotated);
+      console.log(`[Daily Sync] Rotation offset ${offset}/${connections.length} (day ${dayOfYear}) — starting from ${connections[0].youtube_channel_title}`);
+    }
+
     // Sync each connection — with time guard to avoid Vercel timeout.
     // Process as many channels as possible within the time limit.
     const MAX_DURATION_MS = 270_000; // 270s of 300s max — leave 30s buffer
