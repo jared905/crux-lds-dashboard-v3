@@ -107,12 +107,27 @@ export default async function handler(req, res) {
 
   console.log(`[Sync Fanout] Dispatching ${connections.length} parallel per-channel syncs`);
 
-  // 2) Resolve our own base URL. Vercel sets x-forwarded-proto and
-  //    host headers; BASE_URL env var overrides for non-Vercel or
-  //    locally-tunneled runs.
+  // 2) Resolve our own base URL.
+  //
+  // 2026-06-30 fix: prefer VERCEL_PROJECT_PRODUCTION_URL. When Vercel
+  // cron triggers this orchestrator, it runs on the per-deployment URL
+  // (e.g., crux-lds-dashboard-v3-du8uf28pq-...vercel.app) which has
+  // Vercel Deployment Protection enabled. Dispatching downstream
+  // fetches to req.headers.host would hit the same protected deployment
+  // URL — and the auth wall returns HTTP 200 with HTML body BEFORE the
+  // downstream function code can check CRON_SECRET. Orchestrator sees
+  // resp.ok=true and marks the channel as "synced" while no work
+  // actually ran. Diagnosed 2026-06-30 from a cron that completed in
+  // 2.1s with "19/19 ok" while no [Daily Sync] log lines appeared.
+  //
+  // VERCEL_PROJECT_PRODUCTION_URL is exempt from deployment protection
+  // — same fix family as the daily-sync.js internal-fetch resolution
+  // shipped 2026-06-29.
   const proto = req.headers['x-forwarded-proto'] || 'https';
-  const host  = req.headers.host;
-  const baseUrl = process.env.BASE_URL || `${proto}://${host}`;
+  const baseUrl = process.env.BASE_URL
+    || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null)
+    || `${proto}://${req.headers.host}`;
+  console.log(`[Sync Fanout] Base URL: ${baseUrl}`);
 
   // 3) Fire one fetch per connection in parallel. Each target hits the
   //    existing single-connection mode of daily-sync, which runs as
