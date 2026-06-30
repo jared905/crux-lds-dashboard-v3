@@ -589,11 +589,20 @@ export default async function handler(req, res) {
   const chainDepth = Number(req.query?.chainDepth || 0);
   const CHAIN_MAX = 20;
   if (!manualTrigger && results.channels_remaining > 0 && chainDepth < CHAIN_MAX) {
-    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    // 2026-06-30 fix: prefer VERCEL_PROJECT_PRODUCTION_URL over the
+    // request's host header. When Vercel cron triggers this endpoint,
+    // req.headers.host is the per-deployment URL (deployment protection
+    // enabled) — the chain follow-up would hit the auth wall and never
+    // reach the function. Same fix family as the sync-fanout
+    // orchestrator and the daily-sync internal-fetch resolution.
     const proto = req.headers['x-forwarded-proto'] || 'https';
-    if (host && process.env.CRON_SECRET) {
-      // Fire-and-forget. Use a short timeout so we don't block the response.
-      const url = `${proto}://${host}/api/sync-competitors?chainDepth=${chainDepth + 1}`;
+    const requestHost = req.headers['x-forwarded-host'] || req.headers.host;
+    const baseUrl = process.env.BASE_URL
+      || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null)
+      || (requestHost ? `${proto}://${requestHost}` : null);
+    if (baseUrl && process.env.CRON_SECRET) {
+      const url = `${baseUrl}/api/sync-competitors?chainDepth=${chainDepth + 1}`;
+      console.log(`[sync chain] depth ${chainDepth + 1} → ${baseUrl}`);
       fetch(url, {
         method: 'POST',
         headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
