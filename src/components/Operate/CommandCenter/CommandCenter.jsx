@@ -61,14 +61,17 @@ export default function CommandCenter({ clients, onClientChange, onNavigate }) {
     // Resolve the full client object from the parent's clients list
     const full = (clients || []).find(c => c.id === card.id) || { id: card.id, name: card.name };
     if (typeof onClientChange === 'function') onClientChange(full);
-    // 2026-06-12 fix: when an alerted card is clicked, the strategist's
-    // intent is to FIX the issue, not see the performance dashboard.
-    // Route to the top alert's targetTab. Healthy cards (no alerts) and
-    // explicit 'view performance' clicks still go to the single-client
-    // dashboard.
+    // Routing precedence:
+    //   1) Explicit forceTab (e.g. "Performance →" escape link on the card)
+    //   2) Top alert's targetTab (alerted card click — the strategist
+    //      came here to FIX the issue, not browse, per 2026-06-12 fix)
+    //   3) Strategic State — the new default landing (Ship 2 of the
+    //      Diagnostic Synthesis build, 2026-06-19). Replaces 'dashboard'
+    //      because the strategist's first read on entering a client is
+    //      "what's the strategic state?", not "show me the metric grid."
     const targetTab = forceTab
       || (card.topAlert?.targetTab)
-      || 'dashboard';
+      || 'strategic-state';
     if (typeof onNavigate === 'function') onNavigate(targetTab);
   };
 

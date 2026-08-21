@@ -41,6 +41,7 @@ import CohortRolesWorkspace from "./components/Strategy/CohortRoles/CohortRolesW
 import WeeklyBriefWorkspace from "./components/Strategy/WeeklyBrief/WeeklyBriefWorkspace.jsx";
 import AudienceWorkspace from "./components/Strategy/Audience/AudienceWorkspace.jsx";
 import StrategistInstallWorkspace from "./components/Strategy/Install/StrategistInstallWorkspace.jsx";
+import DiagnosticSynthesisWorkspace from "./components/Strategy/DiagnosticSynthesis/DiagnosticSynthesisWorkspace.jsx";
 import ClientIntakePage from "./components/Intake/ClientIntakePage.jsx";
 import CommandCenter from "./components/Operate/CommandCenter/CommandCenter.jsx";
 import ThisWeekWorkspace from "./components/Operate/ThisWeek/ThisWeekWorkspace.jsx";
@@ -1413,6 +1414,10 @@ export default function App() {
 
             {tab === "calibration" && (
               <CalibrationWorkspace activeClient={activeClient} onNavigate={setTab} />
+            )}
+
+            {tab === "strategic-state" && (
+              <DiagnosticSynthesisWorkspace activeClient={activeClient} onNavigate={setTab} />
             )}
 
             {tab === "install" && (
