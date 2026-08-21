@@ -30,6 +30,17 @@ const VIEW_W = 1000;
 const VIEW_H = 320;
 const PAD = { left: 20, right: 20, top: 20, bottom: 40 };
 
+// Upload-event rail colours. Shorts keep the app's --pos hue, stepped
+// down (the neon original sits outside the categorical lightness band
+// and shouts over the data line). Long-form deliberately does NOT use
+// the app's --accent blue here: the data line is already cyan, and the
+// watch-hours line (#0090c8) is close enough that blue ticks vanish
+// into it. Violet is unmistakable against the line, the amber note
+// flags, and the lime Shorts. Pair clears all six palette checks on the
+// card surface (#161d1f).
+const UPLOAD_LONG = "#8f6ad4";
+const UPLOAD_SHORT = "#7d9400";
+
 // compact: hero-corner mode — shorter canvas, smaller headline, no
 // stats row (the header number + delta already carry the summary).
 // smooth Catmull-Rom → cubic-bezier path: preserves every data point,
@@ -125,6 +136,36 @@ const Chart = ({ rows, metric = "views", dailySeries = null, subSeries = null, p
     return { max, min, pts, xOf, yOf, peakIdx, ticks, spansYears };
   }, [data, prevAvg, isPulse]);
 
+  // Upload events for the baseline rail. Height carries the format
+  // (long-form taller than Shorts) so the rail survives greyscale and
+  // colour-blindness; the colours only reinforce it. Same-day uploads of
+  // one format collapse into a single tick, because a channel posting
+  // daily Shorts would otherwise fence off the whole axis.
+  const uploadTicks = useMemo(() => {
+    if (isPulse || !rows?.length || !data.length) return [];
+    const times = data.map(d => new Date(d.date).getTime());
+    const byKey = new Map();
+    rows.forEach(r => {
+      if (!r.publishDate) return;
+      const t = new Date(r.publishDate).getTime();
+      if (Number.isNaN(t)) return;
+      let best = 0, bestDist = Infinity;
+      times.forEach((tt, i) => {
+        const dist = Math.abs(tt - t);
+        if (dist < bestDist) { bestDist = dist; best = i; }
+      });
+      if (bestDist > 2 * 86400000) return; // published outside this window
+      const isShort = (r.type || "").toLowerCase().includes("short")
+        || (r.duration > 0 && r.duration <= 180);
+      const key = `${best}:${isShort ? "s" : "l"}`;
+      const entry = byKey.get(key) || { i: best, isShort, count: 0, titles: [] };
+      entry.count += 1;
+      if (entry.titles.length < 4 && r.title) entry.titles.push(r.title);
+      byKey.set(key, entry);
+    });
+    return [...byKey.values()];
+  }, [rows, data, isPulse]);
+
   if (!data.length) {
     return (
       <div style={{ padding: "60px", textAlign: "center", color: "var(--muted)", fontSize: 13, lineHeight: 1.6 }}>
@@ -211,6 +252,18 @@ const Chart = ({ rows, metric = "views", dailySeries = null, subSeries = null, p
             prior period pace
           </span>
         )}
+        {uploadTicks.length > 0 && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: "11px", fontWeight: 600, color: "var(--muted)" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <span aria-hidden="true" style={{ width: 2, height: 12, background: UPLOAD_LONG, borderRadius: 1, display: "inline-block" }} />
+              long-form
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <span aria-hidden="true" style={{ width: 2, height: 7, background: UPLOAD_SHORT, borderRadius: 1, display: "inline-block" }} />
+              Shorts
+            </span>
+          </span>
+        )}
         {!compact && (
           <span style={{ fontSize: "12px", color: "#67747b", marginLeft: "auto" }}>
             {isDaily ? "real daily totals from synced snapshots" : "grouped by publish day"}
@@ -283,6 +336,28 @@ const Chart = ({ rows, metric = "views", dailySeries = null, subSeries = null, p
               </div>
             );
           })}
+
+          {/* Upload events: a hairline on the baseline per publish day,
+              taller for long-form than for Shorts. Sits on the zero line
+              so it never crosses the data line or the amber note flags. */}
+          {uploadTicks.map((u) => (
+            <div
+              key={`up-${u.i}-${u.isShort ? "s" : "l"}`}
+              title={`${data[u.i].date} — ${u.count} ${u.isShort ? "Short" : "long-form"}${u.count > 1 ? "s" : ""}${u.titles.length ? `: ${u.titles.join(" · ")}` : ""}`}
+              style={{
+                position: "absolute", left: pctX(u.i),
+                bottom: `${(PAD.bottom / VIEW_H) * 100}%`,
+                width: 2, height: u.isShort ? 7 : 12, marginLeft: -1,
+                background: u.isShort ? UPLOAD_SHORT : UPLOAD_LONG,
+                borderRadius: 1, opacity: 0.9,
+                // the line runs along the baseline for most of a flat
+                // window; a surface ring keeps the tick readable where
+                // the two overlap instead of blending into the stroke
+                boxShadow: "0 0 0 1.5px var(--card)",
+                pointerEvents: "auto", cursor: "help",
+              }}
+            />
+          ))}
 
           {/* Milestone dots. Pulse: three big hollow rings along the ride
               + a lime-filled end dot, per the chosen reference. Standard:
