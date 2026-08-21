@@ -1,6 +1,19 @@
 import { extractYouTubeVideoId, getYouTubeThumbnailUrl, getYouTubeVideoUrl } from "./schema.js";
 
 /**
+ * Safely convert a date-ish value to an ISO string, or null.
+ *
+ * `new Date(x).toISOString()` throws RangeError on anything unparseable —
+ * "N/A", an empty cell, "15/01/2024" — and this runs over every row of an
+ * uploaded CSV. One bad cell used to take the whole app down.
+ */
+function toISOOrNull(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/**
  * Normalize raw CSV data into a consistent format.
  * Returns { rows, channelTotalSubscribers }.
  *
@@ -42,13 +55,29 @@ export function normalizeData(rawData) {
     const subscribers = num(r['Subscribers gained'] || r['Subscribers'] || r.subscribers);
     const duration = num(r['Duration'] || r.duration);
 
-    // Handle retention (comes as percentage in YouTube exports)
-    let retention = num(r['Average percentage viewed (%)'] || r.retention);
-    if (retention > 1.0) retention = retention / 100;
+    // Rate fields (retention, CTR) are stored internally as 0-1 fractions.
+    //
+    // These used to guess the incoming scale by magnitude — `if (x > 1.0) x /= 100`
+    // — which silently failed for every rate below 1%. A stored CTR of 0.008
+    // arrives here as 0.8 (clientDataService multiplies by 100 for the '(%)'
+    // column), 0.8 is not > 1.0, so it was left alone and rendered as 80.0%
+    // instead of 0.8%. The bug was invisible on healthy videos and only
+    // corrupted underperforming ones.
+    //
+    // Key on which field was supplied instead of guessing:
+    //   '... (%)' columns  -> percentage, divide by 100
+    //   bare `ctr`/`retention` -> already a fraction, leave alone
+    // That also makes this idempotent, which matters because ClientManager
+    // re-runs normalizeData over already-normalized rows.
+    const rate = (percentField, fractionField) => {
+      if (percentField !== undefined && percentField !== null && percentField !== '') {
+        return num(percentField) / 100;
+      }
+      return num(fractionField);
+    };
 
-    // Handle CTR (comes as percentage in YouTube exports)
-    let ctr = num(r['Impressions click-through rate (%)'] || r.ctr);
-    if (ctr > 1.0) ctr = ctr / 100;
+    const retention = rate(r['Average percentage viewed (%)'], r.retention);
+    const ctr = rate(r['Impressions click-through rate (%)'], r.ctr);
 
     // Calculate watch hours from Average view duration if not provided
     let watchHours = num(r.watchHours);
@@ -105,7 +134,10 @@ export function normalizeData(rawData) {
       retention,
       avgViewPct: retention,
       type: type.toLowerCase(),
-      publishDate: publishDate ? new Date(publishDate).toISOString() : null,
+      // `new Date("N/A").toISOString()` throws RangeError, which used to
+      // escape an effect with no try/catch and blank the entire app. An
+      // unparseable date is a bad row, not a fatal condition.
+      publishDate: toISOOrNull(publishDate),
       video_id: rawVideoId || `vid-${Date.now()}-${Math.random()}`,
       youtubeVideoId,
       thumbnailUrl,

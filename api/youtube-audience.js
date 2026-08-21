@@ -10,6 +10,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { requireCronOrAdmin } from './_lib/auth.js';
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
@@ -354,13 +355,8 @@ export default async function handler(req, res) {
 
   // Sync mode (cron or manual)
   if (req.query?.sync === 'true') {
-    const manualTrigger = req.query?.manual === 'true';
-    const authHeader = req.headers.authorization;
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}` && !manualTrigger) {
-      if (process.env.NODE_ENV === 'production') {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-    }
+    const caller = await requireCronOrAdmin(req, res);
+    if (!caller) return;
     return handleSync(req, res);
   }
 

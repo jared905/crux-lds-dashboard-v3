@@ -1,22 +1,22 @@
-import React, { useState, useEffect, useCallback } from "react";
+import {useState, useEffect, useCallback} from "react";
 import {
   Crosshair, ChevronDown, ChevronUp, FileText, Check, Loader,
   Users, AlertTriangle,
 } from "lucide-react";
 
 const TYPE_CONFIG = {
-  format:       { label: "Format",       color: "#3b82f6", bg: "rgba(59,130,246,0.1)" },
-  pattern:      { label: "Title Pattern",color: "#8b5cf6", bg: "rgba(139,92,246,0.1)" },
-  content_type: { label: "Content Type", color: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
-  frequency:    { label: "Frequency",    color: "#ef4444", bg: "rgba(239,68,68,0.1)"  },
-  series:       { label: "Series",       color: "#10b981", bg: "rgba(16,185,129,0.1)" },
-  topic:        { label: "Topic",        color: "#ec4899", bg: "rgba(236,72,153,0.1)" },
+  format:       { label: "Format",       color: "var(--blue)", bg: "rgba(0,209,255,0.1)" },
+  pattern:      { label: "Title Pattern",color: "var(--blue-deep)", bg: "rgba(0,209,255,0.1)" },
+  content_type: { label: "Content Type", color: "var(--warn)", bg: "rgba(245,158,11,0.1)" },
+  frequency:    { label: "Frequency",    color: "var(--neg)", bg: "rgba(255,85,64,0.1)"  },
+  series:       { label: "Series",       color: "var(--pos)", bg: "rgba(205,242,0,0.1)" },
+  topic:        { label: "Topic",        color: "var(--neg-text)", bg: "rgba(255,131,117,0.1)" },
 };
 
 const IMPACT_COLORS = {
-  high:   { color: "#ef4444", bg: "rgba(239,68,68,0.1)" },
-  medium: { color: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
-  low:    { color: "#3b82f6", bg: "rgba(59,130,246,0.1)" },
+  high:   { color: "var(--neg)", bg: "rgba(255,85,64,0.1)" },
+  medium: { color: "var(--warn)", bg: "rgba(245,158,11,0.1)" },
+  low:    { color: "var(--blue)", bg: "rgba(0,209,255,0.1)" },
 };
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
@@ -123,30 +123,30 @@ export default function GapDetection({ rows, activeClient }) {
     <div style={{ padding: "0" }}>
       {/* Header */}
       <div style={{
-        background: "#1E1E1E",
-        border: "1px solid #333",
-        borderRadius: "8px",
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: "24px",
         padding: "24px",
         marginBottom: "24px",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-          <Crosshair size={20} color="#ef4444" />
-          <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff" }}>
+          <Crosshair size={20} color="#FF5540" />
+          <div style={{ fontSize: "22px", fontWeight: "700", color: "var(--ink)" }}>
             Gap Detection
           </div>
         </div>
-        <div style={{ fontSize: "12px", color: "#888" }}>
+        <div style={{ fontSize: "12px", color: "var(--outline)" }}>
           Automated comparison of your content strategy vs competitor strategies
         </div>
       </div>
 
       {error && (
         <div style={{
-          background: "#2d1b1b",
+          background: "var(--neg-bg)",
           border: "1px solid #7f1d1d",
           borderRadius: "8px",
           padding: "12px",
-          color: "#fca5a5",
+          color: "var(--neg-text)",
           fontSize: "13px",
           marginBottom: "16px",
         }}>
@@ -157,12 +157,12 @@ export default function GapDetection({ rows, activeClient }) {
       {/* Loading */}
       {loading && (
         <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "8px",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: "24px",
           padding: "48px 24px",
           textAlign: "center",
-          color: "#888",
+          color: "var(--outline)",
         }}>
           <Loader size={24} style={{ animation: "spin 1s linear infinite", margin: "0 auto 12px" }} />
           <div style={{ fontSize: "14px", fontWeight: "600" }}>Analyzing competitor gaps...</div>
@@ -175,15 +175,15 @@ export default function GapDetection({ rows, activeClient }) {
       {/* No competitors */}
       {!loading && noCompetitors && (
         <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "8px",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: "24px",
           padding: "48px 24px",
           textAlign: "center",
-          color: "#666",
+          color: "var(--faint)",
         }}>
           <Users size={40} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
-          <div style={{ fontSize: "15px", marginBottom: "6px", color: "#888" }}>
+          <div style={{ fontSize: "15px", marginBottom: "6px", color: "var(--outline)" }}>
             No competitors tracked
           </div>
           <div style={{ fontSize: "12px" }}>
@@ -195,15 +195,15 @@ export default function GapDetection({ rows, activeClient }) {
       {/* No data */}
       {!loading && !noCompetitors && !error && rows?.length === 0 && (
         <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "8px",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: "24px",
           padding: "48px 24px",
           textAlign: "center",
-          color: "#666",
+          color: "var(--faint)",
         }}>
           <AlertTriangle size={40} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
-          <div style={{ fontSize: "15px", marginBottom: "6px", color: "#888" }}>
+          <div style={{ fontSize: "15px", marginBottom: "6px", color: "var(--outline)" }}>
             No client video data
           </div>
           <div style={{ fontSize: "12px" }}>
@@ -218,9 +218,9 @@ export default function GapDetection({ rows, activeClient }) {
           {/* Summary bar */}
           {summary && (
             <div style={{
-              background: "#1E1E1E",
-              border: "1px solid #333",
-              borderRadius: "8px",
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "24px",
               padding: "16px 20px",
               marginBottom: "16px",
               display: "flex",
@@ -228,10 +228,10 @@ export default function GapDetection({ rows, activeClient }) {
               gap: "16px",
               flexWrap: "wrap",
             }}>
-              <div style={{ fontSize: "14px", fontWeight: "700", color: "#fff" }}>
+              <div style={{ fontSize: "14px", fontWeight: "700", color: "var(--ink)" }}>
                 {summary.total} gaps detected
               </div>
-              <div style={{ fontSize: "11px", color: "#666" }}>
+              <div style={{ fontSize: "11px", color: "var(--faint)" }}>
                 from {summary.competitorCount} competitor{summary.competitorCount !== 1 ? 's' : ''} • {fmtInt(summary.videoCount)} videos analyzed
               </div>
               <div style={{ flex: 1 }} />
@@ -272,11 +272,11 @@ export default function GapDetection({ rows, activeClient }) {
                 key={`type_${f.id}`}
                 onClick={() => setTypeFilter(f.id)}
                 style={{
-                  background: typeFilter === f.id ? "#3b82f6" : "#252525",
-                  border: `1px solid ${typeFilter === f.id ? "#3b82f6" : "#444"}`,
+                  background: typeFilter === f.id ? "var(--blue)" : "var(--input-bg)",
+                  border: `1px solid ${typeFilter === f.id ? "var(--blue)" : "var(--outline-variant)"}`,
                   borderRadius: "8px",
                   padding: "6px 14px",
-                  color: typeFilter === f.id ? "#fff" : "#b0b0b0",
+                  color: typeFilter === f.id ? "var(--ink)" : "var(--muted)",
                   fontSize: "12px",
                   fontWeight: "600",
                   cursor: "pointer",
@@ -286,7 +286,7 @@ export default function GapDetection({ rows, activeClient }) {
               </button>
             ))}
 
-            <div style={{ width: "1px", background: "#333", margin: "0 4px" }} />
+            <div style={{ width: "1px", background: "var(--outline-variant)", margin: "0 4px" }} />
 
             {/* Impact filter */}
             {["all", "high", "medium", "low"].map(level => (
@@ -294,11 +294,11 @@ export default function GapDetection({ rows, activeClient }) {
                 key={`impact_${level}`}
                 onClick={() => setImpactFilter(level)}
                 style={{
-                  background: impactFilter === level ? "#3b82f6" : "#252525",
-                  border: `1px solid ${impactFilter === level ? "#3b82f6" : "#444"}`,
+                  background: impactFilter === level ? "var(--blue)" : "var(--input-bg)",
+                  border: `1px solid ${impactFilter === level ? "var(--blue)" : "var(--outline-variant)"}`,
                   borderRadius: "8px",
                   padding: "6px 14px",
-                  color: impactFilter === level ? "#fff" : "#b0b0b0",
+                  color: impactFilter === level ? "var(--ink)" : "var(--muted)",
                   fontSize: "12px",
                   fontWeight: "600",
                   cursor: "pointer",
@@ -319,10 +319,9 @@ export default function GapDetection({ rows, activeClient }) {
 
               return (
                 <div key={gap.id} style={{
-                  background: "#1E1E1E",
-                  border: `1px solid #333`,
-                  borderLeft: `4px solid ${typeCfg.color || "#666"}`,
-                  borderRadius: "8px",
+                  background: "var(--card)",
+                  border: `1px solid var(--border)`,
+                  borderRadius: "24px",
                   overflow: "hidden",
                 }}>
                   {/* Card header (clickable) */}
@@ -341,8 +340,8 @@ export default function GapDetection({ rows, activeClient }) {
                       width: "28px",
                       height: "28px",
                       borderRadius: "8px",
-                      background: typeCfg.bg || "#252525",
-                      color: typeCfg.color || "#888",
+                      background: typeCfg.bg || "var(--input-bg)",
+                      color: typeCfg.color || "var(--outline)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -356,7 +355,7 @@ export default function GapDetection({ rows, activeClient }) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {/* Title row */}
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px", flexWrap: "wrap" }}>
-                        <div style={{ fontSize: "15px", fontWeight: "700", color: "#fff" }}>
+                        <div style={{ fontSize: "15px", fontWeight: "700", color: "var(--ink)" }}>
                           {gap.title}
                         </div>
                         <span style={{
@@ -375,7 +374,7 @@ export default function GapDetection({ rows, activeClient }) {
                       </div>
 
                       {/* Description */}
-                      <div style={{ fontSize: "13px", color: "#b0b0b0", marginBottom: "8px" }}>
+                      <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "8px" }}>
                         {gap.description}
                       </div>
 
@@ -394,8 +393,8 @@ export default function GapDetection({ rows, activeClient }) {
                           {gap.impact} impact
                         </span>
                         <span style={{
-                          background: "#252525",
-                          color: "#9ca3af",
+                          background: "var(--input-bg)",
+                          color: "var(--muted)",
                           border: "1px solid #444",
                           borderRadius: "4px",
                           padding: "1px 8px",
@@ -406,8 +405,8 @@ export default function GapDetection({ rows, activeClient }) {
                           {gap.confidence} confidence
                         </span>
                         <span style={{
-                          background: "#252525",
-                          color: "#9ca3af",
+                          background: "var(--input-bg)",
+                          color: "var(--muted)",
                           border: "1px solid #444",
                           borderRadius: "4px",
                           padding: "1px 8px",
@@ -423,18 +422,18 @@ export default function GapDetection({ rows, activeClient }) {
                           <div style={{
                             width: "60px",
                             height: "6px",
-                            background: "#252525",
+                            background: "var(--input-bg)",
                             borderRadius: "3px",
                             overflow: "hidden",
                           }}>
                             <div style={{
                               width: `${Math.round(gap.score * 100)}%`,
                               height: "100%",
-                              background: typeCfg.color || "#666",
+                              background: typeCfg.color || "var(--faint)",
                               borderRadius: "3px",
                             }} />
                           </div>
-                          <span style={{ fontSize: "11px", color: "#888", fontWeight: "600" }}>
+                          <span style={{ fontSize: "11px", color: "var(--outline)", fontWeight: "600" }}>
                             {Math.round(gap.score * 100)}
                           </span>
                         </div>
@@ -442,7 +441,7 @@ export default function GapDetection({ rows, activeClient }) {
                     </div>
 
                     {/* Expand chevron */}
-                    <div style={{ flexShrink: 0, color: "#666", marginTop: "4px" }}>
+                    <div style={{ flexShrink: 0, color: "var(--faint)", marginTop: "4px" }}>
                       {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </div>
                   </div>
@@ -451,7 +450,7 @@ export default function GapDetection({ rows, activeClient }) {
                   {isExpanded && (
                     <div style={{
                       padding: "0 20px 16px 60px",
-                      borderTop: "1px solid #2a2a2a",
+                      borderTop: "1px solid var(--border)",
                     }}>
                       {/* Action */}
                       <div style={{
@@ -462,7 +461,7 @@ export default function GapDetection({ rows, activeClient }) {
                         marginTop: "16px",
                         marginBottom: "16px",
                       }}>
-                        <div style={{ fontSize: "11px", fontWeight: "700", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>
+                        <div style={{ fontSize: "11px", fontWeight: "700", color: "var(--outline)", textTransform: "uppercase", marginBottom: "4px" }}>
                           Recommended Action
                         </div>
                         <div style={{ fontSize: "13px", fontWeight: "600", color: typeCfg.color }}>
@@ -478,28 +477,28 @@ export default function GapDetection({ rows, activeClient }) {
                         marginBottom: "16px",
                       }}>
                         <div style={{
-                          background: "#252525",
+                          background: "var(--input-bg)",
                           borderRadius: "8px",
                           padding: "12px",
-                          border: "1px solid #333",
+                          border: "1px solid var(--border)",
                         }}>
-                          <div style={{ fontSize: "10px", fontWeight: "700", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>
+                          <div style={{ fontSize: "10px", fontWeight: "700", color: "var(--outline)", textTransform: "uppercase", marginBottom: "4px" }}>
                             Competitors
                           </div>
-                          <div style={{ fontSize: "14px", fontWeight: "700", color: "#fff" }}>
+                          <div style={{ fontSize: "14px", fontWeight: "700", color: "var(--ink)" }}>
                             {gap.evidence.competitorStat}
                           </div>
                         </div>
                         <div style={{
-                          background: "#252525",
+                          background: "var(--input-bg)",
                           borderRadius: "8px",
                           padding: "12px",
-                          border: "1px solid #333",
+                          border: "1px solid var(--border)",
                         }}>
-                          <div style={{ fontSize: "10px", fontWeight: "700", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>
+                          <div style={{ fontSize: "10px", fontWeight: "700", color: "var(--outline)", textTransform: "uppercase", marginBottom: "4px" }}>
                             Your Channel
                           </div>
-                          <div style={{ fontSize: "14px", fontWeight: "700", color: "#fff" }}>
+                          <div style={{ fontSize: "14px", fontWeight: "700", color: "var(--ink)" }}>
                             {gap.evidence.clientStat}
                           </div>
                         </div>
@@ -511,7 +510,7 @@ export default function GapDetection({ rows, activeClient }) {
                           <div style={{
                             fontSize: "11px",
                             fontWeight: "600",
-                            color: "#888",
+                            color: "var(--outline)",
                             textTransform: "uppercase",
                             letterSpacing: "0.5px",
                             marginBottom: "8px",
@@ -520,8 +519,8 @@ export default function GapDetection({ rows, activeClient }) {
                           </div>
                           {gap.evidence.topExamples.map((ex, i) => (
                             <div key={i} style={{
-                              background: "#0a0a0a",
-                              border: "1px solid #222",
+                              background: "var(--bg)",
+                              border: "1px solid var(--border)",
                               borderRadius: "6px",
                               padding: "10px 12px",
                               marginBottom: "6px",
@@ -531,7 +530,7 @@ export default function GapDetection({ rows, activeClient }) {
                               gap: "12px",
                             }}>
                               <div style={{
-                                color: "#E0E0E0",
+                                color: "var(--text)",
                                 fontSize: "13px",
                                 fontWeight: "500",
                                 overflow: "hidden",
@@ -542,11 +541,11 @@ export default function GapDetection({ rows, activeClient }) {
                                 {ex.title}
                               </div>
                               <div style={{ display: "flex", gap: "12px", flexShrink: 0 }}>
-                                <span style={{ fontSize: "12px", color: "#888" }}>
+                                <span style={{ fontSize: "12px", color: "var(--outline)" }}>
                                   {fmtInt(ex.views)} views
                                 </span>
                                 {ex.channel && ex.channel !== '—' && (
-                                  <span style={{ fontSize: "12px", color: "#666" }}>
+                                  <span style={{ fontSize: "12px", color: "var(--faint)" }}>
                                     {ex.channel}
                                   </span>
                                 )}
@@ -562,11 +561,11 @@ export default function GapDetection({ rows, activeClient }) {
                           onClick={(e) => { e.stopPropagation(); sendGapToBrief(gap); }}
                           disabled={sentToBrief[gap.id]}
                           style={{
-                            background: sentToBrief[gap.id] ? "rgba(16, 185, 129, 0.1)" : "#252525",
-                            border: `1px solid ${sentToBrief[gap.id] ? "#10b981" : "#333"}`,
+                            background: sentToBrief[gap.id] ? "rgba(205, 242, 0, 0.1)" : "var(--input-bg)",
+                            border: `1px solid ${sentToBrief[gap.id] ? "var(--pos)" : "var(--outline-variant)"}`,
                             borderRadius: "8px",
                             padding: "6px 12px",
-                            color: sentToBrief[gap.id] ? "#10b981" : "#9E9E9E",
+                            color: sentToBrief[gap.id] ? "var(--pos)" : "var(--muted)",
                             fontSize: "12px",
                             fontWeight: "600",
                             cursor: sentToBrief[gap.id] ? "default" : "pointer",
@@ -592,12 +591,12 @@ export default function GapDetection({ rows, activeClient }) {
           {/* No results after filtering */}
           {filtered.length === 0 && gaps.length > 0 && (
             <div style={{
-              background: "#1E1E1E",
-              border: "1px solid #333",
-              borderRadius: "8px",
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "24px",
               padding: "32px 24px",
               textAlign: "center",
-              color: "#666",
+              color: "var(--faint)",
               fontSize: "13px",
             }}>
               No gaps match your current filters. Try broadening your selection.
@@ -609,15 +608,15 @@ export default function GapDetection({ rows, activeClient }) {
       {/* No gaps found */}
       {!loading && !noCompetitors && !error && gaps.length === 0 && rows?.length > 0 && (
         <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "8px",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: "24px",
           padding: "48px 24px",
           textAlign: "center",
-          color: "#666",
+          color: "var(--faint)",
         }}>
           <Crosshair size={40} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
-          <div style={{ fontSize: "15px", marginBottom: "6px", color: "#888" }}>
+          <div style={{ fontSize: "15px", marginBottom: "6px", color: "var(--outline)" }}>
             No significant gaps detected
           </div>
           <div style={{ fontSize: "12px" }}>

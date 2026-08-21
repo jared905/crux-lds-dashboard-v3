@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import {
+import { FileText, Network, Trash2,
   Youtube,
   Link2,
   Unlink,
@@ -23,18 +23,15 @@ import {
   Loader2,
   Plus,
   BarChart3,
-  FileText,
-  Network,
-  Trash2
 } from 'lucide-react';
 import youtubeOAuthService from '../../services/youtubeOAuthService';
 import { supabase } from '../../services/supabaseClient';
 import { syncOAuthChannelVideos } from '../../services/clientDataService';
 
 const cardStyle = {
-  background: "#1E1E1E",
+  background: "var(--card)",
   borderRadius: "8px",
-  border: "1px solid #333",
+  border: "1px solid var(--border)",
   padding: "24px",
   marginBottom: "16px",
 };
@@ -44,17 +41,17 @@ const connectionCardStyle = {
   alignItems: "center",
   gap: "16px",
   padding: "16px",
-  background: "#252525",
+  background: "var(--surface-high)",
   borderRadius: "8px",
   marginBottom: "12px",
 };
 
 const buttonStyle = {
   padding: "8px 14px",
-  background: "#333",
+  background: "var(--outline-variant)",
   border: "1px solid #444",
   borderRadius: "6px",
-  color: "#E0E0E0",
+  color: "var(--text)",
   cursor: "pointer",
   display: "flex",
   alignItems: "center",
@@ -65,9 +62,9 @@ const buttonStyle = {
 
 const dangerButtonStyle = {
   ...buttonStyle,
-  background: "rgba(239, 68, 68, 0.1)",
-  border: "1px solid rgba(239, 68, 68, 0.3)",
-  color: "#ef4444",
+  background: "rgba(255, 85, 64, 0.1)",
+  border: "1px solid rgba(255, 85, 64, 0.3)",
+  color: "var(--neg)",
 };
 
 export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUpdate }) {
@@ -519,7 +516,6 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
         });
 
         const analyticsResult = await analyticsResponse.json();
-        console.log('[Sync] Analytics result:', JSON.stringify(analyticsResult, null, 2));
 
         if (analyticsResult.success) {
           // Show matching stats: how many videos matched by direct ID vs thumbnail fallback
@@ -535,9 +531,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
           // Log impressions diagnostic info (from Reporting API)
           if (analyticsResult.impressionsDiag) {
             const diag = analyticsResult.impressionsDiag;
-            console.log('[Sync] Impressions diagnostics:', JSON.stringify(diag, null, 2));
             if (diag.success) {
-              console.log(`[Sync] Impressions: ${diag.videosWithData} videos with data`);
               if (diag.videosWithData > 0) {
                 summaryParts.push(`${diag.videosWithData} with impressions`);
               } else {
@@ -560,8 +554,6 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
               summaryParts.push(`${parts.join(' + ')} collab${totalCollabs !== 1 ? 's' : ''}`);
             }
           }
-        } else if (analyticsResult.errorCode === 'forbidden') {
-          console.log('[Sync] Analytics API access not available for this channel');
         }
       } catch (analyticsError) {
         // Analytics sync failed, but video sync succeeded - don't fail the whole operation
@@ -797,17 +789,17 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <Youtube size={22} style={{ color: "#ff0000" }} />
+          <Youtube size={22} style={{ color: "var(--yt-red)" }} />
           <div>
             <h3 style={{ fontSize: "16px", fontWeight: "600", margin: 0 }}>YouTube OAuth</h3>
-            <p style={{ fontSize: "12px", color: "#9E9E9E", margin: "4px 0 0" }}>
+            <p style={{ fontSize: "12px", color: "var(--muted)", margin: "4px 0 0" }}>
               Securely connect your YouTube account
             </p>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <Shield size={14} style={{ color: "#22c55e" }} />
-          <span style={{ fontSize: "11px", color: "#22c55e", fontWeight: "500" }}>Enterprise Security</span>
+          <Shield size={14} style={{ color: "var(--pos)" }} />
+          <span style={{ fontSize: "11px", color: "var(--pos)", fontWeight: "500" }}>Enterprise Security</span>
         </div>
       </div>
 
@@ -815,15 +807,15 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
       {success && (
         <div style={{
           display: "flex", alignItems: "center", gap: "8px",
-          padding: "12px 16px", background: "rgba(34, 197, 94, 0.1)",
-          border: "1px solid rgba(34, 197, 94, 0.3)", borderRadius: "8px",
-          marginBottom: "16px", color: "#22c55e", fontSize: "13px"
+          padding: "12px 16px", background: "rgba(205, 242, 0, 0.1)",
+          border: "1px solid rgba(205, 242, 0, 0.3)", borderRadius: "8px",
+          marginBottom: "16px", color: "var(--pos)", fontSize: "13px"
         }}>
           <CheckCircle2 size={16} />
           <span style={{ flex: 1 }}>{success}</span>
           <button
             onClick={() => setSuccess(null)}
-            style={{ background: "none", border: "none", color: "#22c55e", cursor: "pointer", fontSize: "18px" }}
+            style={{ background: "none", border: "none", color: "var(--pos)", cursor: "pointer", fontSize: "18px" }}
           >
             &times;
           </button>
@@ -834,15 +826,15 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
       {error && (
         <div style={{
           display: "flex", alignItems: "center", gap: "8px",
-          padding: "12px 16px", background: "rgba(239, 68, 68, 0.1)",
-          border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "8px",
-          marginBottom: "16px", color: "#ef4444", fontSize: "13px"
+          padding: "12px 16px", background: "rgba(255, 85, 64, 0.1)",
+          border: "1px solid rgba(255, 85, 64, 0.3)", borderRadius: "8px",
+          marginBottom: "16px", color: "var(--neg)", fontSize: "13px"
         }}>
           <AlertCircle size={16} />
           <span style={{ flex: 1 }}>{error}</span>
           <button
             onClick={() => setError(null)}
-            style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "18px" }}
+            style={{ background: "none", border: "none", color: "var(--neg)", cursor: "pointer", fontSize: "18px" }}
           >
             &times;
           </button>
@@ -851,14 +843,14 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
 
       {/* Connections List */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: "40px", color: "#9E9E9E" }}>
+        <div style={{ textAlign: "center", padding: "40px", color: "var(--muted)" }}>
           <Loader2 size={24} style={{ animation: "spin 1s linear infinite" }} />
           <p style={{ marginTop: "12px" }}>Loading connections...</p>
           <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       ) : connections.length > 0 ? (
         <div style={{ marginBottom: "20px" }}>
-          <h4 style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "#9E9E9E" }}>
+          <h4 style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "var(--muted)" }}>
             Connected Accounts
           </h4>
           {connections.map(conn => (
@@ -868,7 +860,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                 <img
                   src={conn.youtube_channel_thumbnail || 'https://www.youtube.com/img/desktop/yt_1200.png'}
                   alt={conn.youtube_channel_title}
-                  style={{ width: "48px", height: "48px", borderRadius: "50%", background: "#333", objectFit: "cover" }}
+                  style={{ width: "48px", height: "48px", borderRadius: "50%", background: "var(--outline-variant)", objectFit: "cover" }}
                 />
 
                 {/* Info */}
@@ -876,23 +868,23 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                   <div style={{ fontWeight: "600", marginBottom: "4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {conn.youtube_channel_title}
                   </div>
-                  <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "6px" }}>
+                  <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "6px" }}>
                     {conn.youtube_email}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "11px" }}>
                     {/* Connection status */}
                     {conn.connection_error ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#ef4444" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--neg)" }}>
                         <AlertCircle size={12} />
                         <span>{conn.connection_error}</span>
                       </div>
                     ) : (
                       <>
-                        <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#22c55e" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--pos)" }}>
                           <CheckCircle2 size={12} />
                           <span>Connected</span>
                         </div>
-                        <span style={{ color: "#666" }}>
+                        <span style={{ color: "var(--faint)" }}>
                           Since {formatDate(conn.created_at)}
                         </span>
                       </>
@@ -930,19 +922,19 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
               {/* Sync Videos Section */}
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                width: "100%", paddingTop: "12px", borderTop: "1px solid #333"
+                width: "100%", paddingTop: "12px", borderTop: "1px solid var(--border)"
               }}>
                 {syncStatus[conn.id] ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#93c5fd" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "var(--blue-pale)" }}>
                     {syncStatus[conn.id].stage === 'complete' ? (
-                      <CheckCircle2 size={14} style={{ color: "#22c55e" }} />
+                      <CheckCircle2 size={14} style={{ color: "var(--pos)" }} />
                     ) : (
                       <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
                     )}
                     {syncStatus[conn.id].message}
                   </div>
                 ) : (
-                  <div style={{ fontSize: "12px", color: "#666" }}>
+                  <div style={{ fontSize: "12px", color: "var(--faint)" }}>
                     Sync videos to see them in your dashboard timeline
                   </div>
                 )}
@@ -953,9 +945,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                     disabled={syncing === conn.id || conn.connection_error}
                     style={{
                       ...buttonStyle,
-                      background: syncing === conn.id ? "#333" : "#2962FF",
+                      background: syncing === conn.id ? "var(--outline-variant)" : "var(--blue)",
                       border: "none",
-                      color: "#fff",
+                      color: "var(--ink)",
                       opacity: (syncing === conn.id || conn.connection_error) ? 0.6 : 1,
                       cursor: (syncing === conn.id || conn.connection_error) ? 'not-allowed' : 'pointer'
                     }}
@@ -969,7 +961,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                   </button>
                   {/* Last synced indicator */}
                   {lastSynced[conn.id] && !syncing && (
-                    <span style={{ fontSize: "11px", color: "#666" }}>
+                    <span style={{ fontSize: "11px", color: "var(--faint)" }}>
                       {formatLastSynced(lastSynced[conn.id])}
                     </span>
                   )}
@@ -979,28 +971,28 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
               {/* Impressions/CTR Reporting Section */}
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                width: "100%", paddingTop: "12px", borderTop: "1px solid #333"
+                width: "100%", paddingTop: "12px", borderTop: "1px solid var(--border)"
               }}>
                 {reportingStatus[conn.id] ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#93c5fd" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "var(--blue-pale)" }}>
                     {reportingStatus[conn.id].stage === 'complete' ? (
-                      <CheckCircle2 size={14} style={{ color: "#22c55e" }} />
+                      <CheckCircle2 size={14} style={{ color: "var(--pos)" }} />
                     ) : (
                       <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
                     )}
                     {reportingStatus[conn.id].message}
                   </div>
                 ) : (
-                  <div style={{ fontSize: "12px", color: "#666" }}>
+                  <div style={{ fontSize: "12px", color: "var(--faint)" }}>
                     {conn.reporting_job_id ? (
                       conn.reporting_job_type?.includes('channel_reach_') ? (
                         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                          <FileText size={12} style={{ color: "#22c55e" }} />
+                          <FileText size={12} style={{ color: "var(--pos)" }} />
                           Reporting job active - sync for impressions/CTR
                         </span>
                       ) : (
-                        <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "#f59e0b" }}>
-                          <FileText size={12} style={{ color: "#f59e0b" }} />
+                        <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--warn)" }}>
+                          <FileText size={12} style={{ color: "var(--warn)" }} />
                           Wrong report type ({conn.reporting_job_type}) — click "Fix Now" below
                         </span>
                       )
@@ -1017,9 +1009,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                       disabled={settingUpReporting === conn.id || conn.connection_error}
                       style={{
                         ...buttonStyle,
-                        background: settingUpReporting === conn.id ? "#333" : "rgba(139, 92, 246, 0.2)",
-                        border: "1px solid rgba(139, 92, 246, 0.4)",
-                        color: "#a78bfa",
+                        background: settingUpReporting === conn.id ? "var(--outline-variant)" : "rgba(0, 209, 255, 0.2)",
+                        border: "1px solid rgba(0, 209, 255, 0.4)",
+                        color: "var(--accent-text)",
                         opacity: (settingUpReporting === conn.id || conn.connection_error) ? 0.6 : 1,
                         cursor: (settingUpReporting === conn.id || conn.connection_error) ? 'not-allowed' : 'pointer'
                       }}
@@ -1038,9 +1030,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                         disabled={syncingImpressions === conn.id || backfillingData === conn.id || conn.connection_error}
                         style={{
                           ...buttonStyle,
-                          background: syncingImpressions === conn.id ? "#333" : "rgba(139, 92, 246, 0.2)",
-                          border: "1px solid rgba(139, 92, 246, 0.4)",
-                          color: "#a78bfa",
+                          background: syncingImpressions === conn.id ? "var(--outline-variant)" : "rgba(0, 209, 255, 0.2)",
+                          border: "1px solid rgba(0, 209, 255, 0.4)",
+                          color: "var(--accent-text)",
                           opacity: (syncingImpressions === conn.id || backfillingData === conn.id || conn.connection_error) ? 0.6 : 1,
                           cursor: (syncingImpressions === conn.id || backfillingData === conn.id || conn.connection_error) ? 'not-allowed' : 'pointer'
                         }}
@@ -1058,9 +1050,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                         title="Download all available historical reports (up to 180 days)"
                         style={{
                           ...buttonStyle,
-                          background: backfillingData === conn.id ? "#333" : "rgba(34, 197, 94, 0.2)",
-                          border: "1px solid rgba(34, 197, 94, 0.4)",
-                          color: "#22c55e",
+                          background: backfillingData === conn.id ? "var(--outline-variant)" : "rgba(205, 242, 0, 0.2)",
+                          border: "1px solid rgba(205, 242, 0, 0.4)",
+                          color: "var(--pos)",
                           opacity: (backfillingData === conn.id || syncingImpressions === conn.id || conn.connection_error) ? 0.6 : 1,
                           cursor: (backfillingData === conn.id || syncingImpressions === conn.id || conn.connection_error) ? 'not-allowed' : 'pointer'
                         }}
@@ -1076,7 +1068,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                   )}
                   {/* Reporting job indicator + re-setup option */}
                   {conn.reporting_job_id && (
-                    <span style={{ fontSize: "11px", color: conn.reporting_job_type?.includes('channel_reach_') ? "#a78bfa" : "#f59e0b", display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontSize: "11px", color: conn.reporting_job_type?.includes('channel_reach_') ? "var(--accent-text)" : "var(--warn)", display: "flex", alignItems: "center", gap: "4px" }}>
                       <FileText size={12} />
                       {conn.reporting_job_type?.includes('channel_reach_') ? (
                         "Reach Report Active"
@@ -1089,7 +1081,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                             style={{
                               background: "none",
                               border: "none",
-                              color: "#f59e0b",
+                              color: "var(--warn)",
                               cursor: settingUpReporting === conn.id ? "not-allowed" : "pointer",
                               textDecoration: "underline",
                               fontSize: "11px",
@@ -1112,11 +1104,11 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
       ) : (
         <div style={{
           textAlign: "center", padding: "40px",
-          background: "#252525", borderRadius: "8px", marginBottom: "20px"
+          background: "var(--input-bg)", borderRadius: "8px", marginBottom: "20px"
         }}>
-          <Youtube size={48} style={{ color: "#666", marginBottom: "16px" }} />
-          <p style={{ color: "#9E9E9E", marginBottom: "8px", margin: "0 0 8px" }}>No YouTube accounts connected</p>
-          <p style={{ color: "#666", fontSize: "13px", margin: 0 }}>
+          <Youtube size={48} style={{ color: "var(--faint)", marginBottom: "16px" }} />
+          <p style={{ color: "var(--muted)", marginBottom: "8px", margin: "0 0 8px" }}>No YouTube accounts connected</p>
+          <p style={{ color: "var(--faint)", fontSize: "13px", margin: 0 }}>
             Connect your YouTube account to access channel analytics
           </p>
         </div>
@@ -1127,14 +1119,14 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
         <div style={{
           marginBottom: "20px",
           padding: "20px",
-          background: "rgba(139, 92, 246, 0.06)",
-          border: "1px solid rgba(139, 92, 246, 0.2)",
+          background: "rgba(0, 209, 255, 0.06)",
+          border: "1px solid rgba(0, 209, 255, 0.2)",
           borderRadius: "8px",
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <Network size={18} style={{ color: "#a78bfa" }} />
-              <h4 style={{ fontSize: "14px", fontWeight: "600", margin: 0, color: "#a78bfa" }}>
+              <Network size={18} style={{ color: "var(--accent-text)" }} />
+              <h4 style={{ fontSize: "14px", fontWeight: "600", margin: 0, color: "var(--accent-text)" }}>
                 Channel Network
               </h4>
             </div>
@@ -1145,9 +1137,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                   disabled={syncingAll}
                   style={{
                     ...buttonStyle,
-                    background: syncingAll ? "#333" : "#2962FF",
+                    background: syncingAll ? "var(--outline-variant)" : "var(--blue)",
                     border: "none",
-                    color: "#fff",
+                    color: "var(--ink)",
                     opacity: syncingAll ? 0.7 : 1,
                     cursor: syncingAll ? "not-allowed" : "pointer",
                   }}
@@ -1176,9 +1168,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
           {syncingAll && syncAllProgress && (
             <div style={{
               display: "flex", alignItems: "center", gap: "10px",
-              padding: "10px 14px", background: "rgba(59, 130, 246, 0.1)",
-              border: "1px solid rgba(59, 130, 246, 0.2)", borderRadius: "8px",
-              marginBottom: "16px", fontSize: "13px", color: "#93c5fd"
+              padding: "10px 14px", background: "rgba(0, 209, 255, 0.1)",
+              border: "1px solid rgba(0, 209, 255, 0.2)", borderRadius: "8px",
+              marginBottom: "16px", fontSize: "13px", color: "var(--blue-pale)"
             }}>
               <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
               Syncing {syncAllProgress.current}/{syncAllProgress.total} — {syncAllProgress.channelName}
@@ -1188,9 +1180,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
           {networkConfig && !showNetworkSetup ? (
             /* Network summary view */
             <div>
-              <div style={{ fontSize: "13px", color: "#E0E0E0", marginBottom: "8px" }}>
+              <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "8px" }}>
                 <strong>{networkConfig.networkName}</strong>
-                <span style={{ color: "#9E9E9E", marginLeft: "8px" }}>
+                <span style={{ color: "var(--muted)", marginLeft: "8px" }}>
                   {(networkConfig.memberYtIds?.size || 0) + 1} channels
                 </span>
               </div>
@@ -1200,17 +1192,17 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                   .map(c => (
                     <span key={c.id} style={{
                       display: "inline-flex", alignItems: "center", gap: "6px",
-                      padding: "4px 10px", background: "#333", borderRadius: "14px",
-                      fontSize: "12px", color: "#E0E0E0",
+                      padding: "4px 10px", background: "var(--outline-variant)", borderRadius: "14px",
+                      fontSize: "12px", color: "var(--text)",
                     }}>
                       <img
                         src={c.youtube_channel_thumbnail || ''}
                         alt=""
-                        style={{ width: "16px", height: "16px", borderRadius: "50%", background: "#444" }}
+                        style={{ width: "16px", height: "16px", borderRadius: "50%", background: "var(--outline-variant)" }}
                       />
                       {c.youtube_channel_title}
                       {c.youtube_channel_id === networkConfig.parentYtId && (
-                        <span style={{ fontSize: "10px", color: "#a78bfa" }}>primary</span>
+                        <span style={{ fontSize: "10px", color: "var(--accent-text)" }}>primary</span>
                       )}
                     </span>
                   ))
@@ -1222,7 +1214,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
             <div>
               {!showNetworkSetup && !networkConfig && (
                 <div style={{ marginBottom: "12px" }}>
-                  <p style={{ fontSize: "13px", color: "#9E9E9E", margin: "0 0 12px" }}>
+                  <p style={{ fontSize: "13px", color: "var(--muted)", margin: "0 0 12px" }}>
                     Group your connected channels into a network to view aggregate metrics and switch between channels.
                   </p>
                   <button
@@ -1236,9 +1228,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                     }}
                     style={{
                       ...buttonStyle,
-                      background: "rgba(139, 92, 246, 0.15)",
-                      border: "1px solid rgba(139, 92, 246, 0.3)",
-                      color: "#a78bfa",
+                      background: "rgba(0, 209, 255, 0.15)",
+                      border: "1px solid rgba(0, 209, 255, 0.3)",
+                      color: "var(--accent-text)",
                     }}
                   >
                     <Network size={14} />
@@ -1251,7 +1243,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                 <div>
                   {/* Network name input */}
                   <div style={{ marginBottom: "16px" }}>
-                    <label style={{ display: "block", fontSize: "12px", color: "#9E9E9E", fontWeight: "600", marginBottom: "6px" }}>
+                    <label style={{ display: "block", fontSize: "12px", color: "var(--muted)", fontWeight: "600", marginBottom: "6px" }}>
                       Network Name
                     </label>
                     <input
@@ -1261,8 +1253,8 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                       placeholder="e.g., LDS Church Network"
                       style={{
                         width: "100%", padding: "10px 14px",
-                        background: "#252525", border: "1px solid #444",
-                        borderRadius: "8px", color: "#E0E0E0", fontSize: "14px",
+                        background: "var(--input-bg)", border: "1px solid #444",
+                        borderRadius: "8px", color: "var(--text)", fontSize: "14px",
                         boxSizing: "border-box",
                       }}
                     />
@@ -1270,38 +1262,38 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
 
                   {/* Channel selection */}
                   <div style={{ marginBottom: "16px" }}>
-                    <label style={{ display: "block", fontSize: "12px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                    <label style={{ display: "block", fontSize: "12px", color: "var(--muted)", fontWeight: "600", marginBottom: "8px" }}>
                       Channels ({selectedMembers.size} selected)
                     </label>
                     <div style={{ maxHeight: "300px", overflowY: "auto" }}>
                       {connections.map(conn => (
                         <div key={conn.id} style={{
                           display: "flex", alignItems: "center", gap: "12px",
-                          padding: "10px 12px", background: selectedMembers.has(conn.youtube_channel_id) ? "rgba(139, 92, 246, 0.1)" : "#1E1E1E",
-                          border: selectedMembers.has(conn.youtube_channel_id) ? "1px solid rgba(139, 92, 246, 0.3)" : "1px solid #333",
-                          borderRadius: "8px", marginBottom: "6px", cursor: "pointer",
+                          padding: "10px 12px", background: selectedMembers.has(conn.youtube_channel_id) ? "rgba(0, 209, 255, 0.1)" : "var(--card)",
+                          border: selectedMembers.has(conn.youtube_channel_id) ? "1px solid rgba(0, 209, 255, 0.3)" : "1px solid var(--border)",
+                          borderRadius: "24px", marginBottom: "6px", cursor: "pointer",
                         }} onClick={() => toggleMember(conn.youtube_channel_id)}>
                           <input
                             type="checkbox"
                             checked={selectedMembers.has(conn.youtube_channel_id)}
                             readOnly
-                            style={{ accentColor: "#a78bfa", pointerEvents: "none" }}
+                            style={{ accentColor: "var(--accent-text)", pointerEvents: "none" }}
                           />
                           <img
                             src={conn.youtube_channel_thumbnail || ''}
                             alt=""
-                            style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#333" }}
+                            style={{ width: "32px", height: "32px", borderRadius: "50%", background: "var(--outline-variant)" }}
                           />
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: "13px", fontWeight: "500", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {conn.youtube_channel_title}
                             </div>
-                            <div style={{ fontSize: "11px", color: "#666" }}>{conn.youtube_email}</div>
+                            <div style={{ fontSize: "11px", color: "var(--faint)" }}>{conn.youtube_email}</div>
                           </div>
                           {selectedMembers.has(conn.youtube_channel_id) && (
                             <label style={{
                               display: "flex", alignItems: "center", gap: "4px",
-                              fontSize: "11px", color: primaryChannelYtId === conn.youtube_channel_id ? "#a78bfa" : "#666",
+                              fontSize: "11px", color: primaryChannelYtId === conn.youtube_channel_id ? "var(--accent-text)" : "var(--faint)",
                               cursor: "pointer", whiteSpace: "nowrap",
                             }} onClick={(e) => e.stopPropagation()}>
                               <input
@@ -1309,7 +1301,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                                 name="primaryChannel"
                                 checked={primaryChannelYtId === conn.youtube_channel_id}
                                 onChange={() => setPrimaryChannelYtId(conn.youtube_channel_id)}
-                                style={{ accentColor: "#a78bfa" }}
+                                style={{ accentColor: "var(--accent-text)" }}
                               />
                               Primary
                             </label>
@@ -1326,9 +1318,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                       disabled={savingNetwork}
                       style={{
                         ...buttonStyle,
-                        background: savingNetwork ? "#333" : "#2962FF",
+                        background: savingNetwork ? "var(--outline-variant)" : "var(--blue)",
                         border: "none",
-                        color: "#fff",
+                        color: "var(--ink)",
                         opacity: savingNetwork ? 0.7 : 1,
                         cursor: savingNetwork ? "not-allowed" : "pointer",
                       }}
@@ -1379,9 +1371,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
         style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
           width: "100%", padding: "14px 20px",
-          background: connecting ? "#333" : "#ff0000",
+          background: connecting ? "var(--outline-variant)" : "var(--yt-red)",
           border: "none", borderRadius: "8px",
-          color: "#fff", fontWeight: "600", fontSize: "14px",
+          color: "var(--ink)", fontWeight: "600", fontSize: "14px",
           cursor: connecting ? "not-allowed" : "pointer",
           opacity: connecting ? 0.7 : 1,
           transition: "background 0.2s, opacity 0.2s"
@@ -1403,17 +1395,17 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
       {/* Security Info */}
       <div style={{
         marginTop: "20px", padding: "16px",
-        background: "rgba(59, 130, 246, 0.08)",
-        border: "1px solid rgba(59, 130, 246, 0.2)",
+        background: "rgba(0, 209, 255, 0.08)",
+        border: "1px solid rgba(0, 209, 255, 0.2)",
         borderRadius: "8px"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-          <Shield size={16} style={{ color: "#60a5fa" }} />
-          <span style={{ fontWeight: "600", color: "#60a5fa", fontSize: "13px" }}>
+          <Shield size={16} style={{ color: "var(--accent-text)" }} />
+          <span style={{ fontWeight: "600", color: "var(--accent-text)", fontSize: "13px" }}>
             Enterprise-Grade Security
           </span>
         </div>
-        <ul style={{ margin: 0, paddingLeft: "18px", color: "#93c5fd", fontSize: "12px", lineHeight: "1.9" }}>
+        <ul style={{ margin: 0, paddingLeft: "18px", color: "var(--blue-pale)", fontSize: "12px", lineHeight: "1.9" }}>
           <li>Tokens encrypted with AES-256-GCM before storage</li>
           <li>PKCE flow prevents authorization code interception</li>
           <li>Server-side token exchange (secrets never in browser)</li>
@@ -1426,9 +1418,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
             style={{
               display: "inline-flex", alignItems: "center", gap: "4px",
               marginTop: "12px", padding: "8px 14px",
-              background: "rgba(59, 130, 246, 0.15)",
-              border: "1px solid rgba(59, 130, 246, 0.3)",
-              borderRadius: "6px", color: "#60a5fa", fontSize: "12px",
+              background: "rgba(0, 209, 255, 0.15)",
+              border: "1px solid rgba(0, 209, 255, 0.3)",
+              borderRadius: "6px", color: "var(--accent-text)", fontSize: "12px",
               fontWeight: "500", cursor: "pointer"
             }}
           >
@@ -1455,9 +1447,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
               top: "50%",
               left: "50%",
               transform: "translate(-50%, -50%)",
-              background: "#1E1E1E",
-              border: "1px solid #333",
-              borderRadius: "8px",
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "24px",
               padding: "32px",
               maxWidth: "420px",
               width: "90%",
@@ -1474,23 +1466,23 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
               ) : (
                 <div style={{
                   width: "64px", height: "64px", borderRadius: "50%",
-                  background: "#333", display: "flex", alignItems: "center", justifyContent: "center"
+                  background: "var(--outline-variant)", display: "flex", alignItems: "center", justifyContent: "center"
                 }}>
-                  <Youtube size={32} style={{ color: "#ff0000" }} />
+                  <Youtube size={32} style={{ color: "var(--yt-red)" }} />
                 </div>
               )}
               <div>
-                <h3 style={{ fontSize: "18px", fontWeight: "700", margin: "0 0 4px", color: "#fff" }}>
+                <h3 style={{ fontSize: "18px", fontWeight: "700", margin: "0 0 4px", color: "var(--ink)" }}>
                   Add as Client?
                 </h3>
-                <p style={{ fontSize: "14px", color: "#9E9E9E", margin: 0 }}>
+                <p style={{ fontSize: "14px", color: "var(--muted)", margin: 0 }}>
                   {pendingClientInfo.channelName}
                 </p>
               </div>
             </div>
 
-            <p style={{ fontSize: "14px", color: "#9E9E9E", marginBottom: "24px", lineHeight: "1.6" }}>
-              Would you like to add <strong style={{ color: "#fff" }}>{pendingClientInfo.channelName}</strong> as
+            <p style={{ fontSize: "14px", color: "var(--muted)", marginBottom: "24px", lineHeight: "1.6" }}>
+              Would you like to add <strong style={{ color: "var(--ink)" }}>{pendingClientInfo.channelName}</strong> as
               a client in your dashboard? We'll fetch recent videos automatically.
             </p>
 
@@ -1498,9 +1490,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
             {syncProgress && (
               <div style={{
                 display: "flex", alignItems: "center", gap: "10px",
-                padding: "12px 16px", background: "rgba(59, 130, 246, 0.1)",
-                border: "1px solid rgba(59, 130, 246, 0.2)", borderRadius: "8px",
-                marginBottom: "16px", fontSize: "13px", color: "#93c5fd"
+                padding: "12px 16px", background: "rgba(0, 209, 255, 0.1)",
+                border: "1px solid rgba(0, 209, 255, 0.2)", borderRadius: "8px",
+                marginBottom: "16px", fontSize: "13px", color: "var(--blue-pale)"
               }}>
                 <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
                 {syncProgress.message}
@@ -1515,9 +1507,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                   flex: 1,
                   display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
                   padding: "12px 20px",
-                  background: addingClient ? "#1e40af" : "#2962FF",
+                  background: addingClient ? "var(--blue-deep)" : "var(--blue)",
                   border: "none", borderRadius: "8px",
-                  color: "#fff", fontWeight: "600", fontSize: "14px",
+                  color: "var(--ink)", fontWeight: "600", fontSize: "14px",
                   cursor: addingClient ? "not-allowed" : "pointer"
                 }}
               >
@@ -1533,9 +1525,9 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
                 disabled={addingClient}
                 style={{
                   padding: "12px 20px",
-                  background: "#333",
+                  background: "var(--outline-variant)",
                   border: "none", borderRadius: "8px",
-                  color: "#E0E0E0", fontWeight: "600", fontSize: "14px",
+                  color: "var(--text)", fontWeight: "600", fontSize: "14px",
                   cursor: "pointer"
                 }}
               >
@@ -1543,7 +1535,7 @@ export default function YouTubeOAuthSettings({ onNavigateToSecurity, onClientsUp
               </button>
             </div>
 
-            <p style={{ fontSize: "12px", color: "#666", marginTop: "16px", textAlign: "center" }}>
+            <p style={{ fontSize: "12px", color: "var(--faint)", marginTop: "16px", textAlign: "center" }}>
               Videos will be fetched from YouTube. You can also upload CSV data for additional metrics.
             </p>
           </div>

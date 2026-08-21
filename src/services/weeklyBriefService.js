@@ -25,7 +25,7 @@
 import { supabase } from './supabaseClient';
 import claudeAPI from './claudeAPI';
 import { getCohortComposition } from './cohortRolesService';
-import { renderForSystemPrompt, renderForCritiquePrompt, PLATFORM_MECHANICS_VERSION } from '../lib/platformMechanics.js';
+import {renderForSystemPrompt, renderForCritiquePrompt} from '../lib/platformMechanics.js';
 
 export const BRIEF_PROMPT_VERSION = 'v7-weekly-brief-platform-mechanics';
 const DEFAULT_MODEL = 'claude-sonnet-4-5';

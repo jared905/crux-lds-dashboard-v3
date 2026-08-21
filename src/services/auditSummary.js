@@ -54,7 +54,6 @@ export async function generateExecutiveSummary(auditId, context) {
       channelSnapshot,
       seriesSummary,
       benchmarkData,
-      competitorData,
       opportunities,
       recommendations,
       formatMix = {},

@@ -13,7 +13,7 @@
  *   shown below the strategic-state card when present.
  */
 
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import {
   Sparkles, Loader, ChevronDown, ChevronRight, Brain,
   TrendingUp, AlertTriangle, KeyRound,
@@ -74,9 +74,9 @@ export default function DiagnosticSynthesisWorkspace({ activeClient, onNavigate 
   if (!clientId) {
     return (
       <div style={emptyShellStyle}>
-        <div style={emptyHeaderStyle}>Strategic State</div>
+        <div style={emptyHeaderStyle}>Diagnosis</div>
         <div style={emptyBodyStyle}>
-          Pick a client from <strong style={{ color: '#cde4d6' }}>Operate → Clients</strong> first.
+          Pick a client from <strong style={{ color: 'var(--text)' }}>Portfolio → Clients</strong> first.
         </div>
       </div>
     );
@@ -109,7 +109,10 @@ export default function DiagnosticSynthesisWorkspace({ activeClient, onNavigate 
   };
 
   const handleDrilldown = (tab) => {
-    if (typeof onNavigate === 'function' && tab) onNavigate(tab);
+    // Legacy drilldowns: stored synthesis rows may point at tabs merged
+    // away in the 2026-08-20 reduction.
+    const LEGACY = { 'competitor-scan': 'research-v2', 'this-week': 'command-center' };
+    if (typeof onNavigate === 'function' && tab) onNavigate(LEGACY[tab] || tab);
   };
 
   return (
@@ -123,7 +126,7 @@ export default function DiagnosticSynthesisWorkspace({ activeClient, onNavigate 
           </span>
         </h1>
         <div style={subtitleStyle}>
-          One-screen synthesis across Spine + persona + cohort distributions + audit + calibration + recent uploads + platform mechanics. <strong style={{ color: '#cde4d6' }}>State-shaped</strong> — what's true about this engagement right now. (The weekly brief is the output-shaped artifact that recommends next moves; this is the diagnosis upstream of it.)
+          One-screen synthesis across Spine + persona + cohort distributions + audit + calibration + recent uploads + platform mechanics. <strong style={{ color: 'var(--text)' }}>State-shaped</strong> — what's true about this engagement right now. (The weekly brief is the output-shaped artifact that recommends next moves; this is the diagnosis upstream of it.)
         </div>
       </div>
 
@@ -143,7 +146,7 @@ export default function DiagnosticSynthesisWorkspace({ activeClient, onNavigate 
         </Note>
       )}
 
-      {loading && <Note tone="info">Loading…</Note>}
+      {loading && <Note tone="info">Loading the latest synthesis…</Note>}
 
       {!loading && !synthesis && !error && (
         <EmptyState onGenerate={handleGenerate} generating={generating} />
@@ -182,7 +185,7 @@ export default function DiagnosticSynthesisWorkspace({ activeClient, onNavigate 
           {synthesis.unblockers?.length > 0 && (
             <Section
               icon={KeyRound}
-              color="#a78bfa"
+              color="#4cd6ff"
               title="Unblockers"
               count={synthesis.unblockers.length}
             >
@@ -194,7 +197,7 @@ export default function DiagnosticSynthesisWorkspace({ activeClient, onNavigate 
 
           {synthesis.notes && (
             <Note tone="info">
-              <strong style={{ color: '#cde4d6' }}>Notes:</strong> {synthesis.notes}
+              <strong style={{ color: 'var(--text)' }}>Notes:</strong> {synthesis.notes}
             </Note>
           )}
 
@@ -217,7 +220,7 @@ function ActionBar({ synthesis, generating, onGenerate, history, showHistory, se
     <div style={actionBarStyle}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={kickerSmallStyle}>{synthesis ? 'Current synthesis' : 'No synthesis yet'}</div>
-        <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
           {synthesis ? (
             <>
               Generated {new Date(synthesis.generated_at).toLocaleString()}
@@ -244,10 +247,10 @@ function ActionBar({ synthesis, generating, onGenerate, history, showHistory, se
                     onClick={() => onLoadHistory(h.id)}
                     style={historyItemStyle}
                   >
-                    <div style={{ fontSize: 11, color: '#cde4d6', fontWeight: 600 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text)', fontWeight: 600 }}>
                       {new Date(h.generated_at).toLocaleString()}
                     </div>
-                    <div style={{ fontSize: 10, color: '#888', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 10, color: 'var(--outline)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {h.strategic_state || '—'}
                     </div>
                   </button>
@@ -274,8 +277,8 @@ function StrategicStateCard({ synthesis }) {
   return (
     <div style={stateCardStyle}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-        <Brain size={13} style={{ color: '#0A919B' }} />
-        <span style={{ fontSize: 10, color: '#0A919B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+        <Brain size={13} style={{ color: 'var(--accent-text)' }} />
+        <span style={{ fontSize: 10, color: 'var(--accent-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>
           Strategic state
         </span>
         {/* Critique-loop status. Surfaces honestly whether the synthesis
@@ -293,7 +296,7 @@ function StrategicStateCard({ synthesis }) {
           </span>
         )}
       </div>
-      <div style={{ fontSize: 16, color: '#e8e2d0', lineHeight: 1.55, fontWeight: 500 }}>
+      <div style={{ fontSize: 16, color: 'var(--ink)', lineHeight: 1.55, fontWeight: 500 }}>
         {synthesis.strategic_state || '(no state)'}
       </div>
     </div>
@@ -304,12 +307,12 @@ function ChangesSinceLastCard({ text }) {
   return (
     <div style={diffCardStyle}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-        <GitCompare size={12} style={{ color: '#a78bfa' }} />
-        <span style={{ fontSize: 10, color: '#a78bfa', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+        <GitCompare size={12} style={{ color: 'var(--accent-text)' }} />
+        <span style={{ fontSize: 10, color: 'var(--accent-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>
           Changes since last synthesis
         </span>
       </div>
-      <div style={{ fontSize: 13, color: '#cde4d6', lineHeight: 1.55 }}>{text}</div>
+      <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.55 }}>{text}</div>
     </div>
   );
 }
@@ -326,7 +329,7 @@ function Section({ icon: Icon, color, title, count, children }) {
         <span style={{ fontSize: 12, color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6 }}>
           {title}
         </span>
-        <span style={{ fontSize: 11, color: '#666' }}>· {count}</span>
+        <span style={{ fontSize: 11, color: 'var(--faint)' }}>· {count}</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {children}
@@ -336,7 +339,7 @@ function Section({ icon: Icon, color, title, count, children }) {
 }
 
 function LeverageRiskCard({ item, type, index, onDrill }) {
-  const color = type === 'leverage' ? '#3fa66a' : '#E8A82B';
+  const color = type === 'leverage' ? 'var(--pos-text)' : 'var(--warn)';
   return (
     <div style={cardStyle(color)}>
       <div style={cardHeaderStyle}>
@@ -348,7 +351,7 @@ function LeverageRiskCard({ item, type, index, onDrill }) {
       <div style={cardBodyStyle}>{item.rationale}</div>
       {type === 'risk' && item.early_warning_signal && (
         <div style={earlyWarningStyle}>
-          <strong style={{ color: '#E8A82B' }}>Early warning:</strong> {item.early_warning_signal}
+          <strong style={{ color: "var(--warn)" }}>Early warning:</strong> {item.early_warning_signal}
         </div>
       )}
       <div style={metaRowStyle}>
@@ -356,10 +359,10 @@ function LeverageRiskCard({ item, type, index, onDrill }) {
           <span style={confidenceChipStyle(item.confidence)}>{item.confidence}</span>
         )}
         {item.provenance && (
-          <span style={{ fontSize: 10, color: '#888' }}>From: {item.provenance}</span>
+          <span style={{ fontSize: 10, color: 'var(--outline)' }}>From: {item.provenance}</span>
         )}
         {item.mechanics_cited?.length > 0 && (
-          <span style={{ fontSize: 10, color: '#0A919B', fontWeight: 600 }}>
+          <span style={{ fontSize: 10, color: 'var(--accent-text)', fontWeight: 600 }}>
             Mechanic {item.mechanics_cited.join(', ')}
           </span>
         )}
@@ -376,10 +379,10 @@ function LeverageRiskCard({ item, type, index, onDrill }) {
 function UnblockerCard({ unblocker, onDrill }) {
   return (
     <div style={unblockerStyle}>
-      <div style={{ fontSize: 13, color: '#e8e2d0', marginBottom: 4 }}>
+      <div style={{ fontSize: 13, color: 'var(--ink)', marginBottom: 4 }}>
         <strong>Missing:</strong> {unblocker.missing_input}
       </div>
-      <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>
+      <div style={{ fontSize: 12, color: 'var(--outline)', marginBottom: 6 }}>
         {unblocker.why_it_matters}
       </div>
       {unblocker.where_to_provide && (
@@ -398,11 +401,11 @@ function UnblockerCard({ unblocker, onDrill }) {
 function EmptyState({ onGenerate, generating }) {
   return (
     <div style={emptySynthStyle}>
-      <Brain size={32} style={{ color: '#0A919B', marginBottom: 12 }} />
-      <div style={{ fontSize: 14, fontWeight: 600, color: '#cde4d6', marginBottom: 6 }}>
+      <Brain size={32} style={{ color: 'var(--accent-text)', marginBottom: 12 }} />
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>
         No synthesis yet
       </div>
-      <div style={{ fontSize: 12, color: '#888', marginBottom: 16, maxWidth: 520, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12, color: 'var(--outline)', marginBottom: 16, maxWidth: 520, lineHeight: 1.5 }}>
         Synthesize from every upstream signal. Returns a one-sentence strategic state plus 3 leverage points + 3 risks + unblockers, each cited to specific inputs and platform mechanics.
       </div>
       <button onClick={onGenerate} disabled={generating} style={primaryBtnStyle(generating)}>
@@ -437,10 +440,10 @@ function RawJsonToggle({ synthesis, showRaw, setShowRaw }) {
 
 function Note({ tone, children }) {
   const palette = {
-    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: '#0A919B' },
-    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: '#E8A82B' },
-    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: '#ef6b6b' },
-  }[tone] || { bg: '#1a1a1f', border: '#333', fg: '#aaa' };
+    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: 'var(--accent-text)' },
+    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: 'var(--warn)' },
+    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: 'var(--neg-text)' },
+  }[tone] || { bg: 'var(--input-bg)', border: 'var(--outline-variant)', fg: 'var(--muted)' };
   return (
     <div style={{
       padding: '10px 14px', borderRadius: 6,
@@ -456,24 +459,24 @@ function Note({ tone, children }) {
 
 const shellStyle = { padding: '20px 24px 60px', maxWidth: 1100, margin: '0 auto' };
 const headerStyle = { marginBottom: 16 };
-const kickerStyle = { fontSize: 11, color: '#0A919B', textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 4 };
-const kickerSmallStyle = { fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 };
-const titleStyle = { fontSize: 24, fontWeight: 700, color: '#e8e2d0', margin: 0 };
-const subtitleStyle = { fontSize: 13, color: '#888', marginTop: 6, lineHeight: 1.5, maxWidth: 800 };
+const kickerStyle = { fontSize: 11, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 4 };
+const kickerSmallStyle = { fontSize: 10, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600 };
+const titleStyle = { fontSize: 24, fontWeight: 700, color: 'var(--ink)', margin: 0 };
+const subtitleStyle = { fontSize: 13, color: 'var(--outline)', marginTop: 6, lineHeight: 1.5, maxWidth: 800 };
 
 const emptyShellStyle = { padding: '60px 24px', maxWidth: 720, margin: '0 auto', textAlign: 'center' };
-const emptyHeaderStyle = { fontSize: 14, color: '#0A919B', textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 14 };
-const emptyBodyStyle = { fontSize: 14, color: '#888', lineHeight: 1.6 };
+const emptyHeaderStyle = { fontSize: 14, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 14 };
+const emptyBodyStyle = { fontSize: 14, color: 'var(--outline)', lineHeight: 1.6 };
 
 const actionBarStyle = {
   display: 'flex', alignItems: 'center', gap: 12,
-  background: '#0e0e11', border: '1px solid #2a2a30',
-  borderLeft: '2px solid #0A919B', borderRadius: 6, padding: 14, marginBottom: 14,
+  background: 'var(--card)', border: '1px solid var(--border)',
+  borderLeft: '2px solid var(--border)', borderRadius: 6, padding: 14, marginBottom: 14,
 };
 const primaryBtnStyle = (busy) => ({
-  background: busy ? '#1a1a1f' : '#0A919B',
-  color: busy ? '#666' : '#0a0a0e',
-  border: busy ? '1px solid #2a2a30' : 'none',
+  background: busy ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: busy ? 'var(--faint)' : 'var(--bg)',
+  border: busy ? '1px solid var(--border)' : 'none',
   borderRadius: 5,
   padding: '8px 16px', fontSize: 13, fontWeight: 700,
   cursor: busy ? 'not-allowed' : 'pointer',
@@ -481,8 +484,8 @@ const primaryBtnStyle = (busy) => ({
   whiteSpace: 'nowrap', flexShrink: 0,
 });
 const historyBtnStyle = {
-  background: 'transparent', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'transparent', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '6px 10px', fontSize: 11, cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 5,
 };
@@ -491,39 +494,39 @@ const menuBackdropStyle = {
 };
 const historyMenuStyle = {
   position: 'absolute', top: '100%', right: 0, marginTop: 4,
-  background: '#0e0e11', border: '1px solid #2a2a30',
+  background: 'var(--card)', border: '1px solid var(--border)',
   borderRadius: 5, padding: 4, minWidth: 300, maxWidth: 420, zIndex: 51,
   boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
   display: 'flex', flexDirection: 'column', gap: 2,
   maxHeight: 400, overflowY: 'auto',
 };
 const historyItemStyle = {
-  background: 'transparent', color: '#cde4d6',
+  background: 'transparent', color: 'var(--text)',
   border: 'none', padding: '6px 8px',
   fontSize: 11, cursor: 'pointer', textAlign: 'left',
   borderRadius: 3,
 };
 
 const stateCardStyle = {
-  background: '#0e0e11', border: '1px solid #2a2a30',
-  borderLeft: '3px solid #0A919B',
+  background: 'var(--card)', border: '1px solid var(--border)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6, padding: 16, marginBottom: 14,
 };
 const diffCardStyle = {
-  background: 'rgba(167,139,250,0.05)',
-  border: '1px solid rgba(167,139,250,0.25)',
-  borderLeft: '3px solid #a78bfa',
+  background: 'rgba(76,214,255,0.05)',
+  border: '1px solid rgba(76,214,255,0.25)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6, padding: 14, marginBottom: 18,
 };
 const critiqueChipStyle = {
-  background: 'rgba(63,166,106,0.10)', color: '#3fa66a',
+  background: 'rgba(63,166,106,0.10)', color: 'var(--pos-text)',
   border: '1px solid rgba(63,166,106,0.30)', borderRadius: 3,
   padding: '1px 6px', fontSize: 9, fontWeight: 700,
   letterSpacing: 0.4, textTransform: 'uppercase',
   display: 'inline-flex', alignItems: 'center', gap: 3,
 };
 const cleanChipStyle = {
-  background: 'rgba(10,145,155,0.10)', color: '#0A919B',
+  background: 'rgba(10,145,155,0.10)', color: 'var(--accent-text)',
   border: '1px solid rgba(10,145,155,0.30)', borderRadius: 3,
   padding: '1px 6px', fontSize: 9, fontWeight: 700,
   letterSpacing: 0.4, textTransform: 'uppercase',
@@ -535,21 +538,21 @@ const sectionHeaderStyle = {
   display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8,
 };
 
-const cardStyle = (color) => ({
-  background: '#0e0e11', border: '1px solid #2a2a30',
-  borderLeft: `2px solid ${color}`, borderRadius: 6, padding: 14,
+const cardStyle = (_color) => ({
+  background: 'var(--card)', border: '1px solid var(--border)',
+  borderLeft: '2px solid var(--border)', borderRadius: 6, padding: 14,
 });
 const cardHeaderStyle = { display: 'flex', gap: 8, marginBottom: 8 };
 const cardNumStyle = (color) => ({
   fontSize: 14, fontWeight: 700, color, flexShrink: 0,
 });
-const cardTitleStyle = { fontSize: 14, fontWeight: 700, color: '#e8e2d0', lineHeight: 1.4 };
-const cardBodyStyle = { fontSize: 13, color: '#cde4d6', lineHeight: 1.55, marginBottom: 8 };
+const cardTitleStyle = { fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.4 };
+const cardBodyStyle = { fontSize: 13, color: 'var(--text)', lineHeight: 1.55, marginBottom: 8 };
 const earlyWarningStyle = {
   background: 'rgba(232,168,43,0.05)',
   border: '1px dashed rgba(232,168,43,0.30)',
   borderRadius: 5, padding: 8,
-  fontSize: 12, color: '#cde4d6', lineHeight: 1.5,
+  fontSize: 12, color: 'var(--text)', lineHeight: 1.5,
   marginBottom: 8,
 };
 const metaRowStyle = {
@@ -557,15 +560,15 @@ const metaRowStyle = {
   paddingTop: 8, borderTop: '1px dashed #2a2a30',
 };
 const confidenceChipStyle = (conf) => {
-  const color = conf === 'confirmed' ? '#3fa66a' : conf === 'extracted' ? '#0A919B' : '#E8A82B';
+  const color = conf === 'confirmed' ? 'var(--pos-text)' : conf === 'extracted' ? 'var(--accent-text)' : 'var(--warn)';
   return {
-    background: `${color}18`, color, border: `1px solid ${color}55`,
+    background: `color-mix(in srgb, ${color} 9%, transparent)`, color, border: `1px solid color-mix(in srgb, ${color} 33%, transparent)`,
     borderRadius: 3, padding: '1px 6px',
     fontSize: 9, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase',
   };
 };
 const drillBtnStyle = {
-  background: 'rgba(10,145,155,0.10)', color: '#0A919B',
+  background: 'rgba(10,145,155,0.10)', color: 'var(--accent-text)',
   border: '1px solid rgba(10,145,155,0.40)', borderRadius: 4,
   padding: '3px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -573,27 +576,27 @@ const drillBtnStyle = {
 };
 
 const unblockerStyle = {
-  background: '#0e0e11', border: '1px solid #2a2a30',
-  borderLeft: '2px solid #a78bfa', borderRadius: 6, padding: 12,
+  background: 'var(--card)', border: '1px solid var(--border)',
+  borderLeft: '2px solid var(--border)', borderRadius: 6, padding: 12,
 };
 
 const emptySynthStyle = {
   display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
   padding: 40, marginTop: 20,
-  background: '#0e0e11', border: '1px solid #2a2a30', borderRadius: 8,
+  background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8,
 };
 
 const rawToggleStyle = {
-  background: 'transparent', color: '#666',
+  background: 'transparent', color: 'var(--faint)',
   border: 'none', cursor: 'pointer',
   fontSize: 10, fontWeight: 600, padding: 0,
   display: 'inline-flex', alignItems: 'center', gap: 4,
   textTransform: 'uppercase', letterSpacing: 0.5,
 };
 const rawBlockStyle = {
-  background: '#0a0a0e', border: '1px solid #2a2a30',
+  background: 'var(--bg)', border: '1px solid var(--border)',
   borderRadius: 5, padding: 12,
-  fontSize: 10, color: '#888', overflow: 'auto',
+  fontSize: 10, color: 'var(--outline)', overflow: 'auto',
   maxHeight: 400, marginTop: 6,
   fontFamily: 'ui-monospace, Menlo, monospace',
 };

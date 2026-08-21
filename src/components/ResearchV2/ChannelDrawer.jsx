@@ -2,11 +2,11 @@
  * Channel profile drawer — slides over the Landscape table.
  * 480px wide, portaled to body to escape parent stacking contexts.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import { createPortal } from 'react-dom';
-import { X, ExternalLink, Loader, Lock, Unlock, Plus, ChevronDown } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 import { computeNormDelta } from '../../services/researchV2Service.js';
+import { ChevronDown, ExternalLink, Loader, Lock, Plus, Unlock, X } from 'lucide-react';
 
 export default function ChannelDrawer({ channel, norms, onClose }) {
   const [topVideos, setTopVideos] = useState([]);
@@ -54,18 +54,18 @@ export default function ChannelDrawer({ channel, norms, onClose }) {
       <div style={{
         width: '480px',
         height: '100vh',
-        background: '#131316',
-        borderLeft: '1px solid #2a2a30',
+        background: 'var(--bg)',
+        borderLeft: '1px solid var(--border)',
         overflowY: 'auto',
         boxShadow: '-16px 0 40px rgba(0,0,0,0.4)',
       }}>
         {/* Header */}
-        <div style={{ padding: '18px 22px', borderBottom: '1px solid #1f1f24', position: 'sticky', top: 0, background: '#131316', zIndex: 2 }}>
+        <div style={{ padding: '18px 22px', borderBottom: '1px solid #1f1f24', position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 2 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#888', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              ◀ Close
-            </button>
-            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', width: '28px', height: '28px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--outline)', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+Close
+</button>
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--faint)', cursor: 'pointer', width: '28px', height: '28px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <X size={18} />
             </button>
           </div>
@@ -81,10 +81,10 @@ export default function ChannelDrawer({ channel, norms, onClose }) {
               <BigAvatar name={channel.name} thumbnail={channel.thumbnail} />
             </a>
             <div>
-              <div style={{ fontSize: '20px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px', lineHeight: 1.2 }}>
+              <div style={{ fontSize: '20px', fontWeight: 700, color: "var(--ink)", letterSpacing: '-0.3px', lineHeight: 1.2 }}>
                 {channel.name}
               </div>
-              {channel.handle && <div style={{ color: '#666', fontSize: '13px' }}>{channel.handle}</div>}
+              {channel.handle && <div style={{ color: 'var(--faint)', fontSize: '13px' }}>{channel.handle}</div>}
             </div>
           </div>
 
@@ -119,11 +119,11 @@ export default function ChannelDrawer({ channel, norms, onClose }) {
           {/* Top videos by view count */}
           <SectionTitle style={{ marginTop: '22px' }}>Top videos (all time)</SectionTitle>
           {loading ? (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--faint)' }}>
               <Loader size={16} />
             </div>
           ) : topVideos.length === 0 ? (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#666', fontSize: '12px' }}>
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--faint)', fontSize: '12px' }}>
               No videos
             </div>
           ) : topVideos.map(v => <VideoRow key={v.id} video={v} />)}
@@ -131,11 +131,11 @@ export default function ChannelDrawer({ channel, norms, onClose }) {
           {/* Most recent uploads */}
           <SectionTitle style={{ marginTop: '22px' }}>Most recent uploads</SectionTitle>
           {loading ? (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--faint)' }}>
               <Loader size={16} />
             </div>
           ) : recentVideos.length === 0 ? (
-            <div style={{ padding: '20px', textAlign: 'center', color: '#666', fontSize: '12px' }}>
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--faint)', fontSize: '12px' }}>
               No uploads yet
             </div>
           ) : recentVideos.map(v => <VideoRow key={v.id} video={v} />)}
@@ -148,7 +148,7 @@ export default function ChannelDrawer({ channel, norms, onClose }) {
               rel="noopener noreferrer"
               style={{
                 padding: '7px 14px', borderRadius: '6px',
-                background: '#2563eb', color: '#fff', textDecoration: 'none',
+                background: 'var(--blue)', color: "var(--ink)", textDecoration: 'none',
                 fontSize: '13px', fontWeight: 600,
                 display: 'inline-flex', alignItems: 'center', gap: '6px',
               }}
@@ -259,7 +259,7 @@ function ChannelEditor({ channel }) {
         <SectionLabel>Categories</SectionLabel>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
           {categories.length === 0 && (
-            <span style={{ fontSize: 11, color: '#555', fontStyle: 'italic' }}>None assigned</span>
+            <span style={{ fontSize: 11, color: 'var(--faint)', fontStyle: 'italic' }}>None assigned</span>
           )}
           {categories.map(c => (
             <EditChip key={c.id} onRemove={() => removeCategory(c)}>{c.name}</EditChip>
@@ -288,12 +288,12 @@ function ChannelEditor({ channel }) {
                     <PickerHeader>
                       <button
                         onClick={() => setPickerParent(null)}
-                        style={{ background: 'transparent', border: 'none', color: '#aaa', fontSize: 11, cursor: 'pointer', padding: 0, marginRight: 6 }}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 11, cursor: 'pointer', padding: 0, marginRight: 6 }}
                       >← Back</button>
                       {pickerParent.name}
                     </PickerHeader>
                     <PickerRow onClick={() => addCategory(pickerParent)}>
-                      <span style={{ color: '#a78bfa' }}>+ Parent only ({pickerParent.name})</span>
+                      <span style={{ color: 'var(--accent-text)' }}>+ Parent only ({pickerParent.name})</span>
                     </PickerRow>
                     {subsOf(pickerParent.id).length === 0 && (
                       <PickerRow disabled>No sub-categories under {pickerParent.name}</PickerRow>
@@ -316,7 +316,7 @@ function ChannelEditor({ channel }) {
         <SectionLabel>Tags</SectionLabel>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
           {tags.length === 0 && (
-            <span style={{ fontSize: 11, color: '#555', fontStyle: 'italic' }}>None assigned</span>
+            <span style={{ fontSize: 11, color: 'var(--faint)', fontStyle: 'italic' }}>None assigned</span>
           )}
           {tags.map(t => (
             <EditChip key={t} onRemove={() => removeTag(t)}>{t}</EditChip>
@@ -339,7 +339,7 @@ function ChannelEditor({ channel }) {
                         <div>
                           <div>{t.value}{tags.includes(t.value) && ' ✓'}</div>
                           {t.description && (
-                            <div style={{ fontSize: 10, color: '#666', marginTop: 1 }}>{t.description}</div>
+                            <div style={{ fontSize: 10, color: 'var(--faint)', marginTop: 1 }}>{t.description}</div>
                           )}
                         </div>
                       </PickerRow>
@@ -357,7 +357,7 @@ function ChannelEditor({ channel }) {
         <div style={{
           marginTop: 10,
           fontSize: 11,
-          color: locked ? '#fbbf24' : '#666',
+          color: locked ? "var(--warn-text)" : 'var(--faint)',
           display: 'inline-flex', alignItems: 'center', gap: 6,
         }}>
           {locked ? (
@@ -380,7 +380,7 @@ function ChannelEditor({ channel }) {
 function SectionLabel({ children }) {
   return (
     <div style={{
-      fontSize: 9, fontWeight: 700, color: '#666',
+      fontSize: 9, fontWeight: 700, color: 'var(--faint)',
       textTransform: 'uppercase', letterSpacing: '0.6px',
       marginBottom: 5,
     }}>{children}</div>
@@ -393,15 +393,15 @@ function EditChip({ children, onRemove }) {
       display: 'inline-flex', alignItems: 'center', gap: 4,
       padding: '2px 4px 2px 8px', borderRadius: 4,
       fontSize: 11, fontWeight: 500,
-      background: '#1c1c20', border: '1px solid #2a2a30', color: '#d4d4d8',
+      background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)',
     }}>
       {children}
       <button onClick={onRemove} style={{
-        background: 'transparent', border: 'none', color: '#666',
+        background: 'transparent', border: 'none', color: 'var(--faint)',
         cursor: 'pointer', padding: '0 2px', display: 'inline-flex',
         borderRadius: 3,
-      }} onMouseEnter={e => { e.currentTarget.style.color = '#f87171'; }}
-         onMouseLeave={e => { e.currentTarget.style.color = '#666'; }}>
+      }} onMouseEnter={e => { e.currentTarget.style.color = "var(--neg-text)"; }}
+         onMouseLeave={e => { e.currentTarget.style.color = 'var(--faint)'; }}>
         <X size={10} />
       </button>
     </span>
@@ -414,7 +414,7 @@ function PickerPanel({ children, onClose }) {
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9999 }} />
       <div style={{
         position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 10000,
-        background: '#1c1c20', border: '1px solid #2a2a30', borderRadius: 7,
+        background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 7,
         padding: 4, minWidth: 220, maxHeight: 320, overflowY: 'auto',
         boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
       }}>{children}</div>
@@ -425,7 +425,7 @@ function PickerPanel({ children, onClose }) {
 function PickerHeader({ children }) {
   return (
     <div style={{
-      fontSize: 9, fontWeight: 700, color: '#666',
+      fontSize: 9, fontWeight: 700, color: 'var(--faint)',
       textTransform: 'uppercase', letterSpacing: '0.6px',
       padding: '6px 10px 3px',
     }}>{children}</div>
@@ -440,11 +440,11 @@ function PickerRow({ children, onClick, disabled }) {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         width: '100%', textAlign: 'left',
         padding: '7px 10px', background: 'transparent', border: 'none',
-        color: disabled ? '#555' : '#d4d4d8', fontSize: 12,
+        color: disabled ? 'var(--faint)' : 'var(--text)', fontSize: 12,
         borderRadius: 5, cursor: disabled ? 'default' : 'pointer',
         fontFamily: 'inherit', gap: 8,
       }}
-      onMouseEnter={e => !disabled && (e.currentTarget.style.background = '#252528')}
+      onMouseEnter={e => !disabled && (e.currentTarget.style.background = 'var(--surface-high)')}
       onMouseLeave={e => !disabled && (e.currentTarget.style.background = 'transparent')}
     >{children}</button>
   );
@@ -454,11 +454,11 @@ const dashedBtn = {
   display: 'inline-flex', alignItems: 'center', gap: 4,
   padding: '3px 8px', borderRadius: 4,
   background: 'transparent', border: '1px dashed #2a2a30',
-  color: '#888', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+  color: 'var(--outline)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
 };
 
 const linkBtn = {
-  background: 'transparent', border: 'none', color: '#60a5fa',
+  background: 'transparent', border: 'none', color: 'var(--accent-text)',
   cursor: 'pointer', fontSize: 11, padding: 0, marginLeft: 4,
   textDecoration: 'underline', fontFamily: 'inherit',
 };
@@ -467,7 +467,7 @@ function SectionTitle({ children, style }) {
   return (
     <div style={{
       fontSize: '11px', fontWeight: 700, letterSpacing: '1.2px',
-      color: '#555', textTransform: 'uppercase', margin: '0 0 12px',
+      color: 'var(--faint)', textTransform: 'uppercase', margin: '0 0 12px',
       ...(style || {}),
     }}>{children}</div>
   );
@@ -475,9 +475,9 @@ function SectionTitle({ children, style }) {
 
 function StatBlock({ label, value, positive, negative }) {
   return (
-    <div style={{ background: '#1a1a1f', border: '1px solid #1f1f24', borderRadius: '8px', padding: '10px 12px' }}>
-      <div style={{ fontSize: '10px', color: '#666', fontWeight: 600, letterSpacing: '0.7px', textTransform: 'uppercase', marginBottom: '4px' }}>{label}</div>
-      <div style={{ fontSize: '18px', fontWeight: 700, color: positive ? '#34d399' : negative ? '#f87171' : '#fff', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+    <div style={{ background: 'var(--input-bg)', border: '1px solid #1f1f24', borderRadius: '8px', padding: '10px 12px' }}>
+      <div style={{ fontSize: '10px', color: 'var(--faint)', fontWeight: 600, letterSpacing: '0.7px', textTransform: 'uppercase', marginBottom: '4px' }}>{label}</div>
+      <div style={{ fontSize: '18px', fontWeight: 700, color: positive ? "var(--pos-text)" : negative ? "var(--neg-text)" : 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
     </div>
   );
 }
@@ -485,13 +485,13 @@ function StatBlock({ label, value, positive, negative }) {
 function MetricRow({ label, value, delta, normName }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: '1px solid #1c1c20', fontSize: '13px' }}>
-      <span style={{ color: '#aaa' }}>{label}</span>
+      <span style={{ color: 'var(--muted)' }}>{label}</span>
       <div style={{ textAlign: 'right' }}>
-        <div style={{ color: '#fff', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+        <div style={{ color: "var(--ink)", fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
         {delta && (
           <div style={{
             fontSize: '10px',
-            color: delta.direction === 'pos' ? '#34d399' : delta.direction === 'neg' ? '#f87171' : '#707070',
+            color: delta.direction === 'pos' ? "var(--pos-text)" : delta.direction === 'neg' ? "var(--neg-text)" : 'var(--faint)',
             fontWeight: delta.direction === 'flat' ? 400 : 600,
           }}>
             {delta.direction === 'pos' && '▲ '}
@@ -511,10 +511,10 @@ function VideoRow({ video }) {
     <a href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid #1c1c20', textDecoration: 'none' }}>
       <img src={thumb} alt="" style={{ width: '56px', height: '32px', borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '12px', color: '#fff', lineHeight: 1.35, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ fontSize: '12px', color: "var(--ink)", lineHeight: 1.35, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {video.title}
         </div>
-        <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
+        <div style={{ fontSize: '11px', color: 'var(--outline)', marginTop: '2px' }}>
           {formatNumber(video.view_count)} views · {video.like_count?.toLocaleString() || 0} likes
           {video.published_at && <> · {formatLastUpload(video.published_at)}</>}
         </div>
@@ -529,7 +529,7 @@ function BigAvatar({ name, thumbnail }) {
   const base = {
     width: 52, height: 52, borderRadius: '12px',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 18, fontWeight: 700, color: '#fff', overflow: 'hidden',
+    fontSize: 18, fontWeight: 700, color: 'var(--ink)', overflow: 'hidden',
     background: `linear-gradient(135deg, hsl(${h},65%,45%), hsl(${(h + 40) % 360},65%,55%))`,
   };
   if (thumbnail) {
@@ -548,25 +548,13 @@ function BigAvatar({ name, thumbnail }) {
   return <div style={base}>{initials}</div>;
 }
 
-function CategoryChip({ category }) {
-  const h = hash(category.name) % 360;
-  return (
-    <span style={{
-      display: 'inline-block', padding: '2px 8px', borderRadius: '4px',
-      fontSize: '11px', fontWeight: 500,
-      background: `hsla(${h}, 60%, 50%, 0.1)`,
-      color: `hsl(${h}, 70%, 70%)`,
-      border: `1px solid hsla(${h}, 60%, 50%, 0.25)`,
-    }}>{category.name}</span>
-  );
-}
 
 function TierBadge({ tier }) {
   const config = {
-    priority: { bg: 'rgba(245,158,11,0.12)', color: '#fbbf24', border: 'rgba(245,158,11,0.3)', label: '⭐ PRIORITY' },
-    tracked:  { bg: 'rgba(100,116,139,0.15)', color: '#94a3b8', border: 'rgba(100,116,139,0.3)', label: 'TRACKED' },
-    archive:  { bg: 'rgba(100,116,139,0.08)', color: '#64748b', border: 'rgba(100,116,139,0.2)', label: 'ARCHIVE' },
-  }[tier] || { bg: '#1c1c20', color: '#888', border: '#2a2a30', label: tier?.toUpperCase() || 'TRACKED' };
+    priority: { bg: 'rgba(245,158,11,0.12)', color: 'var(--warn-text)', border: 'rgba(245,158,11,0.3)', label: "PRIORITY" },
+    tracked:  { bg: 'rgba(100,116,139,0.15)', color: 'var(--muted)', border: 'rgba(100,116,139,0.3)', label: 'TRACKED' },
+    archive:  { bg: 'rgba(100,116,139,0.08)', color: 'var(--faint)', border: 'rgba(100,116,139,0.2)', label: 'ARCHIVE' },
+  }[tier] || { bg: 'var(--card)', color: 'var(--outline)', border: 'var(--outline-variant)', label: tier?.toUpperCase() || 'TRACKED' };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',

@@ -31,11 +31,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { apiKey, messages, system, maxTokens, stream, model } = req.body;
+    const { apiKey: clientKey, messages, system, maxTokens, stream, model } = req.body;
 
-    // Validate API key is provided
+    // Team-shared setup: the server's ANTHROPIC_API_KEY (set once in the
+    // deploy environment) serves everyone; a key pasted into a browser's
+    // Settings still wins for that person if present.
+    const apiKey = clientKey || process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      return res.status(400).json({ error: 'API key is required' });
+      return res.status(400).json({ error: 'No API key: set ANTHROPIC_API_KEY on the server or add a key in Settings.' });
     }
 
     // Validate messages array

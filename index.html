@@ -6,34 +6,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
     <title>Full View Analytics || Crux</title>
     <meta name="version" content="2.2.1-cache-bust" />
     <style>
-      /* CRUX brand fonts — self-hosted from /public/fonts. Each face
-         tries .woff2 first (best compression, modern browsers) then
-         .otf as a fallback. If you only have one format, leave the
-         other line — the browser just skips the missing file. */
+      /* CRUX brand fonts — self-hosted from /public/fonts.
+         Only .otf is present in the repo. The .woff2 sources that used to be
+         listed here did not exist, and a missing src is still requested (and
+         404s) before the browser falls back — three wasted round trips on
+         every page load. If you add .woff2 files later, list them FIRST,
+         since the browser takes the first format it supports. */
       @font-face {
         font-family: 'Gotham Book';
-        src: url('/fonts/Gotham-Book.woff2') format('woff2'),
-             url('/fonts/Gotham-Book.otf') format('opentype');
+        src: url('/fonts/Gotham-Book.otf') format('opentype');
         font-weight: 400;
         font-style: normal;
         font-display: swap;
       }
       @font-face {
         font-family: 'Gotham Ultra';
-        src: url('/fonts/Gotham-Ultra.woff2') format('woff2'),
-             url('/fonts/Gotham-Ultra.otf') format('opentype');
+        src: url('/fonts/Gotham-Ultra.otf') format('opentype');
         font-weight: 900;
         font-style: normal;
         font-display: swap;
       }
       @font-face {
         font-family: 'VTG Move Zine';
-        src: url('/fonts/VTG-Move-Zine.woff2') format('woff2'),
-             url('/fonts/VTG-Move-Zine.otf') format('opentype');
+        src: url('/fonts/VTG-Move-Zine.otf') format('opentype');
         font-weight: 400;
         font-style: normal;
         font-display: swap;

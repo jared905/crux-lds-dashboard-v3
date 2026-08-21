@@ -3,7 +3,9 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/**/*.js": { "maxDuration": 300 }
+    "api/**/*.js": {
+      "maxDuration": 300
+    }
   },
   "rewrites": [
     {
@@ -27,6 +29,10 @@
     {
       "path": "/api/generate-brief",
       "schedule": "0 8 * * 1"
+    },
+    {
+      "path": "/api/cron/audience-sync",
+      "schedule": "0 9 * * *"
     }
   ]
 }

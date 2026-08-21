@@ -349,33 +349,48 @@ async function loadLatestBriefs(clientIds) {
 }
 
 async function loadOauthConnectionsForClients(clientIds) {
-  // For each client, find the OAuth connection (team-OAuth model — any
-  // user) PLUS count peer-tagged channels in client_channels.
+  // OAuth connection (team-OAuth model — any user) + peer-channel count
+  // per client. This used to run TWO queries per client sequentially —
+  // ~44 serial round trips for a 22-client portfolio, which was most of
+  // the Command Center's load time. Three batched queries now.
   const { data: clients } = await supabase
     .from('channels')
     .select('id, youtube_channel_id')
     .in('id', clientIds);
 
+  const ytIds = [...new Set((clients || []).map(c => c.youtube_channel_id).filter(Boolean))];
+  const [connsRes, peersRes] = await Promise.all([
+    ytIds.length
+      ? supabase
+          .from('youtube_oauth_connections')
+          .select('youtube_channel_id, connection_error, last_refreshed_at, updated_at')
+          .in('youtube_channel_id', ytIds)
+          .order('last_refreshed_at', { ascending: false, nullsFirst: false })
+      : Promise.resolve({ data: [] }),
+    supabase
+      .from('client_channels')
+      .select('client_id')
+      .in('client_id', clientIds)
+      .eq('cohort_role', 'peer'),
+  ]);
+
+  // Rows arrive newest-first, so the first row per yt id is the one the
+  // old per-client limit(1) returned.
+  const connByYt = {};
+  for (const row of (connsRes.data || [])) {
+    if (!connByYt[row.youtube_channel_id]) connByYt[row.youtube_channel_id] = row;
+  }
+  const peerCounts = {};
+  for (const row of (peersRes.data || [])) {
+    peerCounts[row.client_id] = (peerCounts[row.client_id] || 0) + 1;
+  }
+
   const result = {};
   for (const c of (clients || [])) {
-    result[c.id] = { connection: null, peerChannelCount: 0 };
-    // Connection
-    if (c.youtube_channel_id) {
-      const { data: conns } = await supabase
-        .from('youtube_oauth_connections')
-        .select('connection_error, last_refreshed_at, updated_at')
-        .eq('youtube_channel_id', c.youtube_channel_id)
-        .order('last_refreshed_at', { ascending: false, nullsFirst: false })
-        .limit(1);
-      result[c.id].connection = conns?.[0] || null;
-    }
-    // Peer count via cohort_role filter
-    const { count: peerCount } = await supabase
-      .from('client_channels')
-      .select('channel_id', { count: 'exact', head: true })
-      .eq('client_id', c.id)
-      .eq('cohort_role', 'peer');
-    result[c.id].peerChannelCount = peerCount || 0;
+    result[c.id] = {
+      connection: (c.youtube_channel_id && connByYt[c.youtube_channel_id]) || null,
+      peerChannelCount: peerCounts[c.id] || 0,
+    };
   }
   return result;
 }

@@ -2,9 +2,9 @@
  * Patterns lens — title patterns, format mix, outliers.
  * Cross-scope comparison: "this category vs all channels".
  */
-import React, { useEffect, useMemo, useState } from 'react';
-import { Loader, ExternalLink } from 'lucide-react';
+import {useEffect, useState} from 'react';
 import { analyzePatterns, resolveScopeToChannelIds } from '../../services/patternsService.js';
+import { Loader } from 'lucide-react';
 
 const COMPARE_MODES = [
   { id: 'platform', label: 'All channels (platform avg)' },
@@ -16,8 +16,11 @@ export default function PatternsLens({ scope, refreshKey = 0 }) {
   const [loading, setLoading] = useState(true);
   const [compareMode, setCompareMode] = useState('platform');
   const [scopeCount, setScopeCount] = useState(0);
-  const [baselineCount, setBaselineCount] = useState(0);
+  const [, setBaselineCount] = useState(0);
 
+  // The scope object's identity churns per render; this serialized key covers
+  // every scope field the fetch reads, so it stands in as the dependency.
+  const scopeKey = [scope.categoryIds?.join(','), scope.tags?.join(','), scope.tiers?.join(','), scope.clientId, scope.windowDays].join('|');
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -56,15 +59,8 @@ export default function PatternsLens({ scope, refreshKey = 0 }) {
     })();
 
     return () => { cancelled = true; };
-  }, [
-    scope.categoryIds?.join(','),
-    scope.tags?.join(','),
-    scope.tiers?.join(','),
-    scope.clientId,
-    scope.windowDays,
-    compareMode,
-    refreshKey,
-  ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey, compareMode, refreshKey]);
 
   if (loading) return <Spinner label="Analyzing patterns…" />;
   if (!result || !result.scope.videoCount) {
@@ -78,24 +74,24 @@ export default function PatternsLens({ scope, refreshKey = 0 }) {
       {/* Compare bar */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: '8px',
-        padding: '10px 14px', background: '#131316', border: '1px solid #1f1f24',
+        padding: '10px 14px', background: 'var(--bg)', border: '1px solid #1f1f24',
         borderRadius: '8px', marginBottom: '16px',
       }}>
         <SmallLabel>Comparing</SmallLabel>
         <span style={{ ...pillStyle(true) }}>This scope ({scopeCount} ch)</span>
-        <span style={{ color: '#666', fontWeight: 600, fontSize: '12px', padding: '0 6px' }}>vs</span>
+        <span style={{ color: 'var(--faint)', fontWeight: 600, fontSize: '12px', padding: '0 6px' }}>vs</span>
         <select
           value={compareMode}
           onChange={(e) => setCompareMode(e.target.value)}
           style={{
-            background: '#18181c', border: '1px solid #232328', color: '#d4d4d8',
+            background: 'var(--card)', border: '1px solid #232328', color: 'var(--text)',
             padding: '5px 10px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer',
             fontFamily: 'inherit',
           }}
         >
           {COMPARE_MODES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
         </select>
-        <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#707070' }}>
+        <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--faint)' }}>
           {result.scope.videoCount} videos in scope
           {compareMode === 'platform' && result.baseline ? ` · ${result.baseline.videoCount} in baseline` : ''}
         </span>
@@ -124,7 +120,7 @@ export default function PatternsLens({ scope, refreshKey = 0 }) {
 
       {/* Outliers */}
       <Panel
-        title="↗ Outliers"
+        title="Outliers"
         subtitle={`videos > 2× their channel's median (last ${scope.windowDays || 90} days). Proof points for pitch decks.`}
         style={{ marginTop: '16px' }}
       >
@@ -137,6 +133,43 @@ export default function PatternsLens({ scope, refreshKey = 0 }) {
 // ───────────────────────────────────────────
 // Subcomponents
 // ───────────────────────────────────────────
+/**
+ * Diverging lift bar — the visual verdict on a pattern. Center line is
+ * the scope median; lime grows right for lift, impact red grows left
+ * for drag. Width is √-scaled so a +300% outlier doesn't flatten every
+ * honest +20% into invisibility.
+ */
+function LiftBar({ lift }) {
+  const W = 150, HALF = W / 2;
+  if (lift == null) {
+    return <div style={{ width: W, height: 14, position: 'relative' }}>
+      <div style={{ position: 'absolute', left: HALF, top: 0, bottom: 0, width: 1, background: 'var(--outline-variant)' }} />
+    </div>;
+  }
+  const pct = (lift - 1) * 100;
+  const flat = Math.abs(pct) < 5;
+  const mag = Math.min(Math.sqrt(Math.abs(pct) / 150), 1) * (HALF - 4);
+  const positive = pct > 0;
+  return (
+    <div style={{ width: W, height: 14, position: 'relative' }} aria-hidden="true">
+      <div style={{ position: 'absolute', left: HALF, top: 0, bottom: 0, width: 1, background: 'var(--outline-variant)' }} />
+      {!flat && (
+        <div style={{
+          position: 'absolute', top: 3, bottom: 3,
+          left: positive ? HALF + 1 : HALF - mag,
+          width: mag,
+          background: positive ? 'var(--pos)' : 'var(--neg)',
+          opacity: 0.85,
+          borderRadius: positive ? '0 3px 3px 0' : '3px 0 0 3px',
+        }} />
+      )}
+      {flat && (
+        <div style={{ position: 'absolute', top: '50%', left: HALF, transform: 'translate(-50%, -50%)', width: 5, height: 5, borderRadius: '50%', background: 'var(--outline)' }} />
+      )}
+    </div>
+  );
+}
+
 function TitlePatternsTable({ patterns, compare }) {
   // Sort by views lift descending — what WORKS bubbles up first. Patterns
   // with no lift signal (small sample) sort by frequency.
@@ -151,6 +184,7 @@ function TitlePatternsTable({ patterns, compare }) {
       <thead>
         <tr style={{ background: 'transparent' }}>
           <Th>Pattern</Th>
+          <Th title="Median views vs the scope median — lime right = working, red left = dragging">Lift vs median</Th>
           <Th align="right">Freq</Th>
           <Th align="right">Median views</Th>
           <Th align="right" title="Median views for videos using this pattern, compared to the scope median across all videos">Views lift</Th>
@@ -164,6 +198,7 @@ function TitlePatternsTable({ patterns, compare }) {
           return (
             <tr key={p.id} style={{ borderBottom: '1px solid #1c1c20' }}>
               <Td>{p.label}</Td>
+              <Td><LiftBar lift={p.viewsLift} /></Td>
               <Td align="right">{(p.freq * 100).toFixed(0)}%</Td>
               <Td align="right">{p.medianViews != null ? formatNumber(p.medianViews) : '—'}</Td>
               <Td align="right"><ViewsLiftBadge lift={p.viewsLift} count={p.count} confidence={p.confidence} /></Td>
@@ -185,15 +220,15 @@ function TitlePatternsTable({ patterns, compare }) {
 
 function ViewsLiftBadge({ lift, count, confidence }) {
   if (lift == null) {
-    return <span style={{ fontSize: 10, color: '#555' }} title={`n=${count} — too small for lift signal`}>n/a</span>;
+    return <span style={{ fontSize: 10, color: 'var(--faint)' }} title={`n=${count} — too small for lift signal`}>n/a</span>;
   }
   const pct = Math.round((lift - 1) * 100);
   const positive = pct > 0;
   const flat = Math.abs(pct) < 5;
   const isDirectional = confidence === 'directional';
-  const baseColor = flat ? '#888' : positive ? '#34d399' : '#f87171';
+  const baseColor = flat ? 'var(--outline)' : positive ? 'var(--pos-text)' : 'var(--neg-text)';
   // Dim directional badges so they read as "real, but treat with caution"
-  const color = isDirectional ? (positive ? '#a78bfa' : '#fbbf24') : baseColor;
+  const color = isDirectional ? (positive ? 'var(--accent-text)' : 'var(--warn-text)') : baseColor;
   const label = flat ? '— flat' : positive ? `+${pct}%` : `${pct}%`;
   const tooltip = isDirectional
     ? `${lift.toFixed(2)}× scope median (n=${count}, directional — small sample)`
@@ -206,8 +241,8 @@ function ViewsLiftBadge({ lift, count, confidence }) {
       {isDirectional && (
         <span style={{
           fontSize: 8, fontWeight: 700, letterSpacing: '0.5px',
-          color: '#a78bfa', background: 'rgba(167,139,250,0.10)',
-          border: '1px solid rgba(167,139,250,0.30)',
+          color: 'var(--accent-text)', background: 'rgba(76,214,255,0.10)',
+          border: '1px solid rgba(76,214,255,0.30)',
           padding: '0 4px', borderRadius: 3, textTransform: 'uppercase',
         }}>dir</span>
       )}
@@ -221,7 +256,7 @@ function LiftBadges({ freqLift, engLift }) {
       {engLift && (
         <span style={{
           fontSize: '11px', fontWeight: 600,
-          color: engLift.direction === 'pos' ? '#34d399' : engLift.direction === 'neg' ? '#f87171' : '#707070',
+          color: engLift.direction === 'pos' ? "var(--pos-text)" : engLift.direction === 'neg' ? "var(--neg-text)" : 'var(--faint)',
         }}>
           {engLift.direction === 'pos' && '▲ '}
           {engLift.direction === 'neg' && '▼ '}
@@ -231,14 +266,14 @@ function LiftBadges({ freqLift, engLift }) {
       {freqLift && (
         <span style={{
           fontSize: '10px', fontWeight: 500,
-          color: freqLift.direction === 'pos' ? '#22c55e' : freqLift.direction === 'neg' ? '#dc2626' : '#666',
+          color: freqLift.direction === 'pos' ? "var(--pos)" : freqLift.direction === 'neg' ? "var(--neg-deep)" : 'var(--faint)',
         }}>
           {freqLift.direction === 'pos' && '▲ '}
           {freqLift.direction === 'neg' && '▼ '}
           {freqLift.direction === 'flat' ? '— freq' : `freq ${Math.abs(freqLift.pct).toFixed(0)}%`}
         </span>
       )}
-      {!engLift && !freqLift && <span style={{ color: '#555', fontSize: '11px' }}>—</span>}
+      {!engLift && !freqLift && <span style={{ color: 'var(--faint)', fontSize: '11px' }}>—</span>}
     </div>
   );
 }
@@ -248,32 +283,32 @@ function FormatMix({ scope, baseline }) {
     <div>
       {/* Shorts vs long bar */}
       <div style={{ marginBottom: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#aaa', marginBottom: '6px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--muted)', marginBottom: '6px' }}>
           <span>Scope</span>
           <span>
-            <b style={{ color: '#fff' }}>{Math.round(scope.longsFreq * 100)}%</b> long-form ·{' '}
-            <b style={{ color: '#fff' }}>{Math.round(scope.shortsFreq * 100)}%</b> Shorts
+            <b style={{ color: "var(--ink)" }}>{Math.round(scope.longsFreq * 100)}%</b> long-form ·{' '}
+            <b style={{ color: "var(--ink)" }}>{Math.round(scope.shortsFreq * 100)}%</b> Shorts
           </span>
         </div>
-        <div style={{ display: 'flex', height: '12px', borderRadius: '4px', overflow: 'hidden', background: '#1c1c20' }}>
-          <div style={{ width: `${scope.longsFreq * 100}%`, background: '#0ea5e9' }} />
-          <div style={{ width: `${scope.shortsFreq * 100}%`, background: '#f97316' }} />
+        <div style={{ display: 'flex', height: '12px', borderRadius: '6px', overflow: 'hidden', background: 'var(--input-bg)' }}>
+          <div style={{ width: `${scope.longsFreq * 100}%`, background: 'var(--fmt-long)' }} />
+          <div style={{ width: `${scope.shortsFreq * 100}%`, background: 'var(--fmt-shorts)' }} />
         </div>
         {baseline && (
-          <div style={{ fontSize: '11px', color: '#888', marginTop: '6px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--outline)', marginTop: '6px' }}>
             Baseline: {Math.round(baseline.longsFreq * 100)}% long / {Math.round(baseline.shortsFreq * 100)}% Shorts
             {' · '}
             {scope.shortsFreq > baseline.shortsFreq + 0.05
-              ? <span style={{ color: '#fb923c' }}>scope leans more Shorts-heavy</span>
+              ? <span style={{ color: "var(--warn)" }}>scope leans more Shorts-heavy</span>
               : scope.shortsFreq < baseline.shortsFreq - 0.05
-                ? <span style={{ color: '#38bdf8' }}>scope leans more long-form-heavy</span>
-                : <span style={{ color: '#888' }}>similar mix to baseline</span>}
+                ? <span style={{ color: 'var(--accent-text)' }}>scope leans more long-form-heavy</span>
+                : <span style={{ color: 'var(--outline)' }}>similar mix to baseline</span>}
           </div>
         )}
       </div>
 
       {/* Length buckets */}
-      <div style={{ fontSize: '11px', color: '#666', fontWeight: 600, letterSpacing: '0.7px', textTransform: 'uppercase', marginBottom: '8px' }}>
+      <div style={{ fontSize: '11px', color: 'var(--faint)', fontWeight: 600, letterSpacing: '0.7px', textTransform: 'uppercase', marginBottom: '8px' }}>
         Long-form length distribution
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
@@ -286,14 +321,28 @@ function FormatMix({ scope, baseline }) {
           </tr>
         </thead>
         <tbody>
-          {scope.buckets.map(b => (
-            <tr key={b.id} style={{ borderBottom: '1px solid #1c1c20' }}>
-              <Td>{b.label}</Td>
-              <Td align="right">{b.count}</Td>
-              <Td align="right">{(b.freq * 100).toFixed(0)}%</Td>
-              <Td align="right">{b.medianViews != null ? formatNumber(b.medianViews) : '—'}</Td>
-            </tr>
-          ))}
+          {(() => {
+            const maxMed = Math.max(...scope.buckets.map(b => b.medianViews || 0), 1);
+            return scope.buckets.map(b => (
+              <tr key={b.id} style={{ borderBottom: '1px solid #1c1c20' }}>
+                <Td>{b.label}</Td>
+                <Td align="right">{b.count}</Td>
+                <Td align="right">{(b.freq * 100).toFixed(0)}%</Td>
+                <Td align="right">
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 110, height: 7, background: 'var(--input-bg)', borderRadius: 4, overflow: 'hidden' }} aria-hidden="true">
+                      {b.medianViews != null && (
+                        <div style={{ width: `${Math.max((b.medianViews / maxMed) * 100, 2)}%`, height: '100%', background: 'var(--fmt-long)', borderRadius: 4 }} />
+                      )}
+                    </div>
+                    <span style={{ minWidth: 52, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      {b.medianViews != null ? formatNumber(b.medianViews) : '—'}
+                    </span>
+                  </div>
+                </Td>
+              </tr>
+            ));
+          })()}
         </tbody>
       </table>
     </div>
@@ -302,7 +351,7 @@ function FormatMix({ scope, baseline }) {
 
 function OutlierList({ outliers }) {
   if (!outliers?.length) {
-    return <div style={{ padding: '20px', color: '#666', fontSize: '12px', textAlign: 'center' }}>
+    return <div style={{ padding: '20px', color: 'var(--faint)', fontSize: '12px', textAlign: 'center' }}>
       No outliers in this window. Channels need ≥5 videos for outlier detection.
     </div>;
   }
@@ -331,14 +380,14 @@ function OutlierList({ outliers }) {
         <OutlierThumb video={o} suspect={suspect} />
         <div style={{ overflow: 'hidden' }}>
           <div style={{
-            fontSize: '13px', color: '#fff', fontWeight: 600, lineHeight: 1.4,
+            fontSize: '13px', color: "var(--ink)", fontWeight: 600, lineHeight: 1.4,
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             display: 'flex', alignItems: 'center', gap: 6,
           }}>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.title}</span>
             {suspect && <SuspectBadge ratio={o.engagementRatio} />}
           </div>
-          <div style={{ fontSize: '11px', color: '#888', marginTop: '3px', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: '11px', color: 'var(--outline)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: 6 }}>
             {o.channel.thumbnailUrl && (
               <img
                 src={o.channel.thumbnailUrl}
@@ -348,19 +397,19 @@ function OutlierList({ outliers }) {
                 style={{ width: 14, height: 14, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
               />
             )}
-            <span><b style={{ color: '#d4d4d4' }}>{o.channel.name}</b> · {formatNumber(o.views)} views
+            <span><b style={{ color: 'var(--text)' }}>{o.channel.name}</b> · {formatNumber(o.views)} views
             {o.engagement != null && (
-              <> · <span style={{ color: suspect ? '#f87171' : '#888' }}>{(o.engagement * 100).toFixed(1)}% engagement</span></>
+              <> · <span style={{ color: suspect ? "var(--neg-text)" : 'var(--outline)' }}>{(o.engagement * 100).toFixed(1)}% engagement</span></>
             )}
             {' · '}{formatRelative(o.publishedAt)}</span>
           </div>
         </div>
         <div style={{
           fontSize: '14px', fontWeight: 700,
-          color: suspect ? '#9ca3af' : '#34d399',
-          background: suspect ? 'rgba(156,163,175,0.08)' : 'rgba(16,185,129,0.10)',
+          color: suspect ? 'var(--muted)' : "var(--pos-text)",
+          background: suspect ? 'rgba(156,163,175,0.08)' : 'rgba(205,242,0,0.10)',
           padding: '4px 10px', borderRadius: '6px',
-          border: `1px solid ${suspect ? 'rgba(156,163,175,0.2)' : 'rgba(16,185,129,0.25)'}`,
+          border: `1px solid ${suspect ? 'rgba(156,163,175,0.2)' : 'rgba(205,242,0,0.25)'}`,
           whiteSpace: 'nowrap',
         }}>
           {o.multiplier.toFixed(1)}× median
@@ -374,7 +423,7 @@ function SuspectBadge({ ratio }) {
   return (
     <span style={{
       fontSize: 9, fontWeight: 700,
-      color: '#fbbf24', background: 'rgba(251,191,36,0.10)',
+      color: "var(--warn-text)", background: 'rgba(251,191,36,0.10)',
       border: '1px solid rgba(251,191,36,0.30)',
       padding: '2px 6px', borderRadius: 3,
       textTransform: 'uppercase', letterSpacing: '0.4px',
@@ -389,8 +438,8 @@ function OutlierThumb({ video, suspect }) {
   const w = 96, h = 54;
   const wrapStyle = {
     width: w, height: h, borderRadius: 6, overflow: 'hidden',
-    background: '#18181c',
-    border: `1px solid ${suspect ? 'rgba(251,191,36,0.35)' : '#232328'}`,
+    background: 'var(--card)',
+    border: `1px solid ${suspect ? 'rgba(251,191,36,0.35)' : 'var(--surface-high)'}`,
     flexShrink: 0,
   };
   if (!video.thumbnailUrl) return <div style={wrapStyle} />;
@@ -413,15 +462,15 @@ function OutlierThumb({ video, suspect }) {
 function Panel({ title, subtitle, children, style }) {
   return (
     <div style={{
-      background: '#131316', border: '1px solid #1f1f24',
+      background: 'var(--bg)', border: '1px solid #1f1f24',
       borderRadius: '10px', padding: '18px 20px',
       ...(style || {}),
     }}>
-      <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginBottom: subtitle ? '4px' : '14px' }}>
+      <div style={{ fontSize: '13px', fontWeight: 700, color: "var(--ink)", marginBottom: subtitle ? '4px' : '14px' }}>
         {title}
       </div>
       {subtitle && (
-        <div style={{ fontSize: '11px', color: '#707070', marginBottom: '14px' }}>
+        <div style={{ fontSize: '11px', color: 'var(--faint)', marginBottom: '14px' }}>
           {subtitle}
         </div>
       )}
@@ -437,7 +486,7 @@ function Th({ children, align = 'left' }) {
       textAlign: align,
       fontSize: '10px',
       fontWeight: 700,
-      color: '#707070',
+      color: 'var(--faint)',
       letterSpacing: '0.7px',
       textTransform: 'uppercase',
       borderBottom: '1px solid #1f1f24',
@@ -450,7 +499,7 @@ function Td({ children, align = 'left' }) {
     <td style={{
       padding: '11px 10px',
       textAlign: align,
-      color: '#d4d4d4',
+      color: 'var(--text)',
       fontVariantNumeric: 'tabular-nums',
     }}>{children}</td>
   );
@@ -459,13 +508,13 @@ function Td({ children, align = 'left' }) {
 function SmallLabel({ children }) {
   return <span style={{
     fontSize: '10px', fontWeight: 700, letterSpacing: '1.2px',
-    color: '#555', textTransform: 'uppercase', marginRight: '2px',
+    color: 'var(--faint)', textTransform: 'uppercase', marginRight: '2px',
   }}>{children}</span>;
 }
 
 function Spinner({ label }) {
   return (
-    <div style={{ padding: '60px', textAlign: 'center', color: '#666' }}>
+    <div style={{ padding: '60px', textAlign: 'center', color: 'var(--faint)' }}>
       <Loader size={20} style={{ animation: 'spin 1s linear infinite' }} />
       <div style={{ marginTop: '8px', fontSize: '12px' }}>{label}</div>
     </div>
@@ -474,9 +523,9 @@ function Spinner({ label }) {
 
 function EmptyState() {
   return (
-    <div style={{ padding: '60px 20px', textAlign: 'center', color: '#888', background: '#131316', border: '1px solid #1f1f24', borderRadius: '10px' }}>
-      <div style={{ fontSize: '15px', color: '#fff', marginBottom: '8px' }}>No videos in this scope</div>
-      <div style={{ fontSize: '12px', color: '#666', maxWidth: '380px', margin: '0 auto', lineHeight: 1.6 }}>
+    <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--outline)', background: 'var(--bg)', border: '1px solid #1f1f24', borderRadius: '10px' }}>
+      <div style={{ fontSize: '15px', color: "var(--ink)", marginBottom: '8px' }}>No videos in this scope</div>
+      <div style={{ fontSize: '12px', color: 'var(--faint)', maxWidth: '380px', margin: '0 auto', lineHeight: 1.6 }}>
         Either no channels are tagged for this scope, or no videos were published in the selected window.
         Try expanding the window or removing filters.
       </div>
@@ -488,10 +537,10 @@ function pillStyle(active) {
   return {
     display: 'inline-flex', alignItems: 'center', gap: '6px',
     padding: '5px 11px', borderRadius: '6px',
-    background: active ? '#1e3a8a' : '#1c1c20',
-    border: `1px solid ${active ? '#2563eb' : '#2a2a30'}`,
+    background: active ? 'var(--blue-deep)' : 'var(--card)',
+    border: `1px solid ${active ? 'var(--blue)' : 'var(--outline-variant)'}`,
     fontSize: '12px',
-    color: active ? '#fff' : '#c0c0c0',
+    color: active ? 'var(--ink)' : 'var(--muted)',
   };
 }
 

@@ -1,19 +1,19 @@
 export default function TermsOfService() {
   const sectionStyle = { marginBottom: "32px" };
-  const h2Style = { fontSize: "18px", fontWeight: "700", marginBottom: "12px", color: "#E0E0E0" };
-  const pStyle = { fontSize: "14px", color: "#BDBDBD", lineHeight: "1.7", marginBottom: "12px" };
-  const ulStyle = { fontSize: "14px", color: "#BDBDBD", lineHeight: "1.8", paddingLeft: "24px", marginBottom: "12px" };
+  const h2Style = { fontSize: "18px", fontWeight: "700", marginBottom: "12px", color: "var(--text)" };
+  const pStyle = { fontSize: "14px", color: "var(--muted)", lineHeight: "1.7", marginBottom: "12px" };
+  const ulStyle = { fontSize: "14px", color: "var(--muted)", lineHeight: "1.8", paddingLeft: "24px", marginBottom: "12px" };
 
   return (
     <div style={{
       minHeight: "100vh",
-      background: "#181817",
-      color: "#E0E0E0",
+      background: "var(--bg)",
+      color: "var(--text)",
       padding: "0",
     }}>
       {/* Header */}
       <div style={{
-        borderBottom: "1px solid #333",
+        borderBottom: "1px solid var(--border)",
         padding: "24px 40px",
         display: "flex",
         alignItems: "center",
@@ -30,7 +30,7 @@ export default function TermsOfService() {
         padding: "48px 40px 80px",
       }}>
         <h1 style={{ fontSize: "32px", fontWeight: "800", marginBottom: "8px" }}>Terms of Service</h1>
-        <p style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "40px" }}>
+        <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "40px" }}>
           Last updated: March 20, 2026
         </p>
 
@@ -75,10 +75,10 @@ export default function TermsOfService() {
             When you connect your YouTube channel to Full View Studio:
           </p>
           <ul style={ulStyle}>
-            <li>You authorize us to access your YouTube data in accordance with our <a href="/privacy" style={{ color: "#60a5fa" }}>Privacy Policy</a></li>
+            <li>You authorize us to access your YouTube data in accordance with our <a href="/privacy" style={{ color: "var(--accent-text)" }}>Privacy Policy</a></li>
             <li>You represent that you have the authority to grant access to the YouTube channel(s) you connect</li>
-            <li>You may revoke access at any time through the App settings or your <a href="https://myaccount.google.com/permissions" style={{ color: "#60a5fa" }}>Google Account permissions</a></li>
-            <li>Our use of YouTube data is subject to <a href="https://www.youtube.com/t/terms" style={{ color: "#60a5fa" }}>YouTube's Terms of Service</a> and <a href="https://policies.google.com/privacy" style={{ color: "#60a5fa" }}>Google's Privacy Policy</a></li>
+            <li>You may revoke access at any time through the App settings or your <a href="https://myaccount.google.com/permissions" style={{ color: "var(--accent-text)" }}>Google Account permissions</a></li>
+            <li>Our use of YouTube data is subject to <a href="https://www.youtube.com/t/terms" style={{ color: "var(--accent-text)" }}>YouTube's Terms of Service</a> and <a href="https://policies.google.com/privacy" style={{ color: "var(--accent-text)" }}>Google's Privacy Policy</a></li>
           </ul>
         </div>
 
@@ -133,7 +133,7 @@ export default function TermsOfService() {
           <ul style={ulStyle}>
             <li>You may stop using the App and request account deletion at any time by contacting us</li>
             <li>We may suspend or terminate your access if you violate these terms or engage in activity that harms the service or other users</li>
-            <li>Upon termination, your right to use the App ceases immediately. Data deletion will follow the process described in our <a href="/privacy" style={{ color: "#60a5fa" }}>Privacy Policy</a></li>
+            <li>Upon termination, your right to use the App ceases immediately. Data deletion will follow the process described in our <a href="/privacy" style={{ color: "var(--accent-text)" }}>Privacy Policy</a></li>
           </ul>
         </div>
 
@@ -158,7 +158,7 @@ export default function TermsOfService() {
           </p>
           <p style={pStyle}>
             <strong>Crux Media</strong><br />
-            Email: <a href="mailto:security@crux.media" style={{ color: "#60a5fa" }}>security@crux.media</a>
+            Email: <a href="mailto:security@crux.media" style={{ color: "var(--accent-text)" }}>security@crux.media</a>
           </p>
         </div>
       </div>

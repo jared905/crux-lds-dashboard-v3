@@ -10,9 +10,6 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
-  Search,
-  AlertTriangle,
-  Zap,
   Eye,
   MessageCircle,
   ThumbsUp,
@@ -36,21 +33,20 @@ import {
   Tooltip,
   ScatterChart,
   Scatter,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
   ReferenceLine,
   CartesianGrid,
   Legend,
 } from "recharts";
-import AuditPDFExport from "./AuditPDFExport";
-import AuditReportBuilder from "./AuditReportBuilder";
-import OutreachBuilder from "./OutreachBuilder";
-import AuditCompetitiveBenchmark from "./AuditCompetitiveBenchmark";
-import AuditLandscapeAnalysis from "./AuditLandscapeAnalysis";
-import { categorizeVideos, getQuadrantBreakdown } from "../../services/videoCategorizationService";
+import { categorizeVideos } from "../../services/videoCategorizationService";
+import { AlertTriangle, Zap } from 'lucide-react';
+import { PolarAngleAxis, PolarGrid, RadarChart } from 'recharts';
+import AuditCompetitiveBenchmark from './AuditCompetitiveBenchmark.jsx';
+import AuditLandscapeAnalysis from './AuditLandscapeAnalysis.jsx';
+import AuditPDFExport from './AuditPDFExport.jsx';
+import AuditReportBuilder from './AuditReportBuilder.jsx';
+import OutreachBuilder from './OutreachBuilder.jsx';
 
 const BASE_TABS = [
   { id: "summary", label: "Summary", icon: FileText },
@@ -65,20 +61,20 @@ const BASE_TABS = [
 ];
 
 const TREND_ICONS = {
-  growing: { Icon: TrendingUp, color: "#22c55e" },
-  declining: { Icon: TrendingDown, color: "#ef4444" },
-  stable: { Icon: Minus, color: "#9E9E9E" },
-  new: { Icon: TrendingUp, color: "#3b82f6" },
+  growing: { Icon: TrendingUp, color: "var(--pos)" },
+  declining: { Icon: TrendingDown, color: "var(--neg)" },
+  stable: { Icon: Minus, color: "var(--muted)" },
+  new: { Icon: TrendingUp, color: "var(--blue)" },
 };
 
 const COLORS = {
-  primary: "#3b82f6",
-  success: "#22c55e",
-  warning: "#f59e0b",
-  danger: "#ef4444",
-  purple: "#8b5cf6",
-  pink: "#ec4899",
-  gray: "#6b7280",
+  primary: "var(--blue)",
+  success: "var(--pos)",
+  warning: "var(--warn)",
+  danger: "var(--neg)",
+  purple: "var(--blue-deep)",
+  pink: "var(--neg-text)",
+  gray: "var(--faint)",
 };
 
 export default function AuditResults({ audit, onBack }) {
@@ -92,7 +88,7 @@ export default function AuditResults({ audit, onBack }) {
   const opportunities = audit.opportunities || {};
   const recommendations = audit.recommendations || {};
   const summary = audit.executive_summary || "";
-  const videos = audit.videos || [];
+  const videos = useMemo(() => audit.videos || [], [audit.videos]);
   const competitorData = audit.competitor_data;
   const landscapeData = audit.landscape_data;
 
@@ -129,10 +125,6 @@ export default function AuditResults({ audit, onBack }) {
     return categorizeVideos(videos);
   }, [videos]);
 
-  const quadrants = useMemo(() => {
-    if (!videoAnalysis?.categorized) return null;
-    return getQuadrantBreakdown(videoAnalysis.categorized);
-  }, [videoAnalysis]);
 
   // Calculate date range from videos
   const videoDateRange = useMemo(() => {
@@ -150,9 +142,9 @@ export default function AuditResults({ audit, onBack }) {
 
   // Card style helper
   const card = (extra = {}) => ({
-    background: "#1E1E1E",
+    background: "var(--card)",
     borderRadius: "8px",
-    border: "1px solid #333",
+    border: "1px solid var(--border)",
     padding: "24px",
     ...extra,
   });
@@ -160,7 +152,7 @@ export default function AuditResults({ audit, onBack }) {
   const sectionTitle = (text, subtitle) => (
     <div style={{ marginBottom: "16px" }}>
       <div style={{ fontSize: "16px", fontWeight: "700" }}>{text}</div>
-      {subtitle && <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "4px" }}>{subtitle}</div>}
+      {subtitle && <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>{subtitle}</div>}
     </div>
   );
 
@@ -182,7 +174,7 @@ export default function AuditResults({ audit, onBack }) {
               display: "flex", alignItems: "center", gap: "6px",
               padding: "8px 14px", background: "transparent",
               border: "1px solid #444", borderRadius: "8px",
-              color: "#9E9E9E", cursor: "pointer", fontSize: "13px",
+              color: "var(--muted)", cursor: "pointer", fontSize: "13px",
             }}
           >
             <ArrowLeft size={16} />
@@ -192,7 +184,7 @@ export default function AuditResults({ audit, onBack }) {
             <h2 style={{ fontSize: "20px", fontWeight: "700", margin: 0 }}>
               Audit: {snapshot.name || "Channel"}
             </h2>
-            <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "4px" }}>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>
               {new Date(audit.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
               {audit.total_cost > 0 && ` · Cost: $${parseFloat(audit.total_cost).toFixed(3)}`}
             </div>
@@ -204,9 +196,9 @@ export default function AuditResults({ audit, onBack }) {
               onClick={() => setShowReportBuilder(true)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '8px 14px', background: 'rgba(59,130,246,0.15)',
-                border: '1px solid #3b82f6', borderRadius: '8px',
-                color: '#60a5fa', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+                padding: '8px 14px', background: 'rgba(0,209,255,0.15)',
+                border: '1px solid #00D1FF', borderRadius: '8px',
+                color: 'var(--accent-text)', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
               }}
             >
               <FileText size={14} /> Edit Report
@@ -238,9 +230,9 @@ export default function AuditResults({ audit, onBack }) {
             style={{
               display: "flex", alignItems: "center", gap: "6px",
               padding: "8px 16px", borderRadius: "8px",
-              background: activeTab === id ? "rgba(41, 98, 255, 0.15)" : "transparent",
-              border: activeTab === id ? "1px solid #2962FF" : "1px solid transparent",
-              color: activeTab === id ? "#60a5fa" : "#9E9E9E",
+              background: activeTab === id ? "rgba(0, 209, 255, 0.15)" : "transparent",
+              border: activeTab === id ? "1px solid var(--blue)" : "1px solid transparent",
+              color: activeTab === id ? "var(--accent-text)" : "var(--muted)",
               cursor: "pointer", fontSize: "13px", fontWeight: "600",
               whiteSpace: "nowrap",
             }}
@@ -250,7 +242,7 @@ export default function AuditResults({ audit, onBack }) {
             {id === "insights" && videoAnalysis?.summary?.investigateCount > 0 && (
               <span style={{
                 background: COLORS.warning,
-                color: "#000",
+                color: "var(--bg)",
                 fontSize: "10px",
                 fontWeight: "700",
                 padding: "2px 6px",
@@ -271,11 +263,11 @@ export default function AuditResults({ audit, onBack }) {
           <div style={card()}>
             <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
               {snapshot.thumbnail_url && (
-                <img src={snapshot.thumbnail_url} alt="" style={{ width: "56px", height: "56px", borderRadius: "50%", border: "2px solid #333" }} />
+                <img src={snapshot.thumbnail_url} alt="" style={{ width: "56px", height: "56px", borderRadius: "50%", border: "2px solid var(--border)" }} />
               )}
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: "20px", fontWeight: "700" }}>{snapshot.name || "Channel"}</div>
-                <div style={{ fontSize: "13px", color: "#9E9E9E", marginTop: "4px" }}>
+                <div style={{ fontSize: "13px", color: "var(--muted)", marginTop: "4px" }}>
                   {new Date(audit.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
                   {" · "}{videos.length} videos analyzed
                   {videoDateRange && (
@@ -290,10 +282,10 @@ export default function AuditResults({ audit, onBack }) {
                 {audit.audit_type && (
                   <div style={{
                     padding: "6px 14px",
-                    background: audit.audit_type === "prospect" ? "rgba(139, 92, 246, 0.15)" : "rgba(59, 130, 246, 0.15)",
-                    border: `1px solid ${audit.audit_type === "prospect" ? "#8b5cf6" : "#3b82f6"}`,
+                    background: audit.audit_type === "prospect" ? "rgba(0, 209, 255, 0.15)" : "rgba(0, 209, 255, 0.15)",
+                    border: `1px solid ${audit.audit_type === "prospect" ? "var(--blue-deep)" : "var(--blue)"}`,
                     borderRadius: "20px",
-                    color: audit.audit_type === "prospect" ? "#8b5cf6" : "#3b82f6",
+                    color: audit.audit_type === "prospect" ? "var(--blue-deep)" : "var(--blue)",
                     fontWeight: "600", fontSize: "12px",
                   }}>
                     {audit.audit_type === "prospect" ? "Prospect" : "Baseline"}
@@ -340,7 +332,7 @@ export default function AuditResults({ audit, onBack }) {
             </div>
 
             <div style={card()}>
-              {sectionTitle("At a Glance")}
+              {sectionTitle("Snapshot")}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 <GlanceItem icon={Layers} label="Series Detected" value={series.total_series || 0} color={COLORS.primary} />
                 <GlanceItem icon={Lightbulb} label="Content Gaps" value={(opportunities.content_gaps || []).length} color={COLORS.purple} />
@@ -368,41 +360,41 @@ export default function AuditResults({ audit, onBack }) {
             <div style={card()}>
               {sectionTitle("Recommendations Overview")}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
-                <div style={{ borderTop: `3px solid ${COLORS.danger}`, background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "14px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
-                    <span style={{ fontSize: "14px" }}>🛑</span>
+                    <span style={{ fontSize: "14px" }}></span>
                     <span style={{ fontSize: "13px", fontWeight: "700", color: COLORS.danger }}>Stop ({(recommendations.stop || []).length})</span>
                   </div>
                   {(recommendations.stop || []).slice(0, 3).map((r, i) => (
-                    <div key={i} style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "6px", paddingLeft: "8px", borderLeft: "2px solid #333" }}>
+                    <div key={i} style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "6px", paddingLeft: "8px", borderLeft: "2px solid var(--border)" }}>
                       {r.action}
                     </div>
                   ))}
-                  {!(recommendations.stop || []).length && <div style={{ fontSize: "12px", color: "#555" }}>None</div>}
+                  {!(recommendations.stop || []).length && <div style={{ fontSize: "12px", color: "var(--faint)" }}>None</div>}
                 </div>
-                <div style={{ borderTop: `3px solid ${COLORS.success}`, background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "14px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
-                    <span style={{ fontSize: "14px" }}>🚀</span>
+                    <span style={{ fontSize: "14px" }}></span>
                     <span style={{ fontSize: "13px", fontWeight: "700", color: COLORS.success }}>Start ({(recommendations.start || []).length})</span>
                   </div>
                   {(recommendations.start || []).slice(0, 3).map((r, i) => (
-                    <div key={i} style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "6px", paddingLeft: "8px", borderLeft: "2px solid #333" }}>
+                    <div key={i} style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "6px", paddingLeft: "8px", borderLeft: "2px solid var(--border)" }}>
                       {r.action}
                     </div>
                   ))}
-                  {!(recommendations.start || []).length && <div style={{ fontSize: "12px", color: "#555" }}>None</div>}
+                  {!(recommendations.start || []).length && <div style={{ fontSize: "12px", color: "var(--faint)" }}>None</div>}
                 </div>
-                <div style={{ borderTop: `3px solid ${COLORS.warning}`, background: "#252525", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "14px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
-                    <span style={{ fontSize: "14px" }}>⚡</span>
+                    <span style={{ fontSize: "14px" }}></span>
                     <span style={{ fontSize: "13px", fontWeight: "700", color: COLORS.warning }}>Optimize ({(recommendations.optimize || []).length})</span>
                   </div>
                   {(recommendations.optimize || []).slice(0, 3).map((r, i) => (
-                    <div key={i} style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "6px", paddingLeft: "8px", borderLeft: "2px solid #333" }}>
+                    <div key={i} style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "6px", paddingLeft: "8px", borderLeft: "2px solid var(--border)" }}>
                       {r.action}
                     </div>
                   ))}
-                  {!(recommendations.optimize || []).length && <div style={{ fontSize: "12px", color: "#555" }}>None</div>}
+                  {!(recommendations.optimize || []).length && <div style={{ fontSize: "12px", color: "var(--faint)" }}>None</div>}
                 </div>
               </div>
             </div>
@@ -410,27 +402,27 @@ export default function AuditResults({ audit, onBack }) {
 
           {/* 6. AI Executive Narrative */}
           {(typeof summary === "string" ? summary : summary?.summary) ? (
-            <div style={card({ borderLeft: "3px solid #3b82f6" })}>
+            <div style={card({ border: "1px solid var(--border)" })}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
                 <div style={{
                   width: "36px", height: "36px", borderRadius: "8px",
-                  background: "rgba(59, 130, 246, 0.15)",
+                  background: "rgba(0, 209, 255, 0.15)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
                   <FileText size={18} style={{ color: COLORS.primary }} />
                 </div>
                 <div>
                   <div style={{ fontSize: "16px", fontWeight: "700" }}>Executive Analysis</div>
-                  <div style={{ fontSize: "12px", color: "#9E9E9E" }}>AI-generated narrative summary</div>
+                  <div style={{ fontSize: "12px", color: "var(--muted)" }}>AI-generated narrative summary</div>
                 </div>
               </div>
               <div
-                style={{ fontSize: "14px", lineHeight: "1.8", color: "#E0E0E0" }}
+                style={{ fontSize: "14px", lineHeight: "1.8", color: "var(--text)" }}
                 dangerouslySetInnerHTML={{ __html: formatMarkdown(typeof summary === "string" ? summary : summary.summary) }}
               />
             </div>
           ) : (
-            <div style={{ ...card(), color: "#666", textAlign: "center", padding: "40px" }}>
+            <div style={{ ...card(), color: "var(--faint)", textAlign: "center", padding: "40px" }}>
               No executive summary available.
             </div>
           )}
@@ -448,7 +440,7 @@ export default function AuditResults({ audit, onBack }) {
               )}
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: "18px", fontWeight: "700" }}>{snapshot.name}</div>
-                <div style={{ fontSize: "13px", color: "#9E9E9E", marginTop: "2px" }}>
+                <div style={{ fontSize: "13px", color: "var(--muted)", marginTop: "2px" }}>
                   {snapshot.youtube_channel_id} · {snapshot.size_tier}
                 </div>
               </div>
@@ -479,16 +471,16 @@ export default function AuditResults({ audit, onBack }) {
           {videoDateRange && (
             <div style={{
               display: "flex", alignItems: "center", gap: "8px",
-              padding: "12px 16px", background: "rgba(59, 130, 246, 0.1)",
-              border: "1px solid rgba(59, 130, 246, 0.2)", borderRadius: "8px",
+              padding: "12px 16px", background: "rgba(0, 209, 255, 0.1)",
+              border: "1px solid rgba(0, 209, 255, 0.2)", borderRadius: "8px",
             }}>
               <Calendar size={16} style={{ color: COLORS.primary }} />
-              <span style={{ fontSize: "13px", color: "#9E9E9E" }}>
-                Analyzing <strong style={{ color: "#E0E0E0" }}>{videos.length} videos</strong> from{" "}
-                <strong style={{ color: "#E0E0E0" }}>
+              <span style={{ fontSize: "13px", color: "var(--muted)" }}>
+                Analyzing <strong style={{ color: "var(--text)" }}>{videos.length} videos</strong> from{" "}
+                <strong style={{ color: "var(--text)" }}>
                   {videoDateRange.oldest.toLocaleDateString("en-US", { month: "short", year: "numeric" })}
                 </strong>{" "}to{" "}
-                <strong style={{ color: "#E0E0E0" }}>
+                <strong style={{ color: "var(--text)" }}>
                   {videoDateRange.newest.toLocaleDateString("en-US", { month: "short", year: "numeric" })}
                 </strong>
               </span>
@@ -507,28 +499,28 @@ export default function AuditResults({ audit, onBack }) {
             <div style={card()}>
               {sectionTitle("90-Day Performance", "Recent upload activity")}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-                <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
-                  <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "6px" }}>Recent Videos</div>
+                <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
+                  <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "6px" }}>Recent Videos</div>
                   <div style={{ fontSize: "24px", fontWeight: "700", color: COLORS.primary, fontFamily: "'Barlow Condensed', sans-serif" }}>{snapshot.recent_videos_90d || 0}</div>
                 </div>
-                <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
-                  <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "6px" }}>Avg Views</div>
+                <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
+                  <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "6px" }}>Avg Views</div>
                   <div style={{ fontSize: "24px", fontWeight: "700", color: COLORS.success, fontFamily: "'Barlow Condensed', sans-serif" }}>{fmtNum(snapshot.avg_views_recent)}</div>
                 </div>
               </div>
-              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
+              <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "14px", textAlign: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", marginBottom: "6px" }}>
-                  <span style={{ fontSize: "11px", color: "#9E9E9E" }}>Avg Engagement Rate</span>
+                  <span style={{ fontSize: "11px", color: "var(--muted)" }}>Avg Engagement Rate</span>
                   <div style={{ position: "relative", display: "inline-block" }} className="engagement-tooltip">
-                    <Info size={12} style={{ color: "#666", cursor: "help" }} />
+                    <Info size={12} style={{ color: "var(--faint)", cursor: "help" }} />
                     <div className="tooltip-content" style={{
                       position: "absolute", bottom: "100%", left: "50%", transform: "translateX(-50%)",
-                      background: "#1E1E1E", border: "1px solid #444", borderRadius: "8px",
-                      padding: "12px", width: "220px", fontSize: "11px", color: "#9E9E9E",
+                      background: "var(--card)", border: "1px solid #444", borderRadius: "24px",
+                      padding: "12px", width: "220px", fontSize: "11px", color: "var(--muted)",
                       lineHeight: "1.5", zIndex: 100, display: "none", marginBottom: "8px",
                       boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
                     }}>
-                      <strong style={{ color: "#E0E0E0" }}>Engagement Rate</strong><br/>
+                      <strong style={{ color: "var(--text)" }}>Engagement Rate</strong><br/>
                       (Likes + Comments) ÷ Views<br/><br/>
                       Measures how actively viewers interact with content relative to how many saw it.
                     </div>
@@ -542,12 +534,12 @@ export default function AuditResults({ audit, onBack }) {
           {/* Engagement Definition Note */}
           <div style={{
             display: "flex", alignItems: "flex-start", gap: "10px",
-            padding: "14px 16px", background: "#252525", borderRadius: "8px",
-            fontSize: "12px", color: "#9E9E9E", lineHeight: "1.6",
+            padding: "14px 16px", background: "var(--input-bg)", borderRadius: "8px",
+            fontSize: "12px", color: "var(--muted)", lineHeight: "1.6",
           }}>
-            <Info size={16} style={{ color: "#666", flexShrink: 0, marginTop: "1px" }} />
+            <Info size={16} style={{ color: "var(--faint)", flexShrink: 0, marginTop: "1px" }} />
             <div>
-              <strong style={{ color: "#E0E0E0" }}>How we calculate Engagement Rate:</strong>{" "}
+              <strong style={{ color: "var(--text)" }}>How we calculate Engagement Rate:</strong>{" "}
               (Likes + Comments) ÷ Views. This measures how actively viewers interact with content.
               A higher rate suggests content resonates strongly with the audience.
             </div>
@@ -565,8 +557,8 @@ export default function AuditResults({ audit, onBack }) {
       {activeTab === "insights" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {!videoAnalysis || !videos.length ? (
-            <div style={{ ...card(), color: "#666", textAlign: "center", padding: "60px" }}>
-              <BarChart3 size={32} style={{ color: "#444", marginBottom: "12px" }} />
+            <div style={{ ...card(), color: "var(--faint)", textAlign: "center", padding: "60px" }}>
+              <BarChart3 size={32} style={{ color: "var(--outline-variant)", marginBottom: "12px" }} />
               <div>No video data available for analysis.</div>
             </div>
           ) : (() => {
@@ -580,16 +572,15 @@ export default function AuditResults({ audit, onBack }) {
               <div style={card()}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
                   <div style={{
-                    width: "48px", height: "48px", borderRadius: "14px",
-                    background: "linear-gradient(135deg, #3b82f6, #6366f1)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    boxShadow: "0 4px 16px rgba(59, 130, 246, 0.3)", flexShrink: 0,
+                    width: "44px", height: "44px", borderRadius: "12px",
+                    background: "rgba(0, 209, 255, 0.12)",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                   }}>
-                    <BarChart3 size={22} style={{ color: "#fff" }} />
+                    <BarChart3 size={22} style={{ color: "var(--accent-text)" }} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: "16px", fontWeight: "700" }}>Performance Snapshot</div>
-                    <div style={{ fontSize: "12px", color: "#9E9E9E" }}>
+                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>
                       {totalVideos} videos analyzed
                     </div>
                   </div>
@@ -598,26 +589,26 @@ export default function AuditResults({ audit, onBack }) {
                 <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: COLORS.success }} />
-                    <span style={{ fontSize: "13px", color: "#E0E0E0" }}><strong>{breakoutCount}</strong> <span style={{ color: "#9E9E9E" }}>breakout performers</span></span>
+                    <span style={{ fontSize: "13px", color: "var(--text)" }}><strong>{breakoutCount}</strong> <span style={{ color: "var(--muted)" }}>breakout performers</span></span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: COLORS.warning }} />
-                    <span style={{ fontSize: "13px", color: "#E0E0E0" }}><strong>{investigateCount}</strong> <span style={{ color: "#9E9E9E" }}>need attention</span></span>
+                    <span style={{ fontSize: "13px", color: "var(--text)" }}><strong>{investigateCount}</strong> <span style={{ color: "var(--muted)" }}>need attention</span></span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: "#333" }} />
-                    <span style={{ fontSize: "13px", color: "#E0E0E0" }}><strong>{normalCount}</strong> <span style={{ color: "#9E9E9E" }}>performing as expected</span></span>
+                    <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: "var(--outline-variant)" }} />
+                    <span style={{ fontSize: "13px", color: "var(--text)" }}><strong>{normalCount}</strong> <span style={{ color: "var(--muted)" }}>performing as expected</span></span>
                   </div>
                 </div>
 
                 {/* Stacked distribution bar */}
-                <div style={{ display: "flex", height: "28px", borderRadius: "8px", overflow: "hidden", background: "#252525" }}>
+                <div style={{ display: "flex", height: "28px", borderRadius: "8px", overflow: "hidden", background: "var(--input-bg)" }}>
                   {breakoutCount > 0 && (
                     <div style={{
                       width: `${(breakoutCount / totalVideos) * 100}%`,
                       background: COLORS.success,
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: "11px", fontWeight: "700", color: "#000",
+                      fontSize: "11px", fontWeight: "700", color: "var(--bg)",
                       minWidth: breakoutCount > 0 ? "24px" : "0",
                     }}>
                       {breakoutCount}
@@ -628,7 +619,7 @@ export default function AuditResults({ audit, onBack }) {
                       width: `${(investigateCount / totalVideos) * 100}%`,
                       background: COLORS.warning,
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: "11px", fontWeight: "700", color: "#000",
+                      fontSize: "11px", fontWeight: "700", color: "var(--bg)",
                       minWidth: investigateCount > 0 ? "24px" : "0",
                     }}>
                       {investigateCount}
@@ -636,9 +627,9 @@ export default function AuditResults({ audit, onBack }) {
                   )}
                   <div style={{
                     flex: 1,
-                    background: "#333",
+                    background: "var(--outline-variant)",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: "11px", fontWeight: "600", color: "#9E9E9E",
+                    fontSize: "11px", fontWeight: "600", color: "var(--muted)",
                   }}>
                     {normalCount}
                   </div>
@@ -650,16 +641,15 @@ export default function AuditResults({ audit, onBack }) {
                 <div style={card()}>
                   <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
                     <div style={{
-                      width: "48px", height: "48px", borderRadius: "14px",
-                      background: "linear-gradient(135deg, #22c55e, #10b981)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      boxShadow: "0 4px 16px rgba(34, 197, 94, 0.3)", flexShrink: 0,
+                      width: "44px", height: "44px", borderRadius: "12px",
+                      background: "var(--pos-bg)",
+                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                     }}>
-                      <Zap size={22} style={{ color: "#fff" }} />
+                      <Zap size={22} style={{ color: "var(--pos)" }} />
                     </div>
                     <div>
                       <div style={{ fontSize: "16px", fontWeight: "700" }}>Breakout Performers</div>
-                      <div style={{ fontSize: "12px", color: "#9E9E9E" }}>
+                      <div style={{ fontSize: "12px", color: "var(--muted)" }}>
                         High reach with strong engagement — replicate these
                       </div>
                     </div>
@@ -668,11 +658,11 @@ export default function AuditResults({ audit, onBack }) {
                     {videoAnalysis.highReachVideos.filter(v => !v.is_low_engagement).slice(0, 5).map((video, i) => (
                       <div key={i} style={{
                         display: "flex", alignItems: "center", gap: "12px", padding: "12px",
-                        background: "#252525", borderRadius: "8px",
+                        background: "var(--input-bg)", borderRadius: "8px",
                       }}>
                         <div style={{
                           width: "24px", height: "24px", borderRadius: "50%",
-                          background: COLORS.success, color: "#000",
+                          background: COLORS.success, color: "var(--bg)",
                           display: "flex", alignItems: "center", justifyContent: "center",
                           fontWeight: "700", fontSize: "12px", flexShrink: 0,
                         }}>
@@ -685,11 +675,11 @@ export default function AuditResults({ audit, onBack }) {
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: "13px", fontWeight: "500", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{video.title}</div>
-                          <div style={{ fontSize: "11px", color: "#9E9E9E", marginTop: "2px" }}>{fmtNum(video.view_count)} views</div>
+                          <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "2px" }}>{fmtNum(video.view_count)} views</div>
                         </div>
                         <div style={{
                           fontSize: "14px", fontWeight: "700", color: COLORS.success, flexShrink: 0,
-                          background: "rgba(34, 197, 94, 0.1)", padding: "4px 10px", borderRadius: "6px",
+                          background: "rgba(205, 242, 0, 0.1)", padding: "4px 10px", borderRadius: "6px",
                         }}>
                           {video.views_ratio}x
                         </div>
@@ -704,16 +694,15 @@ export default function AuditResults({ audit, onBack }) {
                 <div style={card()}>
                   <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
                     <div style={{
-                      width: "48px", height: "48px", borderRadius: "14px",
-                      background: "linear-gradient(135deg, #f59e0b, #f97316)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      boxShadow: "0 4px 16px rgba(245, 158, 11, 0.3)", flexShrink: 0,
+                      width: "44px", height: "44px", borderRadius: "12px",
+                      background: "var(--warn-bg)",
+                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                     }}>
-                      <AlertTriangle size={22} style={{ color: "#fff" }} />
+                      <AlertTriangle size={22} style={{ color: "var(--warn)" }} />
                     </div>
                     <div>
                       <div style={{ fontSize: "16px", fontWeight: "700" }}>Videos to Investigate</div>
-                      <div style={{ fontSize: "12px", color: "#9E9E9E" }}>
+                      <div style={{ fontSize: "12px", color: "var(--muted)" }}>
                         High reach but low engagement — worth a closer look
                       </div>
                     </div>
@@ -722,8 +711,8 @@ export default function AuditResults({ audit, onBack }) {
                     {videoAnalysis.investigateVideos.slice(0, 10).map((video, i) => (
                       <div key={i} style={{
                         display: "flex", gap: "12px", padding: "14px",
-                        background: "#252525", borderRadius: "8px",
-                        borderLeft: `3px solid ${COLORS.warning}`,
+                        background: "var(--input-bg)", borderRadius: "8px",
+                        border: "1px solid var(--border)",
                       }}>
                         {video.thumbnail_url && (
                           <img
@@ -736,7 +725,7 @@ export default function AuditResults({ audit, onBack }) {
                           <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px" }}>
                             {video.title}
                           </div>
-                          <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "#9E9E9E", marginBottom: "8px" }}>
+                          <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "var(--muted)", marginBottom: "8px" }}>
                             <span><Eye size={12} style={{ marginRight: "4px" }} />{fmtNum(video.view_count)} views ({video.views_ratio}x median)</span>
                             <span><ThumbsUp size={12} style={{ marginRight: "4px" }} />{fmtPct(video.engagement_rate)} engagement ({video.engagement_ratio}x median)</span>
                           </div>
@@ -771,7 +760,7 @@ export default function AuditResults({ audit, onBack }) {
           {sectionTitle(`${series.total_series || 0} Series Detected`, `${series.uncategorized_count || 0} videos not in any series`)}
 
           {(series.series || []).length === 0 ? (
-            <div style={{ ...card(), color: "#666", textAlign: "center" }}>
+            <div style={{ ...card(), color: "var(--faint)", textAlign: "center" }}>
               No content series detected.
             </div>
           ) : (
@@ -792,7 +781,7 @@ export default function AuditResults({ audit, onBack }) {
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
                         <div>
                           <div style={{ fontSize: "15px", fontWeight: "600" }}>{s.name}</div>
-                          <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "2px" }}>
+                          <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>
                             {s.detectionMethod === "semantic" ? "AI-detected" : "Pattern-matched"}
                             {s.cadenceDays && ` · Every ${s.cadenceDays} days`}
                           </div>
@@ -800,7 +789,7 @@ export default function AuditResults({ audit, onBack }) {
                         <div style={{
                           display: "flex", alignItems: "center", gap: "4px",
                           padding: "4px 10px", borderRadius: "8px",
-                          background: `${trend.color}15`,
+                          background: `color-mix(in srgb, ${trend.color} 8%, transparent)`,
                         }}>
                           <TrendIcon size={14} style={{ color: trend.color }} />
                           <span style={{ fontSize: "12px", color: trend.color, fontWeight: "600", textTransform: "capitalize" }}>
@@ -815,8 +804,8 @@ export default function AuditResults({ audit, onBack }) {
                           { label: "Total Views", value: fmtNum(s.totalViews) },
                           { label: "Engagement", value: fmtPct(s.avgEngagementRate) },
                         ].map(({ label, value }) => (
-                          <div key={label} style={{ background: "#252525", borderRadius: "6px", padding: "10px", textAlign: "center" }}>
-                            <div style={{ fontSize: "10px", color: "#9E9E9E" }}>{label}</div>
+                          <div key={label} style={{ background: "var(--input-bg)", borderRadius: "6px", padding: "10px", textAlign: "center" }}>
+                            <div style={{ fontSize: "10px", color: "var(--muted)" }}>{label}</div>
                             <div style={{ fontSize: "14px", fontWeight: "600", marginTop: "2px" }}>{value}</div>
                           </div>
                         ))}
@@ -836,11 +825,11 @@ export default function AuditResults({ audit, onBack }) {
           {!benchmark.hasBenchmarks ? (
             <div style={card()}>
               <div style={{ textAlign: "center", padding: "40px 20px" }}>
-                <Users size={48} style={{ color: "#444", marginBottom: "16px" }} />
-                <div style={{ fontSize: "18px", fontWeight: "600", marginBottom: "8px", color: "#E0E0E0" }}>
+                <Users size={48} style={{ color: "var(--outline-variant)", marginBottom: "16px" }} />
+                <div style={{ fontSize: "18px", fontWeight: "600", marginBottom: "8px", color: "var(--text)" }}>
                   No Peer Benchmarks Available
                 </div>
-                <div style={{ fontSize: "14px", color: "#9E9E9E", maxWidth: "500px", margin: "0 auto", lineHeight: "1.6" }}>
+                <div style={{ fontSize: "14px", color: "var(--muted)", maxWidth: "500px", margin: "0 auto", lineHeight: "1.6" }}>
                   {benchmark.reason || "Benchmarking compares this channel against similar channels in your competitor database."}
                 </div>
               </div>
@@ -848,17 +837,17 @@ export default function AuditResults({ audit, onBack }) {
               {/* How Benchmarking Works */}
               <div style={{
                 marginTop: "20px", padding: "20px",
-                background: "rgba(59, 130, 246, 0.05)",
-                border: "1px solid rgba(59, 130, 246, 0.15)",
+                background: "rgba(0, 209, 255, 0.05)",
+                border: "1px solid rgba(0, 209, 255, 0.15)",
                 borderRadius: "8px",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
                   <Info size={18} style={{ color: COLORS.primary }} />
-                  <span style={{ fontSize: "14px", fontWeight: "600", color: "#E0E0E0" }}>How Benchmarking Works</span>
+                  <span style={{ fontSize: "14px", fontWeight: "600", color: "var(--text)" }}>How Benchmarking Works</span>
                 </div>
-                <div style={{ fontSize: "13px", color: "#9E9E9E", lineHeight: "1.7" }}>
+                <div style={{ fontSize: "13px", color: "var(--muted)", lineHeight: "1.7" }}>
                   <p style={{ margin: "0 0 12px 0" }}>
-                    The benchmark system automatically finds <strong style={{ color: "#E0E0E0" }}>peer channels</strong> in
+                    The benchmark system automatically finds <strong style={{ color: "var(--text)" }}>peer channels</strong> in
                     the same subscriber tier (±1 tier) from your competitor database, then compares key metrics:
                   </p>
                   <ul style={{ margin: "0 0 12px 0", paddingLeft: "20px" }}>
@@ -873,24 +862,24 @@ export default function AuditResults({ audit, onBack }) {
               {/* How to Enable Benchmarks */}
               <div style={{
                 marginTop: "16px", padding: "20px",
-                background: "rgba(34, 197, 94, 0.05)",
-                border: "1px solid rgba(34, 197, 94, 0.15)",
+                background: "rgba(205, 242, 0, 0.05)",
+                border: "1px solid rgba(205, 242, 0, 0.15)",
                 borderRadius: "8px",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
                   <UserPlus size={18} style={{ color: COLORS.success }} />
-                  <span style={{ fontSize: "14px", fontWeight: "600", color: "#E0E0E0" }}>How to Enable Benchmarks</span>
+                  <span style={{ fontSize: "14px", fontWeight: "600", color: "var(--text)" }}>How to Enable Benchmarks</span>
                 </div>
-                <div style={{ fontSize: "13px", color: "#9E9E9E", lineHeight: "1.7" }}>
+                <div style={{ fontSize: "13px", color: "var(--muted)", lineHeight: "1.7" }}>
                   <ol style={{ margin: 0, paddingLeft: "20px" }}>
                     <li style={{ marginBottom: "8px" }}>
-                      Go to <strong style={{ color: "#E0E0E0" }}>Research → Competitor Analysis</strong>
+                      Go to <strong style={{ color: "var(--text)" }}>Research → Competitor Analysis</strong>
                     </li>
                     <li style={{ marginBottom: "8px" }}>
                       Add competitor channels that are similar in size/niche to this channel
                     </li>
                     <li style={{ marginBottom: "8px" }}>
-                      Enable <strong style={{ color: "#E0E0E0" }}>sync</strong> on those channels to track their videos
+                      Enable <strong style={{ color: "var(--text)" }}>sync</strong> on those channels to track their videos
                     </li>
                     <li>
                       Re-run the audit — the system will automatically find matching peers
@@ -903,21 +892,21 @@ export default function AuditResults({ audit, onBack }) {
               {snapshot.size_tier && (
                 <div style={{
                   marginTop: "16px", padding: "16px",
-                  background: "#252525", borderRadius: "8px",
+                  background: "var(--input-bg)", borderRadius: "8px",
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                 }}>
                   <div>
-                    <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>This channel's tier</div>
+                    <div style={{ fontSize: "12px", color: "var(--faint)", marginBottom: "4px" }}>This channel's tier</div>
                     <div style={{ fontSize: "15px", fontWeight: "600", color: getTierColor(snapshot.size_tier), textTransform: "capitalize" }}>
                       {snapshot.size_tier}
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>Subscribers</div>
+                    <div style={{ fontSize: "12px", color: "var(--faint)", marginBottom: "4px" }}>Subscribers</div>
                     <div style={{ fontSize: "15px", fontWeight: "600" }}>{fmtNum(snapshot.subscriber_count)}</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>Peers needed</div>
+                    <div style={{ fontSize: "12px", color: "var(--faint)", marginBottom: "4px" }}>Peers needed</div>
                     <div style={{ fontSize: "15px", fontWeight: "600", color: COLORS.warning }}>Add to Research tab</div>
                   </div>
                 </div>
@@ -930,14 +919,14 @@ export default function AuditResults({ audit, onBack }) {
 
               {/* Radar Chart Overview */}
               <div style={card()}>
-                {sectionTitle("Performance Radar", "Multi-metric comparison at a glance")}
+                {sectionTitle("Performance Radar")}
                 <BenchmarkRadarChart benchmark={benchmark} />
               </div>
 
               {/* Peer Comparison with range bars */}
               <div style={card()}>
                 {sectionTitle("Peer Comparison")}
-                <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "16px" }}>
+                <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "16px" }}>
                   Compared against {benchmark.peer_count} channels in same/adjacent tier
                   {benchmark.peer_names?.length > 0 && `: ${benchmark.peer_names.slice(0, 5).join(", ")}${benchmark.peer_names.length > 5 ? "..." : ""}`}
                 </div>
@@ -948,10 +937,10 @@ export default function AuditResults({ audit, onBack }) {
 
                 {benchmark.comparison?.overallScore && (
                   <div style={{
-                    marginTop: "16px", padding: "20px", background: "#252525",
+                    marginTop: "16px", padding: "20px", background: "var(--input-bg)",
                     borderRadius: "8px", textAlign: "center",
                   }}>
-                    <div style={{ fontSize: "12px", color: "#9E9E9E" }}>Overall Benchmark Score</div>
+                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>Overall Benchmark Score</div>
                     <div style={{
                       fontSize: "48px", fontWeight: "800", marginTop: "4px",
                       color: benchmark.comparison.overallScore >= 1.2 ? COLORS.success
@@ -959,7 +948,7 @@ export default function AuditResults({ audit, onBack }) {
                     }}>
                       {benchmark.comparison.overallScore}x
                     </div>
-                    <div style={{ fontSize: "13px", color: "#666", marginTop: "4px" }}>
+                    <div style={{ fontSize: "13px", color: "var(--faint)", marginTop: "4px" }}>
                       {benchmark.comparison.overallScore >= 1.2 ? "Outperforming peers" : benchmark.comparison.overallScore >= 0.8 ? "On par with peers" : "Below peer average"}
                     </div>
                   </div>
@@ -981,22 +970,22 @@ export default function AuditResults({ audit, onBack }) {
             <div style={card()}>
               <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
                 <div style={{
-                  width: "48px", height: "48px", borderRadius: "14px",
-                  background: opportunities.brand_intent_alignment.scenario === 'alignment' ? "linear-gradient(135deg, #10b981, #059669)"
-                    : opportunities.brand_intent_alignment.scenario === 'tension' ? "linear-gradient(135deg, #ef4444, #dc2626)"
-                    : "linear-gradient(135deg, #f59e0b, #d97706)",
+                  width: "44px", height: "44px", borderRadius: "12px",
+                  background: opportunities.brand_intent_alignment.scenario === 'alignment' ? "var(--pos-bg)"
+                    : opportunities.brand_intent_alignment.scenario === 'tension' ? "var(--neg-bg)"
+                    : "var(--warn-bg)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <Crosshair size={24} style={{ color: "#fff" }} />
+                  <Crosshair size={24} style={{ color: "var(--ink)" }} />
                 </div>
                 <div>
-                  <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>Brand Intent Alignment</div>
+                  <div style={{ fontSize: "16px", fontWeight: "700", color: "var(--ink)" }}>Brand Intent Alignment</div>
                   <span style={{
                     fontSize: "11px", fontWeight: "700", textTransform: "uppercase",
-                    color: opportunities.brand_intent_alignment.scenario === 'alignment' ? '#10b981'
-                      : opportunities.brand_intent_alignment.scenario === 'tension' ? '#ef4444' : '#f59e0b',
-                    background: opportunities.brand_intent_alignment.scenario === 'alignment' ? 'rgba(16,185,129,0.1)'
-                      : opportunities.brand_intent_alignment.scenario === 'tension' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+                    color: opportunities.brand_intent_alignment.scenario === 'alignment' ? "var(--pos)"
+                      : opportunities.brand_intent_alignment.scenario === 'tension' ? "var(--neg)" : "var(--warn)",
+                    background: opportunities.brand_intent_alignment.scenario === 'alignment' ? 'rgba(205,242,0,0.1)'
+                      : opportunities.brand_intent_alignment.scenario === 'tension' ? 'rgba(255,85,64,0.1)' : 'rgba(245,158,11,0.1)',
                     padding: "2px 8px", borderRadius: "4px",
                   }}>
                     {opportunities.brand_intent_alignment.scenario === 'alignment' ? 'Aligned'
@@ -1007,27 +996,27 @@ export default function AuditResults({ audit, onBack }) {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-                <div style={{ background: "#252525", borderRadius: "8px", padding: "12px", borderTop: "3px solid #3b82f6" }}>
-                  <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", marginBottom: "6px" }}>Brand Intent</div>
-                  <div style={{ fontSize: "12px", color: "#e0e0e0", lineHeight: "1.5" }}>
+                <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "12px" }}>
+                  <div style={{ fontSize: "10px", color: "var(--outline)", textTransform: "uppercase", marginBottom: "6px" }}>Brand Intent</div>
+                  <div style={{ fontSize: "12px", color: "var(--text)", lineHeight: "1.5" }}>
                     {opportunities.brand_intent_alignment.brand_intent_summary || '—'}
                   </div>
                 </div>
-                <div style={{ background: "#252525", borderRadius: "8px", padding: "12px", borderTop: "3px solid #10b981" }}>
-                  <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", marginBottom: "6px" }}>Audience Demand</div>
-                  <div style={{ fontSize: "12px", color: "#e0e0e0", lineHeight: "1.5" }}>
+                <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "12px" }}>
+                  <div style={{ fontSize: "10px", color: "var(--outline)", textTransform: "uppercase", marginBottom: "6px" }}>Audience Demand</div>
+                  <div style={{ fontSize: "12px", color: "var(--text)", lineHeight: "1.5" }}>
                     {opportunities.brand_intent_alignment.audience_demand_summary || '—'}
                   </div>
                 </div>
-                <div style={{ background: "#252525", borderRadius: "8px", padding: "12px", borderTop: "3px solid #8b5cf6" }}>
-                  <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", marginBottom: "6px" }}>Platform Logic</div>
-                  <div style={{ fontSize: "12px", color: "#e0e0e0", lineHeight: "1.5" }}>
+                <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "12px" }}>
+                  <div style={{ fontSize: "10px", color: "var(--outline)", textTransform: "uppercase", marginBottom: "6px" }}>Platform Logic</div>
+                  <div style={{ fontSize: "12px", color: "var(--text)", lineHeight: "1.5" }}>
                     {opportunities.brand_intent_alignment.platform_logic_summary || '—'}
                   </div>
                 </div>
               </div>
 
-              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px", fontSize: "13px", color: "#ccc", lineHeight: "1.6" }}>
+              <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "14px", fontSize: "13px", color: "var(--text)", lineHeight: "1.6" }}>
                 {opportunities.brand_intent_alignment.analysis}
               </div>
             </div>
@@ -1048,20 +1037,19 @@ export default function AuditResults({ audit, onBack }) {
           <div style={card()}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
               <div style={{
-                width: "48px", height: "48px", borderRadius: "14px",
-                background: "linear-gradient(135deg, #8b5cf6, #6366f1)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: "0 4px 16px rgba(139, 92, 246, 0.3)", flexShrink: 0,
+                width: "44px", height: "44px", borderRadius: "12px",
+                background: "rgba(0, 209, 255, 0.12)",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
               }}>
-                <Lightbulb size={22} style={{ color: "#fff" }} />
+                <Lightbulb size={22} style={{ color: "var(--accent-text)" }} />
               </div>
               <div>
                 <div style={{ fontSize: "16px", fontWeight: "700" }}>Content Gaps</div>
-                <div style={{ fontSize: "12px", color: "#9E9E9E" }}>Opportunities to fill unmet audience needs</div>
+                <div style={{ fontSize: "12px", color: "var(--muted)" }}>Opportunities to fill unmet audience needs</div>
               </div>
             </div>
             {filterByFormat(opportunities.content_gaps || [], formatFilter).length === 0 ? (
-              <div style={{ color: "#666", fontSize: "13px", textAlign: "center", padding: "20px" }}>No content gaps identified{formatFilter !== "all" ? " for this format" : ""}.</div>
+              <div style={{ color: "var(--faint)", fontSize: "13px", textAlign: "center", padding: "20px" }}>No content gaps identified{formatFilter !== "all" ? " for this format" : ""}.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {filterByFormat(opportunities.content_gaps, formatFilter).map((g, i) => (
@@ -1075,20 +1063,19 @@ export default function AuditResults({ audit, onBack }) {
           <div style={card()}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
               <div style={{
-                width: "48px", height: "48px", borderRadius: "14px",
-                background: "linear-gradient(135deg, #22c55e, #10b981)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: "0 4px 16px rgba(34, 197, 94, 0.3)", flexShrink: 0,
+                width: "44px", height: "44px", borderRadius: "12px",
+                background: "var(--pos-bg)",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
               }}>
-                <TrendingUp size={22} style={{ color: "#fff" }} />
+                <TrendingUp size={22} style={{ color: "var(--pos)" }} />
               </div>
               <div>
                 <div style={{ fontSize: "16px", fontWeight: "700" }}>Growth Levers</div>
-                <div style={{ fontSize: "12px", color: "#9E9E9E" }}>Actionable improvements to accelerate growth</div>
+                <div style={{ fontSize: "12px", color: "var(--muted)" }}>Actionable improvements to accelerate growth</div>
               </div>
             </div>
             {filterByFormat(opportunities.growth_levers || [], formatFilter).length === 0 ? (
-              <div style={{ color: "#666", fontSize: "13px", textAlign: "center", padding: "20px" }}>No growth levers identified{formatFilter !== "all" ? " for this format" : ""}.</div>
+              <div style={{ color: "var(--faint)", fontSize: "13px", textAlign: "center", padding: "20px" }}>No growth levers identified{formatFilter !== "all" ? " for this format" : ""}.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {filterByFormat(opportunities.growth_levers, formatFilter).map((l, i) => (
@@ -1109,8 +1096,8 @@ export default function AuditResults({ audit, onBack }) {
                   { label: "Key Differentiators", value: (opportunities.market_potential.key_differentiators || []).join(", ") || "—" },
                   { label: "Biggest Risk", value: opportunities.market_potential.biggest_risk },
                 ].map(({ label, value }) => (
-                  <div key={label} style={{ padding: "14px", background: "#252525", borderRadius: "8px" }}>
-                    <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>{label}</div>
+                  <div key={label} style={{ padding: "14px", background: "var(--input-bg)", borderRadius: "8px" }}>
+                    <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>{label}</div>
                     <div style={{ fontSize: "13px" }}>{value}</div>
                   </div>
                 ))}
@@ -1127,19 +1114,19 @@ export default function AuditResults({ audit, onBack }) {
           {(!recommendations.stop?.length && !recommendations.start?.length && !recommendations.optimize?.length) ? (
             <div style={card()}>
               <div style={{ textAlign: "center", padding: "40px 20px" }}>
-                <Target size={48} style={{ color: "#444", marginBottom: "16px" }} />
-                <div style={{ fontSize: "18px", fontWeight: "600", marginBottom: "8px", color: "#E0E0E0" }}>
+                <Target size={48} style={{ color: "var(--outline-variant)", marginBottom: "16px" }} />
+                <div style={{ fontSize: "18px", fontWeight: "600", marginBottom: "8px", color: "var(--text)" }}>
                   No Recommendations Generated
                 </div>
-                <div style={{ fontSize: "14px", color: "#9E9E9E", maxWidth: "500px", margin: "0 auto", lineHeight: "1.6" }}>
+                <div style={{ fontSize: "14px", color: "var(--muted)", maxWidth: "500px", margin: "0 auto", lineHeight: "1.6" }}>
                   The AI analysis didn't produce recommendations for this audit. This can happen if:
                 </div>
-                <ul style={{ textAlign: "left", maxWidth: "400px", margin: "16px auto", fontSize: "13px", color: "#9E9E9E", lineHeight: "1.7" }}>
+                <ul style={{ textAlign: "left", maxWidth: "400px", margin: "16px auto", fontSize: "13px", color: "var(--muted)", lineHeight: "1.7" }}>
                   <li>The channel has very few videos to analyze</li>
                   <li>There was an error during the AI analysis step</li>
                   <li>The audit was interrupted before completing</li>
                 </ul>
-                <div style={{ fontSize: "13px", color: "#666", marginTop: "16px" }}>
+                <div style={{ fontSize: "13px", color: "var(--faint)", marginTop: "16px" }}>
                   Try running a new audit to generate fresh recommendations.
                 </div>
               </div>
@@ -1162,73 +1149,73 @@ export default function AuditResults({ audit, onBack }) {
             <RecommendationColumn
               title="Stop"
               color={COLORS.danger}
-              icon="🛑"
+              icon=""
               items={filterByFormat(recommendations.stop || [], formatFilter)}
               description="Discontinue or phase out"
             />
 
             {/* Start — Named Show Concepts */}
             <div style={{
-              background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333", padding: "24px",
+              background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)", padding: "24px",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                <span style={{ fontSize: "20px" }}>🚀</span>
+                <span style={{ fontSize: "20px" }}></span>
                 <div style={{ fontSize: "18px", fontWeight: "700", color: COLORS.success }}>Start</div>
               </div>
-              <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "16px" }}>Named show concepts to launch</div>
+              <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "16px" }}>Named show concepts to launch</div>
               {filterByFormat(recommendations.start || [], formatFilter).length === 0 ? (
-                <div style={{ color: "#666", fontSize: "13px", textAlign: "center", padding: "20px" }}>
+                <div style={{ color: "var(--faint)", fontSize: "13px", textAlign: "center", padding: "20px" }}>
                   No recommendations.
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   {filterByFormat(recommendations.start || [], formatFilter).map((r, i) => (
                     <div key={i} style={{
-                      padding: "16px", background: "#252525", borderRadius: "8px",
-                      borderLeft: `3px solid ${COLORS.success}`,
+                      padding: "16px", background: "var(--input-bg)", borderRadius: "8px",
+                      border: "1px solid var(--border)",
                     }}>
                       {/* Show name */}
                       {r.show_name && (
-                        <div style={{ fontSize: "15px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+                        <div style={{ fontSize: "15px", fontWeight: "700", color: "var(--ink)", marginBottom: "4px" }}>
                           {r.show_name}
                           <FormatBadge format={r.format} />
                         </div>
                       )}
                       {r.premise && (
-                        <div style={{ fontSize: "12px", color: "#60a5fa", marginBottom: "8px", fontStyle: "italic" }}>
+                        <div style={{ fontSize: "12px", color: "var(--accent-text)", marginBottom: "8px", fontStyle: "italic" }}>
                           {r.premise}
                         </div>
                       )}
-                      <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "8px" }}>{r.action || r.rationale}</div>
-                      {r.evidence && <div style={{ fontSize: "11px", color: "#666", marginBottom: "8px" }}>{r.evidence}</div>}
+                      <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "8px" }}>{r.action || r.rationale}</div>
+                      {r.evidence && <div style={{ fontSize: "11px", color: "var(--faint)", marginBottom: "8px" }}>{r.evidence}</div>}
 
                       {/* Show concept details */}
                       {(r.format_length || r.cadence || r.shorts_atomization) && (
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginBottom: "8px" }}>
                           {r.format_length && (
-                            <div style={{ fontSize: "10px", color: "#888" }}>
-                              <span style={{ color: "#666" }}>Length:</span> {r.format_length}
+                            <div style={{ fontSize: "10px", color: "var(--outline)" }}>
+                              <span style={{ color: "var(--faint)" }}>Length:</span> {r.format_length}
                             </div>
                           )}
                           {r.cadence && (
-                            <div style={{ fontSize: "10px", color: "#888" }}>
-                              <span style={{ color: "#666" }}>Cadence:</span> {r.cadence}
+                            <div style={{ fontSize: "10px", color: "var(--outline)" }}>
+                              <span style={{ color: "var(--faint)" }}>Cadence:</span> {r.cadence}
                             </div>
                           )}
                           {r.shorts_atomization && (
-                            <div style={{ fontSize: "10px", color: "#888", gridColumn: "1 / -1" }}>
-                              <span style={{ color: "#666" }}>Shorts:</span> {r.shorts_atomization}
+                            <div style={{ fontSize: "10px", color: "var(--outline)", gridColumn: "1 / -1" }}>
+                              <span style={{ color: "var(--faint)" }}>Shorts:</span> {r.shorts_atomization}
                             </div>
                           )}
                         </div>
                       )}
                       {r.snowball_logic && (
-                        <div style={{ fontSize: "11px", color: "#10b981", background: "rgba(16,185,129,0.08)", padding: "8px 10px", borderRadius: "6px", marginBottom: "6px", lineHeight: "1.5" }}>
+                        <div style={{ fontSize: "11px", color: "var(--pos)", background: "rgba(205,242,0,0.08)", padding: "8px 10px", borderRadius: "6px", marginBottom: "6px", lineHeight: "1.5" }}>
                           <span style={{ fontWeight: "600" }}>Snowball:</span> {r.snowball_logic}
                         </div>
                       )}
                       {r.brand_fit && (
-                        <div style={{ fontSize: "11px", color: "#f59e0b", marginTop: "4px" }}>
+                        <div style={{ fontSize: "11px", color: "var(--warn)", marginTop: "4px" }}>
                           <span style={{ fontWeight: "600" }}>Brand fit:</span> {r.brand_fit}
                         </div>
                       )}
@@ -1244,7 +1231,7 @@ export default function AuditResults({ audit, onBack }) {
                           </span>
                         )}
                         {r.effort && (
-                          <span style={{ fontSize: "9px", color: "#666" }}>
+                          <span style={{ fontSize: "9px", color: "var(--faint)" }}>
                             Effort: {r.effort}
                           </span>
                         )}
@@ -1259,7 +1246,7 @@ export default function AuditResults({ audit, onBack }) {
             <RecommendationColumn
               title="Optimize"
               color={COLORS.warning}
-              icon="⚡"
+              icon=""
               items={filterByFormat(recommendations.optimize || [], formatFilter)}
               description="Improve existing processes"
             />
@@ -1283,36 +1270,36 @@ export default function AuditResults({ audit, onBack }) {
       {/* ── Paid Content Tab (Isolated) ── */}
       {activeTab === "paid_content" && audit.channel_snapshot?.paid_content && (
         <div>
-          <div style={{ background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333", padding: "24px", marginBottom: "16px" }}>
+          <div style={{ background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)", padding: "24px", marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-              <Tag size={18} style={{ color: "#ef4444" }} />
-              <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>Paid Content Analysis</div>
-              <span style={{ fontSize: "10px", color: "#ef4444", background: "rgba(239,68,68,0.1)", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
+              <Tag size={18} style={{ color: "var(--neg)" }} />
+              <div style={{ fontSize: "16px", fontWeight: "700", color: "var(--ink)" }}>Paid Content Analysis</div>
+              <span style={{ fontSize: "10px", color: "var(--neg)", background: "rgba(255,85,64,0.1)", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
                 ISOLATED FROM ORGANIC METRICS
               </span>
             </div>
-            <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "20px", lineHeight: "1.6" }}>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "20px", lineHeight: "1.6" }}>
               These videos were identified as paid/boosted content based on client-configured keyword patterns or manual overrides.
               They are excluded from all organic performance baselines, engagement rates, and benchmark calculations.
             </div>
 
             {/* Summary stats */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "20px" }}>
-              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
-                <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>Paid Videos</div>
-                <div style={{ fontSize: "24px", fontWeight: "700", color: "#ef4444", fontFamily: "'Barlow Condensed', sans-serif" }}>
+              <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "10px", color: "var(--outline)", textTransform: "uppercase", marginBottom: "4px" }}>Paid Videos</div>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: "var(--neg)", fontFamily: "'Barlow Condensed', sans-serif" }}>
                   {audit.channel_snapshot.paid_content.paid}
                 </div>
               </div>
-              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
-                <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>Organic Videos</div>
-                <div style={{ fontSize: "24px", fontWeight: "700", color: "#10b981", fontFamily: "'Barlow Condensed', sans-serif" }}>
+              <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "10px", color: "var(--outline)", textTransform: "uppercase", marginBottom: "4px" }}>Organic Videos</div>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: "var(--pos)", fontFamily: "'Barlow Condensed', sans-serif" }}>
                   {audit.channel_snapshot.paid_content.organic}
                 </div>
               </div>
-              <div style={{ background: "#252525", borderRadius: "8px", padding: "14px" }}>
-                <div style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", marginBottom: "4px" }}>Paid % of Library</div>
-                <div style={{ fontSize: "24px", fontWeight: "700", color: "#f59e0b", fontFamily: "'Barlow Condensed', sans-serif" }}>
+              <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "14px" }}>
+                <div style={{ fontSize: "10px", color: "var(--outline)", textTransform: "uppercase", marginBottom: "4px" }}>Paid % of Library</div>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: "var(--warn)", fontFamily: "'Barlow Condensed', sans-serif" }}>
                   {audit.channel_snapshot.paid_content.total > 0
                     ? `${((audit.channel_snapshot.paid_content.paid / audit.channel_snapshot.paid_content.total) * 100).toFixed(1)}%`
                     : '0%'}
@@ -1323,31 +1310,31 @@ export default function AuditResults({ audit, onBack }) {
             {/* Paid video list */}
             {audit.channel_snapshot.paid_content.paid_videos?.length > 0 && (
               <div>
-                <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "10px" }}>Flagged Videos</div>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--ink)", marginBottom: "10px" }}>Flagged Videos</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                   {audit.channel_snapshot.paid_content.paid_videos.map((v, i) => (
                     <div key={i} style={{
                       display: "flex", alignItems: "center", gap: "10px",
-                      padding: "8px 12px", background: "#252525", borderRadius: "6px",
-                      borderLeft: "3px solid #ef4444",
+                      padding: "8px 12px", background: "var(--input-bg)", borderRadius: "6px",
+                      border: "1px solid var(--border)",
                     }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: "12px", color: "#fff", fontWeight: "500", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div style={{ fontSize: "12px", color: "var(--ink)", fontWeight: "500", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {v.title}
                         </div>
-                        <div style={{ fontSize: "10px", color: "#888", marginTop: "2px" }}>
+                        <div style={{ fontSize: "10px", color: "var(--outline)", marginTop: "2px" }}>
                           {(v.view_count || 0).toLocaleString()} views
-                          <span style={{ color: "#555", margin: "0 6px" }}>·</span>
-                          Matched: <span style={{ color: "#f59e0b" }}>{v.matched_signal}</span>
-                          <span style={{ color: "#555", margin: "0 6px" }}>·</span>
-                          <span style={{ color: "#666" }}>{v.classification_source === 'manual_override' ? 'Manual override' : 'Keyword match'}</span>
+                          <span style={{ color: "var(--faint)", margin: "0 6px" }}>·</span>
+                          Matched: <span style={{ color: "var(--warn)" }}>{v.matched_signal}</span>
+                          <span style={{ color: "var(--faint)", margin: "0 6px" }}>·</span>
+                          <span style={{ color: "var(--faint)" }}>{v.classification_source === 'manual_override' ? 'Manual override' : 'Keyword match'}</span>
                         </div>
                       </div>
                       <a
                         href={`https://www.youtube.com/watch?v=${v.youtube_video_id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ fontSize: "10px", color: "#60a5fa", textDecoration: "none", flexShrink: 0 }}
+                        style={{ fontSize: "10px", color: "var(--accent-text)", textDecoration: "none", flexShrink: 0 }}
                       >
                         View →
                       </a>
@@ -1377,7 +1364,7 @@ function SummaryScoreGauge({ score }) {
   const gaugeColor = score >= 1.2 ? COLORS.success : score >= 0.8 ? COLORS.warning : COLORS.danger;
   const data = [
     { value: percentage, color: gaugeColor },
-    { value: 100 - percentage, color: "#252525" },
+    { value: 100 - percentage, color: "var(--surface-high)" },
   ];
 
   return (
@@ -1407,7 +1394,7 @@ function SummaryScoreGauge({ score }) {
         transform: "translateX(-50%)", textAlign: "center",
       }}>
         <div style={{ fontSize: "36px", fontWeight: "800", color: gaugeColor, lineHeight: 1, fontFamily: "'Barlow Condensed', sans-serif" }}>{score}x</div>
-        <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "4px" }}>
+        <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>
           {score >= 1.2 ? "Outperforming peers" : score >= 0.8 ? "On par with peers" : "Below peer average"}
         </div>
       </div>
@@ -1418,19 +1405,19 @@ function SummaryScoreGauge({ score }) {
 function GlanceItem({ icon: Icon, label, value, color }) {
   return (
     <div style={{
-      background: "#252525", borderRadius: "8px", padding: "14px",
+      background: "var(--input-bg)", borderRadius: "8px", padding: "14px",
       display: "flex", alignItems: "center", gap: "12px",
     }}>
       <div style={{
         width: "36px", height: "36px", borderRadius: "8px",
-        background: `${color}15`, display: "flex",
+        background: `color-mix(in srgb, ${color} 8%, transparent)`, display: "flex",
         alignItems: "center", justifyContent: "center",
       }}>
         <Icon size={18} style={{ color }} />
       </div>
       <div>
         <div style={{ fontSize: "20px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif" }}>{value}</div>
-        <div style={{ fontSize: "11px", color: "#9E9E9E" }}>{label}</div>
+        <div style={{ fontSize: "11px", color: "var(--muted)" }}>{label}</div>
       </div>
     </div>
   );
@@ -1471,18 +1458,18 @@ function SummaryHighlights({ benchmark, opportunities, series, videoAnalysis, ca
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-      <div style={cardStyle({ borderLeft: `3px solid ${COLORS.success}` })}>
+      <div style={cardStyle({ border: "1px solid var(--border)" })}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
           <Zap size={16} style={{ color: COLORS.success }} />
           <div style={{ fontSize: "14px", fontWeight: "700", color: COLORS.success }}>Strengths</div>
         </div>
         {strengths.length === 0 ? (
-          <div style={{ fontSize: "12px", color: "#666" }}>Add peer benchmarks to identify strengths</div>
+          <div style={{ fontSize: "12px", color: "var(--faint)" }}>Add peer benchmarks to identify strengths</div>
         ) : (
           strengths.slice(0, 3).map((s, i) => (
             <div key={i} style={{
-              fontSize: "13px", color: "#E0E0E0", marginBottom: "8px",
-              paddingLeft: "12px", borderLeft: "2px solid rgba(34, 197, 94, 0.3)",
+              fontSize: "13px", color: "var(--text)", marginBottom: "8px",
+              paddingLeft: "12px", borderLeft: "2px solid var(--border)",
             }}>
               {s}
             </div>
@@ -1490,18 +1477,18 @@ function SummaryHighlights({ benchmark, opportunities, series, videoAnalysis, ca
         )}
       </div>
 
-      <div style={cardStyle({ borderLeft: `3px solid ${COLORS.purple}` })}>
+      <div style={cardStyle({ border: "1px solid var(--border)" })}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
           <Lightbulb size={16} style={{ color: COLORS.purple }} />
           <div style={{ fontSize: "14px", fontWeight: "700", color: COLORS.purple }}>Key Opportunities</div>
         </div>
         {opps.length === 0 ? (
-          <div style={{ fontSize: "12px", color: "#666" }}>No opportunities identified yet</div>
+          <div style={{ fontSize: "12px", color: "var(--faint)" }}>No opportunities identified yet</div>
         ) : (
           opps.slice(0, 3).map((o, i) => (
             <div key={i} style={{
-              fontSize: "13px", color: "#E0E0E0", marginBottom: "8px",
-              paddingLeft: "12px", borderLeft: "2px solid rgba(139, 92, 246, 0.3)",
+              fontSize: "13px", color: "var(--text)", marginBottom: "8px",
+              paddingLeft: "12px", borderLeft: "2px solid var(--border)",
             }}>
               {o}
             </div>
@@ -1515,19 +1502,18 @@ function SummaryHighlights({ benchmark, opportunities, series, videoAnalysis, ca
 function MetricCard({ label, value, icon: Icon, color }) {
   return (
     <div style={{
-      background: "#252525", borderRadius: "8px", padding: "16px",
+      background: "var(--input-bg)", borderRadius: "8px", padding: "16px",
       display: "flex", alignItems: "center", gap: "12px",
     }}>
       <div style={{
-        width: "48px", height: "48px", borderRadius: "14px",
-        background: `linear-gradient(135deg, ${color}, ${color}cc)`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        boxShadow: `0 4px 16px ${color}4d`, flexShrink: 0,
+        width: "44px", height: "44px", borderRadius: "12px",
+        background: `color-mix(in srgb, ${color} 12%, transparent)`,
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
       }}>
-        <Icon size={22} style={{ color: "#fff" }} />
+        <Icon size={22} style={{ color: "var(--ink)" }} />
       </div>
       <div>
-        <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "2px" }}>{label}</div>
+        <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "2px" }}>{label}</div>
         <div style={{ fontSize: "20px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif" }}>{value}</div>
       </div>
     </div>
@@ -1545,7 +1531,7 @@ function ContentMixChart({ videos }) {
   }, [videos]);
 
   if (!videos.length) {
-    return <div style={{ color: "#666", textAlign: "center", padding: "40px" }}>No video data</div>;
+    return <div style={{ color: "var(--faint)", textAlign: "center", padding: "40px" }}>No video data</div>;
   }
 
   return (
@@ -1575,7 +1561,7 @@ function ContentMixChart({ videos }) {
             <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: d.color }} />
             <div style={{ flex: 1, fontSize: "13px" }}>{d.name}</div>
             <div style={{ fontSize: "16px", fontWeight: "700" }}>{d.value}</div>
-            <div style={{ fontSize: "12px", color: "#9E9E9E" }}>
+            <div style={{ fontSize: "12px", color: "var(--muted)" }}>
               ({Math.round((d.value / videos.length) * 100)}%)
             </div>
           </div>
@@ -1605,7 +1591,7 @@ function ViewsDistributionChart({ videos }) {
   }, [videos]);
 
   if (!data.length) {
-    return <div style={{ color: "#666", textAlign: "center", padding: "40px" }}>No video data</div>;
+    return <div style={{ color: "var(--faint)", textAlign: "center", padding: "40px" }}>No video data</div>;
   }
 
   return (
@@ -1613,11 +1599,11 @@ function ViewsDistributionChart({ videos }) {
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} layout="vertical">
           <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={false} />
-          <XAxis type="number" stroke="#666" fontSize={11} />
-          <YAxis type="category" dataKey="name" stroke="#666" fontSize={11} width={70} />
+          <XAxis type="number" stroke="#67747b" fontSize={11} />
+          <YAxis type="category" dataKey="name" stroke="#67747b" fontSize={11} width={70} />
           <Tooltip
-            contentStyle={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px" }}
-            labelStyle={{ color: "#E0E0E0" }}
+            contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "8px" }}
+            labelStyle={{ color: "var(--text)" }}
           />
           <Bar dataKey="value" fill={COLORS.primary} radius={[0, 4, 4, 0]} />
         </BarChart>
@@ -1652,25 +1638,25 @@ function VideoScatterPlot({ categorized, baselines }) {
             type="number"
             dataKey="x"
             name="Views"
-            stroke="#666"
+            stroke="#67747b"
             fontSize={11}
             scale="log"
             domain={['auto', 'auto']}
             tickFormatter={(v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}K` : v}
-            label={{ value: 'Views (log scale)', position: 'bottom', offset: 20, fill: '#666', fontSize: 11 }}
+            label={{ value: 'Views (log scale)', position: 'bottom', offset: 20, fill: 'var(--faint)', fontSize: 11 }}
           />
           <YAxis
             type="number"
             dataKey="y"
             name="Engagement %"
-            stroke="#666"
+            stroke="#67747b"
             fontSize={11}
             tickFormatter={(v) => `${v.toFixed(1)}%`}
-            label={{ value: 'Engagement Rate', angle: -90, position: 'insideLeft', fill: '#666', fontSize: 11 }}
+            label={{ value: 'Engagement Rate', angle: -90, position: 'insideLeft', fill: 'var(--faint)', fontSize: 11 }}
           />
           <Tooltip
-            contentStyle={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px", maxWidth: "300px" }}
-            labelStyle={{ color: "#E0E0E0" }}
+            contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "8px", maxWidth: "300px" }}
+            labelStyle={{ color: "var(--text)" }}
             formatter={(value, name) => [name === 'x' ? value.toLocaleString() + ' views' : value.toFixed(2) + '%', name === 'x' ? 'Views' : 'Engagement']}
             labelFormatter={(_, payload) => payload[0]?.payload?.title || ''}
           />
@@ -1704,10 +1690,10 @@ function SeriesBarChart({ series }) {
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} layout="vertical" margin={{ left: 20, right: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={false} />
-          <XAxis type="number" stroke="#666" fontSize={11} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : v} />
-          <YAxis type="category" dataKey="name" stroke="#666" fontSize={11} width={150} />
+          <XAxis type="number" stroke="#67747b" fontSize={11} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : v} />
+          <YAxis type="category" dataKey="name" stroke="#67747b" fontSize={11} width={150} />
           <Tooltip
-            contentStyle={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px" }}
+            contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "8px" }}
             formatter={(value, name) => [value.toLocaleString(), name === 'avgViews' ? 'Avg Views' : 'Videos']}
           />
           <Bar dataKey="avgViews" fill={COLORS.primary} radius={[0, 4, 4, 0]} />
@@ -1745,7 +1731,7 @@ function BenchmarkRadarChart({ benchmark }) {
             strokeWidth={2}
           />
           <Tooltip
-            contentStyle={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px" }}
+            contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "8px" }}
             formatter={(value) => [`${(value).toFixed(0)}% of peer median`]}
           />
         </RadarChart>
@@ -1776,7 +1762,7 @@ function BenchmarkMetricBar({ metric, benchmarks }) {
 
   return (
     <div style={{
-      padding: "14px 16px", background: "#252525", borderRadius: "8px",
+      padding: "14px 16px", background: "var(--input-bg)", borderRadius: "8px",
       marginBottom: "10px",
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
@@ -1784,18 +1770,18 @@ function BenchmarkMetricBar({ metric, benchmarks }) {
         <div style={{
           padding: "3px 10px", borderRadius: "6px", fontSize: "12px",
           fontWeight: "600", color: statusColor,
-          background: `${statusColor}15`,
+          background: `color-mix(in srgb, ${statusColor} 8%, transparent)`,
           textTransform: "capitalize",
         }}>
           {m.ratio}x · {m.status}
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "#9E9E9E", marginBottom: p25 != null ? "10px" : "0" }}>
-        <span>You: <strong style={{ color: "#E0E0E0" }}>{typeof m.value === "number" && fmtVal ? fmtVal(m.value) : m.value}</strong></span>
-        <span>Peer median: <strong style={{ color: "#E0E0E0" }}>{typeof m.benchmark === "number" && fmtVal ? fmtVal(m.benchmark) : m.benchmark}</strong></span>
+      <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "var(--muted)", marginBottom: p25 != null ? "10px" : "0" }}>
+        <span>You: <strong style={{ color: "var(--text)" }}>{typeof m.value === "number" && fmtVal ? fmtVal(m.value) : m.value}</strong></span>
+        <span>Peer median: <strong style={{ color: "var(--text)" }}>{typeof m.benchmark === "number" && fmtVal ? fmtVal(m.benchmark) : m.benchmark}</strong></span>
         {p25 != null && p75 != null && fmtVal && (
-          <span>Range: <strong style={{ color: "#E0E0E0" }}>{fmtVal(p25)} – {fmtVal(p75)}</strong></span>
+          <span>Range: <strong style={{ color: "var(--text)" }}>{fmtVal(p25)} – {fmtVal(p75)}</strong></span>
         )}
       </div>
 
@@ -1817,7 +1803,7 @@ function RangeBar({ p25, p75, median, channelVal, statusColor }) {
     <div style={{ position: "relative", height: "24px" }}>
       <div style={{
         position: "absolute", top: "10px", left: 0, right: 0, height: "4px",
-        background: "#333", borderRadius: "2px",
+        background: "var(--outline-variant)", borderRadius: "2px",
       }} />
       <div style={{
         position: "absolute", top: "8px", height: "8px",
@@ -1828,18 +1814,18 @@ function RangeBar({ p25, p75, median, channelVal, statusColor }) {
       <div style={{
         position: "absolute", top: "6px",
         left: `${medianPct}%`, width: "2px", height: "12px",
-        background: "#60a5fa", borderRadius: "1px",
+        background: "var(--accent-text)", borderRadius: "1px",
       }} />
       <div style={{
         position: "absolute", top: "4px",
         left: `calc(${channelPct}% - 7px)`,
         width: "14px", height: "14px", borderRadius: "50%",
-        background: statusColor, border: "2px solid #252525",
+        background: statusColor, border: "2px solid var(--input-bg)",
       }} />
       <div style={{
         position: "absolute", top: "0", left: "0", right: "0",
         display: "flex", justifyContent: "space-between",
-        fontSize: "9px", color: "#555",
+        fontSize: "9px", color: "var(--faint)",
       }}>
         <span>p25</span>
         <span>p75</span>
@@ -1850,11 +1836,11 @@ function RangeBar({ p25, p75, median, channelVal, statusColor }) {
 
 function TierContextPanel({ benchmark, snapshot }) {
   const TIER_INFO = {
-    emerging: { label: "Emerging", range: "0 – 10K", color: "#6b7280" },
-    growing: { label: "Growing", range: "10K – 100K", color: "#3b82f6" },
-    established: { label: "Established", range: "100K – 500K", color: "#8b5cf6" },
-    major: { label: "Major", range: "500K – 1M", color: "#f59e0b" },
-    elite: { label: "Elite", range: "1M+", color: "#ef4444" },
+    emerging: { label: "Emerging", range: "0 – 10K", color: "var(--faint)" },
+    growing: { label: "Growing", range: "10K – 100K", color: "var(--blue)" },
+    established: { label: "Established", range: "100K – 500K", color: "var(--blue-deep)" },
+    major: { label: "Major", range: "500K – 1M", color: "var(--warn)" },
+    elite: { label: "Elite", range: "1M+", color: "var(--neg)" },
   };
   const tier = benchmark.tier || snapshot.size_tier;
   const info = TIER_INFO[tier];
@@ -1863,13 +1849,12 @@ function TierContextPanel({ benchmark, snapshot }) {
 
   return (
     <div style={{
-      background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
       padding: "24px", display: "flex", alignItems: "center", gap: "16px",
-      borderLeft: `3px solid ${info.color}`,
+      border: "1px solid var(--border)",
     }}>
       <div style={{
-        width: "56px", height: "56px", borderRadius: "8px",
-        background: `${info.color}20`, display: "flex",
+        width: "56px", height: "56px", borderRadius: "24px",
+        background: `color-mix(in srgb, ${info.color} 13%, transparent)`, display: "flex",
         alignItems: "center", justifyContent: "center",
         fontSize: "24px", fontWeight: "800", color: info.color,
       }}>
@@ -1879,12 +1864,12 @@ function TierContextPanel({ benchmark, snapshot }) {
         <div style={{ fontSize: "18px", fontWeight: "700" }}>
           <span style={{ color: info.color }}>{info.label}</span> Tier
         </div>
-        <div style={{ fontSize: "13px", color: "#9E9E9E", marginTop: "4px" }}>
+        <div style={{ fontSize: "13px", color: "var(--muted)", marginTop: "4px" }}>
           {info.range} subscribers · {subs.toLocaleString()} subs (this channel)
         </div>
       </div>
       <div style={{ textAlign: "right" }}>
-        <div style={{ fontSize: "12px", color: "#9E9E9E" }}>Peers matched</div>
+        <div style={{ fontSize: "12px", color: "var(--muted)" }}>Peers matched</div>
         <div style={{ fontSize: "28px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif" }}>{benchmark.peer_count}</div>
       </div>
     </div>
@@ -1896,7 +1881,7 @@ function TierRangesPanel({ benchmark }) {
 
   return (
     <div style={{
-      background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333", padding: "24px",
+      background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)", padding: "24px",
     }}>
       <div style={{ fontSize: "16px", fontWeight: "700", marginBottom: "16px" }}>Tier Ranges (90-day peer data)</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
@@ -1931,7 +1916,7 @@ function TierRangesPanel({ benchmark }) {
           <TierRangeCard
             title="Content Mix"
             customContent={
-              <div style={{ fontSize: "13px", color: "#E0E0E0" }}>
+              <div style={{ fontSize: "13px", color: "var(--text)" }}>
                 {bm.contentMix.shortsRatio}% Shorts · {bm.contentMix.longsRatio}% Long-form
               </div>
             }
@@ -1944,23 +1929,23 @@ function TierRangesPanel({ benchmark }) {
 
 function TierRangeCard({ title, subtitle, p25, median, p75, format, singleValue, customContent }) {
   return (
-    <div style={{ padding: "14px", background: "#252525", borderRadius: "8px" }}>
+    <div style={{ padding: "14px", background: "var(--input-bg)", borderRadius: "8px" }}>
       <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>{title}</div>
-      {subtitle && <div style={{ fontSize: "10px", color: "#666", marginBottom: "8px" }}>{subtitle}</div>}
+      {subtitle && <div style={{ fontSize: "10px", color: "var(--faint)", marginBottom: "8px" }}>{subtitle}</div>}
       {customContent ? customContent : singleValue ? (
         <div style={{ fontSize: "20px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif" }}>{format(median)}</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px" }}>
-          <div style={{ background: "#1E1E1E", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
-            <div style={{ fontSize: "9px", color: "#666" }}>p25</div>
+          <div style={{ background: "var(--card)", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
+            <div style={{ fontSize: "9px", color: "var(--faint)" }}>p25</div>
             <div style={{ fontSize: "13px", fontWeight: "600", color: COLORS.danger }}>{format(p25 || 0)}</div>
           </div>
-          <div style={{ background: "#1E1E1E", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
-            <div style={{ fontSize: "9px", color: "#666" }}>Median</div>
+          <div style={{ background: "var(--card)", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
+            <div style={{ fontSize: "9px", color: "var(--faint)" }}>Median</div>
             <div style={{ fontSize: "13px", fontWeight: "600", color: COLORS.warning }}>{format(median || 0)}</div>
           </div>
-          <div style={{ background: "#1E1E1E", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
-            <div style={{ fontSize: "9px", color: "#666" }}>p75</div>
+          <div style={{ background: "var(--card)", borderRadius: "6px", padding: "8px", textAlign: "center" }}>
+            <div style={{ fontSize: "9px", color: "var(--faint)" }}>p75</div>
             <div style={{ fontSize: "13px", fontWeight: "600", color: COLORS.success }}>{format(p75 || 0)}</div>
           </div>
         </div>
@@ -1976,8 +1961,8 @@ function OpportunityCard({ item, type }) {
 
   return (
     <div style={{
-      padding: "16px", background: "#252525", borderRadius: "8px",
-      borderLeft: `3px solid ${impactColor}`,
+      padding: "16px", background: "var(--input-bg)", borderRadius: "8px",
+      border: "1px solid var(--border)",
     }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "8px" }}>
         <div style={{ fontSize: "14px", fontWeight: "600" }}>
@@ -1986,12 +1971,12 @@ function OpportunityCard({ item, type }) {
         </div>
         <span style={{
           fontSize: "10px", fontWeight: "600", padding: "3px 8px", borderRadius: "4px",
-          color: impactColor, background: `${impactColor}15`, textTransform: "uppercase", flexShrink: 0,
+          color: impactColor, background: `color-mix(in srgb, ${impactColor} 8%, transparent)`, textTransform: "uppercase", flexShrink: 0,
         }}>
           {impact} {isGap ? "impact" : "priority"}
         </span>
       </div>
-      <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "6px" }}>
+      <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "6px" }}>
         {isGap ? item.evidence : `${item.current_state} → ${item.target_state}`}
       </div>
       {item.suggested_action && (
@@ -2016,7 +2001,7 @@ function RecommendationsOverview({ recommendations }) {
 
   return (
     <div style={{
-      background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
+      background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)",
       padding: "24px", display: "flex", alignItems: "center", gap: "24px",
     }}>
       <div style={{ flex: 1 }}>
@@ -2024,9 +2009,9 @@ function RecommendationsOverview({ recommendations }) {
           {allRecs.length} Recommendations
         </div>
         <div style={{ display: "flex", gap: "16px", fontSize: "13px" }}>
-          <span style={{ color: COLORS.danger }}>🛑 {(recommendations.stop || []).length} Stop</span>
-          <span style={{ color: COLORS.success }}>🚀 {(recommendations.start || []).length} Start</span>
-          <span style={{ color: COLORS.warning }}>⚡ {(recommendations.optimize || []).length} Optimize</span>
+          <span style={{ color: COLORS.danger }}>{(recommendations.stop || []).length} Stop</span>
+          <span style={{ color: COLORS.success }}>{(recommendations.start || []).length} Start</span>
+          <span style={{ color: COLORS.warning }}>{(recommendations.optimize || []).length} Optimize</span>
         </div>
       </div>
       <div style={{ display: "flex", gap: "12px" }}>
@@ -2036,11 +2021,11 @@ function RecommendationsOverview({ recommendations }) {
           { label: "Low", count: lowImpact, color: COLORS.gray },
         ].map(({ label, count, color }) => (
           <div key={label} style={{
-            background: "#252525", borderRadius: "8px", padding: "12px 16px", textAlign: "center",
+            background: "var(--input-bg)", borderRadius: "8px", padding: "12px 16px", textAlign: "center",
             minWidth: "80px",
           }}>
             <div style={{ fontSize: "20px", fontWeight: "700", color, fontFamily: "'Barlow Condensed', sans-serif" }}>{count}</div>
-            <div style={{ fontSize: "10px", color: "#9E9E9E" }}>{label}</div>
+            <div style={{ fontSize: "10px", color: "var(--muted)" }}>{label}</div>
           </div>
         ))}
       </div>
@@ -2051,23 +2036,23 @@ function RecommendationsOverview({ recommendations }) {
 function RecommendationColumn({ title, color, icon, items, description }) {
   return (
     <div style={{
-      background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333", padding: "24px",
+      background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)", padding: "24px",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
         <span style={{ fontSize: "20px" }}>{icon}</span>
         <div style={{ fontSize: "18px", fontWeight: "700", color }}>{title}</div>
       </div>
-      <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "16px" }}>{description}</div>
+      <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "16px" }}>{description}</div>
       {items.length === 0 ? (
-        <div style={{ color: "#666", fontSize: "13px", textAlign: "center", padding: "20px" }}>
+        <div style={{ color: "var(--faint)", fontSize: "13px", textAlign: "center", padding: "20px" }}>
           No recommendations.
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {items.map((r, i) => (
             <div key={i} style={{
-              padding: "14px", background: "#252525", borderRadius: "8px",
-              borderLeft: `3px solid ${color}`,
+              padding: "14px", background: "var(--input-bg)", borderRadius: "8px",
+              border: "1px solid var(--border)",
             }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "6px" }}>
                 <div style={{ fontSize: "13px", fontWeight: "600" }}>
@@ -2085,11 +2070,11 @@ function RecommendationColumn({ title, color, icon, items, description }) {
                   </span>
                 )}
               </div>
-              <div style={{ fontSize: "12px", color: "#9E9E9E" }}>{r.rationale}</div>
-              {r.evidence && <div style={{ fontSize: "11px", color: "#666", marginTop: "6px" }}>{r.evidence}</div>}
+              <div style={{ fontSize: "12px", color: "var(--muted)" }}>{r.rationale}</div>
+              {r.evidence && <div style={{ fontSize: "11px", color: "var(--faint)", marginTop: "6px" }}>{r.evidence}</div>}
               {r.effort && (
-                <div style={{ fontSize: "10px", color: "#666", marginTop: "6px" }}>
-                  Effort: <span style={{ color: "#9E9E9E" }}>{r.effort}</span>
+                <div style={{ fontSize: "10px", color: "var(--faint)", marginTop: "6px" }}>
+                  Effort: <span style={{ color: "var(--muted)" }}>{r.effort}</span>
                 </div>
               )}
             </div>
@@ -2107,13 +2092,13 @@ function FormatToggle({ value, onChange }) {
     { id: "short_form", label: "Shorts" },
   ];
   return (
-    <div style={{ display: "flex", gap: "4px", background: "#252525", borderRadius: "8px", padding: "3px" }}>
+    <div style={{ display: "flex", gap: "4px", background: "var(--input-bg)", borderRadius: "8px", padding: "3px" }}>
       {options.map(o => (
         <button key={o.id} onClick={() => onChange(o.id)} style={{
           padding: "6px 14px", borderRadius: "6px", fontSize: "12px", fontWeight: "600",
-          border: "none", cursor: "pointer", transition: "all 0.15s",
-          background: value === o.id ? "#3b82f6" : "transparent",
-          color: value === o.id ? "#fff" : "#9E9E9E",
+          border: "none", cursor: "pointer", transition: "background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s",
+          background: value === o.id ? "var(--blue)" : "transparent",
+          color: value === o.id ? "var(--ink)" : "var(--muted)",
         }}>
           {o.label}
         </button>
@@ -2128,8 +2113,8 @@ function FormatBadge({ format }) {
   return (
     <span style={{
       fontSize: "9px", fontWeight: "600", padding: "2px 6px", borderRadius: "4px",
-      color: isShort ? "#ec4899" : "#3b82f6",
-      background: isShort ? "rgba(236, 72, 153, 0.15)" : "rgba(59, 130, 246, 0.15)",
+      color: isShort ? "var(--neg-text)" : "var(--blue)",
+      background: isShort ? "rgba(255, 131, 117, 0.15)" : "rgba(0, 209, 255, 0.15)",
       marginLeft: "6px", textTransform: "uppercase",
     }}>
       {isShort ? "Shorts" : "Long-form"}
@@ -2144,14 +2129,14 @@ function FormatInsightsCard({ insights }) {
 
   return (
     <div style={{
-      background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
+      background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)",
       padding: "24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px",
     }}>
       {[
-        { label: "Long-form", data: insights.long_form, color: "#3b82f6" },
-        { label: "Shorts", data: insights.short_form, color: "#ec4899" },
-      ].map(({ label, data, color }) => (
-        <div key={label} style={{ padding: "16px", background: "#252525", borderRadius: "8px", borderTop: `3px solid ${color}` }}>
+        { label: "Long-form", data: insights.long_form, color: "var(--blue)" },
+        { label: "Shorts", data: insights.short_form, color: "var(--neg-text)" },
+      ].map(({ label, data, _color }) => (
+        <div key={label} style={{ padding: "16px", background: "var(--input-bg)", borderRadius: "8px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
             <div style={{ fontSize: "14px", fontWeight: "700" }}>{label}</div>
             {data?.health && (
@@ -2164,13 +2149,13 @@ function FormatInsightsCard({ insights }) {
               </span>
             )}
           </div>
-          <div style={{ fontSize: "12px", color: "#9E9E9E", lineHeight: "1.5" }}>
+          <div style={{ fontSize: "12px", color: "var(--muted)", lineHeight: "1.5" }}>
             {data?.summary || "No data available"}
           </div>
         </div>
       ))}
       {insights.format_balance && (
-        <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#9E9E9E", padding: "8px 0 0" }}>
+        <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "var(--muted)", padding: "8px 0 0" }}>
           {insights.format_balance}
         </div>
       )}
@@ -2192,13 +2177,13 @@ function filterByFormat(items, filter) {
 
 function getTierColor(tier) {
   const colors = {
-    emerging: "#6b7280",
-    growing: "#3b82f6",
-    established: "#8b5cf6",
-    major: "#f59e0b",
-    elite: "#ef4444",
+    emerging: "var(--faint)",
+    growing: "var(--blue)",
+    established: "var(--blue-deep)",
+    major: "var(--warn)",
+    elite: "var(--neg)",
   };
-  return colors[tier] || "#6b7280";
+  return colors[tier] || "var(--faint)";
 }
 
 function formatMarkdown(md) {

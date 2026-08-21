@@ -50,8 +50,30 @@ export async function loadIntakeAnswers(clientId) {
  * Convenience: completion stats for the install health-check (Part 3 #1).
  * Returns { total, answered, confirmed, unanswered, by_section: {A: {...}, ...} }.
  */
-export async function getIntakeCompletion(clientId) {
-  const answers = await loadIntakeAnswers(clientId);
+/**
+ * Bulk completion for many clients in ONE query — the Command Center
+ * used to call getIntakeCompletion per client (N round trips).
+ */
+export async function getIntakeCompletionsBulk(clientIds) {
+  if (!supabase || !clientIds?.length) return {};
+  const { data, error } = await supabase
+    .from('client_install_intake')
+    .select('*')
+    .in('client_id', clientIds);
+  if (error) {
+    console.warn('[installIntake] bulk load failed:', error.message);
+    return {};
+  }
+  const answersByClient = {};
+  for (const row of data || []) {
+    (answersByClient[row.client_id] ||= {})[row.question_key] = row;
+  }
+  const out = {};
+  for (const id of clientIds) out[id] = scoreCompletion(answersByClient[id] || {});
+  return out;
+}
+
+function scoreCompletion(answers) {
   const by_section = {};
   let answered = 0, confirmed = 0;
   for (const q of INTAKE_QUESTIONS) {
@@ -71,8 +93,12 @@ export async function getIntakeCompletion(clientId) {
     confirmed,
     unanswered:  INTAKE_QUESTIONS.length - answered,
     by_section,
-    completion_pct: Math.round((confirmed / INTAKE_QUESTIONS.length) * 100),
   };
+}
+
+export async function getIntakeCompletion(clientId) {
+  const answers = await loadIntakeAnswers(clientId);
+  return scoreCompletion(answers);
 }
 
 // ──────────────────────────────────────────────────

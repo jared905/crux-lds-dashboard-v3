@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import {useState, useEffect} from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { useAuth, TAB_LABELS } from '../../contexts/AuthContext';
-import {
+import { CheckCircle,
   Users,
   UserPlus,
   Shield,
@@ -13,7 +13,6 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
-  CheckCircle
 } from 'lucide-react';
 
 const UserManagement = ({ clients = [] }) => {
@@ -219,7 +218,7 @@ const UserManagement = ({ clients = [] }) => {
     setError(null);
 
     try {
-      const { data: invite, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from('user_invites')
         .upsert([{
           email: inviteEmail,
@@ -253,7 +252,7 @@ const UserManagement = ({ clients = [] }) => {
 
   if (!isAdmin) {
     return (
-      <div style={{ padding: '40px', textAlign: 'center', color: '#9E9E9E' }}>
+      <div style={{ padding: '40px', textAlign: 'center', color: "var(--muted)" }}>
         You don't have permission to access this page.
       </div>
     );
@@ -269,8 +268,8 @@ const UserManagement = ({ clients = [] }) => {
         marginBottom: '24px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Users size={24} color="#2962FF" />
-          <h2 style={{ color: '#E0E0E0', fontSize: '20px', fontWeight: '600', margin: 0 }}>
+          <Users size={24} color="#00D1FF" />
+          <h2 style={{ color: "var(--text)", fontSize: '20px', fontWeight: '600', margin: 0 }}>
             User Management
           </h2>
         </div>
@@ -281,10 +280,10 @@ const UserManagement = ({ clients = [] }) => {
             alignItems: 'center',
             gap: '8px',
             padding: '10px 16px',
-            background: '#2962FF',
+            background: "var(--blue)",
             border: 'none',
             borderRadius: '8px',
-            color: '#FFFFFF',
+            color: "var(--ink)",
             fontSize: '14px',
             fontWeight: '600',
             cursor: 'pointer'
@@ -307,13 +306,13 @@ const UserManagement = ({ clients = [] }) => {
           borderRadius: '8px',
           marginBottom: '24px'
         }}>
-          <CheckCircle size={18} color="#00C853" />
-          <span style={{ color: '#00C853', fontSize: '14px', flex: 1 }}>
+          <CheckCircle size={18} color="#CDF200" />
+          <span style={{ color: "var(--pos)", fontSize: '14px', flex: 1 }}>
             Invite created for {inviteSuccess.email} ({inviteSuccess.role})
           </span>
           <button
             onClick={() => setInviteSuccess(null)}
-            style={{ background: 'none', border: 'none', color: '#00C853', cursor: 'pointer' }}
+            style={{ background: 'none', border: 'none', color: "var(--pos)", cursor: 'pointer' }}
           >
             <X size={16} />
           </button>
@@ -332,11 +331,11 @@ const UserManagement = ({ clients = [] }) => {
           borderRadius: '8px',
           marginBottom: '24px'
         }}>
-          <AlertCircle size={18} color="#CF6679" />
-          <span style={{ color: '#CF6679', fontSize: '14px' }}>{error}</span>
+          <AlertCircle size={18} color="#ff8375" />
+          <span style={{ color: "var(--neg)", fontSize: '14px' }}>{error}</span>
           <button
             onClick={() => setError(null)}
-            style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#CF6679', cursor: 'pointer' }}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', color: "var(--neg)", cursor: 'pointer' }}
           >
             <X size={16} />
           </button>
@@ -346,33 +345,33 @@ const UserManagement = ({ clients = [] }) => {
       {/* Invite Form */}
       {showInvite && (
         <div style={{
-          background: '#1E1E1E',
-          border: '1px solid #333',
-          borderRadius: '8px',
+          background: "var(--card)",
+          border: '1px solid var(--border)',
+          borderRadius: "24px",
           padding: '24px',
           marginBottom: '24px'
         }}>
           {inviteSuccess ? (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <CheckCircle size={18} color="#00C853" />
-                <h3 style={{ color: '#E0E0E0', fontSize: '16px', margin: 0 }}>
+                <CheckCircle size={18} color="#CDF200" />
+                <h3 style={{ color: "var(--text)", fontSize: '16px', margin: 0 }}>
                   Invite created for {inviteSuccess.email}
                 </h3>
               </div>
-              <p style={{ color: '#9E9E9E', fontSize: '13px', margin: '0 0 12px 0' }}>
-                They'll be assigned the <strong style={{ color: '#E0E0E0' }}>{inviteSuccess.role}</strong> role when they sign up. Share this link with them:
+              <p style={{ color: "var(--muted)", fontSize: '13px', margin: '0 0 12px 0' }}>
+                They'll be assigned the <strong style={{ color: "var(--text)" }}>{inviteSuccess.role}</strong> role when they sign up. Share this link with them:
               </p>
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                background: '#181817',
-                border: '1px solid #333',
+                background: "var(--bg)",
+                border: '1px solid var(--border)',
                 borderRadius: '8px',
                 padding: '10px 14px'
               }}>
-                <span style={{ flex: 1, color: '#60a5fa', fontSize: '14px', userSelect: 'all' }}>
+                <span style={{ flex: 1, color: 'var(--accent-text)', fontSize: '14px', userSelect: 'all' }}>
                   https://fullviewstudio.com
                 </span>
                 <button
@@ -384,10 +383,10 @@ const UserManagement = ({ clients = [] }) => {
                     alignItems: 'center',
                     gap: '6px',
                     padding: '6px 12px',
-                    background: '#2962FF',
+                    background: "var(--blue)",
                     border: 'none',
                     borderRadius: '6px',
-                    color: '#FFFFFF',
+                    color: "var(--ink)",
                     fontSize: '12px',
                     fontWeight: '600',
                     cursor: 'pointer'
@@ -402,10 +401,10 @@ const UserManagement = ({ clients = [] }) => {
                   onClick={() => { setInviteSuccess(null); }}
                   style={{
                     padding: '10px 20px',
-                    background: '#2962FF',
+                    background: "var(--blue)",
                     border: 'none',
                     borderRadius: '8px',
-                    color: '#FFFFFF',
+                    color: "var(--ink)",
                     fontSize: '14px',
                     fontWeight: '600',
                     cursor: 'pointer'
@@ -418,9 +417,9 @@ const UserManagement = ({ clients = [] }) => {
                   style={{
                     padding: '10px 20px',
                     background: 'transparent',
-                    border: '1px solid #333',
+                    border: '1px solid var(--border)',
                     borderRadius: '8px',
-                    color: '#9E9E9E',
+                    color: "var(--muted)",
                     fontSize: '14px',
                     cursor: 'pointer'
                   }}
@@ -431,10 +430,10 @@ const UserManagement = ({ clients = [] }) => {
             </div>
           ) : (
             <div>
-              <h3 style={{ color: '#E0E0E0', fontSize: '16px', marginBottom: '4px' }}>
+              <h3 style={{ color: "var(--text)", fontSize: '16px', marginBottom: '4px' }}>
                 Invite New User
               </h3>
-              <p style={{ color: '#9E9E9E', fontSize: '13px', margin: '0 0 16px 0' }}>
+              <p style={{ color: "var(--muted)", fontSize: '13px', margin: '0 0 16px 0' }}>
                 Pre-register their email so they get the right role on sign-up. You'll need to share the sign-up link with them.
               </p>
               <form onSubmit={handleInvite} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
@@ -447,10 +446,10 @@ const UserManagement = ({ clients = [] }) => {
                   style={{
                     flex: '1 1 250px',
                     padding: '10px 14px',
-                    background: '#181817',
-                    border: '1px solid #333',
+                    background: "var(--bg)",
+                    border: '1px solid var(--border)',
                     borderRadius: '8px',
-                    color: '#E0E0E0',
+                    color: "var(--text)",
                     fontSize: '14px'
                   }}
                 />
@@ -459,10 +458,10 @@ const UserManagement = ({ clients = [] }) => {
                   onChange={(e) => setInviteRole(e.target.value)}
                   style={{
                     padding: '10px 14px',
-                    background: '#181817',
-                    border: '1px solid #333',
+                    background: "var(--bg)",
+                    border: '1px solid var(--border)',
                     borderRadius: '8px',
-                    color: '#E0E0E0',
+                    color: "var(--text)",
                     fontSize: '14px',
                     cursor: 'pointer'
                   }}
@@ -475,10 +474,10 @@ const UserManagement = ({ clients = [] }) => {
                   disabled={inviting}
                   style={{
                     padding: '10px 20px',
-                    background: inviting ? '#1a4bb8' : '#2962FF',
+                    background: inviting ? 'var(--blue)' : "var(--blue)",
                     border: 'none',
                     borderRadius: '8px',
-                    color: '#FFFFFF',
+                    color: "var(--ink)",
                     fontSize: '14px',
                     fontWeight: '600',
                     cursor: inviting ? 'not-allowed' : 'pointer'
@@ -492,9 +491,9 @@ const UserManagement = ({ clients = [] }) => {
                   style={{
                     padding: '10px 20px',
                     background: 'transparent',
-                    border: '1px solid #333',
+                    border: '1px solid var(--border)',
                     borderRadius: '8px',
-                    color: '#9E9E9E',
+                    color: "var(--muted)",
                     fontSize: '14px',
                     cursor: 'pointer'
                   }}
@@ -509,7 +508,7 @@ const UserManagement = ({ clients = [] }) => {
 
       {/* Users List */}
       {loading ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: '#9E9E9E' }}>
+        <div style={{ padding: '40px', textAlign: 'center', color: "var(--muted)" }}>
           Loading users...
         </div>
       ) : (
@@ -518,9 +517,9 @@ const UserManagement = ({ clients = [] }) => {
             <div
               key={user.user_id}
               style={{
-                background: '#1E1E1E',
-                border: '1px solid #333',
-                borderRadius: '8px',
+                background: "var(--card)",
+                border: '1px solid var(--border)',
+                borderRadius: "24px",
                 overflow: 'hidden'
               }}
             >
@@ -540,13 +539,13 @@ const UserManagement = ({ clients = [] }) => {
                   width: '40px',
                   height: '40px',
                   borderRadius: '50%',
-                  background: user.role === 'admin' ? 'rgba(41, 98, 255, 0.2)' : 'rgba(158, 158, 158, 0.2)',
+                  background: user.role === 'admin' ? 'rgba(0, 209, 255, 0.2)' : 'rgba(158, 158, 158, 0.2)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
                   {user.role === 'admin' ? (
-                    <Shield size={20} color="#2962FF" />
+                    <Shield size={20} color="#00D1FF" />
                   ) : (
                     <Eye size={20} color="#9E9E9E" />
                   )}
@@ -554,10 +553,10 @@ const UserManagement = ({ clients = [] }) => {
 
                 {/* Info */}
                 <div style={{ flex: 1 }}>
-                  <div style={{ color: '#E0E0E0', fontSize: '14px', fontWeight: '500' }}>
+                  <div style={{ color: "var(--text)", fontSize: '14px', fontWeight: '500' }}>
                     {user.email}
                   </div>
-                  <div style={{ color: '#9E9E9E', fontSize: '12px', marginTop: '2px' }}>
+                  <div style={{ color: "var(--muted)", fontSize: '12px', marginTop: '2px' }}>
                     {user.role === 'admin' ? 'Administrator' : 'Viewer'} • Joined {new Date(user.created_at).toLocaleDateString()}
                   </div>
                 </div>
@@ -568,8 +567,8 @@ const UserManagement = ({ clients = [] }) => {
                   borderRadius: '8px',
                   fontSize: '12px',
                   fontWeight: '600',
-                  background: user.role === 'admin' ? 'rgba(41, 98, 255, 0.15)' : 'rgba(158, 158, 158, 0.15)',
-                  color: user.role === 'admin' ? '#60a5fa' : '#9E9E9E'
+                  background: user.role === 'admin' ? 'rgba(0, 209, 255, 0.15)' : 'rgba(158, 158, 158, 0.15)',
+                  color: user.role === 'admin' ? 'var(--accent-text)' : "var(--muted)"
                 }}>
                   {user.role}
                 </span>
@@ -585,13 +584,13 @@ const UserManagement = ({ clients = [] }) => {
               {/* Expanded Permissions */}
               {expandedUser === user.user_id && (
                 <div style={{
-                  borderTop: '1px solid #333',
+                  borderTop: '1px solid var(--border)',
                   padding: '20px',
-                  background: '#171717'
+                  background: 'var(--card)'
                 }}>
                   {/* Role Selector */}
                   <div style={{ marginBottom: '20px' }}>
-                    <label style={{ color: '#9E9E9E', fontSize: '12px', fontWeight: '600', marginBottom: '8px', display: 'block' }}>
+                    <label style={{ color: "var(--muted)", fontSize: '12px', fontWeight: '600', marginBottom: '8px', display: 'block' }}>
                       ROLE
                     </label>
                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -602,8 +601,8 @@ const UserManagement = ({ clients = [] }) => {
                           padding: '8px 16px',
                           borderRadius: '6px',
                           border: 'none',
-                          background: user.role === 'admin' ? '#2962FF' : '#333',
-                          color: user.role === 'admin' ? '#FFFFFF' : '#9E9E9E',
+                          background: user.role === 'admin' ? "var(--blue)" : 'var(--outline-variant)',
+                          color: user.role === 'admin' ? 'var(--ink)' : "var(--muted)",
                           fontSize: '13px',
                           fontWeight: '500',
                           cursor: 'pointer'
@@ -618,8 +617,8 @@ const UserManagement = ({ clients = [] }) => {
                           padding: '8px 16px',
                           borderRadius: '6px',
                           border: 'none',
-                          background: user.role === 'viewer' ? '#2962FF' : '#333',
-                          color: user.role === 'viewer' ? '#FFFFFF' : '#9E9E9E',
+                          background: user.role === 'viewer' ? "var(--blue)" : 'var(--outline-variant)',
+                          color: user.role === 'viewer' ? 'var(--ink)' : "var(--muted)",
                           fontSize: '13px',
                           fontWeight: '500',
                           cursor: 'pointer'
@@ -633,7 +632,7 @@ const UserManagement = ({ clients = [] }) => {
                   {/* Tab Permissions (only for viewers) */}
                   {user.role === 'viewer' && (
                     <div style={{ marginBottom: '20px' }}>
-                      <label style={{ color: '#9E9E9E', fontSize: '12px', fontWeight: '600', marginBottom: '8px', display: 'block' }}>
+                      <label style={{ color: "var(--muted)", fontSize: '12px', fontWeight: '600', marginBottom: '8px', display: 'block' }}>
                         TAB ACCESS
                       </label>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -650,9 +649,9 @@ const UserManagement = ({ clients = [] }) => {
                                 gap: '6px',
                                 padding: '6px 12px',
                                 borderRadius: '6px',
-                                border: hasAccess ? '1px solid #2962FF' : '1px solid #444',
-                                background: hasAccess ? 'rgba(41, 98, 255, 0.15)' : 'transparent',
-                                color: hasAccess ? '#60a5fa' : '#9E9E9E',
+                                border: hasAccess ? "1px solid var(--blue)" : '1px solid #444',
+                                background: hasAccess ? 'rgba(0, 209, 255, 0.15)' : 'transparent',
+                                color: hasAccess ? 'var(--accent-text)' : "var(--muted)",
                                 fontSize: '12px',
                                 cursor: 'pointer'
                               }}
@@ -669,7 +668,7 @@ const UserManagement = ({ clients = [] }) => {
                   {/* Client Permissions (only for viewers) */}
                   {user.role === 'viewer' && clients.length > 0 && (
                     <div style={{ marginBottom: '20px' }}>
-                      <label style={{ color: '#9E9E9E', fontSize: '12px', fontWeight: '600', marginBottom: '8px', display: 'block' }}>
+                      <label style={{ color: "var(--muted)", fontSize: '12px', fontWeight: '600', marginBottom: '8px', display: 'block' }}>
                         CLIENT ACCESS {user.clientPermissions.length === 0 && <span style={{ fontWeight: '400' }}>(All clients if none selected)</span>}
                       </label>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -686,9 +685,9 @@ const UserManagement = ({ clients = [] }) => {
                                 gap: '6px',
                                 padding: '6px 12px',
                                 borderRadius: '6px',
-                                border: hasAccess ? '1px solid #00C853' : '1px solid #444',
+                                border: hasAccess ? "1px solid var(--pos)" : '1px solid #444',
                                 background: hasAccess ? 'rgba(0, 200, 83, 0.15)' : 'transparent',
-                                color: hasAccess ? '#00C853' : '#9E9E9E',
+                                color: hasAccess ? "var(--pos)" : "var(--muted)",
                                 fontSize: '12px',
                                 cursor: 'pointer'
                               }}
@@ -703,7 +702,7 @@ const UserManagement = ({ clients = [] }) => {
                   )}
 
                   {/* Delete User */}
-                  <div style={{ borderTop: '1px solid #333', paddingTop: '16px', marginTop: '16px' }}>
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', marginTop: '16px' }}>
                     <button
                       onClick={() => deleteUser(user.user_id, user.email)}
                       disabled={saving}
@@ -715,7 +714,7 @@ const UserManagement = ({ clients = [] }) => {
                         borderRadius: '6px',
                         border: '1px solid rgba(207, 102, 121, 0.3)',
                         background: 'transparent',
-                        color: '#CF6679',
+                        color: "var(--neg)",
                         fontSize: '13px',
                         cursor: 'pointer'
                       }}
@@ -730,7 +729,7 @@ const UserManagement = ({ clients = [] }) => {
           ))}
 
           {users.length === 0 && (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#9E9E9E' }}>
+            <div style={{ padding: '40px', textAlign: 'center', color: "var(--muted)" }}>
               No users found. Invite someone to get started.
             </div>
           )}

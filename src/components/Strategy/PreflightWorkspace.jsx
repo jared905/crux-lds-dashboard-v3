@@ -22,10 +22,10 @@
  * inputs and the page chrome.
  */
 
-import React, { useEffect, useState } from 'react';
-import PreflightPanel from './preflight/PreflightPanel.jsx';
+import {useEffect, useState} from 'react';
 import { listPillars } from '../../services/clientPillarsService.js';
 import DataFreshnessBadge from './shared/DataFreshnessBadge.jsx';
+import PreflightPanel from './preflight/PreflightPanel.jsx';
 import PrelaunchBadge from './shared/PrelaunchBadge.jsx';
 
 export default function PreflightWorkspace({ activeClient }) {
@@ -54,7 +54,7 @@ export default function PreflightWorkspace({ activeClient }) {
       <div style={emptyShellStyle}>
         <div style={emptyHeaderStyle}>Pre-flight scorecard</div>
         <div style={emptyBodyStyle}>
-          Pick a client from <strong style={{ color: '#cde4d6' }}>Operate → Clients</strong> first.
+          Pick a client from <strong style={{ color: 'var(--text)' }}>Portfolio → Clients</strong> first.
           The Pre-flight scorer reads the client's cohort audit data and surface intelligence, so it
           needs a specific channel context to score against.
         </div>
@@ -106,7 +106,7 @@ const workspaceHeaderStyle = {
 };
 const kickerStyle = {
   fontSize: 11,
-  color: '#0A919B',
+  color: 'var(--accent-text)',
   textTransform: 'uppercase',
   letterSpacing: 1.2,
   fontWeight: 700,
@@ -115,12 +115,12 @@ const kickerStyle = {
 const titleStyle = {
   fontSize: 24,
   fontWeight: 700,
-  color: '#e8e2d0',
+  color: 'var(--ink)',
   margin: 0,
 };
 const subtitleStyle = {
   fontSize: 13,
-  color: '#888',
+  color: 'var(--outline)',
   marginTop: 6,
   lineHeight: 1.5,
   maxWidth: 720,
@@ -134,7 +134,7 @@ const emptyShellStyle = {
 };
 const emptyHeaderStyle = {
   fontSize: 14,
-  color: '#0A919B',
+  color: 'var(--accent-text)',
   textTransform: 'uppercase',
   letterSpacing: 1.2,
   fontWeight: 700,
@@ -142,6 +142,6 @@ const emptyHeaderStyle = {
 };
 const emptyBodyStyle = {
   fontSize: 14,
-  color: '#888',
+  color: 'var(--outline)',
   lineHeight: 1.6,
 };

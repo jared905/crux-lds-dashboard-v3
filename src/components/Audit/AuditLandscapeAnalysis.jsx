@@ -11,46 +11,34 @@ import {
 } from "recharts";
 
 const COLORS = {
-  primary: "#3b82f6",
-  success: "#22c55e",
-  warning: "#f59e0b",
-  danger: "#ef4444",
-  purple: "#8b5cf6",
-  pink: "#ec4899",
-  audited: "#60a5fa",
+  primary: "var(--blue)",
+  success: "var(--pos)",
+  warning: "var(--warn)",
+  danger: "var(--neg)",
+  purple: "var(--blue-deep)",
+  pink: "var(--neg-text)",
+  audited: "var(--accent-text)",
 };
 
-const SCATTER_COLORS = ["#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"];
+const SCATTER_COLORS = ["var(--pos)", "var(--warn)", "var(--neg)", "var(--blue-deep)", "var(--neg-text)", "var(--accent-text)"];
 
 const card = (extra = {}) => ({
-  background: "#1E1E1E",
+  background: "var(--card)",
   borderRadius: "8px",
-  border: "1px solid #333",
+  border: "1px solid var(--border)",
   padding: "24px",
   ...extra,
 });
 
 export default function AuditLandscapeAnalysis({ audit }) {
   const landscape = audit.landscape_data;
+  const positioning = landscape?.positioning;
 
-  if (!landscape) {
-    return (
-      <div style={card({ textAlign: "center", padding: "60px" })}>
-        <div style={{ fontSize: "16px", fontWeight: "600", marginBottom: "8px" }}>No Landscape Data</div>
-        <div style={{ fontSize: "13px", color: "#9E9E9E" }}>
-          Landscape analysis was not included in this audit. Run a new audit with competitors and enable "Include Landscape Analysis."
-        </div>
-      </div>
-    );
-  }
-
-  const positioning = landscape.positioning;
-  const saturation = landscape.saturation;
-  const formatLandscape = landscape.format_landscape;
-  const advantages = landscape.competitive_advantages;
-  const narrative = landscape.narrative;
-
-  // Scatter chart data
+  // Hooks must run on every render, so this sits above the early return
+  // below. It used to be declared after it, which meant the hook was skipped
+  // whenever an audit had no landscape data — changing hook order between
+  // renders, which React explicitly forbids and which corrupts the state of
+  // whatever hook lands in that slot next.
   const scatterData = useMemo(() => {
     if (!positioning?.positions?.length) return [];
     return positioning.positions.map(p => ({
@@ -61,12 +49,28 @@ export default function AuditLandscapeAnalysis({ audit }) {
     }));
   }, [positioning]);
 
+  if (!landscape) {
+    return (
+      <div style={card({ textAlign: "center", padding: "60px" })}>
+        <div style={{ fontSize: "16px", fontWeight: "600", marginBottom: "8px" }}>No Landscape Data</div>
+        <div style={{ fontSize: "13px", color: "var(--muted)" }}>
+          Landscape analysis was not included in this audit. Run a new audit with competitors and enable "Include Landscape Analysis."
+        </div>
+      </div>
+    );
+  }
+
+  const saturation = landscape.saturation;
+  const formatLandscape = landscape.format_landscape;
+  const advantages = landscape.competitive_advantages;
+  const narrative = landscape.narrative;
+
   const CustomScatterTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
     const d = payload[0].payload;
     return (
-      <div style={{ background: "#252525", border: "1px solid #444", borderRadius: "6px", padding: "8px 12px", fontSize: "12px" }}>
-        <div style={{ fontWeight: "600", color: d.isAudited ? COLORS.audited : "#E0E0E0" }}>
+      <div style={{ background: "var(--input-bg)", border: "1px solid #444", borderRadius: "6px", padding: "8px 12px", fontSize: "12px" }}>
+        <div style={{ fontWeight: "600", color: d.isAudited ? COLORS.audited : "var(--text)" }}>
           {d.name} {d.isAudited ? "(You)" : ""}
         </div>
       </div>
@@ -87,7 +91,7 @@ export default function AuditLandscapeAnalysis({ audit }) {
       {narrative && (
         <div style={card()}>
           <div style={{ fontSize: "16px", fontWeight: "700", marginBottom: "16px" }}>Landscape Overview</div>
-          <div style={{ fontSize: "14px", color: "#E0E0E0", lineHeight: "1.7" }}>
+          <div style={{ fontSize: "14px", color: "var(--text)", lineHeight: "1.7" }}>
             {renderNarrative(narrative)}
           </div>
         </div>
@@ -97,7 +101,7 @@ export default function AuditLandscapeAnalysis({ audit }) {
       {scatterData.length > 0 && positioning && (
         <div style={card()}>
           <div style={{ fontSize: "16px", fontWeight: "700", marginBottom: "4px" }}>Competitive Positioning</div>
-          <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "16px" }}>
+          <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "16px" }}>
             {positioning.x_axis?.label} vs {positioning.y_axis?.label}
           </div>
           <ResponsiveContainer width="100%" height={400}>
@@ -107,15 +111,15 @@ export default function AuditLandscapeAnalysis({ audit }) {
                 type="number"
                 dataKey="x"
                 domain={[0, 100]}
-                tick={{ fill: "#9E9E9E", fontSize: 11 }}
-                label={{ value: positioning.x_axis?.label, position: "bottom", fill: "#9E9E9E", fontSize: 12, offset: 20 }}
+                tick={{ fill: "var(--muted)", fontSize: 11 }}
+                label={{ value: positioning.x_axis?.label, position: "bottom", fill: "var(--muted)", fontSize: 12, offset: 20 }}
               />
               <YAxis
                 type="number"
                 dataKey="y"
                 domain={[0, 100]}
-                tick={{ fill: "#9E9E9E", fontSize: 11 }}
-                label={{ value: positioning.y_axis?.label, angle: -90, position: "insideLeft", fill: "#9E9E9E", fontSize: 12 }}
+                tick={{ fill: "var(--muted)", fontSize: 11 }}
+                label={{ value: positioning.y_axis?.label, angle: -90, position: "insideLeft", fill: "var(--muted)", fontSize: 12 }}
               />
               <Tooltip content={<CustomScatterTooltip />} />
               <Scatter data={scatterData}>
@@ -124,7 +128,7 @@ export default function AuditLandscapeAnalysis({ audit }) {
                     key={i}
                     fill={entry.isAudited ? COLORS.audited : SCATTER_COLORS[i % SCATTER_COLORS.length]}
                     r={entry.isAudited ? 10 : 7}
-                    stroke={entry.isAudited ? "#fff" : "none"}
+                    stroke={entry.isAudited ? "var(--ink)" : "none"}
                     strokeWidth={entry.isAudited ? 2 : 0}
                   />
                 ))}
@@ -142,7 +146,7 @@ export default function AuditLandscapeAnalysis({ audit }) {
                   background: entry.isAudited ? COLORS.audited : SCATTER_COLORS[i % SCATTER_COLORS.length],
                   border: entry.isAudited ? "2px solid #fff" : "none",
                 }} />
-                <span style={{ color: entry.isAudited ? COLORS.audited : "#9E9E9E" }}>
+                <span style={{ color: entry.isAudited ? COLORS.audited : "var(--muted)" }}>
                   {entry.name} {entry.isAudited ? "(You)" : ""}
                 </span>
               </div>
@@ -163,21 +167,21 @@ export default function AuditLandscapeAnalysis({ audit }) {
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {saturation.oversaturated.map((item, i) => (
                   <div key={i} style={{
-                    padding: "10px 12px", background: "rgba(239, 68, 68, 0.08)",
-                    border: "1px solid rgba(239, 68, 68, 0.2)", borderRadius: "8px",
+                    padding: "10px 12px", background: "rgba(255, 85, 64, 0.08)",
+                    border: "1px solid rgba(255, 85, 64, 0.2)", borderRadius: "8px",
                   }}>
                     <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>
                       {item.topic_or_format}
-                      <span style={{ fontSize: "11px", color: "#9E9E9E", marginLeft: "8px" }}>
+                      <span style={{ fontSize: "11px", color: "var(--muted)", marginLeft: "8px" }}>
                         {item.channels_active} channels active
                       </span>
                     </div>
-                    <div style={{ fontSize: "12px", color: "#9E9E9E" }}>{item.evidence}</div>
+                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>{item.evidence}</div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div style={{ fontSize: "13px", color: "#9E9E9E" }}>No oversaturated areas identified</div>
+              <div style={{ fontSize: "13px", color: "var(--muted)" }}>No oversaturated areas identified</div>
             )}
           </div>
 
@@ -190,27 +194,27 @@ export default function AuditLandscapeAnalysis({ audit }) {
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {saturation.white_space.map((item, i) => (
                   <div key={i} style={{
-                    padding: "10px 12px", background: "rgba(34, 197, 94, 0.08)",
-                    border: "1px solid rgba(34, 197, 94, 0.2)", borderRadius: "8px",
+                    padding: "10px 12px", background: "rgba(205, 242, 0, 0.08)",
+                    border: "1px solid rgba(205, 242, 0, 0.2)", borderRadius: "8px",
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
                       <span style={{ fontSize: "13px", fontWeight: "600" }}>{item.topic_or_format}</span>
                       {item.potential && (
                         <span style={{
                           fontSize: "10px", fontWeight: "700", padding: "2px 6px", borderRadius: "4px",
-                          background: item.potential === "high" ? "#166534" : item.potential === "medium" ? "#854d0e" : "#333",
-                          color: item.potential === "high" ? "#22c55e" : item.potential === "medium" ? "#f59e0b" : "#9E9E9E",
+                          background: item.potential === "high" ? "var(--pos-text)" : item.potential === "medium" ? "var(--warn-text)" : "var(--outline-variant)",
+                          color: item.potential === "high" ? "var(--pos)" : item.potential === "medium" ? "var(--warn)" : "var(--muted)",
                         }}>
                           {item.potential}
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: "12px", color: "#9E9E9E" }}>{item.evidence}</div>
+                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>{item.evidence}</div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div style={{ fontSize: "13px", color: "#9E9E9E" }}>No white space identified</div>
+              <div style={{ fontSize: "13px", color: "var(--muted)" }}>No white space identified</div>
             )}
           </div>
         </div>
@@ -224,20 +228,20 @@ export default function AuditLandscapeAnalysis({ audit }) {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid #444" }}>
-                  <th style={{ textAlign: "left", padding: "8px 12px", color: "#9E9E9E" }}>Channel</th>
-                  <th style={{ textAlign: "left", padding: "8px 12px", color: "#9E9E9E" }}>Dominant Format</th>
-                  <th style={{ textAlign: "center", padding: "8px 12px", color: "#9E9E9E" }}>Format Diversity</th>
-                  <th style={{ textAlign: "center", padding: "8px 12px", color: "#9E9E9E" }}>Shorts Adoption</th>
+                  <th style={{ textAlign: "left", padding: "8px 12px", color: "var(--muted)" }}>Channel</th>
+                  <th style={{ textAlign: "left", padding: "8px 12px", color: "var(--muted)" }}>Dominant Format</th>
+                  <th style={{ textAlign: "center", padding: "8px 12px", color: "var(--muted)" }}>Format Diversity</th>
+                  <th style={{ textAlign: "center", padding: "8px 12px", color: "var(--muted)" }}>Shorts Adoption</th>
                 </tr>
               </thead>
               <tbody>
                 {formatLandscape.map((row, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #333" }}>
+                  <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
                     <td style={{ padding: "10px 12px", fontWeight: "600" }}>{row.channel}</td>
                     <td style={{ padding: "10px 12px" }}>
                       <span style={{
                         padding: "2px 8px", borderRadius: "4px",
-                        background: "#252525", border: "1px solid #444",
+                        background: "var(--input-bg)", border: "1px solid #444",
                         fontSize: "12px",
                       }}>
                         {row.dominant_format}
@@ -246,8 +250,8 @@ export default function AuditLandscapeAnalysis({ audit }) {
                     <td style={{ textAlign: "center", padding: "10px 12px" }}>
                       <span style={{
                         padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "600",
-                        background: row.format_diversity === "high" ? "#166534" : row.format_diversity === "medium" ? "#854d0e" : "#333",
-                        color: row.format_diversity === "high" ? "#22c55e" : row.format_diversity === "medium" ? "#f59e0b" : "#9E9E9E",
+                        background: row.format_diversity === "high" ? "var(--pos-text)" : row.format_diversity === "medium" ? "var(--warn-text)" : "var(--outline-variant)",
+                        color: row.format_diversity === "high" ? "var(--pos)" : row.format_diversity === "medium" ? "var(--warn)" : "var(--muted)",
                       }}>
                         {row.format_diversity}
                       </span>
@@ -255,8 +259,8 @@ export default function AuditLandscapeAnalysis({ audit }) {
                     <td style={{ textAlign: "center", padding: "10px 12px" }}>
                       <span style={{
                         padding: "2px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "600",
-                        background: row.shorts_adoption === "heavy" ? "rgba(41, 98, 255, 0.15)" : row.shorts_adoption === "moderate" ? "#854d0e" : "#333",
-                        color: row.shorts_adoption === "heavy" ? "#60a5fa" : row.shorts_adoption === "moderate" ? "#f59e0b" : "#9E9E9E",
+                        background: row.shorts_adoption === "heavy" ? "rgba(0, 209, 255, 0.15)" : row.shorts_adoption === "moderate" ? "var(--warn-text)" : "var(--outline-variant)",
+                        color: row.shorts_adoption === "heavy" ? "var(--accent-text)" : row.shorts_adoption === "moderate" ? "var(--warn)" : "var(--muted)",
                       }}>
                         {row.shorts_adoption}
                       </span>
@@ -277,13 +281,13 @@ export default function AuditLandscapeAnalysis({ audit }) {
               Your Strengths
             </div>
             {advantages.audited_channel_strengths?.length > 0 ? (
-              <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "13px", color: "#E0E0E0", lineHeight: "1.8" }}>
+              <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "13px", color: "var(--text)", lineHeight: "1.8" }}>
                 {advantages.audited_channel_strengths.map((s, i) => (
                   <li key={i}>{s}</li>
                 ))}
               </ul>
             ) : (
-              <div style={{ fontSize: "13px", color: "#9E9E9E" }}>None identified</div>
+              <div style={{ fontSize: "13px", color: "var(--muted)" }}>None identified</div>
             )}
           </div>
           <div style={card()}>
@@ -291,13 +295,13 @@ export default function AuditLandscapeAnalysis({ audit }) {
               Your Vulnerabilities
             </div>
             {advantages.audited_channel_vulnerabilities?.length > 0 ? (
-              <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "13px", color: "#E0E0E0", lineHeight: "1.8" }}>
+              <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "13px", color: "var(--text)", lineHeight: "1.8" }}>
                 {advantages.audited_channel_vulnerabilities.map((v, i) => (
                   <li key={i}>{v}</li>
                 ))}
               </ul>
             ) : (
-              <div style={{ fontSize: "13px", color: "#9E9E9E" }}>None identified</div>
+              <div style={{ fontSize: "13px", color: "var(--muted)" }}>None identified</div>
             )}
           </div>
         </div>
@@ -305,11 +309,11 @@ export default function AuditLandscapeAnalysis({ audit }) {
 
       {/* Biggest Threat */}
       {advantages?.biggest_threat && (
-        <div style={card({ border: "1px solid rgba(239, 68, 68, 0.3)", background: "rgba(239, 68, 68, 0.05)" })}>
+        <div style={card({ border: "1px solid rgba(255, 85, 64, 0.3)", background: "rgba(255, 85, 64, 0.05)" })}>
           <div style={{ fontSize: "14px", fontWeight: "700", color: COLORS.danger, marginBottom: "8px" }}>
             Biggest Competitive Threat
           </div>
-          <div style={{ fontSize: "14px", color: "#E0E0E0", lineHeight: "1.6" }}>
+          <div style={{ fontSize: "14px", color: "var(--text)", lineHeight: "1.6" }}>
             {advantages.biggest_threat}
           </div>
         </div>

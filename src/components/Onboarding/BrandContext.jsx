@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {useState, useEffect, useCallback, useRef} from 'react';
 import {
-  Palette, Upload, Loader2, AlertCircle, Check, ChevronDown, ChevronRight,
+  Palette, Loader2, AlertCircle, Check, ChevronDown, ChevronRight,
   Megaphone, Users, Layers, Eye, Globe, Sparkles, Edit2, RotateCcw, Save,
   Plus, X, Clock, Search, ArrowLeft, Target, Settings2, ShieldCheck
 } from 'lucide-react';
@@ -11,6 +11,7 @@ import {
   autoDiscoverBrandContext,
   getBrandContextHistory,
   searchChannels,
+  listClientChannels,
 } from '../../services/brandContextService';
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
@@ -18,8 +19,8 @@ import {
 const styles = {
   page: { maxWidth: '960px', margin: '0 auto' },
   card: {
-    background: '#1E1E1E',
-    border: '1px solid #333',
+    background: 'var(--card)',
+    border: '1px solid var(--border)',
     borderRadius: '8px',
     padding: '24px',
     marginBottom: '16px',
@@ -27,17 +28,17 @@ const styles = {
   header: {
     fontSize: '24px',
     fontWeight: '700',
-    color: '#E0E0E0',
+    color: 'var(--text)',
     marginBottom: '8px',
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
   },
-  subtitle: { fontSize: '14px', color: '#9E9E9E', marginBottom: '24px' },
+  subtitle: { fontSize: '14px', color: 'var(--muted)', marginBottom: '24px' },
   label: {
     display: 'block',
     fontSize: '12px',
-    color: '#9E9E9E',
+    color: 'var(--muted)',
     fontWeight: '600',
     marginBottom: '6px',
     textTransform: 'uppercase',
@@ -45,21 +46,21 @@ const styles = {
   },
   input: {
     width: '100%',
-    background: '#252525',
-    border: '1px solid #333',
+    background: 'var(--surface-high)',
+    border: '1px solid var(--border)',
     borderRadius: '8px',
     padding: '10px 12px',
-    color: '#E0E0E0',
+    color: 'var(--text)',
     fontSize: '14px',
     boxSizing: 'border-box',
   },
   textarea: {
     width: '100%',
-    background: '#252525',
-    border: '1px solid #333',
+    background: 'var(--surface-high)',
+    border: '1px solid var(--border)',
     borderRadius: '8px',
     padding: '12px',
-    color: '#E0E0E0',
+    color: 'var(--text)',
     fontSize: '14px',
     resize: 'vertical',
     minHeight: '120px',
@@ -67,13 +68,13 @@ const styles = {
     boxSizing: 'border-box',
   },
   btnPrimary: {
-    background: '#2962FF',
+    background: 'var(--blue)',
     border: 'none',
     borderRadius: '8px',
     padding: '12px 20px',
     fontWeight: '600',
     cursor: 'pointer',
-    color: '#fff',
+    color: 'var(--ink)',
     fontSize: '14px',
     display: 'flex',
     alignItems: 'center',
@@ -81,8 +82,8 @@ const styles = {
   },
   btnSecondary: {
     background: 'transparent',
-    color: '#9E9E9E',
-    border: '1px solid #333',
+    color: 'var(--muted)',
+    border: '1px solid var(--border)',
     borderRadius: '8px',
     padding: '10px 16px',
     fontWeight: '500',
@@ -93,24 +94,24 @@ const styles = {
     gap: '6px',
   },
   error: {
-    background: 'rgba(239, 68, 68, 0.1)',
-    border: '1px solid #ef4444',
+    background: 'rgba(255, 85, 64, 0.1)',
+    border: '1px solid #FF5540',
     borderRadius: '8px',
     padding: '12px',
     marginBottom: '16px',
-    color: '#ef4444',
+    color: 'var(--neg)',
     fontSize: '13px',
     display: 'flex',
     alignItems: 'flex-start',
     gap: '8px',
   },
   success: {
-    background: 'rgba(16, 185, 129, 0.1)',
-    border: '1px solid #10b981',
+    background: 'rgba(205, 242, 0, 0.1)',
+    border: '1px solid #CDF200',
     borderRadius: '8px',
     padding: '12px',
     marginBottom: '16px',
-    color: '#10b981',
+    color: 'var(--pos)',
     fontSize: '13px',
     display: 'flex',
     alignItems: 'center',
@@ -120,8 +121,8 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
-    background: 'rgba(41, 98, 255, 0.15)',
-    color: '#60a5fa',
+    background: 'rgba(0, 209, 255, 0.15)',
+    color: 'var(--accent-text)',
     borderRadius: '6px',
     padding: '4px 10px',
     fontSize: '13px',
@@ -133,7 +134,7 @@ const styles = {
     gap: '10px',
     padding: '14px 0',
     cursor: 'pointer',
-    borderBottom: '1px solid #333',
+    borderBottom: '1px solid var(--border)',
     userSelect: 'none',
   },
 };
@@ -159,7 +160,7 @@ function TagInput({ tags = [], onChange, placeholder = 'Add item...' }) {
             {tag}
             <button
               onClick={() => onChange(tags.filter((_, idx) => idx !== i))}
-              style={{ background: 'none', border: 'none', color: '#60a5fa', cursor: 'pointer', padding: '0', lineHeight: 1 }}
+              style={{ background: 'none', border: 'none', color: 'var(--accent-text)', cursor: 'pointer', padding: '0', lineHeight: 1 }}
             >
               <X size={12} />
             </button>
@@ -204,10 +205,10 @@ function ListEditor({ items = [], fields, onChange, addLabel = 'Add item' }) {
   return (
     <div>
       {items.map((item, i) => (
-        <div key={i} style={{ background: '#252525', borderRadius: '8px', padding: '12px', marginBottom: '8px', position: 'relative' }}>
+        <div key={i} style={{ background: "var(--input-bg)", borderRadius: '8px', padding: '12px', marginBottom: '8px', position: 'relative' }}>
           <button
             onClick={() => removeItem(i)}
-            style={{ position: 'absolute', top: '8px', right: '8px', background: 'none', border: 'none', color: '#666', cursor: 'pointer' }}
+            style={{ position: 'absolute', top: '8px', right: '8px', background: 'none', border: 'none', color: 'var(--faint)', cursor: 'pointer' }}
           >
             <X size={14} />
           </button>
@@ -250,14 +251,14 @@ function SectionPanel({ icon: Icon, title, filled, expanded, onToggle, children 
   return (
     <div style={{ marginBottom: '2px' }}>
       <div onClick={onToggle} style={styles.sectionHeader}>
-        <Icon size={18} color={filled ? '#2962FF' : '#666'} />
-        <span style={{ flex: 1, fontSize: '15px', fontWeight: '600', color: filled ? '#E0E0E0' : '#9E9E9E' }}>
+        <Icon size={18} color={filled ? 'var(--blue)' : 'var(--faint)'} />
+        <span style={{ flex: 1, fontSize: '15px', fontWeight: '600', color: filled ? "var(--text)" : "var(--muted)" }}>
           {title}
         </span>
         {filled && (
-          <span style={{ fontSize: '11px', color: '#10b981', fontWeight: '500' }}>Filled</span>
+          <span style={{ fontSize: '11px', color: "var(--pos)", fontWeight: '500' }}>Filled</span>
         )}
-        {expanded ? <ChevronDown size={16} color="#666" /> : <ChevronRight size={16} color="#666" />}
+        {expanded ? <ChevronDown size={16} color="#67747b" /> : <ChevronRight size={16} color="#67747b" />}
       </div>
       {expanded && (
         <div style={{ padding: '16px 0 8px' }}>
@@ -277,12 +278,12 @@ function ReviewSection({ icon: Icon, title, data }) {
   return (
     <div style={{ marginBottom: '2px' }}>
       <div onClick={() => setExpanded(!expanded)} style={styles.sectionHeader}>
-        <Icon size={18} color="#2962FF" />
-        <span style={{ flex: 1, fontSize: '15px', fontWeight: '600', color: '#E0E0E0' }}>{title}</span>
-        {expanded ? <ChevronDown size={16} color="#666" /> : <ChevronRight size={16} color="#666" />}
+        <Icon size={18} color="#00D1FF" />
+        <span style={{ flex: 1, fontSize: '15px', fontWeight: '600', color: "var(--text)" }}>{title}</span>
+        {expanded ? <ChevronDown size={16} color="#67747b" /> : <ChevronRight size={16} color="#67747b" />}
       </div>
       {expanded && (
-        <div style={{ padding: '12px 0 8px', fontSize: '13px', color: '#ccc', lineHeight: '1.6' }}>
+        <div style={{ padding: '12px 0 8px', fontSize: '13px', color: 'var(--text)', lineHeight: '1.6' }}>
           {renderReviewData(title, data)}
         </div>
       )}
@@ -311,7 +312,7 @@ function renderReviewData(sectionTitle, data) {
         {data.voice_summary && (
           <div>
             <div style={styles.label}>Summary</div>
-            <div style={{ color: '#aaa' }}>{data.voice_summary}</div>
+            <div style={{ color: 'var(--muted)' }}>{data.voice_summary}</div>
           </div>
         )}
       </div>
@@ -325,11 +326,11 @@ function renderReviewData(sectionTitle, data) {
           <div style={{ marginBottom: '12px' }}>
             <div style={styles.label}>Active Campaigns</div>
             {data.current_campaigns.map((c, i) => (
-              <div key={i} style={{ background: '#252525', borderRadius: '8px', padding: '10px 12px', marginBottom: '6px' }}>
-                <div style={{ fontWeight: '600', color: '#E0E0E0', marginBottom: '2px' }}>
-                  {c.name} <span style={{ fontSize: '11px', color: c.priority_signal === 'high' ? '#10b981' : '#9E9E9E' }}>({c.status}, {c.priority_signal})</span>
+              <div key={i} style={{ background: "var(--input-bg)", borderRadius: '8px', padding: '10px 12px', marginBottom: '6px' }}>
+                <div style={{ fontWeight: '600', color: "var(--text)", marginBottom: '2px' }}>
+                  {c.name} <span style={{ fontSize: '11px', color: c.priority_signal === 'high' ? "var(--pos)" : "var(--muted)" }}>({c.status}, {c.priority_signal})</span>
                 </div>
-                {c.description && <div style={{ fontSize: '12px', color: '#aaa' }}>{c.description}</div>}
+                {c.description && <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{c.description}</div>}
               </div>
             ))}
           </div>
@@ -363,10 +364,10 @@ function renderReviewData(sectionTitle, data) {
           <div>
             <div style={styles.label}>Content Gaps (YouTube Opportunities)</div>
             {data.content_gaps.map((g, i) => (
-              <div key={i} style={{ background: '#252525', borderRadius: '8px', padding: '10px 12px', marginBottom: '6px' }}>
+              <div key={i} style={{ background: "var(--input-bg)", borderRadius: '8px', padding: '10px 12px', marginBottom: '6px' }}>
                 <div>{g.observation}</div>
                 {g.youtube_opportunity && (
-                  <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>YouTube opportunity: {g.youtube_opportunity}</div>
+                  <div style={{ fontSize: '12px', color: "var(--pos)", marginTop: '4px' }}>YouTube opportunity: {g.youtube_opportunity}</div>
                 )}
               </div>
             ))}
@@ -385,7 +386,7 @@ function renderReviewData(sectionTitle, data) {
             {data.themes.map((t, i) => (
               <div key={i} style={{ marginBottom: '6px' }}>
                 - <strong>{t.theme}</strong> ({t.frequency} frequency)
-                {t.sub_topics?.length > 0 && <span style={{ color: '#9E9E9E' }}> — {t.sub_topics.join(', ')}</span>}
+                {t.sub_topics?.length > 0 && <span style={{ color: "var(--muted)" }}> — {t.sub_topics.join(', ')}</span>}
               </div>
             ))}
           </div>
@@ -412,7 +413,7 @@ function renderReviewData(sectionTitle, data) {
               {data.color_palette.primary.map((c, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <div style={{ width: '24px', height: '24px', borderRadius: '4px', background: c, border: '1px solid #555' }} />
-                  <span style={{ fontSize: '12px', color: '#9E9E9E' }}>{c}</span>
+                  <span style={{ fontSize: '12px', color: "var(--muted)" }}>{c}</span>
                 </div>
               ))}
             </div>
@@ -439,12 +440,12 @@ function renderReviewData(sectionTitle, data) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
         {Object.entries(data).map(([platform, info]) => (
           info && typeof info === 'object' ? (
-            <div key={platform} style={{ background: '#252525', borderRadius: '8px', padding: '12px' }}>
-              <div style={{ fontWeight: '600', color: '#E0E0E0', marginBottom: '4px', textTransform: 'capitalize' }}>{platform}</div>
-              {info.handle && <div style={{ fontSize: '12px', color: '#9E9E9E' }}>{info.handle}</div>}
-              {info.follower_count && <div style={{ fontSize: '12px', color: '#9E9E9E' }}>{info.follower_count.toLocaleString()} followers</div>}
-              {info.posting_frequency && <div style={{ fontSize: '12px', color: '#9E9E9E' }}>{info.posting_frequency}</div>}
-              {info.notes && <div style={{ fontSize: '12px', color: '#aaa', marginTop: '4px' }}>{info.notes}</div>}
+            <div key={platform} style={{ background: "var(--input-bg)", borderRadius: '8px', padding: '12px' }}>
+              <div style={{ fontWeight: '600', color: "var(--text)", marginBottom: '4px', textTransform: 'capitalize' }}>{platform}</div>
+              {info.handle && <div style={{ fontSize: '12px', color: "var(--muted)" }}>{info.handle}</div>}
+              {info.follower_count && <div style={{ fontSize: '12px', color: "var(--muted)" }}>{info.follower_count.toLocaleString()} followers</div>}
+              {info.posting_frequency && <div style={{ fontSize: '12px', color: "var(--muted)" }}>{info.posting_frequency}</div>}
+              {info.notes && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>{info.notes}</div>}
             </div>
           ) : null
         ))}
@@ -458,8 +459,8 @@ function renderReviewData(sectionTitle, data) {
         {data.current_phase && (
           <div style={{ marginBottom: '12px' }}>
             <div style={styles.label}>Current Phase</div>
-            <span style={{ ...styles.tag, background: '#1a365d', color: '#90cdf4', textTransform: 'capitalize' }}>{data.current_phase}</span>
-            {data.phase_notes && <div style={{ color: '#aaa', fontSize: '13px', marginTop: '6px' }}>{data.phase_notes}</div>}
+            <span style={{ ...styles.tag, background: 'var(--surface-high)', color: 'var(--blue-pale)', textTransform: 'capitalize' }}>{data.current_phase}</span>
+            {data.phase_notes && <div style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '6px' }}>{data.phase_notes}</div>}
           </div>
         )}
         {data.business_objectives?.length > 0 && (
@@ -482,11 +483,11 @@ function renderReviewData(sectionTitle, data) {
           <div>
             <div style={styles.label}>Growth Targets</div>
             {data.growth_targets.map((t, i) => (
-              <div key={i} style={{ background: '#252525', borderRadius: '8px', padding: '10px 12px', marginBottom: '6px' }}>
-                <div style={{ fontWeight: '600', color: '#E0E0E0' }}>
-                  {t.target} {t.metric} {t.timeframe && <span style={{ fontSize: '12px', color: '#9E9E9E' }}>within {t.timeframe}</span>}
+              <div key={i} style={{ background: "var(--input-bg)", borderRadius: '8px', padding: '10px 12px', marginBottom: '6px' }}>
+                <div style={{ fontWeight: '600', color: "var(--text)" }}>
+                  {t.target} {t.metric} {t.timeframe && <span style={{ fontSize: '12px', color: "var(--muted)" }}>within {t.timeframe}</span>}
                 </div>
-                {t.notes && <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>{t.notes}</div>}
+                {t.notes && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>{t.notes}</div>}
               </div>
             ))}
           </div>
@@ -501,7 +502,7 @@ function renderReviewData(sectionTitle, data) {
         {data.publishing_cadence?.videos_per_period && (
           <div style={{ marginBottom: '12px' }}>
             <div style={styles.label}>Publishing Cadence</div>
-            <div style={{ color: '#E0E0E0' }}>{data.publishing_cadence.videos_per_period} videos per {data.publishing_cadence.period || 'week'}</div>
+            <div style={{ color: "var(--text)" }}>{data.publishing_cadence.videos_per_period} videos per {data.publishing_cadence.period || 'week'}</div>
           </div>
         )}
         {data.production_capability && (data.production_capability.team_size || data.production_capability.equipment_level || data.production_capability.editing) && (
@@ -517,17 +518,17 @@ function renderReviewData(sectionTitle, data) {
         {data.budget_tier && (
           <div style={{ marginBottom: '12px' }}>
             <div style={styles.label}>Budget Tier</div>
-            <div style={{ color: '#E0E0E0', textTransform: 'capitalize' }}>{data.budget_tier.replace(/_/g, ' ')}</div>
+            <div style={{ color: "var(--text)", textTransform: 'capitalize' }}>{data.budget_tier.replace(/_/g, ' ')}</div>
           </div>
         )}
         {data.talent?.length > 0 && (
           <div style={{ marginBottom: '12px' }}>
             <div style={styles.label}>On-Camera Talent</div>
             {data.talent.map((t, i) => (
-              <div key={i} style={{ background: '#252525', borderRadius: '8px', padding: '10px 12px', marginBottom: '6px' }}>
-                <div style={{ fontWeight: '600', color: '#E0E0E0' }}>{t.name}</div>
-                <div style={{ fontSize: '12px', color: '#9E9E9E' }}>{t.availability} &middot; {t.comfort_level}</div>
-                {t.notes && <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>{t.notes}</div>}
+              <div key={i} style={{ background: "var(--input-bg)", borderRadius: '8px', padding: '10px 12px', marginBottom: '6px' }}>
+                <div style={{ fontWeight: '600', color: "var(--text)" }}>{t.name}</div>
+                <div style={{ fontSize: '12px', color: "var(--muted)" }}>{t.availability} &middot; {t.comfort_level}</div>
+                {t.notes && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>{t.notes}</div>}
               </div>
             ))}
           </div>
@@ -535,7 +536,7 @@ function renderReviewData(sectionTitle, data) {
         {data.turnaround?.concept_to_publish && (
           <div>
             <div style={styles.label}>Turnaround</div>
-            <div style={{ color: '#E0E0E0' }}>{data.turnaround.concept_to_publish}</div>
+            <div style={{ color: "var(--text)" }}>{data.turnaround.concept_to_publish}</div>
           </div>
         )}
       </div>
@@ -549,7 +550,7 @@ function renderReviewData(sectionTitle, data) {
           <div style={{ marginBottom: '12px' }}>
             <div style={styles.label}>Topics to Avoid</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {data.topics_to_avoid.map((t, i) => <span key={i} style={{ ...styles.tag, background: '#3b1c1c', color: '#fca5a5' }}>{t}</span>)}
+              {data.topics_to_avoid.map((t, i) => <span key={i} style={{ ...styles.tag, background: 'var(--neg-bg)', color: 'var(--neg-text)' }}>{t}</span>)}
             </div>
           </div>
         )}
@@ -559,10 +560,10 @@ function renderReviewData(sectionTitle, data) {
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {data.format_constraints.max_duration && <span style={styles.tag}>Max {data.format_constraints.max_duration} min</span>}
               {data.format_constraints.min_duration && <span style={styles.tag}>Min {data.format_constraints.min_duration} min</span>}
-              {data.format_constraints.no_shorts && <span style={{ ...styles.tag, background: '#3b1c1c', color: '#fca5a5' }}>No Shorts</span>}
-              {data.format_constraints.no_livestreams && <span style={{ ...styles.tag, background: '#3b1c1c', color: '#fca5a5' }}>No Livestreams</span>}
+              {data.format_constraints.no_shorts && <span style={{ ...styles.tag, background: 'var(--neg-bg)', color: 'var(--neg-text)' }}>No Shorts</span>}
+              {data.format_constraints.no_livestreams && <span style={{ ...styles.tag, background: 'var(--neg-bg)', color: 'var(--neg-text)' }}>No Livestreams</span>}
             </div>
-            {data.format_constraints.notes && <div style={{ color: '#aaa', fontSize: '13px', marginTop: '6px' }}>{data.format_constraints.notes}</div>}
+            {data.format_constraints.notes && <div style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '6px' }}>{data.format_constraints.notes}</div>}
           </div>
         )}
         {data.compliance?.length > 0 && (
@@ -574,14 +575,14 @@ function renderReviewData(sectionTitle, data) {
         {data.sponsorship_guidelines && (
           <div style={{ marginBottom: '12px' }}>
             <div style={styles.label}>Sponsorship Guidelines</div>
-            <div style={{ color: '#aaa' }}>{data.sponsorship_guidelines}</div>
+            <div style={{ color: 'var(--muted)' }}>{data.sponsorship_guidelines}</div>
           </div>
         )}
         {data.tone_boundaries?.length > 0 && (
           <div>
             <div style={styles.label}>Tone Boundaries</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {data.tone_boundaries.map((t, i) => <span key={i} style={{ ...styles.tag, background: '#3b1c1c', color: '#fca5a5' }}>{t}</span>)}
+              {data.tone_boundaries.map((t, i) => <span key={i} style={{ ...styles.tag, background: 'var(--neg-bg)', color: 'var(--neg-text)' }}>{t}</span>)}
             </div>
           </div>
         )}
@@ -590,7 +591,7 @@ function renderReviewData(sectionTitle, data) {
   }
 
   // Fallback
-  return <pre style={{ fontSize: '12px', color: '#9E9E9E', whiteSpace: 'pre-wrap' }}>{JSON.stringify(data, null, 2)}</pre>;
+  return <pre style={{ fontSize: '12px', color: "var(--muted)", whiteSpace: 'pre-wrap' }}>{JSON.stringify(data, null, 2)}</pre>;
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
@@ -616,12 +617,24 @@ export default function BrandContext({ activeClient }) {
   const [searching, setSearching] = useState(false);
   const searchTimerRef = useRef(null);
 
-  // Effective channel: sidebar client takes priority, otherwise use searched channel
-  const effectiveChannel = activeClient || selectedChannel;
+  // Effective channel: an in-page choice wins over the sidebar client, so
+  // brand context for ANY channel is reachable without touching the global
+  // picker (2026-08-20 request: paste a link / pick from my channels).
+  const effectiveChannel = selectedChannel || activeClient;
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [myChannels, setMyChannels] = useState(null);
+
+  // "Choose from my channels" grid — loaded once, on first need
+  useEffect(() => {
+    if (myChannels !== null) return;
+    if (effectiveChannel && !pickerOpen) return;
+    let cancelled = false;
+    listClientChannels().then(rows => { if (!cancelled) setMyChannels(rows); });
+    return () => { cancelled = true; };
+  }, [pickerOpen, effectiveChannel, myChannels]);
 
   // Debounced channel search
   useEffect(() => {
-    if (activeClient) return; // Don't search when client is selected via sidebar
     if (!searchQuery.trim() || searchQuery.trim().length < 2) {
       setSearchResults([]);
       return;
@@ -650,6 +663,8 @@ export default function BrandContext({ activeClient }) {
       setSearchQuery('');
       setSearchResults([]);
     }
+  // Reset on client switch only; the client object churns identity per merge.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeClient?.id]);
 
   // Load brand context when effective channel changes
@@ -682,7 +697,7 @@ export default function BrandContext({ activeClient }) {
       }
     };
     load();
-  }, [effectiveChannel?.id]);
+  }, [effectiveChannel?.id, effectiveChannel?.name]);
 
   const toggleSection = (key) => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -838,29 +853,66 @@ export default function BrandContext({ activeClient }) {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  const pickChannel = (ch) => {
+    setSelectedChannel({ id: ch.id, name: ch.name, thumbnail_url: ch.thumbnail_url });
+    setSearchQuery('');
+    setSearchResults([]);
+    setPickerOpen(false);
+  };
+
+  const myChannelsGrid = (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ fontFamily: 'var(--font-label)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--muted)', marginBottom: 10 }}>
+        Or choose from your channels
+      </div>
+      {myChannels === null ? (
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Loading your channels…</div>
+      ) : myChannels.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>No client channels yet.</div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+          {myChannels.map(ch => (
+            <button key={ch.id} onClick={() => pickChannel(ch)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 10,
+                padding: '10px 12px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+              }}>
+              {ch.thumbnail_url
+                ? <img src={ch.thumbnail_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                : <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface-high)', flexShrink: 0 }} />}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ch.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--faint)', fontVariantNumeric: 'tabular-nums' }}>{(ch.subscriber_count || 0).toLocaleString()} subs</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   if (!effectiveChannel) {
     return (
       <div style={styles.page}>
         <div style={styles.card}>
           <div style={styles.header}>
-            <Palette size={24} color="#2962FF" />
+            <Palette size={24} color="#00D1FF" />
             Brand Context
           </div>
-          <div style={{ color: '#9E9E9E', fontSize: '14px', marginBottom: '20px' }}>
-            {activeClient === undefined || activeClient === null
-              ? 'Search for a channel to manage its brand context, or select a client from the sidebar.'
-              : 'Select a client to manage their brand context.'}
+          <div style={{ color: "var(--muted)", fontSize: '14px', marginBottom: '20px' }}>
+            Paste a channel link, type a name or @handle, or pick one of your channels.
           </div>
 
           {/* Channel search */}
           <div style={{ marginBottom: '16px' }}>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <Search size={16} style={{ color: '#666', flexShrink: 0 }} />
+              <Search size={16} style={{ color: 'var(--faint)', flexShrink: 0 }} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search channels by name..."
+                placeholder="Paste a YouTube link, or type a name / @handle…"
                 style={{ ...styles.input, flex: 1 }}
               />
             </div>
@@ -868,7 +920,7 @@ export default function BrandContext({ activeClient }) {
 
           {/* Search results */}
           {searching && (
-            <div style={{ textAlign: 'center', padding: '16px', color: '#9E9E9E', fontSize: '13px' }}>
+            <div style={{ textAlign: 'center', padding: '16px', color: "var(--muted)", fontSize: '13px' }}>
               <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', marginBottom: '4px' }} />
               <div>Searching...</div>
             </div>
@@ -879,14 +931,10 @@ export default function BrandContext({ activeClient }) {
               {searchResults.map(ch => (
                 <button
                   key={ch.id}
-                  onClick={() => {
-                    setSelectedChannel({ id: ch.id, name: ch.name, thumbnail_url: ch.thumbnail_url });
-                    setSearchQuery('');
-                    setSearchResults([]);
-                  }}
+                  onClick={() => pickChannel(ch)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '12px',
-                    background: '#252525', border: '1px solid #333', borderRadius: '8px',
+                    background: "var(--input-bg)", border: '1px solid var(--border)', borderRadius: '8px',
                     padding: '12px', cursor: 'pointer', textAlign: 'left', width: '100%',
                   }}
                 >
@@ -894,15 +942,15 @@ export default function BrandContext({ activeClient }) {
                     <img src={ch.thumbnail_url} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
                   )}
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '14px', fontWeight: '600', color: '#E0E0E0' }}>{ch.name}</div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>
+                    <div style={{ fontSize: '14px', fontWeight: '600', color: "var(--text)" }}>{ch.name}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--faint)' }}>
                       {(ch.subscriber_count || 0).toLocaleString()} subscribers
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '4px' }}>
-                    {ch.is_client && <span style={{ fontSize: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '2px 6px', borderRadius: '4px' }}>Client</span>}
-                    {ch.is_competitor && <span style={{ fontSize: '10px', background: 'rgba(41, 98, 255, 0.15)', color: '#60a5fa', padding: '2px 6px', borderRadius: '4px' }}>Competitor</span>}
-                    {!ch.is_client && !ch.is_competitor && <span style={{ fontSize: '10px', background: '#333', color: '#9E9E9E', padding: '2px 6px', borderRadius: '4px' }}>Audit</span>}
+                    {ch.is_client && <span style={{ fontSize: '10px', background: 'rgba(205, 242, 0, 0.15)', color: "var(--pos)", padding: '2px 6px', borderRadius: '4px' }}>Client</span>}
+                    {ch.is_competitor && <span style={{ fontSize: '10px', background: 'rgba(0, 209, 255, 0.15)', color: 'var(--accent-text)', padding: '2px 6px', borderRadius: '4px' }}>Competitor</span>}
+                    {!ch.is_client && !ch.is_competitor && <span style={{ fontSize: '10px', background: 'var(--outline-variant)', color: "var(--muted)", padding: '2px 6px', borderRadius: '4px' }}>Audit</span>}
                   </div>
                 </button>
               ))}
@@ -910,10 +958,12 @@ export default function BrandContext({ activeClient }) {
           )}
 
           {!searching && searchQuery.trim().length >= 2 && searchResults.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '16px', color: '#666', fontSize: '13px' }}>
+            <div style={{ textAlign: 'center', padding: '16px', color: 'var(--faint)', fontSize: '13px' }}>
               No channels found matching &ldquo;{searchQuery}&rdquo;
             </div>
           )}
+
+          {myChannelsGrid}
         </div>
 
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
@@ -925,8 +975,8 @@ export default function BrandContext({ activeClient }) {
     return (
       <div style={styles.page}>
         <div style={{ ...styles.card, textAlign: 'center', padding: '60px' }}>
-          <Loader2 size={32} color="#2962FF" style={{ animation: 'spin 1s linear infinite' }} />
-          <div style={{ color: '#9E9E9E', marginTop: '12px' }}>Loading brand context...</div>
+          <Loader2 size={32} color="#00D1FF" style={{ animation: 'spin 1s linear infinite' }} />
+          <div style={{ color: "var(--muted)", marginTop: '12px' }}>Loading brand context...</div>
         </div>
       </div>
     );
@@ -941,7 +991,7 @@ export default function BrandContext({ activeClient }) {
             onClick={() => { setSelectedChannel(null); setMode('loading'); }}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
-              background: 'none', border: 'none', color: '#60a5fa',
+              background: 'none', border: 'none', color: 'var(--accent-text)',
               cursor: 'pointer', padding: '0 0 8px', fontSize: '13px',
             }}
           >
@@ -949,7 +999,7 @@ export default function BrandContext({ activeClient }) {
           </button>
         )}
         <div style={styles.header}>
-          <Palette size={24} color="#2962FF" />
+          <Palette size={24} color="#00D1FF" />
           Brand Context — {effectiveChannel.name}
         </div>
         <div style={styles.subtitle}>
@@ -979,23 +1029,23 @@ export default function BrandContext({ activeClient }) {
           {/* Auto-Discover Card */}
           <div style={{
             ...styles.card,
-            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(16, 185, 129, 0.06))',
-            border: '1px solid rgba(99, 102, 241, 0.25)',
+            background: 'linear-gradient(135deg, rgba(0, 209, 255, 0.08), rgba(205, 242, 0, 0.06))',
+            border: '1px solid rgba(0, 209, 255, 0.25)',
           }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
               <div style={{
                 width: '40px', height: '40px', borderRadius: '10px',
-                background: 'linear-gradient(135deg, #6366f1, #10b981)',
+                background: "linear-gradient(135deg, #00D1FF, var(--pos))",
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0,
               }}>
-                <Search size={20} style={{ color: '#fff' }} />
+                <Search size={20} style={{ color: "var(--ink)" }} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '16px', fontWeight: '700', color: '#E0E0E0', marginBottom: '4px' }}>
+                <div style={{ fontSize: '16px', fontWeight: '700', color: "var(--text)", marginBottom: '4px' }}>
                   Auto-Discover from Channel Data
                 </div>
-                <div style={{ fontSize: '13px', color: '#9E9E9E', lineHeight: '1.5', marginBottom: '12px' }}>
+                <div style={{ fontSize: '13px', color: "var(--muted)", lineHeight: '1.5', marginBottom: '12px' }}>
                   Analyze {effectiveChannel.name}'s video titles, descriptions, tags, and performance data to automatically build a brand context profile. No copy-pasting needed.
                 </div>
                 <button
@@ -1003,7 +1053,7 @@ export default function BrandContext({ activeClient }) {
                   disabled={discovering || loading}
                   style={{
                     ...styles.btnPrimary,
-                    background: discovering || loading ? '#333' : 'linear-gradient(135deg, #6366f1, #10b981)',
+                    background: discovering || loading ? 'var(--outline-variant)' : "linear-gradient(135deg, #00D1FF, var(--pos))",
                     opacity: discovering || loading ? 0.7 : 1,
                     cursor: discovering || loading ? 'not-allowed' : 'pointer',
                   }}
@@ -1012,7 +1062,7 @@ export default function BrandContext({ activeClient }) {
                   {discovering ? 'Analyzing channel data...' : 'Discover Brand Context'}
                 </button>
                 {discovering && (
-                  <div style={{ fontSize: '11px', color: '#9E9E9E', marginTop: '8px' }}>
+                  <div style={{ fontSize: '11px', color: "var(--muted)", marginTop: '8px' }}>
                     Fetching videos and sending to Claude for analysis. This may take 15-30 seconds.
                   </div>
                 )}
@@ -1022,9 +1072,9 @@ export default function BrandContext({ activeClient }) {
 
           {/* Divider */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', margin: '8px 0' }}>
-            <div style={{ flex: 1, height: '1px', background: '#333' }} />
-            <span style={{ fontSize: '12px', color: '#666', fontWeight: '600' }}>OR PASTE CONTENT MANUALLY</span>
-            <div style={{ flex: 1, height: '1px', background: '#333' }} />
+            <div style={{ flex: 1, height: '1px', background: 'var(--outline-variant)' }} />
+            <span style={{ fontSize: '12px', color: 'var(--faint)', fontWeight: '600' }}>OR PASTE CONTENT MANUALLY</span>
+            <div style={{ flex: 1, height: '1px', background: 'var(--outline-variant)' }} />
           </div>
 
           {/* Manual Paste Card */}
@@ -1048,7 +1098,7 @@ export default function BrandContext({ activeClient }) {
                 placeholder={"Paste website homepage copy, about page text, recent social media posts, campaign descriptions, product pages...\n\nThe more content you provide, the richer the extraction. Include content from multiple platforms if available."}
                 style={{ ...styles.textarea, minHeight: '240px' }}
               />
-              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--faint)', marginTop: '4px' }}>
                 {pasteContent.length > 0 ? `${pasteContent.length.toLocaleString()} characters` : 'Tip: Copy and paste text from the brand\'s website, Instagram captions, LinkedIn posts, etc.'}
               </div>
             </div>
@@ -1067,7 +1117,7 @@ export default function BrandContext({ activeClient }) {
                 {loading ? 'Extracting...' : 'Extract Brand Context'}
               </button>
               {extractionCost !== null && (
-                <span style={{ fontSize: '12px', color: '#9E9E9E' }}>
+                <span style={{ fontSize: '12px', color: "var(--muted)" }}>
                   Estimated cost: ${extractionCost.toFixed(4)}
                 </span>
               )}
@@ -1315,8 +1365,8 @@ export default function BrandContext({ activeClient }) {
               {['instagram', 'tiktok', 'x', 'linkedin', 'facebook'].map(platform => {
                 const pData = formData.platform_presence?.[platform] || {};
                 return (
-                  <div key={platform} style={{ background: '#252525', borderRadius: '8px', padding: '12px', marginBottom: '8px' }}>
-                    <div style={{ fontWeight: '600', color: '#E0E0E0', marginBottom: '8px', textTransform: 'capitalize' }}>{platform}</div>
+                  <div key={platform} style={{ background: "var(--input-bg)", borderRadius: '8px', padding: '12px', marginBottom: '8px' }}>
+                    <div style={{ fontWeight: '600', color: "var(--text)", marginBottom: '8px', textTransform: 'capitalize' }}>{platform}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                       <div>
                         <label style={{ ...styles.label, fontSize: '11px' }}>Handle</label>
@@ -1365,8 +1415,8 @@ export default function BrandContext({ activeClient }) {
           </div>
 
           {/* ─── Strategic Intake (Manual) ─────────────── */}
-          <div style={{ borderTop: '2px solid #2962FF', marginTop: '8px', paddingTop: '12px' }}>
-            <div style={{ fontSize: '11px', color: '#2962FF', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
+          <div style={{ borderTop: '1px solid var(--border)', marginTop: '8px', paddingTop: '12px' }}>
+            <div style={{ fontSize: '11px', color: "var(--blue)", fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
               Strategic Intake
             </div>
 
@@ -1615,7 +1665,7 @@ export default function BrandContext({ activeClient }) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '16px', marginBottom: '8px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#ccc', cursor: 'pointer' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text)', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={formData.content_boundaries?.format_constraints?.no_shorts || false}
@@ -1626,7 +1676,7 @@ export default function BrandContext({ activeClient }) {
                     />
                     No Shorts
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#ccc', cursor: 'pointer' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text)', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={formData.content_boundaries?.format_constraints?.no_livestreams || false}
@@ -1715,13 +1765,13 @@ export default function BrandContext({ activeClient }) {
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '16px 24px',
-            background: 'rgba(41, 98, 255, 0.05)',
-            borderColor: 'rgba(41, 98, 255, 0.2)',
+            background: 'rgba(0, 209, 255, 0.05)',
+            borderColor: 'rgba(0, 209, 255, 0.2)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Check size={18} color="#10b981" />
-              <span style={{ color: '#E0E0E0', fontWeight: '600', fontSize: '14px' }}>Brand context active</span>
-              <span style={{ color: '#9E9E9E', fontSize: '12px' }}>
+              <Check size={18} color="#CDF200" />
+              <span style={{ color: "var(--text)", fontWeight: '600', fontSize: '14px' }}>Brand context active</span>
+              <span style={{ color: "var(--muted)", fontSize: '12px' }}>
                 Last updated {new Date(brandContext.snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 {brandContext.extraction_model && ` via ${brandContext.extraction_model}`}
               </span>
@@ -1744,12 +1794,12 @@ export default function BrandContext({ activeClient }) {
             <div style={{ ...styles.card, padding: '16px' }}>
               <div style={{ ...styles.label, marginBottom: '8px' }}>Snapshot History</div>
               {history.map(h => (
-                <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0', borderBottom: '1px solid #333' }}>
-                  <span style={{ fontSize: '13px', color: h.is_current ? '#10b981' : '#9E9E9E' }}>
+                <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: '13px', color: h.is_current ? "var(--pos)" : "var(--muted)" }}>
                     {new Date(h.snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </span>
-                  {h.is_current && <span style={{ fontSize: '11px', color: '#10b981', fontWeight: '600' }}>CURRENT</span>}
-                  {h.extraction_model && <span style={{ fontSize: '11px', color: '#666' }}>{h.extraction_model}</span>}
+                  {h.is_current && <span style={{ fontSize: '11px', color: "var(--pos)", fontWeight: '600' }}>CURRENT</span>}
+                  {h.extraction_model && <span style={{ fontSize: '11px', color: 'var(--faint)' }}>{h.extraction_model}</span>}
                 </div>
               ))}
             </div>
@@ -1767,7 +1817,7 @@ export default function BrandContext({ activeClient }) {
 
           {/* Strategic Intake */}
           <div style={styles.card}>
-            <div style={{ fontSize: '11px', color: '#2962FF', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
+            <div style={{ fontSize: '11px', color: "var(--blue)", fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
               Strategic Intake
             </div>
             <ReviewSection icon={Target} title="Strategic Goals" data={brandContext.strategic_goals} />

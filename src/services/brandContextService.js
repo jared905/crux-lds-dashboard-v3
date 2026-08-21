@@ -123,14 +123,38 @@ export async function getContextByYoutubeChannelId(youtubeChannelId) {
  * Search channels by name (for brand context page channel picker).
  * Returns all channels, not just clients.
  */
+/**
+ * Search channels by name, @handle, or a pasted YouTube URL.
+ * Accepts: "huevos", "@huevostv", "youtube.com/@huevostv",
+ * "youtube.com/channel/UC…", "youtube.com/c/name".
+ */
 export async function searchChannels(query, limit = 10) {
   if (!supabase) throw new Error('Supabase not configured');
   if (!query || !query.trim()) return [];
+  let q = query.trim();
 
+  // Pasted URL → extract the identifying piece
+  const urlMatch = q.match(/youtube\.com\/(?:channel\/(UC[a-zA-Z0-9_-]{22})|(@[a-zA-Z0-9._-]+)|c\/([a-zA-Z0-9._-]+)|user\/([a-zA-Z0-9._-]+))/i);
+  if (urlMatch) {
+    const ucId = urlMatch[1];
+    if (ucId) {
+      const { data, error } = await supabase
+        .from('channels')
+        .select('id, name, thumbnail_url, subscriber_count, is_client, is_competitor, youtube_channel_id')
+        .eq('youtube_channel_id', ucId)
+        .limit(limit);
+      if (error) { console.error('[brandContext] Search error:', error); return []; }
+      return data || [];
+    }
+    q = urlMatch[2] || urlMatch[3] || urlMatch[4];
+  }
+
+  // Handle or name: match either column. custom_url stores the @handle.
+  const term = q.replace(/^@/, '');
   const { data, error } = await supabase
     .from('channels')
     .select('id, name, thumbnail_url, subscriber_count, is_client, is_competitor, youtube_channel_id')
-    .ilike('name', `%${query.trim()}%`)
+    .or(`name.ilike.%${term}%,custom_url.ilike.%${term}%`)
     .order('subscriber_count', { ascending: false })
     .limit(limit);
 
@@ -138,6 +162,18 @@ export async function searchChannels(query, limit = 10) {
     console.error('[brandContext] Search error:', error);
     return [];
   }
+  return data || [];
+}
+
+/** Every client channel, for the "choose from my channels" grid. */
+export async function listClientChannels() {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('channels')
+    .select('id, name, thumbnail_url, subscriber_count')
+    .eq('is_client', true)
+    .order('name', { ascending: true });
+  if (error) { console.error('[brandContext] Client list error:', error); return []; }
   return data || [];
 }
 

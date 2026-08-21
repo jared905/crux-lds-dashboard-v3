@@ -7,10 +7,10 @@
  * The four lenses (Landscape, Patterns, White Space, Movement) stay
  * cohort-observation. This panel is the client-prescription layer.
  */
-import React, { useEffect, useState } from 'react';
-import { Loader, Sparkles, Target, TrendingUp, ChevronDown, Briefcase } from 'lucide-react';
+import {useEffect, useState} from 'react';
 import { computeClientDiagnostic, loadOrGenerateBriefing } from '../../services/clientDiagnosticService.js';
 import { resolveScopeToChannelIds } from '../../services/patternsService.js';
+import { Briefcase, ChevronDown, Loader, Sparkles, Target, TrendingUp } from 'lucide-react';
 
 export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
   const [data, setData] = useState(null);
@@ -19,6 +19,9 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
   const [briefing, setBriefing] = useState(null);
   const [briefingLoading, setBriefingLoading] = useState(false);
 
+  // The scope object's identity churns per render; this serialized key covers
+  // every scope field the fetch reads, so it stands in as the dependency.
+  const scopeKey = [scope.clientId, scope.categoryIds?.join(','), scope.tags?.join(','), scope.tiers?.join(','), scope.windowDays].join('|');
   useEffect(() => {
     if (!scope.clientId) { setData(null); setBriefing(null); setLoading(false); return; }
     let cancelled = false;
@@ -49,13 +52,14 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [scope.clientId, scope.categoryIds?.join(','), scope.tags?.join(','), scope.tiers?.join(','), scope.windowDays, refreshKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey, refreshKey]);
 
   if (!scope.clientId) return null;
   if (loading) {
     return (
       <div style={panelStyle}>
-        <div style={{ padding: 14, color: '#888', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ padding: 14, color: 'var(--outline)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
           <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} />
           Loading diagnostic…
         </div>
@@ -65,7 +69,7 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
   if (!data) {
     return (
       <div style={panelStyle}>
-        <div style={{ padding: 14, color: '#666', fontSize: 12 }}>
+        <div style={{ padding: 14, color: 'var(--faint)', fontSize: 12 }}>
           No diagnostic available — try assigning some competitors to this client via the Pin to client action.
         </div>
       </div>
@@ -81,19 +85,19 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
       <button onClick={() => setExpanded(v => !v)} style={{
         width: '100%', padding: '12px 16px', background: 'transparent', border: 'none',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        cursor: 'pointer', fontFamily: 'inherit', color: '#d4d4d8',
-        borderBottom: expanded ? '1px solid rgba(167,139,250,0.18)' : 'none',
+        cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text)',
+        borderBottom: expanded ? '1px solid rgba(76,214,255,0.18)' : 'none',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Briefcase size={14} style={{ color: '#a78bfa' }} />
+          <Briefcase size={14} style={{ color: 'var(--accent-text)' }} />
           <div style={{ textAlign: 'left' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>
-              Diagnostic for <span style={{ color: '#a78bfa' }}>{client.name}</span>
-              <span style={{ fontSize: 10, color: '#a78bfa', background: 'rgba(167,139,250,0.12)', padding: '2px 6px', borderRadius: 3, marginLeft: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
+              Diagnostic for <span style={{ color: 'var(--accent-text)' }}>{client.name}</span>
+              <span style={{ fontSize: 10, color: 'var(--accent-text)', background: 'rgba(76,214,255,0.12)', padding: '2px 6px', borderRadius: 3, marginLeft: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 {mode === 'comparison' ? 'comparison' : 'prescriptive'}
               </span>
             </div>
-            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: 'var(--outline)', marginTop: 2 }}>
               {mode === 'comparison'
                 ? `Comparing this client's ${data.clientStats?.videoCount || 0} videos to ${cohort.videoCount} cohort videos`
                 : client.isStub
@@ -102,7 +106,7 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
             </div>
           </div>
         </div>
-        <ChevronDown size={14} style={{ color: '#666', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+        <ChevronDown size={14} style={{ color: 'var(--faint)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
       </button>
 
       {expanded && (
@@ -111,27 +115,27 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
           {(briefingLoading || briefing) && (
             <div style={{
               padding: '12px 14px', marginBottom: 14,
-              background: 'rgba(167,139,250,0.08)',
-              border: '1px solid rgba(167,139,250,0.30)',
+              background: 'rgba(76,214,255,0.08)',
+              border: '1px solid rgba(76,214,255,0.30)',
               borderRadius: 8,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <Sparkles size={12} style={{ color: '#a78bfa' }} />
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                <Sparkles size={12} style={{ color: 'var(--accent-text)' }} />
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
                   This week's play
                 </div>
               </div>
               {briefingLoading && !briefing ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#a1a1aa', fontSize: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--muted)', fontSize: 12 }}>
                   <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} />
                   Synthesizing recommendation…
                 </div>
               ) : briefing && (
                 <>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#f4f4f5', marginBottom: 5, letterSpacing: '-0.2px' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', marginBottom: 5, letterSpacing: '-0.2px' }}>
                     {briefing.headline}
                   </div>
-                  <div style={{ fontSize: 12, color: '#d4d4d8', lineHeight: 1.55 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.55 }}>
                     {briefing.body}
                   </div>
                 </>
@@ -140,7 +144,7 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
           )}
 
           {!hasAnyData ? (
-            <div style={{ color: '#666', fontSize: 12 }}>
+            <div style={{ color: 'var(--faint)', fontSize: 12 }}>
               The cohort doesn't have enough video data with significant lift to draw insights yet.
               Sync the competitors and retry — needs at least a few videos per pattern / slot to compute a reliable lift.
             </div>
@@ -194,7 +198,7 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
                     <span style={{ fontSize: 12 }}>{s.slot}</span>
                     <RowMeta>
                       <Lift value={s.lift} confidence={s.confidence} sampleSize={s.count} />
-                      <span style={{ fontSize: 10, color: '#666' }}>{s.count} uploads</span>
+                      <span style={{ fontSize: 10, color: 'var(--faint)' }}>{s.count} uploads</span>
                     </RowMeta>
                   </Row>
                 ))}
@@ -207,7 +211,7 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
                     <Row key={g.id}>
                       <span>
                         {g.label}
-                        <span style={{ fontSize: 10, color: '#fbbf24', marginLeft: 6 }}>
+                        <span style={{ fontSize: 10, color: "var(--warn-text)", marginLeft: 6 }}>
                           cohort uses {g.freqRatio.toFixed(1)}× more
                         </span>
                       </span>
@@ -229,19 +233,19 @@ export default function ClientDiagnostic({ scope, refreshKey = 0 }) {
 }
 
 // ─── Presentational ───
-function Card({ icon, title, subtitle, accent = '#a78bfa', wide = false, children }) {
+function Card({ icon, title, subtitle, accent = 'var(--accent-text)', wide = false, children }) {
   return (
     <div style={{
       padding: 12, borderRadius: 8,
-      background: '#101015', border: `1px solid ${accent}33`,
+      background: 'var(--bg)', border: `1px solid color-mix(in srgb, ${accent} 20%, transparent)`,
       gridColumn: wide ? '1 / -1' : undefined,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
         <span style={{ color: accent }}>{icon}</span>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{title}</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{title}</div>
       </div>
       {subtitle && (
-        <div style={{ fontSize: 10, color: '#666', marginBottom: 8 }}>{subtitle}</div>
+        <div style={{ fontSize: 10, color: 'var(--faint)', marginBottom: 8 }}>{subtitle}</div>
       )}
       <div>{children}</div>
     </div>
@@ -253,7 +257,7 @@ function Row({ children }) {
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '6px 0', borderBottom: '1px solid #1c1c20',
-      fontSize: 12, color: '#d4d4d8',
+      fontSize: 12, color: 'var(--text)',
     }}>{children}</div>
   );
 }
@@ -268,12 +272,12 @@ function RowMeta({ children }) {
 
 function Lift({ value, confidence, sampleSize }) {
   if (value == null) {
-    return <span style={{ fontSize: 10, color: '#555' }} title={sampleSize != null ? `n=${sampleSize} — too small` : ''}>n/a</span>;
+    return <span style={{ fontSize: 10, color: 'var(--faint)' }} title={sampleSize != null ? `n=${sampleSize} — too small` : ''}>n/a</span>;
   }
   const pct = Math.round((value - 1) * 100);
   const directional = confidence === 'directional';
-  const baseColor = pct >= 15 ? '#34d399' : pct <= -15 ? '#f87171' : '#888';
-  const color = directional ? (pct >= 15 ? '#a78bfa' : '#fbbf24') : baseColor;
+  const baseColor = pct >= 15 ? 'var(--pos-text)' : pct <= -15 ? 'var(--neg-text)' : 'var(--outline)';
+  const color = directional ? (pct >= 15 ? 'var(--accent-text)' : 'var(--warn-text)') : baseColor;
   return (
     <span
       style={{ display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 38, justifyContent: 'flex-end' }}
@@ -285,8 +289,8 @@ function Lift({ value, confidence, sampleSize }) {
       {directional && (
         <span style={{
           fontSize: 7, fontWeight: 700, letterSpacing: '0.4px',
-          color: '#a78bfa', background: 'rgba(167,139,250,0.10)',
-          border: '1px solid rgba(167,139,250,0.30)',
+          color: 'var(--accent-text)', background: 'rgba(76,214,255,0.10)',
+          border: '1px solid rgba(76,214,255,0.30)',
           padding: '0 3px', borderRadius: 2, textTransform: 'uppercase',
         }}>dir</span>
       )}
@@ -297,7 +301,7 @@ function Lift({ value, confidence, sampleSize }) {
 function Freq({ label, value, highlight = false }) {
   return (
     <span style={{
-      fontSize: 10, color: highlight ? '#fbbf24' : '#888',
+      fontSize: 10, color: highlight ? "var(--warn-text)" : 'var(--outline)',
       minWidth: 56, textAlign: 'right', fontWeight: highlight ? 700 : 500,
     }}>
       {label} {(value * 100).toFixed(0)}%
@@ -306,12 +310,12 @@ function Freq({ label, value, highlight = false }) {
 }
 
 function Empty({ children }) {
-  return <div style={{ fontSize: 11, color: '#666', padding: '4px 0' }}>{children}</div>;
+  return <div style={{ fontSize: 11, color: 'var(--faint)', padding: '4px 0' }}>{children}</div>;
 }
 
 const panelStyle = {
   marginBottom: 14,
   borderRadius: 10,
-  background: 'linear-gradient(135deg, rgba(167,139,250,0.08), rgba(59,130,246,0.04))',
-  border: '1px solid rgba(167,139,250,0.25)',
+  background: 'linear-gradient(135deg, rgba(76,214,255,0.08), rgba(0,209,255,0.04))',
+  border: '1px solid rgba(76,214,255,0.25)',
 };

@@ -1,8 +1,8 @@
-import React, { useMemo } from "react";
-import { AlertTriangle, TrendingUp, Zap, Target } from "lucide-react";
-import GrowKillMatrix from "./GrowKillMatrix.jsx";
-import ExecutiveSummary from "../Performance/ExecutiveSummary.jsx";
+import {useMemo} from "react";
 import useDiagnostics from "../../hooks/useDiagnostics";
+import { AlertTriangle } from 'lucide-react';
+import ExecutiveSummary from '../Performance/ExecutiveSummary.jsx';
+import GrowKillMatrix from './GrowKillMatrix.jsx';
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -12,16 +12,16 @@ export default function DiagnosticEngine({ rows }) {
 
   if (!diagnostics) {
     return (
-      <div style={{ padding: "40px", textAlign: "center", color: "#666" }}>
+      <div style={{ padding: "40px", textAlign: "center", color: "var(--faint)" }}>
         No data available for diagnostics. Upload video data to get started.
       </div>
     );
   }
 
   const severityColors = {
-    Critical: "#ef4444",
-    Warning: "#f59e0b",
-    Monitor: "#10b981"
+    Critical: "var(--neg)",
+    Warning: "var(--warn)",
+    Monitor: "var(--pos)"
   };
 
   // Calculate executive summary stats
@@ -38,60 +38,60 @@ export default function DiagnosticEngine({ rows }) {
       {/* Executive Summary - Quick Stats */}
       <div style={{
         background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
-        border: "1px solid #333",
+        border: "1px solid var(--border)",
         borderRadius: "8px",
         padding: "24px",
         marginBottom: "24px"
       }}>
-        <div style={{ fontSize: "14px", color: "#888", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "1px", fontWeight: "600" }}>
+        <div style={{ fontSize: "14px", color: "var(--outline)", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "1px", fontWeight: "600" }}>
           Strategic Overview
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
-          <div style={{ background: "#1E1E1E", padding: "16px", borderRadius: "8px", border: "1px solid #333" }}>
-            <div style={{ fontSize: "10px", color: "#888", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          <div style={{ background: "var(--card)", padding: "16px", borderRadius: "24px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: "10px", color: "var(--outline)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Total Opportunity
             </div>
-            <div style={{ fontSize: "28px", fontWeight: "700", color: "#10b981", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
+            <div style={{ fontSize: "28px", fontWeight: "700", color: "var(--pos)", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
               +{fmtInt(totalOpportunity)}
             </div>
-            <div style={{ fontSize: "11px", color: "#666" }}>potential views in next 3 months</div>
+            <div style={{ fontSize: "11px", color: "var(--faint)" }}>potential views in next 3 months</div>
           </div>
-          <div style={{ background: "#1E1E1E", padding: "16px", borderRadius: "8px", border: "1px solid #333" }}>
-            <div style={{ fontSize: "10px", color: "#888", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          <div style={{ background: "var(--card)", padding: "16px", borderRadius: "24px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: "10px", color: "var(--outline)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Actionable Decisions
             </div>
-            <div style={{ fontSize: "28px", fontWeight: "700", color: "#3b82f6", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
+            <div style={{ fontSize: "28px", fontWeight: "700", color: "var(--blue)", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
               {numDecisions}
             </div>
-            <div style={{ fontSize: "11px", color: "#666" }}>strategic changes recommended</div>
+            <div style={{ fontSize: "11px", color: "var(--faint)" }}>strategic changes recommended</div>
           </div>
-          <div style={{ background: "#1E1E1E", padding: "16px", borderRadius: "8px", border: "1px solid #333" }}>
-            <div style={{ fontSize: "10px", color: "#888", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          <div style={{ background: "var(--card)", padding: "16px", borderRadius: "24px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: "10px", color: "var(--outline)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Strategic Focus
             </div>
-            <div style={{ fontSize: "28px", fontWeight: "700", color: "#f59e0b", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
+            <div style={{ fontSize: "28px", fontWeight: "700", color: "var(--warn)", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
               {growPatterns.length}/{stopPatterns.length}
             </div>
-            <div style={{ fontSize: "11px", color: "#666" }}>grow vs stop decisions</div>
+            <div style={{ fontSize: "11px", color: "var(--faint)" }}>grow vs stop decisions</div>
           </div>
         </div>
       </div>
 
       {/* Diagnostic Summary Card */}
       <div style={{
-        background: "#1E1E1E",
-        border: "1px solid #333",
-        borderRadius: "8px",
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: "24px",
         padding: "24px",
         marginBottom: "24px"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
           <AlertTriangle size={24} style={{ color: severityColors[diagnostics.constraintSeverity] }} />
           <div>
-            <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff" }}>
+            <div style={{ fontSize: "20px", fontWeight: "700", color: "var(--ink)" }}>
               Growth Diagnostic Report
             </div>
-            <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "4px" }}>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>
               Automated analysis of {rows.length} videos
             </div>
           </div>
@@ -118,11 +118,11 @@ export default function DiagnosticEngine({ rows }) {
             }}>
               {diagnostics.constraintSeverity}
             </div>
-            <div style={{ fontSize: "14px", fontWeight: "600", color: "#fff" }}>
+            <div style={{ fontSize: "14px", fontWeight: "600", color: "var(--ink)" }}>
               Primary Constraint: {diagnostics.primaryConstraint}
             </div>
           </div>
-          <div style={{ fontSize: "14px", color: "#b0b0b0", lineHeight: "1.6" }}>
+          <div style={{ fontSize: "14px", color: "var(--muted)", lineHeight: "1.6" }}>
             {diagnostics.constraintEvidence}
           </div>
         </div>
@@ -134,27 +134,27 @@ export default function DiagnosticEngine({ rows }) {
           gap: "12px",
           marginTop: "16px"
         }}>
-          <div style={{ background: "#252525", padding: "12px", borderRadius: "8px" }}>
-            <div style={{ fontSize: "10px", color: "#888", marginBottom: "4px" }}>AVG CTR</div>
-            <div style={{ fontSize: "18px", fontWeight: "700", color: "#ec4899" }}>
+          <div style={{ background: "var(--input-bg)", padding: "12px", borderRadius: "8px" }}>
+            <div style={{ fontSize: "10px", color: "var(--outline)", marginBottom: "4px" }}>AVG CTR</div>
+            <div style={{ fontSize: "18px", fontWeight: "700", color: "var(--neg-text)" }}>
               {fmtPct(diagnostics.metrics.avgCTR)}
             </div>
-            <div style={{ fontSize: "9px", color: "#666", marginTop: "2px" }}>
+            <div style={{ fontSize: "9px", color: "var(--faint)", marginTop: "2px" }}>
               Benchmark: {fmtPct(diagnostics.metrics.benchmarkCTR)}
             </div>
           </div>
-          <div style={{ background: "#252525", padding: "12px", borderRadius: "8px" }}>
-            <div style={{ fontSize: "10px", color: "#888", marginBottom: "4px" }}>AVG RETENTION</div>
-            <div style={{ fontSize: "18px", fontWeight: "700", color: "#f59e0b" }}>
+          <div style={{ background: "var(--input-bg)", padding: "12px", borderRadius: "8px" }}>
+            <div style={{ fontSize: "10px", color: "var(--outline)", marginBottom: "4px" }}>AVG RETENTION</div>
+            <div style={{ fontSize: "18px", fontWeight: "700", color: "var(--warn)" }}>
               {fmtPct(diagnostics.metrics.avgRetention)}
             </div>
-            <div style={{ fontSize: "9px", color: "#666", marginTop: "2px" }}>
+            <div style={{ fontSize: "9px", color: "var(--faint)", marginTop: "2px" }}>
               Benchmark: {fmtPct(diagnostics.metrics.benchmarkRetention)}
             </div>
           </div>
-          <div style={{ background: "#252525", padding: "12px", borderRadius: "8px" }}>
-            <div style={{ fontSize: "10px", color: "#888", marginBottom: "4px" }}>VIEWS/VIDEO</div>
-            <div style={{ fontSize: "18px", fontWeight: "700", color: "#3b82f6" }}>
+          <div style={{ background: "var(--input-bg)", padding: "12px", borderRadius: "8px" }}>
+            <div style={{ fontSize: "10px", color: "var(--outline)", marginBottom: "4px" }}>VIEWS/VIDEO</div>
+            <div style={{ fontSize: "18px", fontWeight: "700", color: "var(--blue)" }}>
               {fmtInt(diagnostics.metrics.viewsPerVideo)}
             </div>
           </div>
@@ -244,13 +244,13 @@ function UploadCadenceAnalysis({ rows }) {
 
     // Urgency assessment
     let urgency = "Monitor";
-    let urgencyColor = "#10b981";
+    let urgencyColor = "var(--pos)";
     if (daysSinceLastUpload > 14) {
       urgency = "Critical";
-      urgencyColor = "#ef4444";
+      urgencyColor = "var(--neg)";
     } else if (daysSinceLastUpload > 7) {
       urgency = "Warning";
-      urgencyColor = "#f59e0b";
+      urgencyColor = "var(--warn)";
     }
 
     return {
@@ -269,17 +269,17 @@ function UploadCadenceAnalysis({ rows }) {
 
   return (
     <div style={{
-      background: "#1E1E1E",
-      border: "1px solid #333",
-      borderRadius: "8px",
+      background: "var(--card)",
+      border: "1px solid var(--border)",
+      borderRadius: "24px",
       padding: "24px",
       marginBottom: "24px"
     }}>
       <div style={{ marginBottom: "20px" }}>
-        <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", marginBottom: "8px" }}>
+        <div style={{ fontSize: "20px", fontWeight: "700", color: "var(--ink)", marginBottom: "8px" }}>
           Upload Cadence Analysis
         </div>
-        <div style={{ fontSize: "14px", color: "#9E9E9E" }}>
+        <div style={{ fontSize: "14px", color: "var(--muted)" }}>
           Consistency drives algorithmic momentum
         </div>
       </div>
@@ -290,8 +290,8 @@ function UploadCadenceAnalysis({ rows }) {
         gap: "16px",
         marginBottom: "20px"
       }}>
-        <div style={{ background: "#252525", padding: "16px", borderRadius: "8px" }}>
-          <div style={{ fontSize: "10px", color: "#888", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+        <div style={{ background: "var(--input-bg)", padding: "16px", borderRadius: "8px" }}>
+          <div style={{ fontSize: "10px", color: "var(--outline)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Days Since Last Upload
           </div>
           <div style={{ fontSize: "28px", fontWeight: "700", color: cadenceData.urgencyColor, marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
@@ -300,7 +300,7 @@ function UploadCadenceAnalysis({ rows }) {
           <div style={{
             fontSize: "9px",
             color: cadenceData.urgencyColor,
-            background: `${cadenceData.urgencyColor}20`,
+            background: `color-mix(in srgb, ${cadenceData.urgencyColor} 13%, transparent)`,
             padding: "4px 8px",
             borderRadius: "4px",
             display: "inline-block",
@@ -311,44 +311,44 @@ function UploadCadenceAnalysis({ rows }) {
           </div>
         </div>
 
-        <div style={{ background: "#252525", padding: "16px", borderRadius: "8px" }}>
-          <div style={{ fontSize: "10px", color: "#888", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+        <div style={{ background: "var(--input-bg)", padding: "16px", borderRadius: "8px" }}>
+          <div style={{ fontSize: "10px", color: "var(--outline)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Average Upload Frequency
           </div>
-          <div style={{ fontSize: "28px", fontWeight: "700", color: "#3b82f6", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
+          <div style={{ fontSize: "28px", fontWeight: "700", color: "var(--blue)", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
             {cadenceData.avgDaysBetweenUploads !== null ? `${cadenceData.avgDaysBetweenUploads.toFixed(1)}` : "N/A"}
           </div>
-          <div style={{ fontSize: "11px", color: "#666" }}>days between uploads</div>
+          <div style={{ fontSize: "11px", color: "var(--faint)" }}>days between uploads</div>
         </div>
 
-        <div style={{ background: "#252525", padding: "16px", borderRadius: "8px" }}>
-          <div style={{ fontSize: "10px", color: "#888", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+        <div style={{ background: "var(--input-bg)", padding: "16px", borderRadius: "8px" }}>
+          <div style={{ fontSize: "10px", color: "var(--outline)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Consistency Score
           </div>
-          <div style={{ fontSize: "28px", fontWeight: "700", color: "#f59e0b", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
+          <div style={{ fontSize: "28px", fontWeight: "700", color: "var(--warn)", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
             {cadenceData.consistencyScore.toFixed(0)}%
           </div>
-          <div style={{ fontSize: "11px", color: "#666" }}>
+          <div style={{ fontSize: "11px", color: "var(--faint)" }}>
             {cadenceData.consistencyScore >= 70 ? "Excellent" : cadenceData.consistencyScore >= 50 ? "Good" : "Needs work"}
           </div>
         </div>
       </div>
 
       <div style={{
-        background: "#252525",
-        border: "1px solid #333",
+        background: "var(--input-bg)",
+        border: "1px solid var(--border)",
         borderRadius: "8px",
         padding: "16px"
       }}>
-        <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff", marginBottom: "8px" }}>
+        <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--ink)", marginBottom: "8px" }}>
           Recommended Schedule: {cadenceData.recommendedSchedule}
         </div>
-        <div style={{ fontSize: "12px", color: "#b0b0b0", marginBottom: "8px" }}>
+        <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "8px" }}>
           {cadenceData.scheduleRationale}
         </div>
         {cadenceData.lastUploadTitle && (
-          <div style={{ fontSize: "11px", color: "#666", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #333" }}>
-            Last upload: <span style={{ color: "#888" }}>{cadenceData.lastUploadTitle}</span>
+          <div style={{ fontSize: "11px", color: "var(--faint)", marginTop: "12px", paddingTop: "12px", borderTop: "1px solid var(--border)" }}>
+            Last upload: <span style={{ color: "var(--outline)" }}>{cadenceData.lastUploadTitle}</span>
           </div>
         )}
       </div>

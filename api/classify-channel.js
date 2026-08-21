@@ -340,7 +340,7 @@ Return ONLY this JSON shape (no markdown):
               classification_reasoning: `CLASSIFIER_ERROR: ${(err.message || String(err)).slice(0, 400)}`,
             })
             .eq('id', ch.id);
-        } catch {}
+        } catch { /* best-effort: recording the failure must not mask the original error */ }
         errors.push({ channel_id: ch.id, name: ch.name, error: err.message });
       }
     }

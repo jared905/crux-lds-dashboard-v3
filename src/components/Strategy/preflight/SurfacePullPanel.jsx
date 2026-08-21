@@ -22,7 +22,7 @@
  * scorer extension will consume the data this populates.
  */
 
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import { youtubeOAuthService } from '../../../services/youtubeOAuthService';
 import { supabase } from '../../../services/supabaseClient';
 
@@ -118,7 +118,7 @@ export default function SurfacePullPanel({ clientId, onPullComplete }) {
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} style={collapsedBtnStyle}>
-        ▸ Surface intelligence · <span style={{ color: lastPullAt ? '#cde4d6' : '#E8A82B' }}>{freshnessLabel}</span>
+        ▸ Surface intelligence · <span style={{ color: lastPullAt ? 'var(--text)' : "var(--warn)" }}>{freshnessLabel}</span>
       </button>
     );
   }
@@ -136,7 +136,7 @@ export default function SurfacePullPanel({ clientId, onPullComplete }) {
       </div>
 
       {bootstrapping ? (
-        <Note tone="info">Loading…</Note>
+        <Note tone="info">Checking this client’s setup…</Note>
       ) : !clientYtId ? (
         <Note tone="warn">
           This client doesn't have a <code>youtube_channel_id</code> on its <code>channels</code> row. Connect YouTube data ingestion first.
@@ -149,11 +149,11 @@ export default function SurfacePullPanel({ clientId, onPullComplete }) {
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', marginBottom: 10 }}>
             <div>
-              <div style={{ fontSize: 11, color: '#888' }}>Connection</div>
-              <div style={{ fontSize: 13, color: '#e8e2d0', fontWeight: 600 }}>
+              <div style={{ fontSize: 11, color: 'var(--outline)' }}>Connection</div>
+              <div style={{ fontSize: 13, color: 'var(--ink)', fontWeight: 600 }}>
                 {connection.youtube_channel_title || connection.youtube_channel_id}
               </div>
-              <div style={{ fontSize: 11, color: lastPullAt ? '#cde4d6' : '#E8A82B', marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: lastPullAt ? 'var(--text)' : "var(--warn)", marginTop: 4 }}>
                 {freshnessLabel}
               </div>
             </div>
@@ -181,17 +181,17 @@ function ResultSummary({ result }) {
 
   return (
     <div style={resultCardStyle(result.ok)}>
-      <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 8, color: result.ok ? '#cde4d6' : '#f3c5c5' }}>
+      <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 8, color: result.ok ? 'var(--text)' : 'var(--neg-text)' }}>
         {result.ok ? '✓ Snapshot stored.' : '✗ Pull failed.'}
       </div>
 
       {traffic && (
-        <div style={{ fontSize: 12, color: '#aaa', marginBottom: 6 }}>
-          <strong style={{ color: '#cde4d6' }}>Traffic-source:</strong>{' '}
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
+          <strong style={{ color: 'var(--text)' }}>Traffic-source:</strong>{' '}
           {traffic.videosOk} videos OK, {traffic.videosFailed} failed.{' '}
           {traffic.rowsInserted} surface rows inserted.
           {traffic.errors?.length > 0 && (
-            <div style={{ fontSize: 11, color: '#E8A82B', marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: "var(--warn)", marginTop: 4 }}>
               Errors: {traffic.errors.slice(0, 3).map(e => e.error).join('; ')}
               {traffic.errors.length > 3 ? ` (+${traffic.errors.length - 3} more)` : ''}
             </div>
@@ -200,8 +200,8 @@ function ResultSummary({ result }) {
       )}
 
       {search && (
-        <div style={{ fontSize: 12, color: '#aaa' }}>
-          <strong style={{ color: '#cde4d6' }}>Search queries:</strong>{' '}
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+          <strong style={{ color: 'var(--text)' }}>Search queries:</strong>{' '}
           {search.rowsInserted} unique stored ({unbranded} unbranded, {branded} branded)
           {search.videosOk != null && (
             <> · {search.videosOk}/{search.videosOk + (search.errors?.filter(e => e.videoId).length || 0)} videos returned data
@@ -211,7 +211,7 @@ function ResultSummary({ result }) {
             </>
           )}.
           {search.errors?.length > 0 && (
-            <div style={{ fontSize: 11, color: '#E8A82B', marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: "var(--warn)", marginTop: 4 }}>
               {summarizeErrors(search.errors)}
             </div>
           )}
@@ -219,7 +219,7 @@ function ResultSummary({ result }) {
       )}
 
       {brandedTokens.length > 0 && (
-        <div style={{ fontSize: 11, color: '#666', marginTop: 8, fontFamily: 'ui-monospace, Menlo, monospace' }}>
+        <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 8, fontFamily: 'ui-monospace, Menlo, monospace' }}>
           Branded tokens used: {brandedTokens.map(t => `"${t}"`).join(', ')}
         </div>
       )}
@@ -263,10 +263,10 @@ function formatRelative(iso) {
 
 function Note({ tone, children }) {
   const palette = {
-    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: '#0A919B' },
-    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: '#E8A82B' },
-    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: '#ef6b6b' },
-  }[tone] || { bg: '#1a1a1f', border: '#333', fg: '#aaa' };
+    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: 'var(--accent-text)' },
+    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: 'var(--warn)' },
+    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: 'var(--neg-text)' },
+  }[tone] || { bg: 'var(--input-bg)', border: 'var(--outline-variant)', fg: 'var(--muted)' };
   return (
     <div style={{
       padding: '8px 12px', borderRadius: 6,
@@ -282,26 +282,26 @@ function Note({ tone, children }) {
 
 const collapsedBtnStyle = {
   background: 'transparent', border: 'none',
-  color: '#888', fontSize: 11, fontWeight: 600,
+  color: 'var(--outline)', fontSize: 11, fontWeight: 600,
   textAlign: 'left', padding: 0, cursor: 'pointer', marginTop: 10,
 };
 const collapseBtnStyle = { ...collapsedBtnStyle, marginTop: 0 };
 
 const panelStyle = {
-  background: '#0e0e11',
+  background: 'var(--card)',
   border: '1px solid rgba(10,145,155,0.20)',
-  borderLeft: '2px solid #0A919B',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6, padding: 12, marginTop: 12,
 };
 const kickerStyle = {
-  fontSize: 11, color: '#0A919B',
+  fontSize: 11, color: 'var(--accent-text)',
   textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700,
 };
-const subtleStyle = { fontSize: 11, color: '#666', marginTop: 2 };
+const subtleStyle = { fontSize: 11, color: 'var(--faint)', marginTop: 2 };
 
 const runBtnStyle = (running) => ({
-  background: running ? '#1a1a1f' : '#0A919B',
-  color: running ? '#666' : '#0a0a0e',
+  background: running ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: running ? 'var(--faint)' : 'var(--bg)',
   border: 'none', padding: '8px 16px',
   borderRadius: 5, fontSize: 12, fontWeight: 700,
   cursor: running ? 'not-allowed' : 'pointer', letterSpacing: 0.3,

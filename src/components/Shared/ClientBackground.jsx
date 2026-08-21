@@ -1,53 +1,17 @@
 /**
- * ClientBackground - Full-width hero image with dissolve effect
+ * ClientBackground — ambient page-top field.
  *
- * Renders a fixed background image at the top of the viewport
- * that fades to transparent as it goes down, with an accent-tinted
- * gradient overlay for brand cohesion.
+ * Was a per-client stock photo (space, mountains) dissolving into the
+ * page; stock imagery read as impersonal. Replaced by a generated
+ * field: the client's accent colour (set per client by ThemeProvider
+ * as --accent-dim) melting in from above the fold, broken by film
+ * grain. Same visual language as the login key art, at whisper volume.
+ *
+ * ClientManager still stores background_image_url per client; it is
+ * intentionally unused here. Restore the old <img> branch from git
+ * history if per-client photos ever come back.
  */
 
-export default function ClientBackground({ imageUrl }) {
-  // Show a subtle accent gradient even without an image
-  if (!imageUrl) {
-    return (
-      <div
-        className="animate-fade"
-        style={{
-          position: "absolute",
-          top: -60,
-          left: 0,
-          width: "100vw",
-          height: "500px",
-          zIndex: 0,
-          pointerEvents: "none",
-          background: `linear-gradient(180deg, var(--accent-dim) 0%, transparent 100%)`,
-        }}
-      />
-    );
-  }
-
-  return (
-    <div
-      className="animate-fade"
-      style={{
-        position: "absolute",
-        top: -60,
-        left: 0,
-        width: "100vw",
-        height: "600px",
-        zIndex: 0,
-        pointerEvents: "none",
-
-        // Background image
-        backgroundImage: `url(${imageUrl})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center center",
-        backgroundRepeat: "no-repeat",
-
-        // Dissolve effect with accent-tinted fade
-        maskImage: "linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.55) 20%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.25) 80%, rgba(0,0,0,0) 100%)",
-        WebkitMaskImage: "linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.55) 20%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.25) 80%, rgba(0,0,0,0) 100%)",
-      }}
-    />
-  );
+export default function ClientBackground() {
+  return <div className="ambient-bg animate-fade" aria-hidden="true" />;
 }

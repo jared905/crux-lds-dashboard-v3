@@ -113,7 +113,7 @@ export async function createCategory({ name, parentId, color, icon, description 
       name,
       slug,
       parent_id: parentId || null,
-      color: color || '#2962FF',
+      color: color || 'var(--blue)',
       icon: icon || 'folder',
       description,
     })

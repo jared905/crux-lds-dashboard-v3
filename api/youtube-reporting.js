@@ -8,6 +8,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { selectAll } from './_lib/db.js';
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
@@ -289,11 +290,23 @@ async function handleBackfill(connection, accessToken, res) {
     return res.status(200).json({ success: true, message: 'No matching client channel found', reportsAvailable: reports.length });
   }
 
-  // Get all videos for this channel
-  const { data: videos } = await supabase
-    .from('videos')
-    .select('id, youtube_video_id')
-    .eq('channel_id', dbChannel.id);
+  // Get all videos for this channel (paged past PostgREST's 1000-row cap;
+  // this has no ORDER BY, so truncation dropped an arbitrary subset).
+  //
+  // handleBackfill has no surrounding try, and selectAll throws where the old
+  // discarded-error code degraded to "No videos found" — which reported
+  // success for what was actually a database failure. Catch it here and say
+  // which of the two happened.
+  let videos;
+  try {
+    videos = await selectAll(() => supabase
+      .from('videos')
+      .select('id, youtube_video_id')
+      .eq('channel_id', dbChannel.id), 'videos for reporting');
+  } catch (err) {
+    console.error('[youtube-reporting] video lookup failed:', err.message);
+    return res.status(500).json({ success: false, error: `Could not load videos for channel: ${err.message}` });
+  }
 
   if (!videos || videos.length === 0) {
     return res.status(200).json({ success: true, message: 'No videos found for channel', reportsAvailable: reports.length });

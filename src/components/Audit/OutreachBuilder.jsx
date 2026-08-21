@@ -11,9 +11,6 @@ import {
   MessageSquare,
   Target,
   Clock,
-  BarChart3,
-  Video,
-  ChevronDown,
   ChevronUp,
   Plus,
   X,
@@ -21,6 +18,7 @@ import {
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+import { ChevronDown, Video } from 'lucide-react';
 
 /**
  * OutreachBuilder - Creates personalized "Channel Notes" for cold outreach
@@ -28,9 +26,8 @@ import html2canvas from "html2canvas";
  */
 export default function OutreachBuilder({ audit, videoAnalysis }) {
   const snapshot = audit.channel_snapshot || {};
-  const series = audit.series_summary || {};
-  const benchmark = audit.benchmark_data || {};
-  const videos = audit.videos || [];
+  const benchmark = useMemo(() => audit.benchmark_data || {}, [audit.benchmark_data]);
+  const videos = useMemo(() => audit.videos || [], [audit.videos]);
 
   // Generate observation options from audit data (always 5+)
   const generatedObservations = useMemo(() => {
@@ -85,28 +82,28 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
         included: true,
       })));
     }
-  }, [autoSelectedVideos]);
+  }, [autoSelectedVideos, featuredVideos.length]);
 
   // Initialize with first 2 observations selected
   useEffect(() => {
     if (generatedObservations.length > 0 && selectedObservations.length === 0) {
       setSelectedObservations(generatedObservations.slice(0, 2).map(o => o.id));
     }
-  }, [generatedObservations]);
+  }, [generatedObservations, selectedObservations.length]);
 
   // Initialize with first quick win selected
   useEffect(() => {
     if (generatedQuickWins.length > 0 && selectedQuickWin === null) {
       setSelectedQuickWin(generatedQuickWins[0].id);
     }
-  }, [generatedQuickWins]);
+  }, [generatedQuickWins, selectedQuickWin]);
 
   // Initialize with first 2 teases selected
   useEffect(() => {
     if (generatedTeases.length > 0 && selectedTeases.length === 0) {
       setSelectedTeases(generatedTeases.slice(0, 2).map(t => t.id));
     }
-  }, [generatedTeases]);
+  }, [generatedTeases, selectedTeases.length]);
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -255,7 +252,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
       const canvas = await html2canvas(el, {
         scale: 2,
         useCORS: true,
-        backgroundColor: "#ffffff",
+        backgroundColor: "var(--ink)",
       });
 
       document.body.removeChild(el);
@@ -283,17 +280,17 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* Header */}
       <div style={{
-        background: "linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)",
+        background: "linear-gradient(135deg, rgba(0, 209, 255, 0.1) 0%, rgba(0, 209, 255, 0.1) 100%)",
         borderRadius: "8px",
-        border: "1px solid rgba(139, 92, 246, 0.3)",
+        border: "1px solid rgba(0, 209, 255, 0.3)",
         padding: "20px",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
-          <MessageSquare size={24} style={{ color: "#8b5cf6" }} />
+          <MessageSquare size={24} style={{ color: "var(--blue-deep)" }} />
           <div style={{ fontSize: "18px", fontWeight: "700" }}>Outreach Email Builder</div>
         </div>
-        <div style={{ fontSize: "13px", color: "#9E9E9E", lineHeight: "1.6" }}>
-          Craft a personal email to <strong style={{ color: "#E0E0E0" }}>{snapshot.name}</strong>.
+        <div style={{ fontSize: "13px", color: "var(--muted)", lineHeight: "1.6" }}>
+          Craft a personal email to <strong style={{ color: "var(--text)" }}>{snapshot.name}</strong>.
           The output reads like a real email, not a report.
         </div>
       </div>
@@ -301,11 +298,11 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
       {/* Personal Note (Required) */}
       <div style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-          <Sparkles size={18} style={{ color: "#f59e0b" }} />
+          <Sparkles size={18} style={{ color: "var(--warn)" }} />
           <div style={{ fontSize: "14px", fontWeight: "700" }}>Opening Line</div>
-          <span style={{ fontSize: "11px", color: "#ef4444", marginLeft: "4px" }}>Required</span>
+          <span style={{ fontSize: "11px", color: "var(--neg)", marginLeft: "4px" }}>Required</span>
         </div>
-        <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "12px" }}>
+        <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "12px" }}>
           Start with something specific. Reference a video you watched, a series you liked, or why you reached out.
         </div>
         <textarea
@@ -316,10 +313,10 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
             width: "100%",
             minHeight: "100px",
             padding: "12px",
-            background: "#252525",
-            border: personalNote.trim() ? "1px solid #333" : "1px solid #ef4444",
+            background: "var(--input-bg)",
+            border: personalNote.trim() ? "1px solid var(--border)" : "1px solid var(--neg)",
             borderRadius: "8px",
-            color: "#E0E0E0",
+            color: "var(--text)",
             fontSize: "13px",
             lineHeight: "1.6",
             resize: "vertical",
@@ -334,9 +331,9 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
           style={sectionHeaderStyle}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Eye size={18} style={{ color: "#3b82f6" }} />
+            <Eye size={18} style={{ color: "var(--blue)" }} />
             <div style={{ fontSize: "14px", fontWeight: "700" }}>What I Noticed</div>
-            <span style={{ fontSize: "11px", color: "#9E9E9E" }}>
+            <span style={{ fontSize: "11px", color: "var(--muted)" }}>
               ({selectedObservations.length} selected)
             </span>
           </div>
@@ -345,7 +342,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
 
         {expandedSections.observations && (
           <div style={{ marginTop: "12px" }}>
-            <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "12px" }}>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "12px" }}>
               Pick 2-3 observations. Each includes a link to the specific video when relevant.
             </div>
 
@@ -362,8 +359,8 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
               {customObservations.map(obs => (
                 <div key={obs.id} style={{
                   display: "flex", gap: "8px", alignItems: "flex-start",
-                  padding: "12px", background: "#252525", borderRadius: "8px",
-                  border: selectedObservations.includes(obs.id) ? "1px solid #3b82f6" : "1px solid #333",
+                  padding: "12px", background: "var(--input-bg)", borderRadius: "8px",
+                  border: selectedObservations.includes(obs.id) ? "1px solid #00D1FF" : "1px solid var(--border)",
                 }}>
                   <input
                     type="checkbox"
@@ -378,10 +375,10 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
                     style={{
                       flex: 1,
                       padding: "8px",
-                      background: "#1E1E1E",
-                      border: "1px solid #333",
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
                       borderRadius: "6px",
-                      color: "#E0E0E0",
+                      color: "var(--text)",
                       fontSize: "13px",
                       minHeight: "60px",
                       resize: "vertical",
@@ -389,7 +386,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
                   />
                   <button
                     onClick={() => removeCustomObservation(obs.id)}
-                    style={{ background: "transparent", border: "none", color: "#666", cursor: "pointer" }}
+                    style={{ background: "transparent", border: "none", color: "var(--faint)", cursor: "pointer" }}
                   >
                     <X size={16} />
                   </button>
@@ -412,7 +409,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
           style={sectionHeaderStyle}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Zap size={18} style={{ color: "#22c55e" }} />
+            <Zap size={18} style={{ color: "var(--pos)" }} />
             <div style={{ fontSize: "14px", fontWeight: "700" }}>Quick Win (The Gift)</div>
           </div>
           {expandedSections.quickWin ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -420,7 +417,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
 
         {expandedSections.quickWin && (
           <div style={{ marginTop: "12px" }}>
-            <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "12px" }}>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "12px" }}>
               One actionable thing they can use today. This is what makes the email valuable even if they never reply.
             </div>
 
@@ -437,8 +434,8 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
               {/* Custom quick win option */}
               <div style={{
                 display: "flex", gap: "8px", alignItems: "flex-start",
-                padding: "12px", background: "#252525", borderRadius: "8px",
-                border: selectedQuickWin === "custom" ? "1px solid #22c55e" : "1px solid #333",
+                padding: "12px", background: "var(--input-bg)", borderRadius: "8px",
+                border: selectedQuickWin === "custom" ? "1px solid var(--pos)" : "1px solid var(--border)",
               }}>
                 <input
                   type="radio"
@@ -448,7 +445,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
                   style={{ marginTop: "4px" }}
                 />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "6px" }}>Write your own:</div>
+                  <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "6px" }}>Write your own:</div>
                   <textarea
                     value={customQuickWin}
                     onChange={(e) => setCustomQuickWin(e.target.value)}
@@ -457,10 +454,10 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
                     style={{
                       width: "100%",
                       padding: "8px",
-                      background: "#1E1E1E",
-                      border: "1px solid #333",
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
                       borderRadius: "6px",
-                      color: "#E0E0E0",
+                      color: "var(--text)",
                       fontSize: "13px",
                       minHeight: "60px",
                       resize: "vertical",
@@ -480,9 +477,9 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
           style={sectionHeaderStyle}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <HelpCircle size={18} style={{ color: "#8b5cf6" }} />
+            <HelpCircle size={18} style={{ color: "var(--blue-deep)" }} />
             <div style={{ fontSize: "14px", fontWeight: "700" }}>What I'd Explore Further</div>
-            <span style={{ fontSize: "11px", color: "#9E9E9E" }}>
+            <span style={{ fontSize: "11px", color: "var(--muted)" }}>
               ({selectedTeases.length} selected)
             </span>
           </div>
@@ -491,7 +488,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
 
         {expandedSections.teases && (
           <div style={{ marginTop: "12px" }}>
-            <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "12px" }}>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "12px" }}>
               2-3 things you'd dig into if you worked together. Creates curiosity without overpromising.
             </div>
 
@@ -508,8 +505,8 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
               {customTeases.map(tease => (
                 <div key={tease.id} style={{
                   display: "flex", gap: "8px", alignItems: "flex-start",
-                  padding: "12px", background: "#252525", borderRadius: "8px",
-                  border: selectedTeases.includes(tease.id) ? "1px solid #8b5cf6" : "1px solid #333",
+                  padding: "12px", background: "var(--input-bg)", borderRadius: "8px",
+                  border: selectedTeases.includes(tease.id) ? "1px solid #0090c8" : "1px solid var(--border)",
                 }}>
                   <input
                     type="checkbox"
@@ -524,10 +521,10 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
                     style={{
                       flex: 1,
                       padding: "8px",
-                      background: "#1E1E1E",
-                      border: "1px solid #333",
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
                       borderRadius: "6px",
-                      color: "#E0E0E0",
+                      color: "var(--text)",
                       fontSize: "13px",
                       minHeight: "60px",
                       resize: "vertical",
@@ -535,7 +532,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
                   />
                   <button
                     onClick={() => removeCustomTease(tease.id)}
-                    style={{ background: "transparent", border: "none", color: "#666", cursor: "pointer" }}
+                    style={{ background: "transparent", border: "none", color: "var(--faint)", cursor: "pointer" }}
                   >
                     <X size={16} />
                   </button>
@@ -558,16 +555,16 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
           style={sectionHeaderStyle}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Video size={18} style={{ color: "#ec4899" }} />
+            <Video size={18} style={{ color: "var(--neg-text)" }} />
             <div style={{ fontSize: "14px", fontWeight: "700" }}>Reference Videos</div>
-            <span style={{ fontSize: "11px", color: "#666" }}>(optional, for PDF only)</span>
+            <span style={{ fontSize: "11px", color: "var(--faint)" }}>(optional, for PDF only)</span>
           </div>
           {expandedSections.videos ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
 
         {expandedSections.videos && (
           <div style={{ marginTop: "12px" }}>
-            <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "12px" }}>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "12px" }}>
               These appear in the PDF attachment. The email itself references videos inline via the observations.
             </div>
 
@@ -575,8 +572,8 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
               {featuredVideos.map((video, index) => (
                 <div key={index} style={{
                   display: "flex", gap: "12px",
-                  padding: "12px", background: "#252525", borderRadius: "8px",
-                  border: video.included ? "1px solid #ec4899" : "1px solid #333",
+                  padding: "12px", background: "var(--input-bg)", borderRadius: "8px",
+                  border: video.included ? "1px solid #ff8375" : "1px solid var(--border)",
                   opacity: video.included ? 1 : 0.5,
                 }}>
                   <input
@@ -593,7 +590,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
                     />
                   )}
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "13px", fontWeight: "500", marginBottom: "6px", color: "#E0E0E0" }}>
+                    <div style={{ fontSize: "13px", fontWeight: "500", marginBottom: "6px", color: "var(--text)" }}>
                       {video.title}
                     </div>
                     <input
@@ -604,10 +601,10 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
                       style={{
                         width: "100%",
                         padding: "8px",
-                        background: "#1E1E1E",
-                        border: "1px solid #333",
+                        background: "var(--card)",
+                        border: "1px solid var(--border)",
                         borderRadius: "6px",
-                        color: "#E0E0E0",
+                        color: "var(--text)",
                         fontSize: "12px",
                       }}
                     />
@@ -622,7 +619,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
       {/* Sign-off */}
       <div style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-          <MessageSquare size={18} style={{ color: "#6b7280" }} />
+          <MessageSquare size={18} style={{ color: "var(--faint)" }} />
           <div style={{ fontSize: "14px", fontWeight: "700" }}>Closing</div>
         </div>
         <textarea
@@ -632,10 +629,10 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
             width: "100%",
             minHeight: "80px",
             padding: "12px",
-            background: "#252525",
-            border: "1px solid #333",
+            background: "var(--input-bg)",
+            border: "1px solid var(--border)",
             borderRadius: "8px",
-            color: "#E0E0E0",
+            color: "var(--text)",
             fontSize: "13px",
             lineHeight: "1.6",
             resize: "vertical",
@@ -644,7 +641,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
         />
         <div style={{ display: "flex", gap: "12px" }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Your name</div>
+            <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>Your name</div>
             <input
               type="text"
               value={senderName}
@@ -653,7 +650,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
             />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Company (optional)</div>
+            <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>Company (optional)</div>
             <input
               type="text"
               value={senderCompany}
@@ -668,14 +665,14 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
       <div style={{
         display: "flex", gap: "12px", justifyContent: "flex-end",
         padding: "16px 0",
-        borderTop: "1px solid #333",
+        borderTop: "1px solid var(--border)",
       }}>
         <button
           onClick={() => setShowPreview(!showPreview)}
           style={{
             display: "flex", alignItems: "center", gap: "6px",
-            padding: "10px 16px", background: "#252525", border: "1px solid #444",
-            borderRadius: "8px", color: "#E0E0E0", cursor: "pointer", fontSize: "13px",
+            padding: "10px 16px", background: "var(--input-bg)", border: "1px solid #444",
+            borderRadius: "8px", color: "var(--text)", cursor: "pointer", fontSize: "13px",
           }}
         >
           <Eye size={16} />
@@ -688,9 +685,9 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
           style={{
             display: "flex", alignItems: "center", gap: "6px",
             padding: "10px 16px",
-            background: isValid ? "linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%)" : "#252525",
+            background: isValid ? "linear-gradient(135deg, #0090c8 0%, #00D1FF 100%)" : "var(--input-bg)",
             border: isValid ? "none" : "1px solid #444",
-            borderRadius: "8px", color: "#fff",
+            borderRadius: "8px", color: "var(--ink)",
             cursor: isValid ? "pointer" : "not-allowed",
             fontSize: "13px", fontWeight: "600",
             opacity: isValid ? 1 : 0.5,
@@ -705,8 +702,8 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
           disabled={!isValid || exporting}
           style={{
             display: "flex", alignItems: "center", gap: "6px",
-            padding: "10px 16px", background: "#252525", border: "1px solid #444",
-            borderRadius: "8px", color: "#E0E0E0",
+            padding: "10px 16px", background: "var(--input-bg)", border: "1px solid #444",
+            borderRadius: "8px", color: "var(--text)",
             cursor: isValid ? "pointer" : "not-allowed", fontSize: "13px",
             opacity: isValid ? 1 : 0.5,
           }}
@@ -717,7 +714,7 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
       </div>
 
       {!isValid && (
-        <div style={{ fontSize: "12px", color: "#ef4444", textAlign: "right", marginTop: "-8px" }}>
+        <div style={{ fontSize: "12px", color: "var(--neg)", textAlign: "right", marginTop: "-8px" }}>
           Add an opening line to enable export.
         </div>
       )}
@@ -725,10 +722,10 @@ export default function OutreachBuilder({ audit, videoAnalysis }) {
       {/* Preview - shows as plain email */}
       {showPreview && (
         <div style={{
-          background: "#fff",
+          background: "var(--ink)",
           borderRadius: "8px",
           padding: "32px",
-          color: "#333",
+          color: "var(--outline-variant)",
           fontFamily: "system-ui, -apple-system, sans-serif",
           fontSize: "14px",
           lineHeight: "1.7",
@@ -749,8 +746,8 @@ function ObservationItem({ observation, selected, onToggle }) {
   return (
     <div style={{
       display: "flex", gap: "12px", alignItems: "flex-start",
-      padding: "12px", background: "#252525", borderRadius: "8px",
-      border: selected ? "1px solid #3b82f6" : "1px solid #333",
+      padding: "12px", background: "var(--input-bg)", borderRadius: "8px",
+      border: selected ? "1px solid #00D1FF" : "1px solid var(--border)",
       cursor: "pointer",
     }} onClick={onToggle}>
       <input
@@ -776,7 +773,7 @@ function ObservationItem({ observation, selected, onToggle }) {
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 style={{
-                  fontSize: "11px", color: "#60a5fa",
+                  fontSize: "11px", color: "var(--accent-text)",
                   display: "flex", alignItems: "center", gap: "4px",
                 }}
               >
@@ -790,14 +787,14 @@ function ObservationItem({ observation, selected, onToggle }) {
           {observation.icon}
           <span style={{
             fontSize: "10px", fontWeight: "600", padding: "2px 6px", borderRadius: "4px",
-            background: observation.type === "compliment" ? "#22c55e20" : observation.type === "opportunity" ? "#f59e0b20" : "#3b82f620",
-            color: observation.type === "compliment" ? "#22c55e" : observation.type === "opportunity" ? "#f59e0b" : "#3b82f6",
+            background: observation.type === "compliment" ? "rgba(205, 242, 0, 0.13)" : observation.type === "opportunity" ? "rgba(245, 158, 11, 0.13)" : "rgba(0, 209, 255, 0.13)",
+            color: observation.type === "compliment" ? "var(--pos)" : observation.type === "opportunity" ? "var(--warn)" : "var(--blue)",
             textTransform: "uppercase",
           }}>
             {observation.type}
           </span>
         </div>
-        <div style={{ fontSize: "13px", color: "#E0E0E0", lineHeight: "1.5" }}>
+        <div style={{ fontSize: "13px", color: "var(--text)", lineHeight: "1.5" }}>
           {observation.text}
         </div>
       </div>
@@ -809,8 +806,8 @@ function QuickWinItem({ quickWin, selected, onSelect }) {
   return (
     <div style={{
       display: "flex", gap: "12px", alignItems: "flex-start",
-      padding: "12px", background: "#252525", borderRadius: "8px",
-      border: selected ? "1px solid #22c55e" : "1px solid #333",
+      padding: "12px", background: "var(--input-bg)", borderRadius: "8px",
+      border: selected ? "1px solid var(--pos)" : "1px solid var(--border)",
       cursor: "pointer",
     }} onClick={onSelect}>
       <input
@@ -826,12 +823,12 @@ function QuickWinItem({ quickWin, selected, onSelect }) {
           {quickWin.icon}
           <span style={{
             fontSize: "10px", fontWeight: "600", padding: "2px 6px", borderRadius: "4px",
-            background: "#22c55e20", color: "#22c55e", textTransform: "uppercase",
+            background: "rgba(205, 242, 0, 0.13)", color: "var(--pos)", textTransform: "uppercase",
           }}>
             {quickWin.category}
           </span>
         </div>
-        <div style={{ fontSize: "13px", color: "#E0E0E0", lineHeight: "1.5" }}>
+        <div style={{ fontSize: "13px", color: "var(--text)", lineHeight: "1.5" }}>
           {quickWin.text}
         </div>
       </div>
@@ -843,8 +840,8 @@ function TeaseItem({ tease, selected, onToggle }) {
   return (
     <div style={{
       display: "flex", gap: "12px", alignItems: "flex-start",
-      padding: "12px", background: "#252525", borderRadius: "8px",
-      border: selected ? "1px solid #8b5cf6" : "1px solid #333",
+      padding: "12px", background: "var(--input-bg)", borderRadius: "8px",
+      border: selected ? "1px solid #0090c8" : "1px solid var(--border)",
       cursor: "pointer",
     }} onClick={onToggle}>
       <input
@@ -855,7 +852,7 @@ function TeaseItem({ tease, selected, onToggle }) {
         style={{ marginTop: "2px" }}
       />
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: "13px", color: "#E0E0E0", lineHeight: "1.5" }}>
+        <div style={{ fontSize: "13px", color: "var(--text)", lineHeight: "1.5" }}>
           {tease.text}
         </div>
       </div>
@@ -908,7 +905,6 @@ function EmailPreview({ content }) {
 
 function generateObservations(audit, videoAnalysis, videos) {
   const observations = [];
-  const snapshot = audit.channel_snapshot || {};
   const series = audit.series_summary || {};
   const benchmark = audit.benchmark_data || {};
 
@@ -921,7 +917,7 @@ function generateObservations(audit, videoAnalysis, videos) {
     observations.push({
       id: "top-video",
       type: "compliment",
-      icon: <TrendingUp size={14} style={{ color: "#22c55e" }} />,
+      icon: <TrendingUp size={14} style={{ color: "var(--pos)" }} />,
       text: `"${topVideo.title}" is a standout — ${(topVideo.view_count || 0).toLocaleString()} views. You clearly tapped into something your audience cares about here.`,
       thumbnail: topVideo.thumbnail_url,
       videoUrl: topVideo.youtube_video_id ? `https://youtube.com/watch?v=${topVideo.youtube_video_id}` : null,
@@ -936,7 +932,7 @@ function generateObservations(audit, videoAnalysis, videos) {
       observations.push({
         id: "series-performance",
         type: "compliment",
-        icon: <TrendingUp size={14} style={{ color: "#22c55e" }} />,
+        icon: <TrendingUp size={14} style={{ color: "var(--pos)" }} />,
         text: `The "${topSeries.name}" series is clearly resonating — ${topSeries.videoCount} episodes in, averaging ${(topSeries.avgViews || 0).toLocaleString()} views. That kind of consistency builds real audience trust.`,
         thumbnail: seriesVideo?.thumbnail_url || topSeries.thumbnail,
         videoUrl: seriesVideo?.youtube_video_id ? `https://youtube.com/watch?v=${seriesVideo.youtube_video_id}` : null,
@@ -950,7 +946,7 @@ function generateObservations(audit, videoAnalysis, videos) {
     observations.push({
       id: "investigate-video",
       type: "insight",
-      icon: <HelpCircle size={14} style={{ color: "#3b82f6" }} />,
+      icon: <HelpCircle size={14} style={{ color: "var(--blue)" }} />,
       text: `This one's interesting — "${investigateVideo.title}" pulled ${(investigateVideo.view_count || 0).toLocaleString()} views but the engagement didn't match the reach. Feels like the algorithm caught a wave, but the audience might have been different than your usual viewers. Would be worth looking at the traffic sources.`,
       thumbnail: investigateVideo.thumbnail_url,
       videoUrl: investigateVideo.youtube_video_id ? `https://youtube.com/watch?v=${investigateVideo.youtube_video_id}` : null,
@@ -970,7 +966,7 @@ function generateObservations(audit, videoAnalysis, videos) {
       observations.push({
         id: "shorts-winning",
         type: "opportunity",
-        icon: <Zap size={14} style={{ color: "#f59e0b" }} />,
+        icon: <Zap size={14} style={{ color: "var(--warn)" }} />,
         text: `Your Shorts are averaging ${(shortsAvg / longAvg).toFixed(1)}x the views of your long-form content — that's a real signal. Seems like your audience wants more of those bite-sized takes.`,
         thumbnail: topShort?.thumbnail_url,
         videoUrl: topShort?.youtube_video_id ? `https://youtube.com/watch?v=${topShort.youtube_video_id}` : null,
@@ -995,7 +991,7 @@ function generateObservations(audit, videoAnalysis, videos) {
       observations.push({
         id: "recent-momentum",
         type: "compliment",
-        icon: <TrendingUp size={14} style={{ color: "#22c55e" }} />,
+        icon: <TrendingUp size={14} style={{ color: "var(--pos)" }} />,
         text: `You've got real momentum right now — your recent uploads are outpacing your usual numbers. "${recentTop.title}" being a good example. Whatever shifted, it's working.`,
         thumbnail: recentTop.thumbnail_url,
         videoUrl: recentTop.youtube_video_id ? `https://youtube.com/watch?v=${recentTop.youtube_video_id}` : null,
@@ -1004,8 +1000,8 @@ function generateObservations(audit, videoAnalysis, videos) {
       observations.push({
         id: "recent-dip",
         type: "insight",
-        icon: <Clock size={14} style={{ color: "#3b82f6" }} />,
-        text: `Your recent videos are landing below where they usually do. Could be a few things — topic selection, packaging, or just timing. Sometimes small tweaks to titles and thumbnails unlock it again.`,
+        icon: <Clock size={14} style={{ color: "var(--blue)" }} />,
+        text: `Your recent videos are landing below where they usually do. Could be a few things — topic selection, packaging, or just timing. Often a small title or thumbnail change turns it around.`,
         thumbnail: recentTop.thumbnail_url,
         videoUrl: recentTop.youtube_video_id ? `https://youtube.com/watch?v=${recentTop.youtube_video_id}` : null,
       });
@@ -1018,7 +1014,7 @@ function generateObservations(audit, videoAnalysis, videos) {
       observations.push({
         id: "benchmark-strong",
         type: "compliment",
-        icon: <Target size={14} style={{ color: "#22c55e" }} />,
+        icon: <Target size={14} style={{ color: "var(--pos)" }} />,
         text: `For context, we looked at ${benchmark.peer_count} channels in your space — and you're outperforming most of them by about ${Math.round((benchmark.comparison.overallScore - 1) * 100)}%. That's genuinely impressive and not something we see often.`,
       });
     }
@@ -1034,7 +1030,7 @@ function generateObservations(audit, videoAnalysis, videos) {
       observations.push({
         id: "engagement-gem",
         type: "insight",
-        icon: <Sparkles size={14} style={{ color: "#8b5cf6" }} />,
+        icon: <Sparkles size={14} style={{ color: "var(--blue-deep)" }} />,
         text: `"${highEngagement.title}" is a hidden gem — it didn't get the biggest reach, but your audience was ${highEngagement.engagement_ratio}x more engaged than usual. That kind of content builds a loyal community even if the algorithm doesn't always reward it.`,
         thumbnail: highEngagement.thumbnail_url,
         videoUrl: highEngagement.youtube_video_id ? `https://youtube.com/watch?v=${highEngagement.youtube_video_id}` : null,
@@ -1054,7 +1050,7 @@ function generateObservations(audit, videoAnalysis, videos) {
     observations.push({
       id: `video-${observations.length}`,
       type: "compliment",
-      icon: <Video size={14} style={{ color: "#ec4899" }} />,
+      icon: <Video size={14} style={{ color: "var(--neg-text)" }} />,
       text: `Really liked "${video.title}" — ${(video.view_count || 0).toLocaleString()} views and the topic clearly landed.`,
       thumbnail: video.thumbnail_url,
       videoUrl: video.youtube_video_id ? `https://youtube.com/watch?v=${video.youtube_video_id}` : null,
@@ -1080,7 +1076,7 @@ function generateQuickWins(audit, videoAnalysis, videos) {
     quickWins.push({
       id: "title-numbers",
       category: "packaging",
-      icon: <Sparkles size={14} style={{ color: "#22c55e" }} />,
+      icon: <Sparkles size={14} style={{ color: "var(--pos)" }} />,
       text: `Something we noticed in your data — ${topWithNumbers} of your best-performing videos use numbers in the title. Your recent uploads haven't. Small tweak, but worth testing on your next upload to see if it moves the click-through rate.`,
     });
   }
@@ -1091,7 +1087,7 @@ function generateQuickWins(audit, videoAnalysis, videos) {
     quickWins.push({
       id: "title-questions",
       category: "packaging",
-      icon: <Sparkles size={14} style={{ color: "#22c55e" }} />,
+      icon: <Sparkles size={14} style={{ color: "var(--pos)" }} />,
       text: `Your audience clearly responds to curiosity — ${topWithQuestions} of your top performers use questions in the title. Leaning into that more could be an easy win.`,
     });
   }
@@ -1108,7 +1104,7 @@ function generateQuickWins(audit, videoAnalysis, videos) {
       quickWins.push({
         id: "shorts-recency",
         category: "format",
-        icon: <Video size={14} style={{ color: "#22c55e" }} />,
+        icon: <Video size={14} style={{ color: "var(--pos)" }} />,
         text: `It's been ${daysSinceShort} days since your last Short. You don't need to create new content for these — pulling a strong 30-second moment from a recent long-form video works great as a way to bring new people into your world.`,
       });
     }
@@ -1132,7 +1128,7 @@ function generateQuickWins(audit, videoAnalysis, videos) {
       quickWins.push({
         id: "consistency",
         category: "cadence",
-        icon: <Clock size={14} style={{ color: "#22c55e" }} />,
+        icon: <Clock size={14} style={{ color: "var(--pos)" }} />,
         text: `There are some gaps in your upload schedule (up to ${Math.round(maxGap)} days between videos). Consistency matters more than volume on YouTube — even a lighter-lift video during slower periods keeps your audience and the algorithm engaged.`,
       });
     }
@@ -1143,7 +1139,7 @@ function generateQuickWins(audit, videoAnalysis, videos) {
     quickWins.push({
       id: "engagement-cta",
       category: "engagement",
-      icon: <MessageSquare size={14} style={{ color: "#22c55e" }} />,
+      icon: <MessageSquare size={14} style={{ color: "var(--pos)" }} />,
       text: `One thing we've seen work well for channels your size — ending with a specific question for the audience. Not "like and subscribe" but something related to the video topic. It invites conversation and signals to YouTube that people care about what you're making.`,
     });
   }
@@ -1152,15 +1148,15 @@ function generateQuickWins(audit, videoAnalysis, videos) {
   quickWins.push({
     id: "thumbnail-test",
     category: "packaging",
-    icon: <Sparkles size={14} style={{ color: "#22c55e" }} />,
-    text: `YouTube now lets you A/B test thumbnails — worth trying on one of your recent videos that underperformed. Sometimes a bolder thumbnail (more contrast, cleaner text, or a different still) unlocks a video that the algorithm overlooked.`,
+    icon: <Sparkles size={14} style={{ color: "var(--pos)" }} />,
+    text: `YouTube now lets you A/B test thumbnails — worth trying on one of your recent videos that underperformed. Sometimes a bolder thumbnail (more contrast, cleaner text, or a different still) revives a video the algorithm overlooked.`,
   });
 
   // 7. Series format
   quickWins.push({
     id: "series-format",
     category: "content",
-    icon: <Target size={14} style={{ color: "#22c55e" }} />,
+    icon: <Target size={14} style={{ color: "var(--pos)" }} />,
     text: `Your best-performing topic has series potential. Revisiting a winning topic as a "part 2" or follow-up gives you a built-in audience from the first video and YouTube tends to recommend them together.`,
   });
 
@@ -1170,7 +1166,6 @@ function generateQuickWins(audit, videoAnalysis, videos) {
 
 function generateTeases(audit, videoAnalysis, videos, benchmark) {
   const teases = [];
-  const snapshot = audit.channel_snapshot || {};
 
   teases.push({
     id: "retention-analysis",
@@ -1271,10 +1266,10 @@ function buildPDFElement(content) {
   el.style.position = "absolute";
   el.style.left = "-9999px";
   el.style.width = "800px";
-  el.style.backgroundColor = "#ffffff";
+  el.style.backgroundColor = "var(--ink)";
   el.style.padding = "48px";
   el.style.fontFamily = "Georgia, serif";
-  el.style.color = "#333";
+  el.style.color = "var(--outline-variant)";
   el.style.fontSize = "14px";
   el.style.lineHeight = "1.8";
 
@@ -1306,7 +1301,7 @@ function buildPDFElement(content) {
       html += `<div style="margin-bottom:12px;padding-left:16px;border-left:2px solid #e5e7eb;">`;
       html += esc(o.text);
       if (o.videoUrl) {
-        html += `<br/><span style="font-size:12px;color:#3b82f6;">${esc(o.videoUrl)}</span>`;
+        html += `<br/><span style="font-size:12px;color:#00D1FF;">${esc(o.videoUrl)}</span>`;
       }
       html += `</div>`;
     });
@@ -1369,9 +1364,9 @@ function buildPDFElement(content) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const cardStyle = {
-  background: "#1E1E1E",
+  background: "var(--card)",
   borderRadius: "8px",
-  border: "1px solid #333",
+  border: "1px solid var(--border)",
   padding: "20px",
 };
 
@@ -1382,7 +1377,7 @@ const sectionHeaderStyle = {
   width: "100%",
   background: "transparent",
   border: "none",
-  color: "#E0E0E0",
+  color: "var(--text)",
   cursor: "pointer",
   padding: 0,
 };
@@ -1395,7 +1390,7 @@ const addButtonStyle = {
   background: "transparent",
   border: "1px dashed #444",
   borderRadius: "8px",
-  color: "#9E9E9E",
+  color: "var(--muted)",
   cursor: "pointer",
   fontSize: "12px",
   width: "100%",
@@ -1405,9 +1400,9 @@ const addButtonStyle = {
 const inputStyle = {
   width: "100%",
   padding: "10px 12px",
-  background: "#252525",
-  border: "1px solid #333",
+  background: "var(--surface-high)",
+  border: "1px solid var(--border)",
   borderRadius: "8px",
-  color: "#E0E0E0",
+  color: "var(--text)",
   fontSize: "13px",
 };

@@ -6,11 +6,120 @@
 
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { requireCronOrAdmin } from '../_lib/auth.js';
+import { selectAll } from '../_lib/db.js';
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+// ── Batching helpers ────────────────────────────────────────────────────────
+//
+// The per-video loop used to issue one .update() per video and one .upsert()
+// per (video, day). A 500-video channel meant 500 + 3,500 = 4,000 sequential
+// round trips — roughly 100 seconds of pure latency before any YouTube work,
+// against a 300 s function ceiling. Across 20 channels that was ~80,000 round
+// trips a day.
+//
+// Both helpers below keep the ORIGINAL write semantics deliberately. The
+// COALESCE-based `upsert_video_snapshots_safe` RPC used by the historical
+// backfill has *different* semantics (nulls preserve existing values), and
+// swapping the main loop onto it would silently change which value wins on a
+// re-run. A batching change should not also be a behaviour change.
+
+/** Chunk an array into fixed-size slices. */
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Upsert snapshot rows in batches. PostgREST accepts an array, so this is the
+ * same statement the loop was issuing — just not once per row.
+ * Returns the number of rows written.
+ */
+async function flushSnapshots(rows, batchSize = 500) {
+  let written = 0;
+  for (const batch of chunk(rows, batchSize)) {
+    const { error } = await supabase
+      .from('video_snapshots')
+      .upsert(batch, { onConflict: 'video_id,snapshot_date' });
+    if (error) {
+      console.error(`[Daily Sync] snapshot batch of ${batch.length} failed: ${error.message}`);
+      continue;
+    }
+    written += batch.length;
+  }
+  return written;
+}
+
+/**
+ * Apply per-video updates with bounded concurrency.
+ *
+ * These stay as individual UPDATEs on purpose: each video's payload contains
+ * only the columns YouTube actually returned for it, so collapsing them into
+ * one array-upsert would need a uniform column set and would write NULL over
+ * real values for any video missing a field. Running them ~12 at a time keeps
+ * the exact semantics while cutting wall-clock by an order of magnitude.
+ */
+/**
+ * Thumbnail change detection (migration 115). YouTube serves a video's
+ * CURRENT thumbnail from a stable URL, so only the image bytes reveal a
+ * swap: fetch, sha256, and insert (video, hash) — a new hash for a
+ * known video dates a packaging change. Capped per run, fully
+ * failure-tolerant, and a silent no-op until the migration lands.
+ */
+async function captureThumbnailHashes(youtubeIds, cap = 400) {
+  const ids = [...new Set(youtubeIds)].slice(0, cap);
+  if (!ids.length) return 0;
+  const rows = [];
+  for (const batch of chunk(ids, 8)) {
+    const settled = await Promise.allSettled(batch.map(async (id) => {
+      const url = `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length < 500) return null; // placeholder/error image
+      return {
+        youtube_video_id: id,
+        content_hash: crypto.createHash('sha256').update(buf).digest('hex'),
+        thumbnail_url: url,
+      };
+    }));
+    for (const r of settled) {
+      if (r.status === 'fulfilled' && r.value) rows.push(r.value);
+    }
+  }
+  if (!rows.length) return 0;
+  const { error } = await supabase
+    .from('video_thumbnail_history')
+    .upsert(rows, { onConflict: 'youtube_video_id,content_hash', ignoreDuplicates: true });
+  if (error) {
+    // Table not migrated yet, or transient — never sink the sync for this.
+    if (!/video_thumbnail_history/.test(error.message || '')) {
+      console.error('[Daily Sync] thumbnail history write failed:', error.message);
+    }
+    return 0;
+  }
+  return rows.length;
+}
+
+async function applyVideoUpdates(updates, concurrency = 12) {
+  let applied = 0;
+  for (const batch of chunk(updates, concurrency)) {
+    const settled = await Promise.allSettled(
+      batch.map(u => supabase.from('videos').update(u.data).eq('id', u.id))
+    );
+    for (const r of settled) {
+      if (r.status === 'fulfilled' && !r.value?.error) applied++;
+      else console.error('[Daily Sync] video update failed:',
+        r.status === 'rejected' ? r.reason?.message : r.value?.error?.message);
+    }
+  }
+  return applied;
+}
 
 // Get encryption key from environment
 function getEncryptionKey() {
@@ -432,7 +541,10 @@ async function discoverVideos(accessToken, youtubeChannelId, dbChannelId, channe
   if (allVideoIds.length === 0) return 0;
 
   // Step 3: Fetch video details in batches of 50
-  const videosToUpsert = [];
+  // `let`, not `const`: the missing-column retry at ~line 560 reassigns this.
+  // As a const that path threw "Assignment to constant variable" — so the
+  // recovery logic written to handle a schema drift crashed the sync instead.
+  let videosToUpsert = [];
 
   for (let i = 0; i < allVideoIds.length; i += 50) {
     const batch = allVideoIds.slice(i, i + 50);
@@ -874,15 +986,37 @@ async function syncConnection(connection) {
       }
     }
 
-    // Get all videos for this channel (include Data API stats for cumulative snapshots)
-    const { data: videos } = await supabase
+    // Get all videos for this channel (include Data API stats for cumulative
+    // snapshots). Paged: PostgREST caps at 1000 rows and there is no ORDER BY
+    // here, so a channel past 1000 videos was syncing an arbitrary subset.
+    const videos = await selectAll(() => supabase
       .from('videos')
       .select('id, youtube_video_id, view_count, like_count, comment_count')
-      .eq('channel_id', dbChannel.id);
+      .eq('channel_id', dbChannel.id), 'videos for sync');
 
     if (!videos || videos.length === 0) {
       return results;
     }
+
+    // Accumulated writes — flushed in batches after the loop. See
+    // flushSnapshots / applyVideoUpdates at the top of this file.
+    const pendingVideoUpdates = [];
+    const pendingSnapshots = [];
+    // Fallback rows are queued separately, not merged into pendingSnapshots.
+    // Two reasons, both load-bearing:
+    //  1. `hasData` is true via total_view_count even when a video has no
+    //     analytics, so the main loop emits a row for every date INCLUDING
+    //     yesterday — and the fallback then emits another for yesterday.
+    //     Two rows with the same (video_id, snapshot_date) inside one upsert
+    //     make Postgres raise "ON CONFLICT DO UPDATE command cannot affect
+    //     row a second time", failing the whole batch.
+    //  2. The fallback object carries fewer columns. PostgREST builds an
+    //     array upsert from the union of keys, so merging the shapes would
+    //     send NULL for the columns fallback omits and wipe good values that
+    //     the original two-statement sequence left untouched.
+    // Flushing them as separate statements, fallbacks last, reproduces the
+    // original ordering and column semantics exactly.
+    const pendingFallbackSnapshots = [];
 
     // Process each video
     for (const video of videos) {
@@ -917,11 +1051,7 @@ async function syncConnection(connection) {
       }
 
       if (Object.keys(updateData).length > 1) {
-        await supabase
-          .from('videos')
-          .update(updateData)
-          .eq('id', video.id);
-        results.videosUpdated++;
+        pendingVideoUpdates.push({ id: video.id, data: updateData });
       }
 
       // Create per-day snapshots from Analytics API data (upsert to handle re-runs)
@@ -954,13 +1084,7 @@ async function syncConnection(connection) {
         const hasData = snapshotData.view_count || snapshotData.impressions || snapshotData.watch_hours ||
                         snapshotData.likes || snapshotData.total_view_count;
         if (hasData) {
-          const { error: snapshotError } = await supabase
-            .from('video_snapshots')
-            .upsert(snapshotData, { onConflict: 'video_id,snapshot_date' });
-
-          if (!snapshotError) {
-            results.snapshotsCreated++;
-          }
+          pendingSnapshots.push(snapshotData);
         }
       }
 
@@ -979,13 +1103,35 @@ async function syncConnection(connection) {
           total_comment_count: video.comment_count || null,
         };
         if (fallback.view_count || fallback.impressions || fallback.total_view_count) {
-          await supabase
-            .from('video_snapshots')
-            .upsert(fallback, { onConflict: 'video_id,snapshot_date' });
-          results.snapshotsCreated++;
+          pendingFallbackSnapshots.push(fallback);
         }
       }
     }
+
+    // Flush both queues. 500 videos x 7 days went from ~4,000 sequential
+    // round trips to roughly a dozen.
+    results.videosUpdated += await applyVideoUpdates(pendingVideoUpdates);
+    results.snapshotsCreated += await flushSnapshots(pendingSnapshots);
+    results.snapshotsCreated += await flushSnapshots(pendingFallbackSnapshots);
+    {
+      // Thumbnail change detection: hash the 150 most recent videos'
+      // current thumbnails (older uploads swap packaging too — that's
+      // exactly the event worth dating).
+      const { data: thumbRows } = await supabase
+        .from('videos')
+        .select('youtube_video_id')
+        .eq('channel_id', dbChannel.id)
+        .not('youtube_video_id', 'is', null)
+        .order('published_at', { ascending: false })
+        .limit(150);
+      results.thumbnailsHashed = (results.thumbnailsHashed || 0)
+        + await captureThumbnailHashes((thumbRows || []).map(r => r.youtube_video_id));
+    }
+    console.log(
+      `[Daily Sync] Flushed ${pendingVideoUpdates.length} video updates, ` +
+      `${pendingSnapshots.length} snapshots and ` +
+      `${pendingFallbackSnapshots.length} fallback snapshots for ${dbChannel.id}`
+    );
 
     // Backfill historical snapshots from Reporting API per-day data
     // Uses COALESCE-based RPC so Reporting API data only fills gaps —
@@ -1268,10 +1414,10 @@ async function handleBackfill(req, res) {
         continue;
       }
 
-      const { data: videos } = await supabase
+      const videos = await selectAll(() => supabase
         .from('videos')
         .select('id, youtube_video_id, view_count, like_count, comment_count')
-        .eq('channel_id', dbChannel.id);
+        .eq('channel_id', dbChannel.id), 'videos for backfill');
 
       if (!videos?.length) {
         result.errors.push('No videos in database');
@@ -1671,10 +1817,10 @@ async function handleSyncAll(req, res) {
       result.hasRetention = ms.hasRetention || false;
       result.hasSubs = ms.hasSubs || false;
 
-      const { data: videos } = await supabase
+      const videos = await selectAll(() => supabase
         .from('videos')
         .select('id, youtube_video_id')
-        .eq('channel_id', dbChannel.id);
+        .eq('channel_id', dbChannel.id), 'videos for surface pull');
 
       const videoMap = {};
       for (const v of (videos || [])) { videoMap[v.youtube_video_id] = v; }
@@ -1763,11 +1909,11 @@ async function handleAnalyticsBackfill(req, res) {
 
       if (!dbChannel) { result.errors.push('No client channel'); allResults.push(result); continue; }
 
-      // Get all videos for this channel
-      const { data: videos } = await supabase
+      // Get all videos for this channel (paged past the 1000-row cap)
+      const videos = await selectAll(() => supabase
         .from('videos')
         .select('id, youtube_video_id, view_count, like_count, comment_count')
-        .eq('channel_id', dbChannel.id);
+        .eq('channel_id', dbChannel.id), 'videos for analytics spike');
 
       if (!videos?.length) { result.errors.push('No videos'); allResults.push(result); continue; }
 
@@ -1837,15 +1983,8 @@ async function handleAnalyticsBackfill(req, res) {
 }
 
 export default async function handler(req, res) {
-  // Verify this is a legitimate cron request from Vercel
-  const authHeader = req.headers.authorization;
-  const manualTrigger = req.query?.manual === 'true';
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}` && !manualTrigger) {
-    // In development, allow without secret
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-  }
+  const caller = await requireCronOrAdmin(req, res);
+  if (!caller) return;
 
   // Analytics API backfill: per-video per-day data for any date range
   // Usage: /api/cron/daily-sync?analyticsBackfill=true&start=2026-01-01&end=2026-03-31&manual=true

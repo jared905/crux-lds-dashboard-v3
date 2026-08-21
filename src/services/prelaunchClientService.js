@@ -49,7 +49,7 @@ export async function createPrelaunchClient({
   marketDescription = null,
   intendedLaunchAt  = null,
   customUrl         = null,
-  createdBy         = null,
+  _createdBy         = null,
 }) {
   if (!supabase) return { ok: false, error: 'supabase not configured' };
   if (!name?.trim()) return { ok: false, error: 'name required' };

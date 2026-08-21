@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import {useState, useEffect, useRef} from "react";
 import {
   ArrowLeft,
   Loader,
@@ -20,10 +20,10 @@ const STEP_LABELS = {
 };
 
 const STATUS_ICON = {
-  pending: { Icon: Clock, color: "#666" },
-  running: { Icon: Loader, color: "#f59e0b" },
-  completed: { Icon: CheckCircle2, color: "#22c55e" },
-  failed: { Icon: XCircle, color: "#ef4444" },
+  pending: { Icon: Clock, color: "var(--faint)" },
+  running: { Icon: Loader, color: "var(--warn)" },
+  completed: { Icon: CheckCircle2, color: "var(--pos)" },
+  failed: { Icon: XCircle, color: "var(--neg)" },
 };
 
 export default function AuditProgress({ auditId, onComplete, onFailed, onBack }) {
@@ -63,6 +63,8 @@ export default function AuditProgress({ auditId, onComplete, onFailed, onBack })
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
+  // Poller lives per audit; parent callbacks are intentionally not dependencies so the interval survives re-renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auditId]);
 
   const progress = audit?.progress;
@@ -79,7 +81,7 @@ export default function AuditProgress({ auditId, onComplete, onFailed, onBack })
             display: "flex", alignItems: "center", gap: "6px",
             padding: "8px 14px", background: "transparent",
             border: "1px solid #444", borderRadius: "8px",
-            color: "#9E9E9E", cursor: "pointer", fontSize: "13px",
+            color: "var(--muted)", cursor: "pointer", fontSize: "13px",
           }}
         >
           <ArrowLeft size={16} />
@@ -94,9 +96,9 @@ export default function AuditProgress({ auditId, onComplete, onFailed, onBack })
       {error && (
         <div style={{
           display: "flex", alignItems: "center", gap: "8px",
-          padding: "12px 16px", background: "rgba(239, 68, 68, 0.1)",
-          border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "8px",
-          color: "#ef4444", fontSize: "13px", marginBottom: "16px",
+          padding: "12px 16px", background: "rgba(255, 85, 64, 0.1)",
+          border: "1px solid rgba(255, 85, 64, 0.3)", borderRadius: "8px",
+          color: "var(--neg)", fontSize: "13px", marginBottom: "16px",
         }}>
           <AlertCircle size={16} />
           {error}
@@ -108,15 +110,15 @@ export default function AuditProgress({ auditId, onComplete, onFailed, onBack })
         {audit?.channel && (
           <div style={{
             display: "flex", alignItems: "center", gap: "12px",
-            padding: "16px 20px", background: "#1E1E1E", borderRadius: "10px",
-            border: "1px solid #333", marginBottom: "20px",
+            padding: "16px 20px", background: "var(--card)", borderRadius: "24px",
+            border: "1px solid var(--border)", marginBottom: "20px",
           }}>
             {audit.channel.thumbnail_url && (
               <img src={audit.channel.thumbnail_url} alt="" style={{ width: "40px", height: "40px", borderRadius: "50%" }} />
             )}
             <div>
               <div style={{ fontSize: "14px", fontWeight: "600" }}>{audit.channel.name}</div>
-              <div style={{ fontSize: "12px", color: "#9E9E9E", textTransform: "capitalize" }}>
+              <div style={{ fontSize: "12px", color: "var(--muted)", textTransform: "capitalize" }}>
                 {audit.audit_type?.replace("_", " ")} audit
               </div>
             </div>
@@ -125,7 +127,7 @@ export default function AuditProgress({ auditId, onComplete, onFailed, onBack })
 
         {/* Progress bar */}
         <div style={{
-          background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
+          background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)",
           padding: "24px",
         }}>
           <div style={{
@@ -133,19 +135,19 @@ export default function AuditProgress({ auditId, onComplete, onFailed, onBack })
             marginBottom: "12px",
           }}>
             <span style={{ fontSize: "14px", fontWeight: "600" }}>{message}</span>
-            <span style={{ fontSize: "14px", fontWeight: "700", color: "#60a5fa" }}>
+            <span style={{ fontSize: "14px", fontWeight: "700", color: "var(--accent-text)" }}>
               {pct >= 0 ? `${pct}%` : "—"}
             </span>
           </div>
 
           <div style={{
-            height: "8px", background: "#333", borderRadius: "4px",
+            height: "8px", background: "var(--outline-variant)", borderRadius: "4px",
             overflow: "hidden", marginBottom: "24px",
           }}>
             <div style={{
               height: "100%",
               width: `${Math.max(0, Math.min(pct, 100))}%`,
-              background: audit?.status === "failed" ? "#ef4444" : "linear-gradient(90deg, #2962FF, #60a5fa)",
+              background: audit?.status === "failed" ? "var(--neg)" : "linear-gradient(90deg, var(--blue), #4cd6ff)",
               borderRadius: "4px",
               transition: "width 0.5s ease",
             }} />
@@ -163,7 +165,7 @@ export default function AuditProgress({ auditId, onComplete, onFailed, onBack })
                   key={section.section_key}
                   style={{
                     display: "flex", alignItems: "center", gap: "10px",
-                    padding: "10px 14px", background: "#252525", borderRadius: "8px",
+                    padding: "10px 14px", background: "var(--input-bg)", borderRadius: "8px",
                     border: isRunning ? "1px solid rgba(245, 158, 11, 0.3)" : "1px solid transparent",
                   }}
                 >
@@ -177,22 +179,22 @@ export default function AuditProgress({ auditId, onComplete, onFailed, onBack })
                   />
                   <span style={{
                     fontSize: "13px", fontWeight: "500",
-                    color: section.status === "completed" ? "#22c55e"
-                      : section.status === "running" ? "#f59e0b"
-                      : section.status === "failed" ? "#ef4444"
-                      : "#666",
+                    color: section.status === "completed" ? "var(--pos)"
+                      : section.status === "running" ? "var(--warn)"
+                      : section.status === "failed" ? "var(--neg)"
+                      : "var(--faint)",
                   }}>
                     {STEP_LABELS[section.section_key] || section.section_key}
                   </span>
 
                   {section.status === "failed" && section.error_message && (
-                    <span style={{ fontSize: "11px", color: "#ef4444", marginLeft: "auto" }}>
+                    <span style={{ fontSize: "11px", color: "var(--neg)", marginLeft: "auto" }}>
                       {section.error_message}
                     </span>
                   )}
 
                   {section.status === "completed" && section.completed_at && section.started_at && (
-                    <span style={{ fontSize: "11px", color: "#666", marginLeft: "auto" }}>
+                    <span style={{ fontSize: "11px", color: "var(--faint)", marginLeft: "auto" }}>
                       {Math.round((new Date(section.completed_at) - new Date(section.started_at)) / 1000)}s
                     </span>
                   )}
@@ -205,8 +207,8 @@ export default function AuditProgress({ auditId, onComplete, onFailed, onBack })
           {audit && (audit.total_cost > 0 || audit.youtube_api_calls > 0) && (
             <div style={{
               display: "flex", gap: "16px", marginTop: "16px",
-              padding: "10px 14px", background: "#252525", borderRadius: "8px",
-              fontSize: "12px", color: "#9E9E9E",
+              padding: "10px 14px", background: "var(--input-bg)", borderRadius: "8px",
+              fontSize: "12px", color: "var(--muted)",
             }}>
               {audit.total_cost > 0 && (
                 <span>Claude cost: ${parseFloat(audit.total_cost).toFixed(4)}</span>

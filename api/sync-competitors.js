@@ -13,6 +13,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { requireCronOrAdmin } from './_lib/auth.js';
 
 // Initialize Supabase with service role key for server-side operations
 const supabase = createClient(
@@ -189,7 +190,7 @@ function detectTitlePatterns(title) {
     { name: 'question', regex: /\?/ },
     { name: 'number', regex: /\d+/ },
     { name: 'caps_emphasis', regex: /\b[A-Z]{3,}\b/ },
-    { name: 'brackets', regex: /[\(\[\{]/ },
+    { name: 'brackets', regex: /[([{]/ },
     { name: 'first_person', regex: /\b(I|My|We|Our)\b/i },
     { name: 'negative', regex: /\b(never|stop|avoid|worst|fail|bad|terrible|don't)\b/i },
     { name: 'power_word', regex: /\b(secret|ultimate|best|perfect|complete|easy|simple|amazing)\b/i },
@@ -455,11 +456,8 @@ export default async function handler(req, res) {
   // "Authorization: Bearer <CRON_SECRET>" — NOT a custom header. The
   // previous x-vercel-cron-secret check was rejecting every cron firing,
   // which is why the queue went 3 months stale.
-  const authHeader = req.headers.authorization;
-  const manualTrigger = req.query?.manual === 'true';
-  if (!manualTrigger && process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  const caller = await requireCronOrAdmin(req, res);
+  if (!caller) return;
 
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) {
@@ -588,7 +586,11 @@ export default async function handler(req, res) {
   // prevent runaway loops.
   const chainDepth = Number(req.query?.chainDepth || 0);
   const CHAIN_MAX = 20;
-  if (!manualTrigger && results.channels_remaining > 0 && chainDepth < CHAIN_MAX) {
+  // Only self-chain on an actual cron run. A human clicking Refresh should
+  // get one pass, not kick off a 20-deep chain. (This used to read
+  // `!manualTrigger`, from the query-param auth that was removed.)
+  const isCronRun = caller.via === 'cron';
+  if (isCronRun && results.channels_remaining > 0 && chainDepth < CHAIN_MAX) {
     // 2026-06-30 fix: prefer VERCEL_PROJECT_PRODUCTION_URL over the
     // request's host header. When Vercel cron triggers this endpoint,
     // req.headers.host is the per-deployment URL (deployment protection
@@ -614,7 +616,7 @@ export default async function handler(req, res) {
     success: true,
     handles_skipped: results.handles_skipped,
     chain_depth: chainDepth,
-    chain_continued: !manualTrigger && results.channels_remaining > 0 && chainDepth < CHAIN_MAX,
+    chain_continued: isCronRun && results.channels_remaining > 0 && chainDepth < CHAIN_MAX,
     ...results,
   });
 }

@@ -3,7 +3,7 @@
  * No interactivity (no zoom/pan) — pure density visualization.
  * Hover shows country tooltip only.
  */
-import React, { useState, useMemo } from 'react';
+import {useState, useMemo} from 'react';
 import {
   ComposableMap,
   Geographies,
@@ -45,11 +45,11 @@ const A2_TO_A3 = {
 function getDensityColor(pct) {
   if (pct <= 0) return '#151d2e';
   if (pct < 0.5) return '#1a2d50';
-  if (pct < 1) return '#1d4ed8';
-  if (pct < 2) return '#2563eb';
-  if (pct < 4) return '#3b82f6';
-  if (pct < 8) return '#60a5fa';
-  if (pct < 15) return '#93c5fd';
+  if (pct < 1) return '#0090c8';
+  if (pct < 2) return '#00b0d8';
+  if (pct < 4) return '#00D1FF';
+  if (pct < 8) return '#4cd6ff';
+  if (pct < 15) return '#b7eaff';
   return '#dbeafe';
 }
 
@@ -120,7 +120,6 @@ export default function AudienceMap({ countries }) {
       {/* Hover tooltip */}
       {hoveredCountry && (() => {
         // Find the hovered country data
-        const allGeos = document.querySelectorAll('[data-rsm-key]'); // Won't work, use lookup instead
         return null;
       })()}
 
@@ -136,9 +135,9 @@ export default function AudienceMap({ countries }) {
           {countries.slice(0, 6).map((c, i) => (
             <div key={c.code} style={{
               fontSize: '11px', padding: '3px 10px', borderRadius: '5px',
-              background: i === 0 ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.06)',
-              border: i === 0 ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid rgba(255,255,255,0.08)',
-              color: i === 0 ? '#93c5fd' : '#94a3b8',
+              background: i === 0 ? 'rgba(0, 209, 255, 0.25)' : 'rgba(255,255,255,0.06)',
+              border: i === 0 ? '1px solid rgba(0, 209, 255, 0.4)' : '1px solid rgba(255,255,255,0.08)',
+              color: i === 0 ? '#b7eaff' : '#94a3b8',
             }}>
               <span style={{ fontWeight: '700', color: i === 0 ? '#bfdbfe' : '#e2e8f0' }}>{c.code}</span>{' '}
               {c.pct.toFixed(1)}%
@@ -150,7 +149,7 @@ export default function AudienceMap({ countries }) {
         {/* Density scale */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '9px', color: '#475569', flexShrink: 0 }}>
           <span>Low</span>
-          {['#1a2d50', '#1d4ed8', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe'].map((c, i) => (
+          {['#1a2d50', '#0090c8', '#00D1FF', '#4cd6ff', '#b7eaff', '#dbeafe'].map((c, i) => (
             <div key={i} style={{ width: '14px', height: '6px', background: c, borderRadius: '1px' }} />
           ))}
           <span>High</span>

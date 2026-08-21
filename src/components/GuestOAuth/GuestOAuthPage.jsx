@@ -24,7 +24,7 @@
  *     here after granting access
  */
 
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 
 export default function GuestOAuthPage() {
   const params = new URLSearchParams(window.location.search);
@@ -102,7 +102,7 @@ function InviteLanding({ token }) {
   if (loading) {
     return (
       <Shell>
-        <div style={{ color: '#888', fontSize: 14 }}>Loading invite…</div>
+        <div style={{ color: 'var(--outline)', fontSize: 14 }}>Loading invite…</div>
       </Shell>
     );
   }
@@ -125,10 +125,10 @@ function InviteLanding({ token }) {
       <h1 style={titleStyle}>YouTube access request</h1>
 
       <p style={bodyStyle}>
-        <strong style={{ color: '#e8e2d0' }}>{invite.requesterEmail || 'A Full View user'}</strong>
+        <strong style={{ color: 'var(--ink)' }}>{invite.requesterEmail || 'A Full View user'}</strong>
         {' '}is requesting read-only access to your YouTube analytics
         {invite.clientLabel && (
-          <> for <strong style={{ color: '#e8e2d0' }}>{invite.clientLabel}</strong></>
+          <> for <strong style={{ color: 'var(--ink)' }}>{invite.clientLabel}</strong></>
         )}.
       </p>
 
@@ -148,7 +148,7 @@ function InviteLanding({ token }) {
         <div style={scopesNoteStyle}>
           Full View will NOT be able to post, edit, delete, or change anything on your channel.
           You can revoke this access anytime at{' '}
-          <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" style={{ color: '#0A919B' }}>
+          <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-text)' }}>
             myaccount.google.com/permissions
           </a>.
         </div>
@@ -188,16 +188,16 @@ function ResultView({ success, error, channel }) {
   if (success) {
     return (
       <Shell>
-        <div style={{ ...kickerStyle, color: '#3fa66a' }}>✓ Access granted</div>
+        <div style={{ ...kickerStyle, color: "var(--pos-deep)" }}>✓ Access granted</div>
         <h1 style={titleStyle}>You're all set</h1>
         <p style={bodyStyle}>
           Full View now has read-only analytics access
-          {channel && <> to <strong style={{ color: '#e8e2d0' }}>{channel}</strong></>}.
+          {channel && <> to <strong style={{ color: 'var(--ink)' }}>{channel}</strong></>}.
           You can close this tab.
         </p>
         <p style={subBodyStyle}>
           To revoke this access later: go to{' '}
-          <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" style={{ color: '#0A919B' }}>
+          <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-text)' }}>
             myaccount.google.com/permissions
           </a>
           , find Full View Analytics, and remove.
@@ -208,7 +208,7 @@ function ResultView({ success, error, channel }) {
 
   return (
     <Shell>
-      <div style={{ ...kickerStyle, color: '#ef6b6b' }}>Couldn't complete the grant</div>
+      <div style={{ ...kickerStyle, color: "var(--neg-text)" }}>Couldn't complete the grant</div>
       <h1 style={titleStyle}>Something went wrong</h1>
       <p style={bodyStyle}>
         We weren't able to complete the OAuth grant
@@ -238,7 +238,7 @@ function Shell({ children }) {
         {children}
       </div>
       <div style={footerStyle}>
-        Full View Analytics · <a href="/privacy" style={{ color: '#666' }}>Privacy</a> · <a href="/terms" style={{ color: '#666' }}>Terms</a>
+        Full View Analytics · <a href="/privacy" style={{ color: 'var(--faint)' }}>Privacy</a> · <a href="/terms" style={{ color: 'var(--faint)' }}>Terms</a>
       </div>
     </div>
   );
@@ -250,8 +250,8 @@ function Shell({ children }) {
 
 const pageStyle = {
   minHeight: '100vh',
-  background: '#0a0a0e',
-  color: '#e8e2d0',
+  background: 'var(--bg)',
+  color: 'var(--ink)',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
@@ -262,55 +262,55 @@ const pageStyle = {
 const cardStyle = {
   maxWidth: 560,
   width: '100%',
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 10,
   padding: '32px 36px',
 };
 const kickerStyle = {
-  fontSize: 11, color: '#0A919B',
+  fontSize: 11, color: 'var(--accent-text)',
   textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 8,
 };
 const titleStyle = {
-  fontSize: 26, fontWeight: 700, color: '#e8e2d0', margin: '0 0 18px 0', lineHeight: 1.2,
+  fontSize: 26, fontWeight: 700, color: 'var(--ink)', margin: '0 0 18px 0', lineHeight: 1.2,
 };
 const bodyStyle = {
-  fontSize: 15, color: '#cde4d6', lineHeight: 1.6, margin: '0 0 14px 0',
+  fontSize: 15, color: 'var(--text)', lineHeight: 1.6, margin: '0 0 14px 0',
 };
 const subBodyStyle = {
-  fontSize: 13, color: '#888', lineHeight: 1.6, margin: '0 0 14px 0',
+  fontSize: 13, color: 'var(--outline)', lineHeight: 1.6, margin: '0 0 14px 0',
 };
 const notesStyle = {
   background: 'rgba(232,168,43,0.06)',
   border: '1px solid rgba(232,168,43,0.25)',
   borderRadius: 6, padding: 12,
-  fontSize: 13, color: '#e8e2d0', lineHeight: 1.5,
+  fontSize: 13, color: 'var(--ink)', lineHeight: 1.5,
   marginBottom: 16,
 };
 const scopesBoxStyle = {
-  background: '#1a1a1f',
-  border: '1px solid #2a2a30',
+  background: 'var(--input-bg)',
+  border: '1px solid var(--border)',
   borderRadius: 6, padding: 14,
 };
 const scopesHeaderStyle = {
-  fontSize: 11, color: '#888',
+  fontSize: 11, color: 'var(--outline)',
   textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 700,
   marginBottom: 8,
 };
 const scopesListStyle = {
   margin: 0, paddingLeft: 22,
-  fontSize: 13, color: '#cde4d6', lineHeight: 1.6,
+  fontSize: 13, color: 'var(--text)', lineHeight: 1.6,
 };
 const scopesNoteStyle = {
   marginTop: 10,
   paddingTop: 10,
   borderTop: '1px dashed #2a2a30',
-  fontSize: 12, color: '#888', lineHeight: 1.5,
+  fontSize: 12, color: 'var(--outline)', lineHeight: 1.5,
 };
 const primaryBtnStyle = (disabled) => ({
-  background: disabled ? '#1a1a1f' : '#0A919B',
-  color: disabled ? '#666' : '#0a0a0e',
-  border: disabled ? '1px solid #2a2a30' : 'none',
+  background: disabled ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: disabled ? 'var(--faint)' : 'var(--bg)',
+  border: disabled ? '1px solid var(--border)' : 'none',
   borderRadius: 6,
   padding: '12px 24px',
   fontSize: 14, fontWeight: 700, letterSpacing: 0.3,
@@ -321,21 +321,21 @@ const errorBoxStyle = {
   marginTop: 12,
   background: 'rgba(239,107,107,0.08)',
   border: '1px solid rgba(239,107,107,0.30)',
-  color: '#ef6b6b',
+  color: 'var(--neg-text)',
   borderRadius: 6, padding: '10px 14px',
   fontSize: 13,
 };
 const fineprintStyle = {
   marginTop: 16,
-  fontSize: 12, color: '#666', lineHeight: 1.5,
+  fontSize: 12, color: 'var(--faint)', lineHeight: 1.5,
 };
 const expiryStyle = {
   marginTop: 14,
   paddingTop: 14,
-  borderTop: '1px solid #2a2a30',
-  fontSize: 11, color: '#666',
+  borderTop: '1px solid var(--border)',
+  fontSize: 11, color: 'var(--faint)',
 };
 const footerStyle = {
   marginTop: 18,
-  fontSize: 11, color: '#666',
+  fontSize: 11, color: 'var(--faint)',
 };

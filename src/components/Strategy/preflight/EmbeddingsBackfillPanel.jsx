@@ -14,7 +14,7 @@
  * strategist knows whether to click again.
  */
 
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import { supabase } from '../../../services/supabaseClient';
 import { youtubeOAuthService } from '../../../services/youtubeOAuthService';
 import { countPendingEmbeddings } from '../../../services/topicAuthorityService';
@@ -149,7 +149,7 @@ export default function EmbeddingsBackfillPanel({ clientId, onBackfillComplete }
     return (
       <button type="button" onClick={() => setOpen(true)} style={collapsedBtnStyle}>
         ▸ Topic authority embeddings ·{' '}
-        <span style={{ color: totalPending === 0 ? '#cde4d6' : '#E8A82B' }}>{freshnessLabel}</span>
+        <span style={{ color: totalPending === 0 ? 'var(--text)' : "var(--warn)" }}>{freshnessLabel}</span>
       </button>
     );
   }
@@ -166,7 +166,7 @@ export default function EmbeddingsBackfillPanel({ clientId, onBackfillComplete }
         <button onClick={() => setOpen(false)} style={collapseBtnStyle}>collapse ▴</button>
       </div>
 
-      {bootstrapping && <Note tone="info">Loading…</Note>}
+      {bootstrapping && <Note tone="info">Checking embedding coverage…</Note>}
       {error && <Note tone="error">{error}</Note>}
 
       {!bootstrapping && !clientChannel && (
@@ -196,23 +196,23 @@ export default function EmbeddingsBackfillPanel({ clientId, onBackfillComplete }
 
       {result && (
         <div style={resultCardStyle(true)}>
-          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, color: '#cde4d6' }}>
+          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, color: 'var(--text)' }}>
             ✓ {result.scope === 'client' ? 'Client' : 'Cohort'} backfill complete.
           </div>
-          <div style={{ fontSize: 12, color: '#aaa' }}>
+          <div style={{ fontSize: 12, color: 'var(--muted)' }}>
             {result.totalEmbedded} videos embedded · {result.totalTokens} OpenAI tokens used.
           </div>
           {result.errors?.length > 0 && (
-            <div style={{ fontSize: 11, color: '#E8A82B', marginTop: 4, lineHeight: 1.4 }}>
+            <div style={{ fontSize: 11, color: "var(--warn)", marginTop: 4, lineHeight: 1.4 }}>
               {result.errors.length} error{result.errors.length === 1 ? '' : 's'}:
               {result.errors.slice(0, 3).map((e, i) => (
                 <div key={i} style={{ marginLeft: 8, marginTop: 2 }}>
-                  <span style={{ color: '#666' }}>[{e.stage || 'unknown'}]</span>{' '}
+                  <span style={{ color: 'var(--faint)' }}>[{e.stage || 'unknown'}]</span>{' '}
                   {e.error || 'unknown error'}
                 </div>
               ))}
               {result.errors.length > 3 && (
-                <div style={{ marginLeft: 8, marginTop: 2, color: '#666' }}>
+                <div style={{ marginLeft: 8, marginTop: 2, color: 'var(--faint)' }}>
                   …{result.errors.length - 3} more
                 </div>
               )}
@@ -231,9 +231,9 @@ export default function EmbeddingsBackfillPanel({ clientId, onBackfillComplete }
 function ScopeRow({ label, sublabel, pending, running, disabled, onRun }) {
   return (
     <div style={scopeRowStyle}>
-      <div style={{ fontSize: 11, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: 12, color: '#cde4d6', marginTop: 2 }}>{sublabel}</div>
-      <div style={{ fontSize: 11, color: pending === 0 ? '#cde4d6' : '#E8A82B', marginTop: 4 }}>
+      <div style={{ fontSize: 11, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 12, color: 'var(--text)', marginTop: 2 }}>{sublabel}</div>
+      <div style={{ fontSize: 11, color: pending === 0 ? 'var(--text)' : "var(--warn)", marginTop: 4 }}>
         {pending == null ? '—' : pending === 0 ? 'All embedded' : `${pending} pending`}
       </div>
       <button onClick={onRun} disabled={disabled} style={runBtnStyle(running, disabled)}>
@@ -245,10 +245,10 @@ function ScopeRow({ label, sublabel, pending, running, disabled, onRun }) {
 
 function Note({ tone, children }) {
   const palette = {
-    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: '#0A919B' },
-    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: '#E8A82B' },
-    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: '#ef6b6b' },
-  }[tone] || { bg: '#1a1a1f', border: '#333', fg: '#aaa' };
+    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: 'var(--accent-text)' },
+    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: 'var(--warn)' },
+    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: 'var(--neg-text)' },
+  }[tone] || { bg: 'var(--input-bg)', border: 'var(--outline-variant)', fg: 'var(--muted)' };
   return (
     <div style={{
       padding: '8px 12px', borderRadius: 6,
@@ -264,26 +264,26 @@ function Note({ tone, children }) {
 
 const collapsedBtnStyle = {
   background: 'transparent', border: 'none',
-  color: '#888', fontSize: 11, fontWeight: 600,
+  color: 'var(--outline)', fontSize: 11, fontWeight: 600,
   textAlign: 'left', padding: 0, cursor: 'pointer', marginTop: 10,
 };
 const collapseBtnStyle = { ...collapsedBtnStyle, marginTop: 0 };
 
 const panelStyle = {
-  background: '#0e0e11',
+  background: 'var(--card)',
   border: '1px solid rgba(10,145,155,0.20)',
-  borderLeft: '2px solid #0A919B',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6, padding: 12, marginTop: 12,
 };
 const kickerStyle = {
-  fontSize: 11, color: '#0A919B',
+  fontSize: 11, color: 'var(--accent-text)',
   textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700,
 };
-const subtleStyle = { fontSize: 11, color: '#666', marginTop: 2 };
+const subtleStyle = { fontSize: 11, color: 'var(--faint)', marginTop: 2 };
 
 const scopeRowStyle = {
-  background: '#1a1a1f',
-  border: '1px solid #2a2a30',
+  background: 'var(--input-bg)',
+  border: '1px solid var(--border)',
   borderRadius: 5,
   padding: 12,
   display: 'flex',
@@ -293,9 +293,9 @@ const scopeRowStyle = {
 
 const runBtnStyle = (running, disabled) => ({
   marginTop: 8,
-  background: running || disabled ? '#1a1a1f' : '#0A919B',
-  color: running || disabled ? '#666' : '#0a0a0e',
-  border: running || disabled ? '1px solid #2a2a30' : 'none',
+  background: running || disabled ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: running || disabled ? 'var(--faint)' : 'var(--bg)',
+  border: running || disabled ? '1px solid var(--border)' : 'none',
   padding: '6px 12px',
   borderRadius: 5, fontSize: 12, fontWeight: 700,
   cursor: disabled ? 'not-allowed' : 'pointer', letterSpacing: 0.3,

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, Zap, AlertCircle, Loader2 } from 'lucide-react';
-import ContentIntelligence from './ContentIntelligence';
+import {useState, useEffect} from 'react';
 import claudeAPI from '../../services/claudeAPI';
 import { getBrandContextWithSignals } from '../../services/brandContextService';
+import { AlertCircle, Loader2, Sparkles, Zap } from 'lucide-react';
+import ContentIntelligence from './ContentIntelligence.jsx';
 
 /**
  * Enhanced Content Intelligence with Claude AI (v2.2.3)
@@ -33,49 +33,41 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
       gap: '16px'
     },
     bannerCard: {
-      backgroundColor: '#1E1E1E',
-      border: '1px solid #333',
+      backgroundColor: 'var(--card)',
+      border: '1px solid var(--border)',
       borderRadius: '8px',
       padding: '24px',
       position: 'relative',
       overflow: 'hidden'
     },
-    gradientAccent: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      height: '4px',
-      background: 'linear-gradient(90deg, #8b5cf6, #3b82f6, #06b6d4)'
-    },
     iconBox: {
       width: '48px',
       height: '48px',
       borderRadius: '8px',
-      backgroundColor: 'rgba(139, 92, 246, 0.15)',
+      backgroundColor: 'rgba(0, 209, 255, 0.15)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0
     },
     headerText: {
-      color: '#fff',
+      color: 'var(--ink)',
       fontSize: '18px',
       fontWeight: '600',
       marginBottom: '8px'
     },
     bodyText: {
-      color: '#E0E0E0',
+      color: 'var(--text)',
       fontSize: '14px',
       lineHeight: '1.6',
       marginBottom: '12px'
     },
     mutedText: {
-      color: '#9E9E9E',
+      color: 'var(--muted)',
       fontSize: '13px'
     },
     listItem: {
-      color: '#B0B0B0',
+      color: 'var(--muted)',
       fontSize: '13px',
       marginBottom: '6px'
     },
@@ -84,32 +76,32 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
       alignItems: 'center',
       gap: '8px',
       padding: '12px 20px',
-      background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
-      color: '#fff',
+      background: 'linear-gradient(135deg, #0090c8, #00D1FF)',
+      color: 'var(--ink)',
       fontSize: '14px',
       fontWeight: '600',
       border: 'none',
       borderRadius: '8px',
       cursor: 'pointer',
-      transition: 'all 0.2s ease'
+      transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s'
     },
     secondaryButton: {
       display: 'inline-flex',
       alignItems: 'center',
       gap: '8px',
       padding: '10px 16px',
-      backgroundColor: '#252525',
-      color: '#E0E0E0',
+      backgroundColor: 'var(--surface-high)',
+      color: 'var(--text)',
       fontSize: '13px',
       fontWeight: '500',
       border: '1px solid #444',
       borderRadius: '8px',
       cursor: 'pointer',
-      transition: 'all 0.2s ease'
+      transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s'
     },
     activeModeBanner: {
-      backgroundColor: '#1E1E1E',
-      border: '1px solid #8b5cf6',
+      backgroundColor: 'var(--card)',
+      border: '1px solid #0090c8',
       borderRadius: '8px',
       padding: '16px 20px',
       display: 'flex',
@@ -119,21 +111,21 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
       gap: '12px'
     },
     errorCard: {
-      backgroundColor: 'rgba(239, 68, 68, 0.1)',
-      border: '1px solid rgba(239, 68, 68, 0.3)',
+      backgroundColor: 'rgba(255, 85, 64, 0.1)',
+      border: '1px solid rgba(255, 85, 64, 0.3)',
       borderRadius: '10px',
       padding: '16px'
     },
     userMessage: {
-      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-      border: '1px solid rgba(59, 130, 246, 0.3)',
+      backgroundColor: 'rgba(0, 209, 255, 0.1)',
+      border: '1px solid rgba(0, 209, 255, 0.3)',
       borderRadius: '8px',
       padding: '16px',
       marginLeft: '48px'
     },
     assistantMessage: {
-      backgroundColor: '#252525',
-      border: '1px solid #333',
+      backgroundColor: 'var(--surface-high)',
+      border: '1px solid var(--border)',
       borderRadius: '8px',
       padding: '16px',
       marginRight: '48px'
@@ -142,11 +134,11 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
       width: '36px',
       height: '36px',
       borderRadius: '50%',
-      backgroundColor: '#3b82f6',
+      backgroundColor: 'var(--blue)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      color: '#fff',
+      color: 'var(--ink)',
       fontSize: '14px',
       fontWeight: '600',
       flexShrink: 0
@@ -155,16 +147,16 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
       width: '36px',
       height: '36px',
       borderRadius: '50%',
-      background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+      background: 'linear-gradient(135deg, #0090c8, #00D1FF)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      color: '#fff',
+      color: 'var(--ink)',
       flexShrink: 0
     },
     inputCard: {
-      backgroundColor: '#1E1E1E',
-      border: '1px solid #333',
+      backgroundColor: 'var(--card)',
+      border: '1px solid var(--border)',
       borderRadius: '8px',
       padding: '16px',
       position: 'sticky',
@@ -173,10 +165,10 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
     textarea: {
       flex: 1,
       padding: '14px 16px',
-      backgroundColor: '#252525',
+      backgroundColor: 'var(--surface-high)',
       border: '1px solid #444',
       borderRadius: '8px',
-      color: '#fff',
+      color: 'var(--ink)',
       fontSize: '14px',
       resize: 'none',
       outline: 'none',
@@ -188,32 +180,32 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
       alignItems: 'center',
       gap: '8px',
       padding: '14px 24px',
-      background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
-      color: '#fff',
+      background: 'linear-gradient(135deg, #0090c8, #00D1FF)',
+      color: 'var(--ink)',
       fontSize: '14px',
       fontWeight: '600',
       border: 'none',
       borderRadius: '8px',
       cursor: 'pointer',
-      transition: 'all 0.2s ease',
+      transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
       whiteSpace: 'nowrap'
     },
     exampleCard: {
-      backgroundColor: '#252525',
-      border: '1px solid #333',
+      backgroundColor: 'var(--surface-high)',
+      border: '1px solid var(--border)',
       borderRadius: '8px',
       padding: '20px'
     },
     exampleButton: {
       textAlign: 'left',
       padding: '12px 16px',
-      backgroundColor: '#1E1E1E',
+      backgroundColor: 'var(--card)',
       border: '1px solid #444',
       borderRadius: '8px',
-      color: '#B0B0B0',
+      color: 'var(--muted)',
       fontSize: '13px',
       cursor: 'pointer',
-      transition: 'all 0.2s ease',
+      transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
       width: '100%'
     }
   };
@@ -224,13 +216,12 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
       <div style={styles.container}>
         {/* Toggle AI Mode Banner */}
         <div style={styles.bannerCard}>
-          <div style={styles.gradientAccent} />
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px', paddingTop: '8px' }}>
             <div style={styles.iconBox}>
-              <Sparkles style={{ width: '24px', height: '24px', color: '#8b5cf6' }} />
+              <Sparkles style={{ width: '24px', height: '24px', color: 'var(--blue-deep)' }} />
             </div>
             <div style={{ flex: 1 }}>
-              <h3 style={styles.headerText}>Upgrade to AI-Powered Analysis</h3>
+              <h3 style={styles.headerText}>Run deep analysis</h3>
               <p style={styles.bodyText}>
                 Ask ANY question about your data with Claude AI. No pattern matching limits - ask anything!
               </p>
@@ -238,14 +229,14 @@ export default function EnhancedContentIntelligence({ rows, activeClient }) {
                 <div style={styles.listItem}>• Answer complex multi-factor questions</div>
                 <div style={styles.listItem}>• Discover unexpected patterns in your data</div>
                 <div style={styles.listItem}>• Get natural language explanations and insights</div>
-                <div style={{ ...styles.listItem, color: '#9E9E9E' }}>• Estimated cost: $0.10-0.30 per question</div>
+                <div style={{ ...styles.listItem, color: "var(--muted)" }}>• Estimated cost: $0.10-0.30 per question</div>
               </div>
               <button
                 onClick={() => setUseAI(true)}
                 style={styles.primaryButton}
                 onMouseEnter={(e) => {
                   e.target.style.transform = 'translateY(-2px)';
-                  e.target.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.4)';
+                  e.target.style.boxShadow = '0 4px 12px rgba(0, 209, 255, 0.4)';
                 }}
                 onMouseLeave={(e) => {
                   e.target.style.transform = 'translateY(0)';
@@ -389,16 +380,16 @@ Please provide a detailed, data-driven answer.`;
             width: '32px',
             height: '32px',
             borderRadius: '8px',
-            background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)',
+            background: 'linear-gradient(135deg, #0090c8, #00D1FF)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            <Sparkles style={{ width: '18px', height: '18px', color: '#fff' }} />
+            <Sparkles style={{ width: '18px', height: '18px', color: "var(--ink)" }} />
           </div>
           <div>
-            <span style={{ color: '#fff', fontWeight: '600', fontSize: '14px' }}>AI Mode Active</span>
-            <span style={{ color: '#9E9E9E', fontSize: '13px', marginLeft: '12px' }}>
+            <span style={{ color: "var(--ink)", fontWeight: '600', fontSize: '14px' }}>AI Mode Active</span>
+            <span style={{ color: "var(--muted)", fontSize: '13px', marginLeft: '12px' }}>
               Ask any question about your data
             </span>
           </div>
@@ -409,15 +400,15 @@ Please provide a detailed, data-driven answer.`;
               onClick={clearConversation}
               style={{
                 ...styles.secondaryButton,
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                borderColor: 'rgba(239, 68, 68, 0.3)',
-                color: '#ef4444'
+                backgroundColor: 'rgba(255, 85, 64, 0.1)',
+                borderColor: 'rgba(255, 85, 64, 0.3)',
+                color: "var(--neg)"
               }}
               onMouseEnter={(e) => {
-                e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                e.target.style.backgroundColor = 'rgba(255, 85, 64, 0.2)';
               }}
               onMouseLeave={(e) => {
-                e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+                e.target.style.backgroundColor = 'rgba(255, 85, 64, 0.1)';
               }}
             >
               Clear Chat
@@ -427,12 +418,12 @@ Please provide a detailed, data-driven answer.`;
             onClick={() => setUseAI(false)}
             style={styles.secondaryButton}
             onMouseEnter={(e) => {
-              e.target.style.backgroundColor = '#333';
-              e.target.style.borderColor = '#555';
+              e.target.style.backgroundColor = 'var(--outline-variant)';
+              e.target.style.borderColor = 'var(--faint)';
             }}
             onMouseLeave={(e) => {
-              e.target.style.backgroundColor = '#252525';
-              e.target.style.borderColor = '#444';
+              e.target.style.backgroundColor = "var(--input-bg)";
+              e.target.style.borderColor = 'var(--outline-variant)';
             }}
           >
             <Zap style={{ width: '16px', height: '16px' }} />
@@ -445,10 +436,10 @@ Please provide a detailed, data-driven answer.`;
       {error && (
         <div style={styles.errorCard}>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-            <AlertCircle style={{ width: '20px', height: '20px', color: '#ef4444', flexShrink: 0 }} />
+            <AlertCircle style={{ width: '20px', height: '20px', color: "var(--neg)", flexShrink: 0 }} />
             <div>
-              <p style={{ color: '#ef4444', fontWeight: '600', fontSize: '14px', marginBottom: '4px' }}>Error</p>
-              <p style={{ color: '#fca5a5', fontSize: '13px' }}>{error}</p>
+              <p style={{ color: "var(--neg)", fontWeight: '600', fontSize: '14px', marginBottom: '4px' }}>Error</p>
+              <p style={{ color: 'var(--neg-text)', fontSize: '13px' }}>{error}</p>
             </div>
           </div>
         </div>
@@ -467,37 +458,37 @@ Please provide a detailed, data-driven answer.`;
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span style={{ color: '#fff', fontWeight: '600', fontSize: '14px' }}>
+                  <span style={{ color: "var(--ink)", fontWeight: '600', fontSize: '14px' }}>
                     {message.role === 'user' ? 'You' : 'Claude AI'}
                   </span>
                   {message.cost && (
-                    <span style={{ color: '#9E9E9E', fontSize: '12px' }}>
+                    <span style={{ color: "var(--muted)", fontSize: '12px' }}>
                       ${message.cost.toFixed(4)}
                     </span>
                   )}
                 </div>
-                <div style={{ color: '#E0E0E0', fontSize: '14px', lineHeight: '1.7' }}>
+                <div style={{ color: "var(--text)", fontSize: '14px', lineHeight: '1.7' }}>
                   {message.content.split('\n').map((line, i) => {
                     // Simple markdown rendering
                     if (line.startsWith('**') && line.endsWith('**')) {
-                      return <p key={i} style={{ fontWeight: '700', color: '#fff', margin: '12px 0 8px' }}>{line.replace(/\*\*/g, '')}</p>;
+                      return <p key={i} style={{ fontWeight: '700', color: "var(--ink)", margin: '12px 0 8px' }}>{line.replace(/\*\*/g, '')}</p>;
                     }
                     if (line.startsWith('# ')) {
-                      return <h3 key={i} style={{ fontSize: '16px', fontWeight: '700', color: '#fff', marginTop: '16px', marginBottom: '8px' }}>{line.substring(2)}</h3>;
+                      return <h3 key={i} style={{ fontSize: '16px', fontWeight: '700', color: "var(--ink)", marginTop: '16px', marginBottom: '8px' }}>{line.substring(2)}</h3>;
                     }
                     if (line.startsWith('## ')) {
-                      return <h4 key={i} style={{ fontSize: '15px', fontWeight: '600', color: '#fff', marginTop: '14px', marginBottom: '6px' }}>{line.substring(3)}</h4>;
+                      return <h4 key={i} style={{ fontSize: '15px', fontWeight: '600', color: "var(--ink)", marginTop: '14px', marginBottom: '6px' }}>{line.substring(3)}</h4>;
                     }
                     if (line.startsWith('- ') || line.startsWith('• ')) {
-                      return <div key={i} style={{ marginLeft: '16px', marginBottom: '4px', color: '#B0B0B0' }}>• {line.substring(2)}</div>;
+                      return <div key={i} style={{ marginLeft: '16px', marginBottom: '4px', color: 'var(--muted)' }}>• {line.substring(2)}</div>;
                     }
                     if (line.match(/^\d+\.\s/)) {
-                      return <div key={i} style={{ marginLeft: '16px', marginBottom: '4px', color: '#B0B0B0' }}>{line}</div>;
+                      return <div key={i} style={{ marginLeft: '16px', marginBottom: '4px', color: 'var(--muted)' }}>{line}</div>;
                     }
                     if (line.trim() === '') {
                       return <div key={i} style={{ height: '8px' }} />;
                     }
-                    return <p key={i} style={{ margin: '4px 0', color: '#E0E0E0' }}>{line}</p>;
+                    return <p key={i} style={{ margin: '4px 0', color: "var(--text)" }}>{line}</p>;
                   })}
                 </div>
               </div>
@@ -532,7 +523,7 @@ Please provide a detailed, data-driven answer.`;
             onMouseEnter={(e) => {
               if (!isAnalyzing && question.trim()) {
                 e.target.style.transform = 'translateY(-2px)';
-                e.target.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.4)';
+                e.target.style.boxShadow = '0 4px 12px rgba(0, 209, 255, 0.4)';
               }
             }}
             onMouseLeave={(e) => {
@@ -553,7 +544,7 @@ Please provide a detailed, data-driven answer.`;
             )}
           </button>
         </div>
-        <p style={{ color: '#666', fontSize: '12px', marginTop: '10px' }}>
+        <p style={{ color: 'var(--faint)', fontSize: '12px', marginTop: '10px' }}>
           Press Enter to send • Cost: ~$0.10-0.30 per question
         </p>
       </div>
@@ -561,7 +552,7 @@ Please provide a detailed, data-driven answer.`;
       {/* Example Questions (only show if no conversation yet) */}
       {conversation.length === 0 && (
         <div style={styles.exampleCard}>
-          <h3 style={{ color: '#fff', fontSize: '15px', fontWeight: '600', marginBottom: '14px' }}>
+          <h3 style={{ color: "var(--ink)", fontSize: '15px', fontWeight: '600', marginBottom: '14px' }}>
             Example Questions to Try:
           </h3>
           <div style={{
@@ -582,14 +573,14 @@ Please provide a detailed, data-driven answer.`;
                 onClick={() => setQuestion(exampleQ)}
                 style={styles.exampleButton}
                 onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = '#333';
-                  e.target.style.borderColor = '#8b5cf6';
-                  e.target.style.color = '#E0E0E0';
+                  e.target.style.backgroundColor = 'var(--outline-variant)';
+                  e.target.style.borderColor = 'var(--blue-deep)';
+                  e.target.style.color = "var(--text)";
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = '#1E1E1E';
-                  e.target.style.borderColor = '#444';
-                  e.target.style.color = '#B0B0B0';
+                  e.target.style.backgroundColor = "var(--card)";
+                  e.target.style.borderColor = 'var(--outline-variant)';
+                  e.target.style.color = 'var(--muted)';
                 }}
               >
                 {exampleQ}

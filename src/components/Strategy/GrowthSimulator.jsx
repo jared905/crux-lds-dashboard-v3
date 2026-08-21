@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { TrendingUp, MonitorPlay, Smartphone, Zap, MousePointerClick, UserPlus, ArrowRight, RotateCcw, Minus, Download, DollarSign } from "lucide-react";
+import {useState, useMemo, useEffect, useRef, useCallback} from "react";
 import { fmtInt, fmtPct } from "../../lib/utils";
+import { ArrowRight, DollarSign, Download, Minus, MonitorPlay, MousePointerClick, RotateCcw, Smartphone, TrendingUp, UserPlus, Zap } from 'lucide-react';
+import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 export default function GrowthSimulator({ rows, currentSubscribers = 0, channelSubscriberMap = {}, selectedChannel = "all" }) {
   // Allow manual override of subscriber count if the auto-detected value is 0 or seems wrong
@@ -196,7 +196,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
         import("jspdf"),
       ]);
       const canvas = await html2canvas(cardRef.current, {
-        backgroundColor: "#111",
+        backgroundColor: "var(--bg)",
         scale: 2,
         useCORS: true,
       });
@@ -269,12 +269,12 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
   // --- STYLES ---
   const s = {
     card: {
-      backgroundColor: "#1E1E1E",
-      border: "2px solid #333",
+      backgroundColor: "var(--card)",
+      border: "2px solid var(--border)",
       borderRadius: "8px",
       padding: "28px",
       marginBottom: "20px",
-      color: "#fff"
+      color: "var(--ink)"
     },
     header: {
       display: "flex",
@@ -293,13 +293,13 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
     h2: {
       fontSize: "20px",
       fontWeight: "800",
-      color: "#fff",
+      color: "var(--ink)",
       margin: 0,
       letterSpacing: "-0.01em"
     },
     sub: {
       fontSize: "13px",
-      color: "#9E9E9E",
+      color: "var(--muted)",
       marginTop: "6px",
       lineHeight: "1.4"
     },
@@ -308,14 +308,14 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
       alignItems: "center",
       gap: "6px",
       padding: "8px 14px",
-      backgroundColor: "#252525",
-      border: "1px solid #333",
+      backgroundColor: "var(--surface-high)",
+      border: "1px solid var(--border)",
       borderRadius: "8px",
-      color: "#E0E0E0",
+      color: "var(--text)",
       fontSize: "12px",
       fontWeight: "600",
       cursor: "pointer",
-      transition: "all 0.2s ease",
+      transition: "background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s",
     },
     layout: {
       display: "grid",
@@ -331,7 +331,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
     sectionLabel: {
       fontSize: "10px",
       fontWeight: "800",
-      color: "#666",
+      color: "var(--faint)",
       textTransform: "uppercase",
       letterSpacing: "0.05em",
       marginBottom: "8px",
@@ -351,7 +351,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
     label: {
       fontSize: "12px",
       fontWeight: "700",
-      color: "#E0E0E0",
+      color: "var(--text)",
       letterSpacing: "0.01em"
     },
     impactPill: {
@@ -361,22 +361,22 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
       gap: "6px",
       padding: "4px 10px",
       borderRadius: "6px",
-      background: "#252525",
-      border: "1px solid #333",
-      color: "#E0E0E0",
+      background: "var(--surface-high)",
+      border: "1px solid var(--border)",
+      color: "var(--text)",
       fontWeight: "600"
     },
     currentBadge: {
       fontSize: "10px",
       fontWeight: "600",
-      color: "#9E9E9E",
-      backgroundColor: "#252525",
+      color: "var(--muted)",
+      backgroundColor: "var(--surface-high)",
       padding: "3px 8px",
       borderRadius: "5px",
       letterSpacing: "0.02em"
     },
     impactVal: {
-      color: "#4ade80",
+      color: "var(--pos-text)",
       fontWeight: "700"
     },
     sliderBox: {
@@ -384,13 +384,13 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
       alignItems: "center",
       gap: "10px",
       padding: "8px 12px",
-      backgroundColor: "#252525",
+      backgroundColor: "var(--surface-high)",
       borderRadius: "10px",
-      border: "1px solid #333"
+      border: "1px solid var(--border)"
     },
     slider: {
       flex: 1,
-      accentColor: "#60a5fa",
+      accentColor: "var(--accent-text)",
       cursor: "pointer",
       height: "6px"
     },
@@ -399,14 +399,14 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
       textAlign: "right",
       fontSize: "14px",
       fontWeight: "700",
-      color: "#fff",
-      backgroundColor: "#333",
+      color: "var(--ink)",
+      backgroundColor: "var(--outline-variant)",
       padding: "6px 10px",
       borderRadius: "6px"
     },
     divider: {
       height: "1px",
-      backgroundColor: "#333",
+      backgroundColor: "var(--outline-variant)",
       margin: "12px 0"
     },
     forecastHeader: {
@@ -414,8 +414,8 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
       alignItems: "center",
       gap: "32px",
       padding: "24px",
-      backgroundColor: "#252525",
-      border: "2px solid #333",
+      backgroundColor: "var(--surface-high)",
+      border: "2px solid var(--border)",
       borderRadius: "8px",
       marginBottom: "28px"
     },
@@ -427,31 +427,31 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
     forecastLabel: {
       fontSize: "11px",
       fontWeight: "700",
-      color: "#9E9E9E",
+      color: "var(--muted)",
       textTransform: "uppercase",
       letterSpacing: "0.05em"
     },
     forecastValue: {
       fontSize: "32px",
       fontWeight: "900",
-      color: "#fff",
+      color: "var(--ink)",
       letterSpacing: "-0.02em"
     },
     forecastGain: {
       fontSize: "13px",
       fontWeight: "600",
-      color: "#4ade80"
+      color: "var(--pos-text)"
     },
     forecastArrow: {
       fontSize: "32px",
-      color: "#666",
+      color: "var(--faint)",
       fontWeight: "300",
       marginTop: "12px"
     },
     forecastDivider: {
       width: "1px",
       height: "80px",
-      backgroundColor: "#333",
+      backgroundColor: "var(--outline-variant)",
       margin: "0 8px"
     },
     forecastChanges: {
@@ -465,7 +465,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
       alignItems: "center",
       gap: "8px",
       fontSize: "13px",
-      color: "#E0E0E0",
+      color: "var(--text)",
       fontWeight: "600"
     },
     tooltip: {
@@ -475,9 +475,9 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
       width: "16px",
       height: "16px",
       borderRadius: "50%",
-      backgroundColor: "#374151",
+      backgroundColor: "var(--outline-variant)",
       border: "1px solid #4b5563",
-      color: "#9ca3af",
+      color: "var(--muted)",
       fontSize: "10px",
       fontWeight: "700",
       cursor: "help",
@@ -498,8 +498,8 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
           <button
             style={s.resetBtn}
             onClick={handleExportPDF}
-            onMouseEnter={(e) => e.target.style.backgroundColor = "#333"}
-            onMouseLeave={(e) => e.target.style.backgroundColor = "#252525"}
+            onMouseEnter={(e) => e.target.style.backgroundColor = "var(--outline-variant)"}
+            onMouseLeave={(e) => e.target.style.backgroundColor = "var(--input-bg)"}
           >
             <Download size={14} />
             Export PDF
@@ -507,8 +507,8 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
           <button
             style={s.resetBtn}
             onClick={handleReset}
-            onMouseEnter={(e) => e.target.style.backgroundColor = "#333"}
-            onMouseLeave={(e) => e.target.style.backgroundColor = "#252525"}
+            onMouseEnter={(e) => e.target.style.backgroundColor = "var(--outline-variant)"}
+            onMouseLeave={(e) => e.target.style.backgroundColor = "var(--input-bg)"}
           >
             <RotateCcw size={14} />
             Reset
@@ -532,14 +532,14 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
                   ...s.forecastValue,
                   width: '180px',
                   padding: '8px 12px',
-                  backgroundColor: '#252525',
-                  border: '2px solid #f59e0b',
+                  backgroundColor: "var(--input-bg)",
+                  border: "2px solid var(--warn)",
                   borderRadius: '8px',
-                  color: '#fff',
+                  color: "var(--ink)",
                   fontSize: '24px'
                 }}
               />
-              <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '600', maxWidth: '120px', lineHeight: '1.3' }}>
+              <div style={{ fontSize: '11px', color: "var(--warn)", fontWeight: '600', maxWidth: '120px', lineHeight: '1.3' }}>
                 No subscriber data found. Enter manually.
               </div>
             </div>
@@ -549,16 +549,16 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
               {hasMultipleChannels && selectedChannel === "all" && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px' }}>
                   {Object.entries(channelSubscriberMap).map(([name, stats]) => (
-                    <div key={name} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#9E9E9E' }}>
-                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#60a5fa', flexShrink: 0 }} />
-                      <span style={{ fontWeight: '600', color: '#E0E0E0' }}>{name}</span>
+                    <div key={name} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: "var(--muted)" }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--accent-text)', flexShrink: 0 }} />
+                      <span style={{ fontWeight: '600', color: "var(--text)" }}>{name}</span>
                       <span>{fmtInt(stats.subscriberCount)}</span>
                     </div>
                   ))}
                 </div>
               )}
               {!hasMultipleChannels && selectedChannel !== "all" && (
-                <div style={{ fontSize: '11px', color: '#9E9E9E', marginTop: '4px' }}>
+                <div style={{ fontSize: '11px', color: "var(--muted)", marginTop: '4px' }}>
                   {selectedChannel}
                 </div>
               )}
@@ -570,7 +570,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
         
         <div style={s.forecastMetric}>
           <div style={s.forecastLabel}>6-Month Projection</div>
-          <div style={{...s.forecastValue, color: "#22c55e"}}>
+          <div style={{...s.forecastValue, color: "var(--pos)"}}>
             {fmtInt(currentSubCount + projection.totalGain)}
           </div>
           <div style={s.forecastGain}>+{fmtInt(projection.totalGain)} new subs</div>
@@ -613,13 +613,13 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
           {inputs.longsPerMonth === baselines.currentLongFreq && 
            inputs.shortsPerMonth === baselines.currentShortFreq &&
            inputs.ctrLift === 0 && inputs.retentionLift === 0 && inputs.convLift === 0 && (
-            <div style={{...s.changeItem, color: "#9E9E9E"}}>
+            <div style={{...s.changeItem, color: "var(--muted)"}}>
               <Minus size={14} />
               <span>No changes (Status Quo)</span>
             </div>
           )}
           {projection.improvement !== 0 && (
-            <div style={{...s.changeItem, color: projection.improvement > 0 ? "#22c55e" : "#ef4444", fontWeight: "700", marginTop: "4px"}}>
+            <div style={{...s.changeItem, color: projection.improvement > 0 ? "var(--pos)" : "var(--neg)", fontWeight: "700", marginTop: "4px"}}>
               {projection.improvement > 0 ? '↑' : '↓'} {Math.abs(projection.improvement).toFixed(0)}% vs baseline
             </div>
           )}
@@ -641,18 +641,18 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
                   minWidth: "100px",
                   padding: "10px 12px",
                   borderRadius: "8px",
-                  border: activePreset === key ? "2px solid #60a5fa" : "1px solid #333",
-                  backgroundColor: activePreset === key ? "#1e3a5f" : "#252525",
-                  color: activePreset === key ? "#93c5fd" : "#E0E0E0",
+                  border: activePreset === key ? "2px solid #4cd6ff" : "1px solid var(--border)",
+                  backgroundColor: activePreset === key ? "var(--surface-high)" : "var(--input-bg)",
+                  color: activePreset === key ? "var(--blue-pale)" : "var(--text)",
                   fontSize: "12px",
                   fontWeight: "700",
                   cursor: "pointer",
                   textAlign: "center",
-                  transition: "all 0.15s ease",
+                  transition: "background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s",
                 }}
               >
                 {p.label}
-                <div style={{ fontSize: "10px", fontWeight: "500", color: "#9E9E9E", marginTop: "2px" }}>{p.desc}</div>
+                <div style={{ fontSize: "10px", fontWeight: "500", color: "var(--muted)", marginTop: "2px" }}>{p.desc}</div>
               </button>
             ))}
             <button
@@ -662,18 +662,18 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
                 minWidth: "100px",
                 padding: "10px 12px",
                 borderRadius: "8px",
-                border: activePreset === "custom" ? "2px solid #60a5fa" : "1px solid #333",
-                backgroundColor: activePreset === "custom" ? "#1e3a5f" : "#252525",
-                color: activePreset === "custom" ? "#93c5fd" : "#E0E0E0",
+                border: activePreset === "custom" ? "2px solid #4cd6ff" : "1px solid var(--border)",
+                backgroundColor: activePreset === "custom" ? "var(--surface-high)" : "var(--input-bg)",
+                color: activePreset === "custom" ? "var(--blue-pale)" : "var(--text)",
                 fontSize: "12px",
                 fontWeight: "700",
                 cursor: "pointer",
                 textAlign: "center",
-                transition: "all 0.15s ease",
+                transition: "background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s",
               }}
             >
               Custom
-              <div style={{ fontSize: "10px", fontWeight: "500", color: "#9E9E9E", marginTop: "2px" }}>Your settings</div>
+              <div style={{ fontSize: "10px", fontWeight: "500", color: "var(--muted)", marginTop: "2px" }}>Your settings</div>
             </button>
           </div>
 
@@ -702,8 +702,8 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
               />
               <div style={{
                 ...s.valBox,
-                color: inputs.longsPerMonth > baselines.currentLongFreq ? "#4ade80" : 
-                       inputs.longsPerMonth < baselines.currentLongFreq ? "#f87171" : "#fff"
+                color: inputs.longsPerMonth > baselines.currentLongFreq ? "var(--pos-text)" : 
+                       inputs.longsPerMonth < baselines.currentLongFreq ? "var(--neg-text)" : "var(--ink)"
               }}>
                 {inputs.longsPerMonth}/mo
               </div>
@@ -730,8 +730,8 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
               />
               <div style={{
                 ...s.valBox,
-                color: inputs.shortsPerMonth > baselines.currentShortFreq ? "#4ade80" : 
-                       inputs.shortsPerMonth < baselines.currentShortFreq ? "#f87171" : "#fff"
+                color: inputs.shortsPerMonth > baselines.currentShortFreq ? "var(--pos-text)" : 
+                       inputs.shortsPerMonth < baselines.currentShortFreq ? "var(--neg-text)" : "var(--ink)"
               }}>
                 {inputs.shortsPerMonth}/mo
               </div>
@@ -828,8 +828,8 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
             <AreaChart data={projection.data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorProj" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#4ade80" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#dcff45" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="#dcff45" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="colorBase" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.15} />
@@ -839,13 +839,13 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
               <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
               <XAxis 
                 dataKey="month" 
-                tick={{ fontSize: 12, fill: "#9E9E9E" }}
-                axisLine={{ stroke: "#333" }}
+                tick={{ fontSize: 12, fill: "var(--muted)" }}
+                axisLine={{ stroke: "var(--outline-variant)" }}
               />
               <YAxis 
                 tickFormatter={fmtInt} 
-                tick={{ fontSize: 12, fill: "#9E9E9E" }}
-                axisLine={{ stroke: "#333" }}
+                tick={{ fontSize: 12, fill: "var(--muted)" }}
+                axisLine={{ stroke: "var(--outline-variant)" }}
               />
               <Tooltip
                 formatter={(val, name) => [
@@ -854,13 +854,13 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
                 ]}
                 contentStyle={{
                   borderRadius: "8px",
-                  border: "1px solid #333",
-                  backgroundColor: "#1E1E1E",
-                  color: "#fff",
+                  border: "1px solid var(--border)",
+                  backgroundColor: "var(--card)",
+                  color: "var(--ink)",
                   fontSize: "12px",
                   padding: "8px 12px"
                 }}
-                labelStyle={{ color: "#9E9E9E", fontWeight: "600" }}
+                labelStyle={{ color: "var(--muted)", fontWeight: "600" }}
               />
               <Legend 
                 verticalAlign="top" 
@@ -881,7 +881,7 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
                 type="monotone"
                 dataKey="projSubsAcc"
                 name="Projected Subs"
-                stroke="#4ade80"
+                stroke="#dcff45"
                 strokeWidth={3}
                 fillOpacity={1}
                 fill="url(#colorProj)"
@@ -892,20 +892,20 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
       </div>
 
       {/* ROI FRAMING */}
-      <div style={{ marginTop: "28px", padding: "24px", backgroundColor: "#252525", border: "2px solid #333", borderRadius: "8px" }}>
+      <div style={{ marginTop: "28px", padding: "24px", backgroundColor: "var(--input-bg)", border: "2px solid var(--border)", borderRadius: "8px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
           <DollarSign size={20} className="text-green-400" />
-          <div style={{ fontSize: "16px", fontWeight: "800", color: "#fff" }}>Estimated Growth Value</div>
+          <div style={{ fontSize: "16px", fontWeight: "800", color: "var(--ink)" }}>Estimated Growth Value</div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>
           {/* Subscriber Value Input */}
-          <div style={{ padding: "16px", backgroundColor: "#1E1E1E", borderRadius: "8px", border: "1px solid #333" }}>
-            <div style={{ fontSize: "11px", fontWeight: "700", color: "#9E9E9E", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "10px" }}>
+          <div style={{ padding: "16px", backgroundColor: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: "11px", fontWeight: "700", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "10px" }}>
               Subscriber Value
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "20px", color: "#666" }}>$</span>
+              <span style={{ fontSize: "20px", color: "var(--faint)" }}>$</span>
               <input
                 type="number"
                 min="0.1"
@@ -916,40 +916,40 @@ export default function GrowthSimulator({ rows, currentSubscribers = 0, channelS
                 style={{
                   width: "80px",
                   padding: "6px 10px",
-                  backgroundColor: "#333",
+                  backgroundColor: "var(--outline-variant)",
                   border: "1px solid #444",
                   borderRadius: "6px",
-                  color: "#fff",
+                  color: "var(--ink)",
                   fontSize: "16px",
                   fontWeight: "700",
                 }}
               />
-              <span style={{ fontSize: "12px", color: "#9E9E9E" }}>/sub/year</span>
+              <span style={{ fontSize: "12px", color: "var(--muted)" }}>/sub/year</span>
             </div>
           </div>
 
           {/* Projected Annual Value */}
-          <div style={{ padding: "16px", backgroundColor: "#1E1E1E", borderRadius: "8px", border: "1px solid #333" }}>
-            <div style={{ fontSize: "11px", fontWeight: "700", color: "#9E9E9E", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "10px" }}>
+          <div style={{ padding: "16px", backgroundColor: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: "11px", fontWeight: "700", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "10px" }}>
               Projected Annual Value of New Subs
             </div>
-            <div style={{ fontSize: "32px", fontWeight: "900", color: "#22c55e", fontFamily: "'Barlow Condensed', sans-serif" }}>
+            <div style={{ fontSize: "32px", fontWeight: "900", color: "var(--pos)", fontFamily: "'Barlow Condensed', sans-serif" }}>
               ${fmtInt(Math.round(projection.totalGain * subValue))}
             </div>
-            <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "4px" }}>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>
               {fmtInt(projection.totalGain)} new subs × ${subValue}/yr
             </div>
           </div>
 
           {/* ROI vs Baseline */}
-          <div style={{ padding: "16px", backgroundColor: "#1E1E1E", borderRadius: "8px", border: "1px solid #333" }}>
-            <div style={{ fontSize: "11px", fontWeight: "700", color: "#9E9E9E", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "10px" }}>
+          <div style={{ padding: "16px", backgroundColor: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: "11px", fontWeight: "700", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "10px" }}>
               Incremental Value vs Status Quo
             </div>
-            <div style={{ fontSize: "32px", fontWeight: "900", color: projection.totalGain > projection.baselineTotal ? "#22c55e" : "#fff", fontFamily: "'Barlow Condensed', sans-serif" }}>
+            <div style={{ fontSize: "32px", fontWeight: "900", color: projection.totalGain > projection.baselineTotal ? "var(--pos)" : "var(--ink)", fontFamily: "'Barlow Condensed', sans-serif" }}>
               +${fmtInt(Math.round((projection.totalGain - projection.baselineTotal) * subValue))}
             </div>
-            <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "4px" }}>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>
               {fmtInt(projection.totalGain - projection.baselineTotal)} additional subs over baseline
             </div>
           </div>

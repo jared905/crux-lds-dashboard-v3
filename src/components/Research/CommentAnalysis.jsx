@@ -1,15 +1,14 @@
 import { useState } from 'react';
-import { MessageSquare, Search, TrendingUp, Loader2, AlertCircle, Download, Tag, BarChart3 } from 'lucide-react';
 import claudeAPI from '../../services/claudeAPI';
 import youtubeAPI from '../../services/youtubeAPI';
 import { getBrandContextWithSignals } from '../../services/brandContextService';
+import { AlertCircle, Download, Loader2, MessageSquare, Search, Tag, TrendingUp } from 'lucide-react';
 
-export default function CommentAnalysis({ data, activeClient }) {
+export default function CommentAnalysis({ _data, activeClient }) {
   const [videoUrl, setVideoUrl] = useState('');
   const [maxComments, setMaxComments] = useState(500);
   const [comments, setComments] = useState([]);
   const [analysis, setAnalysis] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [fetchingComments, setFetchingComments] = useState(false);
   const [analyzingComments, setAnalyzingComments] = useState(false);
   const [error, setError] = useState(null);

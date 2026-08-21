@@ -244,7 +244,13 @@ class YouTubeAPIService {
       youtube_channel_id: channel.id,
       name: channel.snippet.title,
       description: channel.snippet.description,
-      thumbnail_url: channel.snippet.thumbnails?.high?.url || channel.snippet.thumbnails?.default?.url,
+      // Channel avatar. This asked for `high` (800x800, 40-80 KB) and the
+      // largest place it renders is 32x32 — on the Landscape table that is
+      // hundreds of full-resolution avatars for a row of thumbnails. `medium`
+      // is 240x240 (~8 KB), still 7x the biggest display size.
+      thumbnail_url: channel.snippet.thumbnails?.medium?.url
+        || channel.snippet.thumbnails?.default?.url
+        || channel.snippet.thumbnails?.high?.url,
       custom_url: channel.snippet.customUrl,
       subscriber_count: parseInt(channel.statistics.subscriberCount) || 0,
       total_view_count: parseInt(channel.statistics.viewCount) || 0,

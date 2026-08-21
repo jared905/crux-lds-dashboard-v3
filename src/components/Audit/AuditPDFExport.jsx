@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
-import { Download, Loader } from "lucide-react";
+import { Download, Loader } from 'lucide-react';
 
 /**
  * Audit PDF Export
@@ -228,7 +228,7 @@ export default function AuditPDFExport({ audit, videoAnalysis }) {
           ${benchmark.comparison.overallScore ? `
             <div style="margin-top:20px;padding:16px;background:#f0f4ff;border-radius:8px;text-align:center;">
               <div style="font-size:12px;color:#666;">Overall Benchmark Score</div>
-              <div style="font-size:28px;font-weight:800;color:${benchmark.comparison.overallScore >= 1 ? "#16a34a" : "#dc2626"}">${benchmark.comparison.overallScore}x</div>
+              <div style="font-size:28px;font-weight:800;color:${benchmark.comparison.overallScore >= 1 ? "#16a34a" : "var(--neg-deep)"}">${benchmark.comparison.overallScore}x</div>
               <div style="font-size:11px;color:#888;margin-top:4px;">${benchmark.comparison.overallScore >= 1.2 ? "Outperforming peers" : benchmark.comparison.overallScore >= 0.8 ? "On par with peers" : "Below peer average"}</div>
             </div>
           ` : ""}
@@ -265,7 +265,7 @@ export default function AuditPDFExport({ audit, videoAnalysis }) {
                   <span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;background:${g.potential_impact === "high" ? "#dcfce7" : g.potential_impact === "medium" ? "#fef3c7" : "#f3f4f6"};color:${g.potential_impact === "high" ? "#16a34a" : g.potential_impact === "medium" ? "#d97706" : "#6b7280"};text-transform:uppercase;">${g.potential_impact} impact</span>
                 </div>
                 <div style="font-size:12px;color:#666;">${esc(g.evidence || "")}</div>
-                ${g.suggested_action ? `<div style="font-size:12px;color:#2962FF;margin-top:4px;">→ ${esc(g.suggested_action)}</div>` : ""}
+                ${g.suggested_action ? `<div style="font-size:12px;color:#00D1FF;margin-top:4px;">→ ${esc(g.suggested_action)}</div>` : ""}
               </div>
             `).join("")}
           ` : ""}
@@ -286,8 +286,8 @@ export default function AuditPDFExport({ audit, videoAnalysis }) {
 
       // ── Page 8: Recommendations ──
       const recSections = [
-        { title: "Stop", color: "#dc2626", bgColor: "#fef2f2", items: recommendations.stop || [] },
-        { title: "Start", color: "#16a34a", bgColor: "#f0fdf4", items: recommendations.start || [] },
+        { title: "Stop", color: "var(--neg-deep)", bgColor: "#fef2f2", items: recommendations.stop || [] },
+        { title: "Start", color: "var(--pos-deep)", bgColor: "#f0fdf4", items: recommendations.start || [] },
         { title: "Optimize", color: "#d97706", bgColor: "#fffbeb", items: recommendations.optimize || [] },
       ].filter(s => s.items.length > 0);
 
@@ -374,10 +374,10 @@ export default function AuditPDFExport({ audit, videoAnalysis }) {
         alignItems: "center",
         gap: "6px",
         padding: "8px 16px",
-        background: "rgba(41, 98, 255, 0.15)",
-        border: "1px solid #2962FF",
+        background: "rgba(0, 209, 255, 0.15)",
+        border: "1px solid var(--blue)",
         borderRadius: "8px",
-        color: "#60a5fa",
+        color: "var(--accent-text)",
         cursor: "pointer",
         fontWeight: "600",
         fontSize: "13px",

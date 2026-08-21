@@ -40,7 +40,8 @@
 import { supabase } from './supabaseClient';
 import { listPortfolio } from './portfolioService';
 import { loadThisWeekAlerts, SEVERITY_ORDER } from './thisWeekService';
-import { getIntakeCompletion } from './installIntakeService';
+import { getIntakeCompletionsBulk } from './installIntakeService';
+import { unwrap } from './supabaseQuery';
 
 export async function loadCommandCenter() {
   // 1) Portfolio (per-client master list)
@@ -86,7 +87,7 @@ export async function loadCommandCenter() {
     // Prospect / pre-launch clients have no channel to sync, so a
     // last_sync_error from a prior staged run is not a current
     // failure — suppress on the card UI. Reported 2026-06-12.
-    const noChannel = !!c.is_prelaunch || c.lifecycle_stage === 'prospect';
+    const noChannel = !!c.isPrelaunch || c.stage === 'prospect';
     // Intake completion: null = "never started" (legacy clients
     // onboarded before the install workspace existed). 0% would lie
     // about engagement state. UI renders "—" for null.
@@ -107,12 +108,18 @@ export async function loadCommandCenter() {
     return {
       id:                    c.id,
       name:                  c.name,
-      thumbnailUrl:          c.thumbnail_url || null,
-      lifecycleStage:        c.lifecycle_stage || null,
-      isPrelaunch:           !!c.is_prelaunch,
-      subscriberCount:       c.subscriber_count || 0,
-      lastSyncedAt:          c.last_data_api_pull_at || c.last_synced_at || null,
-      hasSyncError:          !!c.last_sync_error && !noChannel,
+      thumbnailUrl:          c.thumbnail || null,
+      lifecycleStage:        c.stage || null,
+      isPrelaunch:           !!c.isPrelaunch,
+      networkTag:            c.networkTag || c.network_tag || null,
+      // Latest snapshot first: channels.subscriber_count is only as
+      // fresh as the last full channel sync and sits at 0 for several
+      // clients, while channel_snapshots is written nightly — the same
+      // series the 30d delta already trusts. (User-reported 2026-08-20:
+      // "+1.2K 30d" next to "0 subs".)
+      subscriberCount:       growth?.currentSubs || c.subscriberCount || 0,
+      lastSyncedAt:          c.lastSyncedAt || null,
+      hasSyncError:          !!c.lastSyncError && !noChannel,
       noChannelStage:        noChannel,
       alertCount:            myAlerts.length,
       alertSeverityMax,
@@ -149,8 +156,8 @@ export async function loadCommandCenter() {
 
   // 4) Pulse counters across the portfolio.
   const prelaunchCount   = clientCards.filter(c => c.isPrelaunch).length;
-  const oauthActiveCount = clients.filter(c => c.lifecycle_stage === 'oauth_active').length;
-  const oauthCandidate   = clients.filter(c => !c.is_prelaunch).length;
+  const oauthActiveCount = clients.filter(c => c.stage === 'oauth_active').length;
+  const oauthCandidate   = clients.filter(c => !c.isPrelaunch).length;
   const oauthHealthPct   = oauthCandidate > 0
     ? Math.round((oauthActiveCount / oauthCandidate) * 100)
     : 0;
@@ -195,6 +202,11 @@ export async function loadCommandCenter() {
       intakeStartedClients:   intakeStarted.length,
     },
     topAlerts,
+    // Full feed for the in-place "see all" expansion — This Week's
+    // workspace folded in here (2026-08-20 reduction).
+    allAlerts: [...alerts].sort((a, b) =>
+      (SEVERITY_ORDER[b.severity] - SEVERITY_ORDER[a.severity])
+      || (new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())),
     clientCards,
   };
 }
@@ -204,16 +216,9 @@ export async function loadCommandCenter() {
 // ──────────────────────────────────────────────────
 
 async function loadAllIntakeCompletions(clientIds) {
-  // Per-client completion runs N small queries. For small portfolios
-  // (<50 clients) this is fine; for larger ones we'd want a single
-  // group-by query, but that's an optimization for later.
-  const results = await Promise.all(
-    clientIds.map(async id => {
-      try { return [id, await getIntakeCompletion(id)]; }
-      catch { return [id, null]; }
-    })
-  );
-  return Object.fromEntries(results);
+  // One query for the whole portfolio (was N round trips per load).
+  try { return await getIntakeCompletionsBulk(clientIds); }
+  catch { return {}; }
 }
 
 /**
@@ -227,14 +232,14 @@ async function loadSubGrowthByClient(clientIds) {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().split('T')[0];
   // Pull the last 35 days of snapshots — enough to find a "≥30 days ago" anchor
   const since = new Date(Date.now() - 35 * 86_400_000).toISOString().split('T')[0];
-  const { data } = await supabase
+  const data = await unwrap(supabase
     .from('channel_snapshots')
     .select('channel_id, snapshot_date, subscriber_count')
     .in('channel_id', clientIds)
     .gte('snapshot_date', since)
-    .order('snapshot_date', { ascending: true });
+    .order('snapshot_date', { ascending: true }), 'subscriber growth');
   const byClient = {};
-  for (const row of data || []) {
+  for (const row of data) {
     if (!byClient[row.channel_id]) byClient[row.channel_id] = [];
     byClient[row.channel_id].push(row);
   }
@@ -259,13 +264,13 @@ async function loadSubGrowthByClient(clientIds) {
 async function loadRecentActivityByClient(clientIds) {
   if (!clientIds?.length) return {};
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-  const { data: recent } = await supabase
+  const recent = await unwrap(supabase
     .from('videos')
     .select('channel_id, published_at')
     .in('channel_id', clientIds)
-    .gte('published_at', since);
+    .gte('published_at', since), 'recent uploads');
   const counts = {};
-  for (const v of recent || []) {
+  for (const v of recent) {
     if (!counts[v.channel_id]) counts[v.channel_id] = { count30d: 0, lastUploadAt: null };
     counts[v.channel_id].count30d++;
     if (!counts[v.channel_id].lastUploadAt || v.published_at > counts[v.channel_id].lastUploadAt) {
@@ -276,13 +281,13 @@ async function loadRecentActivityByClient(clientIds) {
   // for clients with no recent activity — so we can show "Quiet 47d".
   const missing = clientIds.filter(id => !counts[id]);
   if (missing.length) {
-    const { data: stale } = await supabase
+    const stale = await unwrap(supabase
       .from('videos')
       .select('channel_id, published_at')
       .in('channel_id', missing)
-      .order('published_at', { ascending: false });
+      .order('published_at', { ascending: false }), 'last upload dates');
     const seen = new Set();
-    for (const v of stale || []) {
+    for (const v of stale) {
       if (seen.has(v.channel_id)) continue;
       seen.add(v.channel_id);
       counts[v.channel_id] = { count30d: 0, lastUploadAt: v.published_at };
@@ -298,13 +303,13 @@ async function loadRecentActivityByClient(clientIds) {
  */
 async function loadPeerCohortCounts(clientIds) {
   if (!clientIds?.length) return {};
-  const { data } = await supabase
+  const data = await unwrap(supabase
     .from('client_channels')
     .select('client_id, cohort_role')
     .in('client_id', clientIds)
-    .eq('cohort_role', 'peer');
+    .eq('cohort_role', 'peer'), 'peer cohort counts');
   const counts = {};
-  for (const row of data || []) {
+  for (const row of data) {
     counts[row.client_id] = (counts[row.client_id] || 0) + 1;
   }
   return counts;
@@ -316,15 +321,15 @@ async function loadPeerCohortCounts(clientIds) {
  */
 async function loadLatestBriefAges(clientIds) {
   if (!clientIds?.length) return {};
-  const { data } = await supabase
+  const data = await unwrap(supabase
     .from('client_weekly_briefs')
     .select('client_id, created_at')
     .in('client_id', clientIds)
     .is('archived_at', null)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false }), 'latest brief ages');
   const seen = new Set();
   const out = {};
-  for (const row of data || []) {
+  for (const row of data) {
     if (seen.has(row.client_id)) continue;
     seen.add(row.client_id);
     const ageDays = Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86_400_000);

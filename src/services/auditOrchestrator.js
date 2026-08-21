@@ -127,7 +127,6 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
     if (config.brandContext) {
       try {
         await saveBrandContext(channel.id, config.brandContext);
-        console.log('[auditOrchestrator] Pre-extracted brand context saved for', channel.id);
       } catch (e) {
         console.warn('[auditOrchestrator] Failed to save brand context, continuing:', e.message);
       }
@@ -161,7 +160,6 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
               channel_id: channel.id, is_current: true, ...updates,
             });
           }
-          console.log('[auditOrchestrator] Brand intent & paid signals saved');
 
           // Re-classify videos with the newly saved signals
           if (config.paidContentSignals || config.paidContentOverride) {
@@ -176,8 +174,6 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
               await persistClassifications(classified);
               // Update local video array
               classified.forEach((cv, i) => { videos[i].is_paid = cv.is_paid; });
-              const paidCount = classified.filter(v => v.is_paid).length;
-              console.log(`[auditOrchestrator] Re-classified: ${paidCount} paid, ${classified.length - paidCount} organic`);
             } catch (e) {
               console.warn('[auditOrchestrator] Re-classification failed:', e.message);
             }
@@ -226,7 +222,7 @@ export async function runAudit({ channelInput, auditType, config = {}, createdBy
       // Auto-populate competitors from selected categories
       notify({ step: 'competitor_matching', pct: 31, message: 'Loading competitors from selected categories...' });
       try {
-        const { getChannelsInCategory, getCategoryBySlug, getAllCategories } = await import('./categoryService');
+        const { getChannelsInCategory, getAllCategories } = await import('./categoryService');
         const { supabase: sb } = await import('./supabaseClient');
         let categoryChannels = [];
 

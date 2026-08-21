@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import {useState} from "react";
 import { createPortal } from "react-dom";
-import { Upload, Download, Trash2, Edit2, Plus, X, Calendar, Database, Youtube, Link, Cloud, Loader2, Clock, CalendarDays, ChevronDown, ChevronUp, Image } from "lucide-react";
 import Papa from "papaparse";
 import { saveClientToSupabase, deleteClientFromSupabase, saveReportPeriod, getReportPeriod, deleteReportPeriod, setActivePeriod, PERIOD_TYPES, calculatePeriodDates, periodVideoDataToRows } from "./services/clientDataService";
 import { normalizeData } from "./lib/normalizeData.js";
+import { Calendar, CalendarDays, ChevronDown, ChevronUp, Clock, Cloud, Database, Download, Edit2, Image, Link, Loader2, Plus, Trash2, Upload, X, Youtube } from 'lucide-react';
 
 export default function ClientManager({ clients, activeClient, onClientChange, onClientsUpdate }) {
   const [showModal, setShowModal] = useState(false);
@@ -16,6 +16,10 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
   const [backgroundImageUrl, setBackgroundImageUrl] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  // Two-step inline confirm for period deletes — replaces the native
+  // confirm() dialog. First click arms it, second click executes;
+  // clicking anything else (or 4s passing) disarms.
+  const [armedPeriodId, setArmedPeriodId] = useState(null);
   const [parsedRows, setParsedRows] = useState(null);
   const [detectedChannels, setDetectedChannels] = useState([]);
   const [channelEdits, setChannelEdits] = useState({});
@@ -125,7 +129,6 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
         ...cleanChannelUrls
       };
 
-      console.log('[Supabase] Saving client:', name, 'with', normalizedRows.length, 'videos');
 
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Supabase save timed out after 15s')), 15000)
@@ -143,7 +146,6 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
         timeoutPromise
       ]);
 
-      console.log('[Supabase] Client saved successfully:', savedClient.id);
 
       let updatedClients;
       if (isUpdate) {
@@ -208,14 +210,15 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
 
   const handleAddClient = () => {
     if (!clientName.trim() || !uploadedFile) {
-      alert("Please enter a client name and upload a CSV file");
+      setSaveError("Give this client a name and choose a CSV before saving.");
       return;
     }
     const emptyChannels = Object.entries(channelEdits).filter(([, name]) => !name.trim());
     if (emptyChannels.length > 0) {
-      alert("Please provide a name for all detected channels");
+      setSaveError("Every detected channel needs a name before saving.");
       return;
     }
+    setSaveError(null);
     processCSV(uploadedFile, clientName);
   };
 
@@ -224,7 +227,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
     if (uploadedFile) {
       const emptyChannels = Object.entries(channelEdits).filter(([, name]) => !name.trim());
       if (emptyChannels.length > 0) {
-        alert("Please provide a name for all detected channels");
+        setSaveError("Every detected channel needs a name before saving.");
         return;
       }
       // Use the (possibly renamed) clientName, fall back to original
@@ -276,7 +279,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
               .single();
           };
 
-          let { data: updated, error: updateError } = await tryUpdate(updatePayload);
+          let { error: updateError } = await tryUpdate(updatePayload);
 
           // If a specific column is missing from schema cache, drop it and retry
           if (updateError?.message?.includes("Could not find the '")) {
@@ -286,7 +289,6 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
               console.warn('[ClientManager] Column missing, retrying without:', missingCol);
               const { [missingCol]: _dropped, ...retryPayload } = updatePayload;
               const retry = await tryUpdate(retryPayload);
-              updated = retry.data;
               updateError = retry.error;
             }
           }
@@ -295,7 +297,6 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
             console.error('[ClientManager] Supabase update failed:', updateError);
             throw new Error('Failed to save to cloud: ' + updateError.message);
           }
-          console.log('[ClientManager] Supabase update verified:', updated?.id, '— name:', updated?.name);
         }
       }
 
@@ -318,24 +319,30 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
   };
 
   const handleDeleteClient = async (clientId) => {
-    console.log('[Delete] Starting delete for clientId:', clientId);
     const clientToDelete = clients.find(c => c.id === clientId);
-    console.log('[Delete] Found client:', clientToDelete?.name, 'supabaseId:', clientToDelete?.supabaseId);
 
-    // Delete from Supabase in the background - don't block local cleanup
+    // Await the cloud delete before clearing local state. The old version
+    // fired it in the background and cleared the list regardless — failure
+    // went to console.error only, so the UI reported success and the client
+    // reappeared on the next reload. A delete that can silently not happen
+    // is worse than a slow one.
     if (clientToDelete?.supabaseId || clientToDelete?.syncedToSupabase) {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Supabase delete timed out')), 5000)
-      );
-      Promise.race([
-        deleteClientFromSupabase(clientToDelete.supabaseId || clientToDelete.id),
-        timeoutPromise
-      ])
-        .then(() => console.log('[Delete] Supabase delete succeeded'))
-        .catch((error) => console.error('[Delete] Supabase delete failed:', error));
+      try {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('The server took too long to respond')), 8000)
+        );
+        await Promise.race([
+          deleteClientFromSupabase(clientToDelete.supabaseId || clientToDelete.id),
+          timeoutPromise
+        ]);
+      } catch (error) {
+        console.error('[Delete] Supabase delete failed:', error);
+        setSaveError(`Couldn't delete "${clientToDelete?.name}" from the cloud — it would have come back on reload, so nothing was removed. ${error.message}.`);
+        return;
+      }
     }
 
-    // Immediately update local state regardless of Supabase result
+    // Cloud delete confirmed (or client was local-only) — now update local state
     const updatedClients = clients.filter(c => c.id !== clientId);
     onClientsUpdate(updatedClients);
 
@@ -374,7 +381,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
         const backup = JSON.parse(event.target.result);
         
         if (!backup.clients || !Array.isArray(backup.clients)) {
-          alert("Invalid backup file format");
+          setSaveError("That file isn't a Full View backup — it should be the JSON exported from this screen.");
           return;
         }
 
@@ -384,9 +391,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
           onClientChange(backup.clients[0]);
         }
         
-        alert(`Successfully imported ${backup.clients.length} client(s)`);
+        // The imported clients appearing in the list is the confirmation;
+        // a dialog on success is a speed bump.
+        setSaveError(null);
       } catch (error) {
-        alert(`Error importing backup: ${error.message}`);
+        setSaveError(`Couldn't read that backup: ${error.message}`);
       }
     };
     reader.readAsText(file);
@@ -450,11 +459,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
 
   const handleAddPeriod = async () => {
     if (!uploadedFile || !editingClient) {
-      alert("Please upload a CSV file");
+      setSaveError("Choose a CSV file for this period first.");
       return;
     }
     if (!periodName.trim()) {
-      alert("Please enter a period name");
+      setSaveError("Give this period a name — e.g. \"Q3 2026\".");
       return;
     }
 
@@ -496,7 +505,6 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
         normalizedRows
       );
 
-      console.log('[Supabase] Period saved successfully:', savedPeriod.id);
 
       // Update client with new period info and load the period's data
       const updatedClient = {
@@ -574,12 +582,17 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
       onClientChange(updatedClient);
     } catch (error) {
       console.error('Error switching period:', error);
-      alert('Failed to switch period: ' + error.message);
+      setSaveError(`Couldn't switch periods: ${error.message}`);
     }
   };
 
   const handleDeletePeriod = async (client, periodId) => {
-    if (!confirm("Delete this report period? This cannot be undone.")) return;
+    if (armedPeriodId !== periodId) {
+      setArmedPeriodId(periodId);
+      setTimeout(() => setArmedPeriodId(a => (a === periodId ? null : a)), 4000);
+      return;
+    }
+    setArmedPeriodId(null);
 
     try {
       await deleteReportPeriod(periodId);
@@ -603,7 +616,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
       }
     } catch (error) {
       console.error('Error deleting period:', error);
-      alert('Failed to delete period: ' + error.message);
+      setSaveError(`Couldn't delete that period: ${error.message}`);
     }
   };
 
@@ -647,16 +660,16 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
       <button
         onClick={() => setShowModal(true)}
         style={{
-          background: "#2962FF",
+          background: "linear-gradient(135deg, #00D1FF 0%, #0090c8 100%)",
           border: "none",
-          borderRadius: "8px",
+          borderRadius: "16px",
           padding: "10px 16px",
           fontWeight: "600",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
           gap: "8px",
-          color: "#fff"
+          color: "var(--on-accent)"
         }}
       >
         <Database size={16} />
@@ -682,8 +695,8 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
         >
           <div
             style={{
-              background: "#1E1E1E",
-              border: "1px solid #333",
+              background: "var(--card)",
+              border: "1px solid var(--border)",
               borderRadius: "12px",
               width: "100%",
               maxWidth: "900px",
@@ -693,16 +706,16 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
               <div>
-                <div style={{ fontSize: "24px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+                <div style={{ fontSize: "24px", fontWeight: "700", color: "var(--ink)", marginBottom: "4px" }}>
                   Client Management
                 </div>
-                <div style={{ fontSize: "13px", color: "#9E9E9E" }}>
+                <div style={{ fontSize: "13px", color: "var(--muted)" }}>
                   Manage client data, upload updates, and backup your dashboard
                 </div>
               </div>
               <button
                 onClick={() => setShowModal(false)}
-                style={{ background: "transparent", border: "none", color: "#9E9E9E", cursor: "pointer" }}
+                style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }}
               >
                 <X size={24} />
               </button>
@@ -713,7 +726,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                 onClick={openAddModal}
                 style={{
                   flex: 1,
-                  background: "#2962FF",
+                  background: "var(--blue)",
                   border: "none",
                   borderRadius: "8px",
                   padding: "12px",
@@ -723,7 +736,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                   alignItems: "center",
                   justifyContent: "center",
                   gap: "8px",
-                  color: "#fff"
+                  color: "var(--ink)"
                 }}
               >
                 <Plus size={18} />
@@ -735,7 +748,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                 disabled={clients.length === 0}
                 style={{
                   flex: 1,
-                  background: clients.length === 0 ? "#252525" : "#10b981",
+                  background: clients.length === 0 ? "var(--input-bg)" : "var(--pos)",
                   border: "none",
                   borderRadius: "8px",
                   padding: "12px",
@@ -745,7 +758,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                   alignItems: "center",
                   justifyContent: "center",
                   gap: "8px",
-                  color: clients.length === 0 ? "#666" : "#fff",
+                  color: clients.length === 0 ? "var(--faint)" : "var(--ink)",
                   opacity: clients.length === 0 ? 0.5 : 1
                 }}
               >
@@ -756,7 +769,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
               <label
                 style={{
                   flex: 1,
-                  background: "#8b5cf6",
+                  background: "var(--blue-deep)",
                   border: "none",
                   borderRadius: "8px",
                   padding: "12px",
@@ -766,7 +779,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                   alignItems: "center",
                   justifyContent: "center",
                   gap: "8px",
-                  color: "#fff"
+                  color: "var(--ink)"
                 }}
               >
                 <Upload size={18} />
@@ -783,19 +796,19 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
             {/* Add Period Form */}
             {modalMode === "addPeriod" && editingClient && (
               <div style={{
-                background: "#252525",
-                border: "1px solid #10b981",
+                background: "var(--input-bg)",
+                border: "1px solid var(--pos)",
                 borderRadius: "12px",
                 padding: "24px",
                 marginBottom: "24px"
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
-                  <CalendarDays size={24} style={{ color: "#10b981" }} />
+                  <CalendarDays size={24} style={{ color: "var(--pos)" }} />
                   <div>
-                    <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff" }}>
+                    <div style={{ fontSize: "18px", fontWeight: "700", color: "var(--ink)" }}>
                       Add Report Period for {editingClient.name}
                     </div>
-                    <div style={{ fontSize: "12px", color: "#9E9E9E" }}>
+                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>
                       Upload period-specific data (weekly, monthly, etc.)
                     </div>
                   </div>
@@ -803,7 +816,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
 
                 {/* Period Type Selection */}
                 <div style={{ marginBottom: "16px" }}>
-                  <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                  <label style={{ display: "block", fontSize: "13px", color: "var(--muted)", fontWeight: "600", marginBottom: "8px" }}>
                     Period Type
                   </label>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "8px" }}>
@@ -812,18 +825,18 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                       { type: PERIOD_TYPES.WEEKLY, label: "Weekly", icon: "7d" },
                       { type: PERIOD_TYPES.MONTHLY, label: "Monthly", icon: "30d" },
                       { type: PERIOD_TYPES.QUARTERLY, label: "Quarterly", icon: "Q" },
-                      { type: PERIOD_TYPES.CUSTOM, label: "Custom", icon: "📅" },
+                      { type: PERIOD_TYPES.CUSTOM, label: "Custom", icon: "" },
                     ].map(({ type, label, icon }) => (
                       <button
                         key={type}
                         onClick={() => handlePeriodTypeChange(type)}
                         style={{
                           padding: "12px 8px",
-                          background: periodType === type ? "#10b98130" : "#1E1E1E",
-                          border: periodType === type ? "2px solid #10b981" : "1px solid #333",
-                          borderRadius: "8px",
+                          background: periodType === type ? "rgba(205, 242, 0, 0.19)" : "var(--card)",
+                          border: periodType === type ? "2px solid var(--pos)" : "1px solid var(--border)",
+                          borderRadius: "24px",
                           cursor: "pointer",
-                          color: periodType === type ? "#10b981" : "#9E9E9E",
+                          color: periodType === type ? "var(--pos)" : "var(--muted)",
                           fontWeight: "600",
                           fontSize: "12px",
                           textAlign: "center"
@@ -838,7 +851,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
 
                 {/* Period Name */}
                 <div style={{ marginBottom: "16px" }}>
-                  <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                  <label style={{ display: "block", fontSize: "13px", color: "var(--muted)", fontWeight: "600", marginBottom: "8px" }}>
                     Period Name
                   </label>
                   <input
@@ -848,11 +861,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                     placeholder="e.g., January 2025, Week of Jan 6-12"
                     style={{
                       width: "100%",
-                      background: "#1E1E1E",
-                      border: "1px solid #333",
-                      borderRadius: "8px",
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "24px",
                       padding: "12px",
-                      color: "#E0E0E0",
+                      color: "var(--text)",
                       fontSize: "14px"
                     }}
                   />
@@ -862,7 +875,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                 {periodType !== PERIOD_TYPES.LIFETIME && (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
                     <div>
-                      <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                      <label style={{ display: "block", fontSize: "13px", color: "var(--muted)", fontWeight: "600", marginBottom: "8px" }}>
                         Start Date
                       </label>
                       <input
@@ -871,17 +884,17 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                         onChange={(e) => setPeriodStartDate(e.target.value)}
                         style={{
                           width: "100%",
-                          background: "#1E1E1E",
-                          border: "1px solid #333",
-                          borderRadius: "8px",
+                          background: "var(--card)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "24px",
                           padding: "12px",
-                          color: "#E0E0E0",
+                          color: "var(--text)",
                           fontSize: "14px"
                         }}
                       />
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                      <label style={{ display: "block", fontSize: "13px", color: "var(--muted)", fontWeight: "600", marginBottom: "8px" }}>
                         End Date
                       </label>
                       <input
@@ -890,11 +903,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                         onChange={(e) => setPeriodEndDate(e.target.value)}
                         style={{
                           width: "100%",
-                          background: "#1E1E1E",
-                          border: "1px solid #333",
-                          borderRadius: "8px",
+                          background: "var(--card)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "24px",
                           padding: "12px",
-                          color: "#E0E0E0",
+                          color: "var(--text)",
                           fontSize: "14px"
                         }}
                       />
@@ -904,26 +917,26 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
 
                 {/* CSV Upload */}
                 <div style={{ marginBottom: "16px" }}>
-                  <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                  <label style={{ display: "block", fontSize: "13px", color: "var(--muted)", fontWeight: "600", marginBottom: "8px" }}>
                     Upload CSV Data for This Period
                   </label>
                   <label
                     style={{
                       display: "block",
                       width: "100%",
-                      background: "#1E1E1E",
-                      border: "2px dashed #10b981",
-                      borderRadius: "8px",
+                      background: "var(--card)",
+                      border: "2px dashed var(--pos)",
+                      borderRadius: "24px",
                       padding: "24px",
                       cursor: "pointer",
                       textAlign: "center"
                     }}
                   >
-                    <Upload size={28} style={{ color: "#10b981", margin: "0 auto 8px" }} />
-                    <div style={{ color: "#E0E0E0", fontWeight: "600", marginBottom: "4px" }}>
+                    <Upload size={28} style={{ color: "var(--pos)", margin: "0 auto 8px" }} />
+                    <div style={{ color: "var(--text)", fontWeight: "600", marginBottom: "4px" }}>
                       {uploadedFile ? uploadedFile.name : "Click to upload CSV file"}
                     </div>
-                    <div style={{ fontSize: "12px", color: "#666" }}>
+                    <div style={{ fontSize: "12px", color: "var(--faint)" }}>
                       Export from YouTube Studio with "{periodType === PERIOD_TYPES.LIFETIME ? 'Lifetime' : periodName}" date range selected
                     </div>
                     <input
@@ -938,13 +951,13 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                 {/* Channel Preview (same as before) */}
                 {showChannelPreview && uploadedFile && detectedChannels.length > 0 && (
                   <div style={{
-                    background: "#1a1a2e",
-                    border: "1px solid #333",
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
                     borderRadius: "8px",
                     padding: "12px",
                     marginBottom: "16px",
                     fontSize: "13px",
-                    color: "#9E9E9E"
+                    color: "var(--muted)"
                   }}>
                     Detected {detectedChannels.length} channel(s): {detectedChannels.map(c => c.original).join(", ")}
                   </div>
@@ -952,12 +965,12 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
 
                 {saveError && (
                   <div style={{
-                    background: "#ef444420",
-                    border: "1px solid #ef4444",
+                    background: "rgba(255, 85, 64, 0.13)",
+                    border: "1px solid var(--neg)",
                     borderRadius: "8px",
                     padding: "12px",
                     marginBottom: "16px",
-                    color: "#ef4444",
+                    color: "var(--neg)",
                     fontSize: "13px"
                   }}>
                     {saveError}
@@ -970,13 +983,13 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                     disabled={isSaving || !uploadedFile}
                     style={{
                       flex: 1,
-                      background: isSaving ? "#065f46" : (!uploadedFile ? "#333" : "#10b981"),
+                      background: isSaving ? "var(--pos-text)" : (!uploadedFile ? "var(--outline-variant)" : "var(--pos)"),
                       border: "none",
                       borderRadius: "8px",
                       padding: "12px",
                       fontWeight: "600",
                       cursor: isSaving || !uploadedFile ? "not-allowed" : "pointer",
-                      color: "#fff",
+                      color: "var(--ink)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -989,13 +1002,13 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                   <button
                     onClick={resetModalState}
                     style={{
-                      background: "#333",
+                      background: "var(--outline-variant)",
                       border: "none",
                       borderRadius: "8px",
                       padding: "12px 24px",
                       fontWeight: "600",
                       cursor: "pointer",
-                      color: "#E0E0E0"
+                      color: "var(--text)"
                     }}
                   >
                     Cancel
@@ -1006,18 +1019,18 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
 
             {(modalMode === "add" || (modalMode === "update" && editingClient)) && (
               <div style={{
-                background: "#252525",
-                border: "1px solid #333",
+                background: "var(--input-bg)",
+                border: "1px solid var(--border)",
                 borderRadius: "12px",
                 padding: "24px",
                 marginBottom: "24px"
               }}>
-                <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>
+                <div style={{ fontSize: "18px", fontWeight: "700", color: "var(--ink)", marginBottom: "16px" }}>
                   {modalMode === "add" ? "Add New Client" : `Edit ${editingClient.name}`}
                 </div>
 
                 <div style={{ marginBottom: "16px" }}>
-                  <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                  <label style={{ display: "block", fontSize: "13px", color: "var(--muted)", fontWeight: "600", marginBottom: "8px" }}>
                     Client Name
                   </label>
                   <input
@@ -1027,37 +1040,37 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                     placeholder="e.g., LDS Leadership"
                     style={{
                       width: "100%",
-                      background: "#1E1E1E",
-                      border: "1px solid #333",
-                      borderRadius: "8px",
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "24px",
                       padding: "12px",
-                      color: "#E0E0E0",
+                      color: "var(--text)",
                       fontSize: "14px"
                     }}
                   />
                 </div>
 
                 <div style={{ marginBottom: "16px" }}>
-                  <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                  <label style={{ display: "block", fontSize: "13px", color: "var(--muted)", fontWeight: "600", marginBottom: "8px" }}>
                     Upload CSV Data
                   </label>
                   <label
                     style={{
                       display: "block",
                       width: "100%",
-                      background: "#1E1E1E",
+                      background: "var(--card)",
                       border: "2px dashed #333",
-                      borderRadius: "8px",
+                      borderRadius: "24px",
                       padding: "32px",
                       cursor: "pointer",
                       textAlign: "center"
                     }}
                   >
-                    <Upload size={32} style={{ color: "#666", margin: "0 auto 12px" }} />
-                    <div style={{ color: "#E0E0E0", fontWeight: "600", marginBottom: "4px" }}>
+                    <Upload size={32} style={{ color: "var(--faint)", margin: "0 auto 12px" }} />
+                    <div style={{ color: "var(--text)", fontWeight: "600", marginBottom: "4px" }}>
                       {uploadedFile ? uploadedFile.name : "Click to upload CSV file"}
                     </div>
-                    <div style={{ fontSize: "12px", color: "#666" }}>
+                    <div style={{ fontSize: "12px", color: "var(--faint)" }}>
                       {uploadedFile ? "Click to replace" : "YouTube Studio export format"}
                     </div>
                     <input
@@ -1071,16 +1084,16 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
 
                 {showChannelPreview && uploadedFile && (
                   <div style={{
-                    background: "#1a1a2e",
-                    border: "1px solid #333",
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
                     borderRadius: "8px",
                     padding: "16px",
                     marginBottom: "16px"
                   }}>
-                    <div style={{ fontSize: "14px", fontWeight: "700", color: "#fff", marginBottom: "4px" }}>
+                    <div style={{ fontSize: "14px", fontWeight: "700", color: "var(--ink)", marginBottom: "4px" }}>
                       Channel Detection
                     </div>
-                    <div style={{ fontSize: "12px", color: "#9E9E9E", marginBottom: "12px" }}>
+                    <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "12px" }}>
                       {detectedChannels.length === 1 && detectedChannels[0].original === "Main Channel"
                         ? "No channel column found in CSV. Name this channel:"
                         : `Found ${detectedChannels.length} channel${detectedChannels.length !== 1 ? 's' : ''} in CSV. Confirm or edit names below:`
@@ -1096,20 +1109,20 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                             placeholder="Channel name"
                             style={{
                               flex: 1,
-                              background: "#1E1E1E",
+                              background: "var(--card)",
                               border: "1px solid #444",
                               borderRadius: "6px",
                               padding: "8px 12px",
-                              color: "#E0E0E0",
+                              color: "var(--text)",
                               fontSize: "13px"
                             }}
                           />
-                          <span style={{ fontSize: "12px", color: "#666", whiteSpace: "nowrap" }}>
+                          <span style={{ fontSize: "12px", color: "var(--faint)", whiteSpace: "nowrap" }}>
                             {ch.count} video{ch.count !== 1 ? 's' : ''}
                           </span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <Youtube size={12} style={{ color: "#FF0000", flexShrink: 0 }} />
+                          <Youtube size={12} style={{ color: "var(--yt-red)", flexShrink: 0 }} />
                           <input
                             type="text"
                             value={channelUrls[ch.original] || ""}
@@ -1117,11 +1130,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                             placeholder="https://www.youtube.com/@channel (optional)"
                             style={{
                               flex: 1,
-                              background: "#1E1E1E",
-                              border: "1px solid #333",
+                              background: "var(--card)",
+                              border: "1px solid var(--border)",
                               borderRadius: "6px",
                               padding: "6px 10px",
-                              color: "#9E9E9E",
+                              color: "var(--muted)",
                               fontSize: "12px"
                             }}
                           />
@@ -1133,9 +1146,9 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
 
                 {!showChannelPreview && (
                   <div style={{ marginBottom: "16px" }}>
-                    <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                    <label style={{ display: "block", fontSize: "13px", color: "var(--muted)", fontWeight: "600", marginBottom: "8px" }}>
                       <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <Youtube size={14} style={{ color: "#FF0000" }} />
+                        <Youtube size={14} style={{ color: "var(--yt-red)" }} />
                         YouTube Channel URL (Optional)
                       </span>
                     </label>
@@ -1147,12 +1160,12 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                         placeholder="https://www.youtube.com/@channelname or channel URL"
                         style={{
                           width: "100%",
-                          background: "#1E1E1E",
-                          border: "1px solid #333",
-                          borderRadius: "8px",
+                          background: "var(--card)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "24px",
                           padding: "12px",
                           paddingLeft: "40px",
-                          color: "#E0E0E0",
+                          color: "var(--text)",
                           fontSize: "14px"
                         }}
                       />
@@ -1161,10 +1174,10 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                         left: "12px",
                         top: "50%",
                         transform: "translateY(-50%)",
-                        color: "#666"
+                        color: "var(--faint)"
                       }} />
                     </div>
-                    <div style={{ fontSize: "11px", color: "#666", marginTop: "6px" }}>
+                    <div style={{ fontSize: "11px", color: "var(--faint)", marginTop: "6px" }}>
                       Adding a channel URL enables video thumbnails and direct YouTube links in the dashboard
                     </div>
                   </div>
@@ -1172,9 +1185,9 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
 
                 {/* Background Image URL */}
                 <div style={{ marginBottom: "16px" }}>
-                  <label style={{ display: "block", fontSize: "13px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px" }}>
+                  <label style={{ display: "block", fontSize: "13px", color: "var(--muted)", fontWeight: "600", marginBottom: "8px" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <Image size={14} style={{ color: "#8b5cf6" }} />
+                      <Image size={14} style={{ color: "var(--blue-deep)" }} />
                       Background Image URL (Optional)
                     </span>
                   </label>
@@ -1186,12 +1199,12 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                       placeholder="https://example.com/hero-image.jpg"
                       style={{
                         width: "100%",
-                        background: "#1E1E1E",
-                        border: "1px solid #333",
-                        borderRadius: "8px",
+                        background: "var(--card)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "24px",
                         padding: "12px",
                         paddingLeft: "40px",
-                        color: "#E0E0E0",
+                        color: "var(--text)",
                         fontSize: "14px"
                       }}
                     />
@@ -1200,22 +1213,22 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                       left: "12px",
                       top: "50%",
                       transform: "translateY(-50%)",
-                      color: "#666"
+                      color: "var(--faint)"
                     }} />
                   </div>
-                  <div style={{ fontSize: "11px", color: "#666", marginTop: "6px" }}>
+                  <div style={{ fontSize: "11px", color: "var(--faint)", marginTop: "6px" }}>
                     Add a hero image URL to personalize the dashboard header for this client
                   </div>
                 </div>
 
                 {saveError && (
                   <div style={{
-                    background: "#ef444420",
-                    border: "1px solid #ef4444",
+                    background: "rgba(255, 85, 64, 0.13)",
+                    border: "1px solid var(--neg)",
                     borderRadius: "8px",
                     padding: "12px",
                     marginBottom: "16px",
-                    color: "#ef4444",
+                    color: "var(--neg)",
                     fontSize: "13px"
                   }}>
                     Cloud save failed: {saveError}. Data saved locally.
@@ -1228,13 +1241,13 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                     disabled={isSaving}
                     style={{
                       flex: 1,
-                      background: isSaving ? "#1e40af" : "#2962FF",
+                      background: isSaving ? "var(--blue-deep)" : "var(--blue)",
                       border: "none",
                       borderRadius: "8px",
                       padding: "12px",
                       fontWeight: "600",
                       cursor: isSaving ? "not-allowed" : "pointer",
-                      color: "#fff",
+                      color: "var(--ink)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -1259,13 +1272,13 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                       setShowChannelPreview(false);
                     }}
                     style={{
-                      background: "#333",
+                      background: "var(--outline-variant)",
                       border: "none",
                       borderRadius: "8px",
                       padding: "12px 24px",
                       fontWeight: "600",
                       cursor: "pointer",
-                      color: "#E0E0E0"
+                      color: "var(--text)"
                     }}
                   >
                     Cancel
@@ -1275,18 +1288,18 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
             )}
 
             <div>
-              <div style={{ fontSize: "18px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>
+              <div style={{ fontSize: "18px", fontWeight: "700", color: "var(--ink)", marginBottom: "16px" }}>
                 Existing Clients ({clients.length})
               </div>
 
               {clients.length === 0 ? (
                 <div style={{
-                  background: "#252525",
-                  border: "1px solid #333",
+                  background: "var(--input-bg)",
+                  border: "1px solid var(--border)",
                   borderRadius: "12px",
                   padding: "40px",
                   textAlign: "center",
-                  color: "#9E9E9E"
+                  color: "var(--muted)"
                 }}>
                   No clients yet. Add your first client to get started.
                 </div>
@@ -1300,8 +1313,8 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                       <div
                         key={client.id}
                         style={{
-                          background: activeClient?.id === client.id ? "#2962FF15" : "#252525",
-                          border: activeClient?.id === client.id ? "1px solid #2962FF" : "1px solid #333",
+                          background: activeClient?.id === client.id ? "var(--accent-dim)" : "var(--input-bg)",
+                          border: activeClient?.id === client.id ? "1px solid var(--blue)" : "1px solid var(--border)",
                           borderRadius: "12px",
                           overflow: "hidden"
                         }}
@@ -1314,13 +1327,13 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                           alignItems: "center"
                         }}>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", marginBottom: "8px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <div style={{ fontSize: "16px", fontWeight: "700", color: "var(--ink)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                               {client.name}
                               {activeClient?.id === client.id && (
                                 <span style={{
                                   fontSize: "11px",
-                                  background: "#2962FF",
-                                  color: "#fff",
+                                  background: "var(--blue)",
+                                  color: "var(--ink)",
                                   padding: "4px 8px",
                                   borderRadius: "4px",
                                   fontWeight: "600"
@@ -1331,8 +1344,8 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                               {client.activePeriod && (
                                 <span style={{
                                   fontSize: "11px",
-                                  background: "#10b98130",
-                                  color: "#10b981",
+                                  background: "rgba(205, 242, 0, 0.19)",
+                                  color: "var(--pos)",
                                   padding: "4px 8px",
                                   borderRadius: "4px",
                                   fontWeight: "600",
@@ -1345,7 +1358,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                                 </span>
                               )}
                             </div>
-                            <div style={{ fontSize: "13px", color: "#9E9E9E", display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                            <div style={{ fontSize: "13px", color: "var(--muted)", display: "flex", gap: "16px", flexWrap: "wrap" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                                 <Calendar size={14} />
                                 {formatDate(client.uploadDate)}
@@ -1362,13 +1375,13 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                                 {client.channels?.length || 0} channel{(client.channels?.length || 0) !== 1 ? 's' : ''}
                               </div>
                               {hasPeriods && (
-                                <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#10b981" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--pos)" }}>
                                   <CalendarDays size={12} />
                                   {client.reportPeriods.length} period{client.reportPeriods.length !== 1 ? 's' : ''}
                                 </div>
                               )}
                               {client.youtubeChannelUrl && (
-                                <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "#FF0000" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--yt-red)" }}>
                                   <Youtube size={12} />
                                   Linked
                                 </div>
@@ -1377,7 +1390,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                                 display: "flex",
                                 alignItems: "center",
                                 gap: "4px",
-                                color: client.syncedToSupabase ? "#10b981" : "#f59e0b"
+                                color: client.syncedToSupabase ? "var(--pos)" : "var(--warn)"
                               }}>
                                 <Cloud size={12} />
                                 {client.syncedToSupabase ? "Synced" : "Local"}
@@ -1390,13 +1403,13 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                             <button
                               onClick={() => openAddPeriodModal(client)}
                               style={{
-                                background: "#10b98120",
-                                border: "1px solid #10b981",
+                                background: "rgba(205, 242, 0, 0.13)",
+                                border: "1px solid var(--pos)",
                                 borderRadius: "8px",
                                 padding: "8px 12px",
                                 fontWeight: "600",
                                 cursor: "pointer",
-                                color: "#10b981",
+                                color: "var(--pos)",
                                 fontSize: "12px",
                                 display: "flex",
                                 alignItems: "center",
@@ -1412,11 +1425,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                                 onClick={() => toggleClientPeriods(client.id)}
                                 style={{
                                   background: "transparent",
-                                  border: "1px solid #333",
+                                  border: "1px solid var(--border)",
                                   borderRadius: "8px",
                                   padding: "8px 12px",
                                   cursor: "pointer",
-                                  color: "#9E9E9E",
+                                  color: "var(--muted)",
                                   display: "flex",
                                   alignItems: "center",
                                   gap: "4px",
@@ -1431,13 +1444,13 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                               <button
                                 onClick={() => onClientChange(client)}
                                 style={{
-                                  background: "#333",
+                                  background: "var(--outline-variant)",
                                   border: "none",
                                   borderRadius: "8px",
                                   padding: "8px 16px",
                                   fontWeight: "600",
                                   cursor: "pointer",
-                                  color: "#E0E0E0",
+                                  color: "var(--text)",
                                   fontSize: "13px"
                                 }}
                               >
@@ -1448,11 +1461,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                               onClick={() => openUpdateModal(client)}
                               style={{
                                 background: "transparent",
-                                border: "1px solid #333",
+                                border: "1px solid var(--border)",
                                 borderRadius: "8px",
                                 padding: "8px 12px",
                                 cursor: "pointer",
-                                color: "#9E9E9E"
+                                color: "var(--muted)"
                               }}
                             >
                               <Edit2 size={16} />
@@ -1461,11 +1474,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                               onClick={() => setShowDeleteConfirm(client.id)}
                               style={{
                                 background: "transparent",
-                                border: "1px solid #ef4444",
+                                border: "1px solid var(--neg)",
                                 borderRadius: "8px",
                                 padding: "8px 12px",
                                 cursor: "pointer",
-                                color: "#ef4444"
+                                color: "var(--neg)"
                               }}
                             >
                               <Trash2 size={16} />
@@ -1476,11 +1489,11 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                         {/* Expanded Periods Section */}
                         {isExpanded && hasPeriods && (
                           <div style={{
-                            borderTop: "1px solid #333",
+                            borderTop: "1px solid var(--border)",
                             padding: "16px 20px",
-                            background: "#1a1a1a"
+                            background: "var(--input-bg)"
                           }}>
-                            <div style={{ fontSize: "13px", fontWeight: "600", color: "#9E9E9E", marginBottom: "12px" }}>
+                            <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--muted)", marginBottom: "12px" }}>
                               Report Periods
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -1494,21 +1507,21 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                                       alignItems: "center",
                                       justifyContent: "space-between",
                                       padding: "12px 16px",
-                                      background: isActive ? "#10b98115" : "#252525",
-                                      border: isActive ? "1px solid #10b981" : "1px solid #333",
+                                      background: isActive ? "rgba(205, 242, 0, 0.08)" : "var(--input-bg)",
+                                      border: isActive ? "1px solid var(--pos)" : "1px solid var(--border)",
                                       borderRadius: "8px"
                                     }}
                                   >
                                     <div style={{ flex: 1 }}>
                                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                                        <span style={{ fontWeight: "600", color: "#fff", fontSize: "14px" }}>
+                                        <span style={{ fontWeight: "600", color: "var(--ink)", fontSize: "14px" }}>
                                           {period.name}
                                         </span>
                                         {period.is_baseline && (
                                           <span style={{
                                             fontSize: "10px",
-                                            background: "#8b5cf630",
-                                            color: "#8b5cf6",
+                                            background: "rgba(0, 144, 200, 0.19)",
+                                            color: "var(--blue-deep)",
                                             padding: "2px 6px",
                                             borderRadius: "4px",
                                             fontWeight: "600"
@@ -1519,8 +1532,8 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                                         {isActive && (
                                           <span style={{
                                             fontSize: "10px",
-                                            background: "#10b98130",
-                                            color: "#10b981",
+                                            background: "rgba(205, 242, 0, 0.19)",
+                                            color: "var(--pos)",
                                             padding: "2px 6px",
                                             borderRadius: "4px",
                                             fontWeight: "600"
@@ -1529,7 +1542,7 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                                           </span>
                                         )}
                                       </div>
-                                      <div style={{ fontSize: "12px", color: "#666", display: "flex", gap: "12px" }}>
+                                      <div style={{ fontSize: "12px", color: "var(--faint)", display: "flex", gap: "12px" }}>
                                         <span>{period.video_count} videos</span>
                                         <span>{(period.total_views || 0).toLocaleString()} views</span>
                                         {period.start_date && period.end_date && (
@@ -1544,12 +1557,12 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                                         <button
                                           onClick={() => handleSwitchPeriod(client, period)}
                                           style={{
-                                            background: "#333",
+                                            background: "var(--outline-variant)",
                                             border: "none",
                                             borderRadius: "6px",
                                             padding: "6px 12px",
                                             cursor: "pointer",
-                                            color: "#E0E0E0",
+                                            color: "var(--text)",
                                             fontSize: "12px",
                                             fontWeight: "600"
                                           }}
@@ -1560,13 +1573,16 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                                       <button
                                         onClick={() => handleDeletePeriod(client, period.id)}
                                         style={{
-                                          background: "transparent",
-                                          border: "1px solid #ef444450",
+                                          background: armedPeriodId === period.id ? "var(--neg)" : "transparent",
+                                          border: "1px solid #FF554050",
                                           borderRadius: "6px",
                                           padding: "6px 8px",
                                           cursor: "pointer",
-                                          color: "#ef4444"
+                                          color: armedPeriodId === period.id ? "var(--ink)" : "var(--neg)",
+                                          fontSize: armedPeriodId === period.id ? "11px" : undefined,
+                                          fontWeight: armedPeriodId === period.id ? 700 : undefined
                                         }}
+                                        title={armedPeriodId === period.id ? "Click again to permanently delete" : "Delete period"}
                                       >
                                         <Trash2 size={12} />
                                       </button>
@@ -1606,18 +1622,18 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
               top: "50%",
               left: "50%",
               transform: "translate(-50%, -50%)",
-              background: "#1E1E1E",
-              border: "2px solid #ef4444",
+              background: "var(--card)",
+              border: "2px solid var(--neg)",
               borderRadius: "12px",
               padding: "32px",
               maxWidth: "400px",
               zIndex: 10001
             }}
           >
-            <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", marginBottom: "12px" }}>
+            <div style={{ fontSize: "20px", fontWeight: "700", color: "var(--ink)", marginBottom: "12px" }}>
               Delete Client?
             </div>
-            <div style={{ fontSize: "14px", color: "#9E9E9E", marginBottom: "24px" }}>
+            <div style={{ fontSize: "14px", color: "var(--muted)", marginBottom: "24px" }}>
               Are you sure you want to delete "{clients.find(c => c.id === showDeleteConfirm)?.name}"? This action cannot be undone.
             </div>
             <div style={{ display: "flex", gap: "12px" }}>
@@ -1625,13 +1641,13 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                 onClick={(e) => { e.stopPropagation(); handleDeleteClient(showDeleteConfirm); }}
                 style={{
                   flex: 1,
-                  background: "#ef4444",
+                  background: "var(--neg)",
                   border: "none",
                   borderRadius: "8px",
                   padding: "12px",
                   fontWeight: "600",
                   cursor: "pointer",
-                  color: "#fff"
+                  color: "var(--ink)"
                 }}
               >
                 Delete
@@ -1640,13 +1656,13 @@ export default function ClientManager({ clients, activeClient, onClientChange, o
                 onClick={() => setShowDeleteConfirm(null)}
                 style={{
                   flex: 1,
-                  background: "#333",
+                  background: "var(--outline-variant)",
                   border: "none",
                   borderRadius: "8px",
                   padding: "12px",
                   fontWeight: "600",
                   cursor: "pointer",
-                  color: "#E0E0E0"
+                  color: "var(--text)"
                 }}
               >
                 Cancel

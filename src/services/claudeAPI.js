@@ -9,9 +9,6 @@
 const CLAUDE_API_URL = '/api/claude-proxy';  // Changed URL to bypass browser cache
 const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';  // Latest Sonnet 4.5 model
 const MAX_TOKENS = 4096;
-const API_VERSION = '2.2.1-cache-bust-final'; // Force bundle refresh - UPDATED STYLING
-
-// Pricing per million tokens (as of Jan 2025)
 // Note: These are Sonnet prices. Opus is higher: $15 input / $75 output
 const PRICING = {
   input: 3.00,   // $3 per million input tokens
@@ -177,10 +174,8 @@ MANDATORY OUTPUT RULES (apply to ALL responses):
   // tokens worth of input — caller is responsible for picking a sane
   // batch size.
   async call(prompt, systemPrompt = '', feature = 'general', maxTokens = MAX_TOKENS, options = {}) {
-    // Validate API key
-    if (!this.apiKey) {
-      throw new Error('Claude API key not configured. Please add your API key in settings.');
-    }
+    // No local key is fine — the proxy falls back to the server's
+    // ANTHROPIC_API_KEY, so the whole team shares one configuration.
 
     const images = Array.isArray(options.images) ? options.images : null;
 
@@ -264,9 +259,7 @@ MANDATORY OUTPUT RULES (apply to ALL responses):
 
   // Streaming API call (for real-time responses)
   async streamCall(prompt, systemPrompt = '', feature = 'general', onChunk, maxTokens = MAX_TOKENS) {
-    if (!this.apiKey) {
-      throw new Error('Claude API key not configured. Please add your API key in settings.');
-    }
+    // No local key needed — the proxy can use the server's shared key.
 
     const estimatedInputTokens = this.estimateTokens(systemPrompt + prompt);
     if (!this.checkBudget(estimatedInputTokens, maxTokens)) {
@@ -333,7 +326,7 @@ MANDATORY OUTPUT RULES (apply to ALL responses):
             if (parsed.type === 'message_delta') {
               outputTokens = parsed.usage.output_tokens;
             }
-          } catch (e) {
+          } catch {
             // Skip invalid JSON
           }
         }

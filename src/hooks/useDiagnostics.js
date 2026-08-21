@@ -5,9 +5,34 @@
  */
 
 import { useMemo } from 'react';
+import { trimmedMedian } from '../services/statsHelpers';
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
+
+/**
+ * "Shorts get 40% more impressions per video" — without the divide-by-zero.
+ *
+ * These comparisons used to divide by the losing side unguarded, so whenever
+ * one format had none of a metric the string became "Infinity%" (or "NaN%"
+ * when both were zero) and shipped straight into client-facing diagnostics.
+ * `fmtPct` didn't catch it either, because isNaN(Infinity) is false.
+ *
+ * Shorts legitimately report no impressions in YouTube exports, so the zero
+ * case is the common case, not an edge case. Say what's true instead.
+ */
+function comparePerVideo({ unit, verbPlural, verbSingular, shortsVal, longsVal }) {
+  const s = Number(shortsVal) || 0;
+  const l = Number(longsVal) || 0;
+  if (s === 0 && l === 0) return `No ${unit} data for either format`;
+  if (s === 0) return `Only long-form reports ${unit} (Shorts report none)`;
+  if (l === 0) return `Only Shorts report ${unit} (long-form reports none)`;
+  const shortsWin = s > l;
+  const [hi, lo] = shortsWin ? [s, l] : [l, s];
+  const pct = Math.round(((hi - lo) / lo) * 100);
+  if (pct === 0) return `Shorts and long-form are level on ${unit} per video`;
+  return `${shortsWin ? 'Shorts' : 'Long-form'} ${shortsWin ? verbPlural : verbSingular} ${pct}% more ${unit} per video`;
+}
 
 // Common English words that are NOT content topics
 const STOP_WORDS = new Set([
@@ -137,7 +162,7 @@ const TITLE_STRUCTURES = [
   {
     key: 'brackets',
     label: 'Bracket / parenthetical titles',
-    test: (t) => /[\[\(].{2,}[\]\)]/.test(t),
+    test: (t) => /[[(].{2,}[\])]/.test(t),
     winTip: 'Brackets add context or urgency (e.g. "[FULL GUIDE]") — keep using them.',
     loseTip: 'Bracket tags aren\'t helping — try cleaner titles without the extra context.',
   },
@@ -192,8 +217,12 @@ function analyzeTitleStructures(rows, minSample = 3) {
 
     if (matching.length < minSample || notMatching.length < minSample) continue;
 
-    const avgViewsWith = matching.reduce((s, r) => s + (r.views || 0), 0) / matching.length;
-    const avgViewsWithout = notMatching.reduce((s, r) => s + (r.views || 0), 0) / notMatching.length;
+    // Trimmed medians, not means. With minSample=3, one viral video inside
+    // "matching" exploded the mean and shipped headlines like "Emotional
+    // hook titles get 32608% more views" to the dashboard hero. Medians are
+    // the discipline statsHelpers already applies everywhere newer.
+    const avgViewsWith = trimmedMedian(matching.map(r => r.views || 0));
+    const avgViewsWithout = trimmedMedian(notMatching.map(r => r.views || 0));
     const viewsMultiplier = avgViewsWithout > 0 ? avgViewsWith / avgViewsWithout : 1;
 
     const avgCTRWith = matching.reduce((s, r) => s + (r.ctr || 0), 0) / matching.length;
@@ -202,9 +231,13 @@ function analyzeTitleStructures(rows, minSample = 3) {
     const avgRetWith = matching.reduce((s, r) => s + (r.retention || 0), 0) / matching.length;
     const avgRetWithout = notMatching.reduce((s, r) => s + (r.retention || 0), 0) / notMatching.length;
 
-    // Only surface if meaningful difference (>25% in either direction)
+    // Only surface if meaningful difference (>25% in either direction).
+    // And cap credibility: a lift beyond 4x from a single-digit sample is
+    // noise wearing a headline — suppress rather than publish.
     const delta = Math.abs(viewsMultiplier - 1);
     if (delta < 0.25) continue;
+    if (viewsMultiplier > 4 && matching.length < 10) continue;
+    if (viewsMultiplier < 0.25 && matching.length < 10) continue;
 
     const isWin = viewsMultiplier > 1;
 
@@ -350,7 +383,7 @@ export function computeDiagnostics(rows) {
       finding: "Shorts vs Long-form performance comparison",
       confidence: shorts.length >= 10 && longs.length >= 10 ? "High" : "Medium",
       recommendation: `
-📊 INDIVIDUAL FORMAT METRICS
+INDIVIDUAL FORMAT METRICS
 
 SHORTS (${shorts.length} videos):
 • Views/video: ${fmtInt(shortsAvgViews)}
@@ -368,10 +401,10 @@ LONG-FORM (${longs.length} videos):
 • CTR: ${fmtPct(longsAvgCTR)}
 • Impressions: ${fmtInt(longsAvgImpressions)}
 
-🔄 CHANNEL CONTRIBUTION
+CHANNEL CONTRIBUTION
 
 Output Mix:
-• You produce ${formatRatio.toFixed(1)} Shorts for every 1 Long-form video
+• You produce${formatRatio.toFixed(1)} Shorts for every 1 Long-form video
 
 Total Views:
 • ${fmtPct(shortsViewShare)} from Shorts (${fmtInt(shortsTotalViews)} views)
@@ -383,21 +416,15 @@ Total Subscribers:
 
 Total Reach:
 • ${fmtPct(shortsReachShare)} from Shorts (${fmtInt(shortsTotalImpressions)} impressions)
-• ${fmtPct(1 - shortsReachShare)} from Long-form (${fmtInt(longsTotalImpressions)} impressions)
+• ${fmtPct(1 - shortsReachShare)} from Long-form (${fmtInt(longsTotalImpressions)}impressions)
 
-🎯 KEY OBSERVATIONS
+KEY OBSERVATIONS
 
-Discovery: ${shortsAvgImpressions > longsAvgImpressions
-  ? `Shorts get ${Math.abs(((shortsAvgImpressions - longsAvgImpressions) / longsAvgImpressions) * 100).toFixed(0)}% more impressions per video`
-  : `Long-form gets ${Math.abs(((longsAvgImpressions - shortsAvgImpressions) / shortsAvgImpressions) * 100).toFixed(0)}% more impressions per video`}
+Discovery:${comparePerVideo({ unit: 'impressions', verbPlural: 'get', verbSingular: 'gets', shortsVal: shortsAvgImpressions, longsVal: longsAvgImpressions })}
 
-Engagement: ${shortsAvgWatchTime > longsAvgWatchTime
-  ? `Shorts deliver ${Math.abs(((shortsAvgWatchTime - longsAvgWatchTime) / longsAvgWatchTime) * 100).toFixed(0)}% more watch time per video`
-  : `Long-form delivers ${Math.abs(((longsAvgWatchTime - shortsAvgWatchTime) / shortsAvgWatchTime) * 100).toFixed(0)}% more watch time per video`}
+Engagement: ${comparePerVideo({ unit: 'watch time', verbPlural: 'deliver', verbSingular: 'delivers', shortsVal: shortsAvgWatchTime, longsVal: longsAvgWatchTime })}
 
-Subscriber Efficiency: ${shortsAvgSubs > longsAvgSubs
-  ? `Shorts acquire ${Math.abs(((shortsAvgSubs - longsAvgSubs) / longsAvgSubs) * 100).toFixed(0)}% more subscribers per video`
-  : `Long-form acquires ${Math.abs(((longsAvgSubs - shortsAvgSubs) / shortsAvgSubs) * 100).toFixed(0)}% more subscribers per video`}
+Subscriber Efficiency: ${comparePerVideo({ unit: 'subscribers', verbPlural: 'acquire', verbSingular: 'acquires', shortsVal: shortsAvgSubs, longsVal: longsAvgSubs })}
       `.trim(),
       sampleSize: `${shorts.length} Shorts, ${longs.length} long-form`,
       opportunity: 0,
@@ -529,7 +556,7 @@ Subscriber Efficiency: ${shortsAvgSubs > longsAvgSubs
       finding: `${topWin.label} get ${multiplierPct}% more views`,
       delta: `${topWin.matchCount} of ${topWin.totalCount} videos (${((topWin.matchCount / topWin.totalCount) * 100).toFixed(0)}%)`,
       confidence: topWin.matchCount >= 8 ? "High" : "Medium",
-      recommendation: `WINNING PATTERN: ${topWin.label} average ${fmtInt(topWin.avgViewsWith)} views vs ${fmtInt(topWin.avgViewsWithout)} for other titles — a ${multiplierPct}% lift across ${topWin.matchCount} videos.${ctrNote}${retNote} ${topWin.winTip}${otherWinsSummary}`,
+      recommendation: `WINNING PATTERN: ${topWin.label} median ${fmtInt(topWin.avgViewsWith)} views vs ${fmtInt(topWin.avgViewsWithout)} for other titles — a ${multiplierPct}% lift across ${topWin.matchCount} videos.${ctrNote}${retNote} ${topWin.winTip}${otherWinsSummary}`,
       sampleSize: `${topWin.matchCount} matching, ${topWin.totalCount - topWin.matchCount} without`,
       opportunity: Math.max(0, (topWin.avgViewsWith - topWin.avgViewsWithout) * (topWin.totalCount - topWin.matchCount) * 0.3),
       effort: "Low",

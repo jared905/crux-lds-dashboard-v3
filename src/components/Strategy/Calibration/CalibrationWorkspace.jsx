@@ -24,15 +24,15 @@
  * a hypothesis. That's the defensibility layer.
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import {useEffect, useState, useMemo} from 'react';
 import { supabase } from '../../../services/supabaseClient.js';
 import { computeCalibration, CALIBRATION_TIERS, CALIBRATION_DIMENSION_KEYS } from '../../../services/calibrationService.js';
 import {
   saveCalibrationRun, listCalibrationRunsForClient, loadCalibrationRun, archiveCalibrationRun,
 } from '../../../services/calibrationRunsService.js';
 import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
-import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 import NextStepCard from '../shared/NextStepCard.jsx';
+import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 
 const TIER_LABELS = {
   very_likely_outperform: 'Very likely',
@@ -41,10 +41,10 @@ const TIER_LABELS = {
   predicted_under:        'Pred. under',
 };
 const TIER_COLORS = {
-  very_likely_outperform: '#3fa66a',
-  likely_solid:           '#8fbf6c',
-  risky:                  '#E8A82B',
-  predicted_under:        '#cf6b6b',
+  very_likely_outperform: 'var(--pos-text)',
+  likely_solid:           'var(--pos-text)',
+  risky:                  'var(--warn)',
+  predicted_under:        'var(--neg-text)',
 };
 const DIMENSION_LABELS = {
   title_patterns:  'Title patterns',
@@ -96,6 +96,8 @@ export default function CalibrationWorkspace({ activeClient, onNavigate }) {
       }
     })();
     return () => { cancelled = true; };
+  // Bootstrap runs once per client; selectedAuditId is chosen BY this effect.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
   if (!clientId) {
@@ -103,7 +105,7 @@ export default function CalibrationWorkspace({ activeClient, onNavigate }) {
       <div style={emptyShellStyle}>
         <div style={emptyHeaderStyle}>Calibration</div>
         <div style={emptyBodyStyle}>
-          Pick a client from <strong style={{ color: '#cde4d6' }}>Operate → Clients</strong> first.
+          Pick a client from <strong style={{ color: 'var(--text)' }}>Portfolio → Clients</strong> first.
           Calibration compares the scorer's predictions against observed outcomes for a specific
           channel, so it needs a client context.
         </div>
@@ -296,8 +298,8 @@ function RunBar({ audits, selectedAuditId, onAuditChange, running, onRun, splitB
             </option>
           ))}
         </select>
-        <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>
-          Baseline strategy: <strong style={{ color: '#cde4d6' }}>view-rank quartile</strong>{' '}
+        <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 6 }}>
+          Baseline strategy: <strong style={{ color: 'var(--text)' }}>view-rank quartile</strong>{' '}
           (top 25% of the audit's videos by views = "very_likely_outperform" actual;
           bottom 25% = "predicted_under" actual). Phase B will add pipeline strategies for
           clients with outcome data.
@@ -309,10 +311,10 @@ function RunBar({ audits, selectedAuditId, onAuditChange, running, onRun, splitB
             onChange={e => onSplitByFormatChange(e.target.checked)}
             disabled={running}
           />
-          <span style={{ fontSize: 12, color: '#cde4d6' }}>
+          <span style={{ fontSize: 12, color: 'var(--text)' }}>
             Compute per-format metrics (shorts vs long-form)
           </span>
-          <span style={{ fontSize: 11, color: '#666' }}>
+          <span style={{ fontSize: 11, color: 'var(--faint)' }}>
             — quartile derived within each format pool, surfaces format-specific failure modes
           </span>
         </label>
@@ -329,12 +331,14 @@ function RunBar({ audits, selectedAuditId, onAuditChange, running, onRun, splitB
 // ──────────────────────────────────────────────────
 
 function SavedRunsList({ runs, audits, selectedId, onLoad, onArchive }) {
-  if (!runs?.length) return null;
+  // Hook first: it used to sit below the guard, so a render with no runs
+  // skipped it and shifted every later hook by one slot.
   const auditLookup = useMemo(() => {
     const m = {};
-    for (const a of audits) m[a.id] = a;
+    for (const a of audits || []) m[a.id] = a;
     return m;
   }, [audits]);
+  if (!runs?.length) return null;
 
   return (
     <div style={{ marginTop: 18 }}>
@@ -350,7 +354,7 @@ function SavedRunsList({ runs, audits, selectedId, onLoad, onArchive }) {
                   {r.composite_accuracy != null && ` · composite ${(r.composite_accuracy * 100).toFixed(0)}% exact / ${(r.composite_adjacent_accuracy * 100).toFixed(0)}% ±1`}
                   {auditLookup[r.source_audit_id] && ` · audit ${new Date(auditLookup[r.source_audit_id].created_at).toLocaleDateString()}`}
                   {r.format_split_enabled && (
-                    <span style={{ marginLeft: 8, color: '#0A919B', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                    <span style={{ marginLeft: 8, color: 'var(--accent-text)', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.3 }}>
                       · format-split
                     </span>
                   )}
@@ -502,7 +506,7 @@ function CompositeHeadline({ accuracy, adjacent, label, n }) {
     return label ? (
       <div style={composHeadlineStyle}>
         <div style={composLabelStyle}>{label}</div>
-        <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>n/a</div>
+        <div style={{ fontSize: 12, color: 'var(--outline)', marginTop: 6 }}>n/a</div>
       </div>
     ) : null;
   }
@@ -530,14 +534,14 @@ function DimensionRanking({ ranked }) {
         <RankingCard label="Most reliable" dim={best}  tone="strong" />
         {ranked.length > 1 && <RankingCard label="Treat as hypothesis" dim={worst} tone="weak" />}
       </div>
-      <div style={{ fontSize: 11, color: '#666', lineHeight: 1.4 }}>
+      <div style={{ fontSize: 11, color: 'var(--faint)', lineHeight: 1.4 }}>
         Full ranking (exact / ±1-tier):
         {' '}
         {ranked.map((d, i) => (
           <span key={d.key} style={{ marginRight: 12 }}>
-            <strong style={{ color: '#cde4d6' }}>{DIMENSION_LABELS[d.key] || d.key}</strong>{' '}
+            <strong style={{ color: 'var(--text)' }}>{DIMENSION_LABELS[d.key] || d.key}</strong>{' '}
             {(d.accuracy * 100).toFixed(0)}% / {(d.adjacent_accuracy * 100).toFixed(0)}%{' '}
-            <span style={{ color: '#666' }}>(n={d.n})</span>
+            <span style={{ color: 'var(--faint)' }}>(n={d.n})</span>
             {i < ranked.length - 1 ? ' ·' : ''}
           </span>
         ))}
@@ -547,16 +551,16 @@ function DimensionRanking({ ranked }) {
 }
 
 function RankingCard({ label, dim, tone }) {
-  const color = tone === 'strong' ? '#3fa66a' : '#E8A82B';
+  const color = tone === 'strong' ? 'var(--pos-text)' : 'var(--warn)';
   return (
     <div style={rankingCardStyle(color)}>
       <div style={{ fontSize: 10, color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>
         {label}
       </div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: '#e8e2d0', marginTop: 4 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', marginTop: 4 }}>
         {DIMENSION_LABELS[dim.key] || dim.key}
       </div>
-      <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>
+      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
         {(dim.accuracy * 100).toFixed(0)}% exact · {(dim.adjacent_accuracy * 100).toFixed(0)}% within ±1
         {' · '}n={dim.n}
       </div>
@@ -630,7 +634,7 @@ function PerDimensionConfusionGrid({ metrics }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginTop: 12 }}>
         {dims.map(d => (
           <div key={d}>
-            <div style={{ fontSize: 11, color: '#0A919B', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>
+            <div style={{ fontSize: 11, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>
               {DIMENSION_LABELS[d]} · {(metrics[d].accuracy * 100).toFixed(0)}% exact · n={metrics[d].n}
             </div>
             <ConfusionMatrix confusion={metrics[d].confusion} n={metrics[d].n} />
@@ -644,7 +648,7 @@ function PerDimensionConfusionGrid({ metrics }) {
 function MismatchedVideosList({ videos }) {
   if (!videos?.length) {
     return (
-      <div style={{ marginTop: 18, fontSize: 12, color: '#777' }}>
+      <div style={{ marginTop: 18, fontSize: 12, color: 'var(--outline)' }}>
         No mismatches — every scored video matched its actual tier exactly. Unusual; double-check the audit.
       </div>
     );
@@ -652,7 +656,7 @@ function MismatchedVideosList({ videos }) {
   return (
     <div style={{ marginTop: 18 }}>
       <div style={kickerSmallStyle}>Highest-traffic mismatches</div>
-      <div style={{ fontSize: 11, color: '#777', marginBottom: 6 }}>
+      <div style={{ fontSize: 11, color: 'var(--outline)', marginBottom: 6 }}>
         Videos where the composite predicted tier disagreed with the observed view-rank quartile. Sorted by view count desc — these are the calibration cases worth understanding. A "predicted_under" that actually performed top-quartile is teaching the scorer something.
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -665,8 +669,8 @@ function MismatchedVideosList({ videos }) {
 }
 
 function MismatchRow({ v }) {
-  const predColor   = TIER_COLORS[v.predicted_composite_tier] || '#888';
-  const actualColor = TIER_COLORS[v.actual_tier] || '#888';
+  const predColor   = TIER_COLORS[v.predicted_composite_tier] || 'var(--outline)';
+  const actualColor = TIER_COLORS[v.actual_tier] || 'var(--outline)';
   return (
     <div style={mismatchRowStyle}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -681,9 +685,9 @@ function MismatchRow({ v }) {
             Disagreed on: {v.per_dimension_disagreement.map((d, i) => (
               <span key={i} style={{ marginRight: 8 }}>
                 <strong>{DIMENSION_LABELS[d.dim] || d.dim}</strong>{' '}
-                <span style={{ color: TIER_COLORS[d.predicted_tier] || '#888' }}>{TIER_LABELS[d.predicted_tier]}</span>
+                <span style={{ color: TIER_COLORS[d.predicted_tier] || 'var(--outline)' }}>{TIER_LABELS[d.predicted_tier]}</span>
                 {' → '}
-                <span style={{ color: TIER_COLORS[d.actual_tier] || '#888' }}>{TIER_LABELS[d.actual_tier]}</span>
+                <span style={{ color: TIER_COLORS[d.actual_tier] || 'var(--outline)' }}>{TIER_LABELS[d.actual_tier]}</span>
               </span>
             ))}
           </div>
@@ -691,7 +695,7 @@ function MismatchRow({ v }) {
       </div>
       <div style={mismatchTiersStyle}>
         <div style={tinyChipStyle(predColor)}>pred {TIER_LABELS[v.predicted_composite_tier]}</div>
-        <div style={{ color: '#666', fontSize: 11 }}>→</div>
+        <div style={{ color: 'var(--faint)', fontSize: 11 }}>→</div>
         <div style={tinyChipStyle(actualColor)}>actual {TIER_LABELS[v.actual_tier]}</div>
       </div>
     </div>
@@ -711,10 +715,10 @@ function formatViews(n) {
 
 function Note({ tone, children }) {
   const palette = {
-    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: '#0A919B' },
-    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: '#E8A82B' },
-    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: '#ef6b6b' },
-  }[tone] || { bg: '#1a1a1f', border: '#333', fg: '#aaa' };
+    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: 'var(--accent-text)' },
+    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: 'var(--warn)' },
+    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: 'var(--neg-text)' },
+  }[tone] || { bg: 'var(--input-bg)', border: 'var(--outline-variant)', fg: 'var(--muted)' };
   return (
     <div style={{
       padding: '10px 14px', borderRadius: 6,
@@ -731,42 +735,42 @@ function Note({ tone, children }) {
 const workspaceShellStyle = { padding: '20px 24px 60px', maxWidth: 1280, margin: '0 auto' };
 const workspaceHeaderStyle = { marginBottom: 18 };
 const kickerStyle = {
-  fontSize: 11, color: '#0A919B',
+  fontSize: 11, color: 'var(--accent-text)',
   textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 4,
 };
 const kickerSmallStyle = {
-  fontSize: 10, color: '#888',
+  fontSize: 10, color: 'var(--outline)',
   textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, marginBottom: 6,
 };
-const titleStyle = { fontSize: 24, fontWeight: 700, color: '#e8e2d0', margin: 0 };
-const subtitleStyle = { fontSize: 13, color: '#888', marginTop: 6, lineHeight: 1.5, maxWidth: 800 };
+const titleStyle = { fontSize: 24, fontWeight: 700, color: 'var(--ink)', margin: 0 };
+const subtitleStyle = { fontSize: 13, color: 'var(--outline)', marginTop: 6, lineHeight: 1.5, maxWidth: 800 };
 
 const emptyShellStyle = { padding: '60px 24px', maxWidth: 720, margin: '0 auto', textAlign: 'center' };
 const emptyHeaderStyle = {
-  fontSize: 14, color: '#0A919B',
+  fontSize: 14, color: 'var(--accent-text)',
   textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 14,
 };
-const emptyBodyStyle = { fontSize: 14, color: '#888', lineHeight: 1.6 };
+const emptyBodyStyle = { fontSize: 14, color: 'var(--outline)', lineHeight: 1.6 };
 
 const runBarStyle = {
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
-  borderLeft: '2px solid #0A919B',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6, padding: 14,
   display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16,
   marginTop: 14,
 };
 
 const selectStyle = {
-  background: '#1a1a1f', color: '#cde4d6',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'var(--input-bg)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '6px 10px', fontSize: 12, cursor: 'pointer',
 };
 
 const runBtnStyle = (running) => ({
-  background: running ? '#1a1a1f' : '#0A919B',
-  color: running ? '#666' : '#0a0a0e',
-  border: running ? '1px solid #2a2a30' : 'none',
+  background: running ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: running ? 'var(--faint)' : 'var(--bg)',
+  border: running ? '1px solid var(--border)' : 'none',
   padding: '8px 16px', borderRadius: 5,
   fontSize: 13, fontWeight: 700, letterSpacing: 0.3,
   cursor: running ? 'not-allowed' : 'pointer',
@@ -775,32 +779,32 @@ const runBtnStyle = (running) => ({
 
 const listRowStyle = (selected) => ({
   display: 'flex', alignItems: 'center', gap: 10,
-  background: selected ? 'rgba(10,145,155,0.10)' : '#0e0e11',
-  border: `1px solid ${selected ? 'rgba(10,145,155,0.40)' : '#2a2a30'}`,
+  background: selected ? 'rgba(10,145,155,0.10)' : 'var(--card)',
+  border: `1px solid ${selected ? 'rgba(10,145,155,0.40)' : 'var(--outline-variant)'}`,
   borderRadius: 5, padding: 10,
 });
-const listRowDateStyle = { fontSize: 12, fontWeight: 600, color: '#cde4d6' };
-const listRowMetaStyle = { color: '#888', fontWeight: 400 };
+const listRowDateStyle = { fontSize: 12, fontWeight: 600, color: 'var(--text)' };
+const listRowMetaStyle = { color: 'var(--outline)', fontWeight: 400 };
 const smallBtnStyle = {
-  background: '#1a1a1f', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 4,
+  background: 'var(--input-bg)', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: '4px 10px', fontSize: 11, cursor: 'pointer',
 };
 
 const detailShellStyle = {
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 6, padding: 20, marginTop: 18,
 };
 const detailHeaderStyle = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16,
-  borderBottom: '1px solid #2a2a30', paddingBottom: 12, marginBottom: 12,
+  borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12,
 };
-const detailMetaStyle = { fontSize: 12, color: '#888' };
+const detailMetaStyle = { fontSize: 12, color: 'var(--outline)' };
 
 const composHeadlineStyle = {
   textAlign: 'center',
-  background: '#1a1a1f',
+  background: 'var(--input-bg)',
   border: '1px solid rgba(10,145,155,0.30)',
   borderRadius: 6,
   padding: '10px 14px',
@@ -808,24 +812,24 @@ const composHeadlineStyle = {
 };
 
 const viewModeTabStyle = (active, disabled) => ({
-  background: active ? 'rgba(10,145,155,0.18)' : '#1a1a1f',
-  color: active ? '#0A919B' : (disabled ? '#444' : '#888'),
-  border: `1px solid ${active ? 'rgba(10,145,155,0.55)' : '#2a2a30'}`,
+  background: active ? 'rgba(10,145,155,0.18)' : 'var(--input-bg)',
+  color: active ? 'var(--accent-text)' : (disabled ? 'var(--outline-variant)' : 'var(--outline)'),
+  border: `1px solid ${active ? 'rgba(10,145,155,0.55)' : 'var(--outline-variant)'}`,
   borderRadius: 4, padding: '4px 12px',
   fontSize: 11, fontWeight: 700,
   cursor: disabled ? 'not-allowed' : 'pointer',
   letterSpacing: 0.3, textTransform: 'uppercase',
   opacity: disabled ? 0.5 : 1,
 });
-const composScoreStyle = { fontSize: 28, fontWeight: 700, color: '#0A919B', lineHeight: 1 };
-const composLabelStyle = { fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 };
-const composSubStyle = { fontSize: 11, color: '#cde4d6', marginTop: 6 };
+const composScoreStyle = { fontSize: 28, fontWeight: 700, color: 'var(--accent-text)', lineHeight: 1 };
+const composLabelStyle = { fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 };
+const composSubStyle = { fontSize: 11, color: 'var(--text)', marginTop: 6 };
 
 const rankingShellStyle = { marginTop: 14 };
 const rankingCardStyle = (color) => ({
-  background: '#1a1a1f',
-  border: `1px solid ${color}40`,
-  borderLeft: `2px solid ${color}`,
+  background: 'var(--input-bg)',
+  border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
+  borderLeft: '2px solid var(--border)',
   borderRadius: 5,
   padding: 12,
 });
@@ -834,18 +838,18 @@ const confusionTableStyle = {
   width: '100%', borderCollapse: 'separate', borderSpacing: 2, marginTop: 6, fontSize: 11,
 };
 const confusionCornerStyle = {
-  background: '#0e0e11', color: '#666',
+  background: 'var(--card)', color: 'var(--faint)',
   fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5,
   padding: '6px 8px', textAlign: 'left',
 };
 const confusionHeaderCellStyle = (color) => ({
-  background: `${color}22`,
+  background: `color-mix(in srgb, ${color} 13%, transparent)`,
   color,
   fontSize: 10, fontWeight: 700, padding: '6px 4px', textAlign: 'center',
   textTransform: 'uppercase', letterSpacing: 0.3,
 });
 const confusionRowLabelStyle = (color) => ({
-  background: `${color}22`,
+  background: `color-mix(in srgb, ${color} 13%, transparent)`,
   color,
   fontSize: 10, fontWeight: 700, padding: '6px 8px', textAlign: 'left',
   textTransform: 'uppercase', letterSpacing: 0.3,
@@ -853,16 +857,16 @@ const confusionRowLabelStyle = (color) => ({
 const confusionCellStyle = ({ count, pct, isDiagonal }) => {
   // Diagonal cells are correct predictions; tint them green.
   // Off-diagonal cells with high count are concerning; tint amber.
-  let bg = '#0e0e11', color = '#666';
+  let bg = 'var(--bg)', color = 'var(--faint)';
   if (count > 0) {
     if (isDiagonal) {
       const intensity = Math.min(pct / 25, 1);
       bg = `rgba(63, 166, 106, ${0.10 + 0.30 * intensity})`;
-      color = '#cde4d6';
+      color = 'var(--text)';
     } else {
       const intensity = Math.min(pct / 15, 1);
       bg = `rgba(232, 168, 43, ${0.06 + 0.25 * intensity})`;
-      color = '#e8e2d0';
+      color = 'var(--ink)';
     }
   }
   return {
@@ -874,27 +878,27 @@ const confusionCellStyle = ({ count, pct, isDiagonal }) => {
 };
 
 const detailsSummaryStyle = {
-  fontSize: 11, color: '#888', fontWeight: 600,
+  fontSize: 11, color: 'var(--outline)', fontWeight: 600,
   letterSpacing: 0.3, cursor: 'pointer', listStyle: 'none',
 };
 
 const mismatchRowStyle = {
   display: 'flex', gap: 12, alignItems: 'flex-start',
-  background: '#1a1a1f', border: '1px solid #2a2a30',
+  background: 'var(--input-bg)', border: '1px solid var(--border)',
   borderRadius: 5, padding: 10,
 };
 const mismatchTitleStyle = {
-  fontSize: 13, fontWeight: 600, color: '#e8e2d0', marginBottom: 2,
+  fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginBottom: 2,
   display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
 };
-const mismatchMetaStyle = { fontSize: 11, color: '#888' };
-const mismatchDimsStyle = { fontSize: 11, color: '#aaa', marginTop: 4, lineHeight: 1.4 };
+const mismatchMetaStyle = { fontSize: 11, color: 'var(--outline)' };
+const mismatchDimsStyle = { fontSize: 11, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 };
 const mismatchTiersStyle = {
   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
   flexShrink: 0,
 };
 const tinyChipStyle = (color) => ({
-  background: `${color}22`, color, border: `1px solid ${color}55`,
+  background: `color-mix(in srgb, ${color} 13%, transparent)`, color, border: `1px solid color-mix(in srgb, ${color} 33%, transparent)`,
   borderRadius: 4, padding: '2px 8px',
   fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3,
   whiteSpace: 'nowrap',

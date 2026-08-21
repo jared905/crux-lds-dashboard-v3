@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { FileText, Trash2, ExternalLink, Clock, CheckCircle2, Loader2 } from "lucide-react";
+import {useState, useEffect, useCallback} from "react";
+import { CheckCircle2, Clock, ExternalLink, FileText, Loader2, Trash2 } from 'lucide-react';
 
 export default function SavedReports({ activeClient, setPendingDraftToLoad, setTab }) {
   const [drafts, setDrafts] = useState([]);
@@ -72,11 +72,11 @@ export default function SavedReports({ activeClient, setPendingDraftToLoad, setT
 
   const s = {
     page: { padding: "32px 40px", maxWidth: "1100px" },
-    header: { fontSize: "28px", fontWeight: "700", color: "#f8fafc", marginBottom: "8px" },
-    subtitle: { fontSize: "14px", color: "#64748b", marginBottom: "32px" },
+    header: { fontSize: "28px", fontWeight: "700", color: "var(--ink)", marginBottom: "8px" },
+    subtitle: { fontSize: "14px", color: "var(--faint)", marginBottom: "32px" },
     grid: { display: "flex", flexDirection: "column", gap: "16px" },
     card: {
-      background: "#1e293b",
+      background: "var(--card)",
       border: "1px solid #334155",
       borderRadius: "12px",
       padding: "24px",
@@ -94,8 +94,8 @@ export default function SavedReports({ activeClient, setPendingDraftToLoad, setT
       justifyContent: "center",
       flexShrink: 0,
     },
-    name: { fontSize: "16px", fontWeight: "600", color: "#f1f5f9", marginBottom: "6px" },
-    meta: { fontSize: "13px", color: "#64748b", display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "8px" },
+    name: { fontSize: "16px", fontWeight: "600", color: "var(--ink)", marginBottom: "6px" },
+    meta: { fontSize: "13px", color: "var(--faint)", display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "8px" },
     badge: (status) => ({
       display: "inline-flex",
       alignItems: "center",
@@ -105,16 +105,16 @@ export default function SavedReports({ activeClient, setPendingDraftToLoad, setT
       fontSize: "11px",
       fontWeight: "600",
       letterSpacing: "0.3px",
-      background: status === "exported" ? "rgba(16, 185, 129, 0.15)" : "rgba(147, 197, 253, 0.15)",
-      color: status === "exported" ? "#34d399" : "#93c5fd",
+      background: status === "exported" ? "rgba(205, 242, 0, 0.15)" : "rgba(147, 197, 253, 0.15)",
+      color: status === "exported" ? "var(--pos-text)" : "var(--blue-pale)",
     }),
     actions: { display: "flex", gap: "8px", marginLeft: "auto", flexShrink: 0, alignSelf: "center" },
     btn: (variant) => ({
       padding: "8px 16px",
       borderRadius: "8px",
       border: variant === "primary" ? "none" : "1px solid #444",
-      background: variant === "primary" ? "#2563eb" : "transparent",
-      color: variant === "primary" ? "#fff" : variant === "danger" ? "#f87171" : "#94a3b8",
+      background: variant === "primary" ? "var(--blue)" : "transparent",
+      color: variant === "primary" ? "var(--ink)" : variant === "danger" ? "var(--neg-text)" : "var(--muted)",
       fontSize: "13px",
       fontWeight: "500",
       cursor: "pointer",
@@ -126,7 +126,7 @@ export default function SavedReports({ activeClient, setPendingDraftToLoad, setT
     empty: {
       textAlign: "center",
       padding: "80px 40px",
-      color: "#475569",
+      color: "var(--outline-variant)",
     },
   };
 
@@ -150,7 +150,7 @@ export default function SavedReports({ activeClient, setPendingDraftToLoad, setT
       {loading ? (
         <div style={{ ...s.empty, display: "flex", alignItems: "center", justifyContent: "center", gap: "12px" }}>
           <Loader2 size={24} style={{ animation: "spin 1s linear infinite" }} />
-          <span style={{ fontSize: "15px", color: "#64748b" }}>Loading drafts...</span>
+          <span style={{ fontSize: "15px", color: "var(--faint)" }}>Loading drafts...</span>
         </div>
       ) : drafts.length === 0 ? (
         <div style={s.empty}>
@@ -163,15 +163,15 @@ export default function SavedReports({ activeClient, setPendingDraftToLoad, setT
           {drafts.map((draft) => {
             const recCount = (draft.opportunities || []).length;
             const iconBg = draft.status === "exported"
-              ? "linear-gradient(135deg, #10b981, #059669)"
-              : "linear-gradient(135deg, #3b82f6, #2563eb)";
+              ? "linear-gradient(135deg, #CDF200, #059669)"
+              : "linear-gradient(135deg, #00D1FF, #00b0d8)";
 
             return (
               <div
                 key={draft.id}
                 style={s.card}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#475569"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#334155"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--outline-variant)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--outline-variant)"; }}
               >
                 <div style={{ ...s.icon, background: iconBg }}>
                   {draft.status === "exported" ? <CheckCircle2 size={22} color="#fff" /> : <FileText size={22} color="#fff" />}
@@ -190,11 +190,11 @@ export default function SavedReports({ activeClient, setPendingDraftToLoad, setT
                     <span style={s.badge(draft.status)}>
                       {draft.status === "exported" ? <><CheckCircle2 size={11} /> Exported</> : <><Clock size={11} /> Draft</>}
                     </span>
-                    <span style={{ fontSize: "12px", color: "#475569" }}>
+                    <span style={{ fontSize: "12px", color: "var(--outline-variant)" }}>
                       Updated {fmtDate(draft.updatedAt)}
                     </span>
                     {draft.lastExportedAt && (
-                      <span style={{ fontSize: "12px", color: "#475569" }}>
+                      <span style={{ fontSize: "12px", color: "var(--outline-variant)" }}>
                         Exported {fmtDate(draft.lastExportedAt)}
                       </span>
                     )}

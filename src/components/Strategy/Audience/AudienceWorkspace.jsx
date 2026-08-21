@@ -17,22 +17,21 @@
  *   6. Export — client-facing PDF deliverable
  */
 
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import {
   Users, Sparkles, Loader, Edit2, Save, X as XIcon, ChevronDown, ChevronRight, Info,
 } from 'lucide-react';
 import {
   synthesizeAudiencePersona,
-  loadAudiencePersona,
   updateAudiencePersonaInline,
 } from '../../../services/audiencePersonaService.js';
 import { supabase } from '../../../services/supabaseClient.js';
-import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
-import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
-import NextStepCard from '../shared/NextStepCard.jsx';
-import ConceptSeedsSection from './ConceptSeedsSection.jsx';
-import RecurringFormatsSection from './RecurringFormatsSection.jsx';
 import CompetitorCommentsSection from './CompetitorCommentsSection.jsx';
+import ConceptSeedsSection from './ConceptSeedsSection.jsx';
+import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
+import NextStepCard from '../shared/NextStepCard.jsx';
+import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
+import RecurringFormatsSection from './RecurringFormatsSection.jsx';
 
 const FIELD_META = [
   { key: 'pain_points',         label: 'Pain points',         description: 'Specific anxieties, decisions, or frustrations the audience is wrestling with.' },
@@ -86,7 +85,7 @@ export default function AudienceWorkspace({ activeClient, onNavigate }) {
       <div style={emptyShellStyle}>
         <div style={emptyHeaderStyle}>Audience</div>
         <div style={emptyBodyStyle}>
-          Pick a client from <strong style={{ color: '#cde4d6' }}>Operate → Clients</strong> first.
+          Pick a client from <strong style={{ color: 'var(--text)' }}>Portfolio → Clients</strong> first.
         </div>
       </div>
     );
@@ -217,7 +216,7 @@ export default function AudienceWorkspace({ activeClient, onNavigate }) {
 // Action bar
 // ──────────────────────────────────────────────────
 
-function ActionBar({ hasPersona, synthesizing, synthesizedAt, promptVersion, onSynthesize, signalCounts }) {
+function ActionBar({ hasPersona, synthesizing, synthesizedAt, promptVersion, onSynthesize, _signalCounts }) {
   const ageDays = synthesizedAt
     ? Math.round((Date.now() - new Date(synthesizedAt).getTime()) / 86_400_000)
     : null;
@@ -226,7 +225,7 @@ function ActionBar({ hasPersona, synthesizing, synthesizedAt, promptVersion, onS
     <div style={actionBarStyle}>
       <div style={{ flex: 1 }}>
         <div style={kickerSmallStyle}>{hasPersona ? 'Current persona' : 'No persona yet'}</div>
-        <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
           {hasPersona ? (
             <>
               Synthesized {synthesizedAt ? new Date(synthesizedAt).toLocaleString() : 'never'}
@@ -252,8 +251,8 @@ function SourceProvenance({ persona, signalCounts }) {
   const sources = persona.synthesis_sources || [];
   return (
     <div style={provenanceStyle}>
-      <Info size={12} style={{ color: '#0A919B' }} />
-      <span style={{ fontSize: 11, color: '#888' }}>
+      <Info size={12} style={{ color: 'var(--accent-text)' }} />
+      <span style={{ fontSize: 11, color: 'var(--outline)' }}>
         Synthesized from:{' '}
         {sources.length
           ? sources.map(s => <span key={s} style={sourceChipStyle}>{s.replace(/_/g, ' ')}</span>)
@@ -309,7 +308,7 @@ function PersonaField({ meta, items, evidence, expanded, onToggleEvidence, editi
           </div>
         </div>
       ) : items.length === 0 ? (
-        <div style={{ fontSize: 12, color: '#666', fontStyle: 'italic', padding: '6px 0' }}>
+        <div style={{ fontSize: 12, color: 'var(--faint)', fontStyle: 'italic', padding: '6px 0' }}>
           (empty)
         </div>
       ) : (
@@ -330,9 +329,9 @@ function PersonaField({ meta, items, evidence, expanded, onToggleEvidence, editi
             <div style={evidenceListStyle}>
               {evidence.map((e, i) => (
                 <div key={i} style={evidenceRowStyle}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#cde4d6' }}>{e.claim}</div>
-                  <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
-                    <strong style={{ color: '#0A919B', textTransform: 'uppercase', fontSize: 9, letterSpacing: 0.5 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>{e.claim}</div>
+                  <div style={{ fontSize: 11, color: 'var(--outline)', marginTop: 2 }}>
+                    <strong style={{ color: 'var(--accent-text)', textTransform: 'uppercase', fontSize: 9, letterSpacing: 0.5 }}>
                       {e.source}
                     </strong>{' · '}
                     <em>{e.value}</em>
@@ -354,11 +353,11 @@ function PersonaField({ meta, items, evidence, expanded, onToggleEvidence, editi
 function EmptyPersonaState({ onSynthesize, synthesizing }) {
   return (
     <div style={emptyPersonaStyle}>
-      <Users size={32} style={{ color: '#0A919B', marginBottom: 12 }} />
-      <div style={{ fontSize: 14, fontWeight: 600, color: '#cde4d6', marginBottom: 6 }}>
+      <Users size={32} style={{ color: 'var(--accent-text)', marginBottom: 12 }} />
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>
         No audience persona yet
       </div>
-      <div style={{ fontSize: 12, color: '#888', marginBottom: 16, maxWidth: 520, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12, color: 'var(--outline)', marginBottom: 16, maxWidth: 520, lineHeight: 1.5 }}>
         Once synthesized, the persona lives on the Spine and is inherited by every LLM-driven
         artifact — brief generator, alternative titles, strategic-read, executive memo. Sharper
         outputs, no new clicks.
@@ -376,10 +375,10 @@ function EmptyPersonaState({ onSynthesize, synthesizing }) {
 
 function Note({ tone, children }) {
   const palette = {
-    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: '#0A919B' },
-    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: '#E8A82B' },
-    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: '#ef6b6b' },
-  }[tone] || { bg: '#1a1a1f', border: '#333', fg: '#aaa' };
+    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: 'var(--accent-text)' },
+    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: 'var(--warn)' },
+    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: 'var(--neg-text)' },
+  }[tone] || { bg: 'var(--input-bg)', border: 'var(--outline-variant)', fg: 'var(--muted)' };
   return (
     <div style={{
       padding: '10px 14px', borderRadius: 6,
@@ -396,35 +395,35 @@ function Note({ tone, children }) {
 const shellStyle = { padding: '20px 24px 60px', maxWidth: 1280, margin: '0 auto' };
 const headerStyle = { marginBottom: 18 };
 const kickerStyle = {
-  fontSize: 11, color: '#0A919B',
+  fontSize: 11, color: 'var(--accent-text)',
   textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 4,
 };
 const kickerSmallStyle = {
-  fontSize: 10, color: '#888',
+  fontSize: 10, color: 'var(--outline)',
   textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600,
 };
-const titleStyle = { fontSize: 24, fontWeight: 700, color: '#e8e2d0', margin: 0 };
-const subtitleStyle = { fontSize: 13, color: '#888', marginTop: 6, lineHeight: 1.5, maxWidth: 800 };
+const titleStyle = { fontSize: 24, fontWeight: 700, color: 'var(--ink)', margin: 0 };
+const subtitleStyle = { fontSize: 13, color: 'var(--outline)', marginTop: 6, lineHeight: 1.5, maxWidth: 800 };
 
 const emptyShellStyle = { padding: '60px 24px', maxWidth: 720, margin: '0 auto', textAlign: 'center' };
 const emptyHeaderStyle = {
-  fontSize: 14, color: '#0A919B',
+  fontSize: 14, color: 'var(--accent-text)',
   textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 14,
 };
-const emptyBodyStyle = { fontSize: 14, color: '#888', lineHeight: 1.6 };
+const emptyBodyStyle = { fontSize: 14, color: 'var(--outline)', lineHeight: 1.6 };
 
 const actionBarStyle = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
-  borderLeft: '2px solid #0A919B',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6, padding: 14,
   marginTop: 14,
 };
 const primaryBtnStyle = (busy) => ({
-  background: busy ? '#1a1a1f' : '#0A919B',
-  color: busy ? '#666' : '#0a0a0e',
-  border: busy ? '1px solid #2a2a30' : 'none',
+  background: busy ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: busy ? 'var(--faint)' : 'var(--bg)',
+  border: busy ? '1px solid var(--border)' : 'none',
   borderRadius: 5,
   padding: '8px 16px',
   fontSize: 13, fontWeight: 700, letterSpacing: 0.3,
@@ -443,7 +442,7 @@ const provenanceStyle = {
 const sourceChipStyle = {
   display: 'inline-block',
   background: 'rgba(10,145,155,0.10)',
-  color: '#0A919B',
+  color: 'var(--accent-text)',
   borderRadius: 3, padding: '0 6px',
   fontSize: 10, fontWeight: 700,
   margin: '0 2px',
@@ -453,15 +452,15 @@ const sourceChipStyle = {
 const emptyPersonaStyle = {
   display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
   padding: 40, marginTop: 20,
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 8,
 };
 
 const fieldsListStyle = { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 18 };
 const fieldCardStyle = {
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 6, padding: 14,
 };
 const fieldHeaderStyle = {
@@ -469,39 +468,39 @@ const fieldHeaderStyle = {
   marginBottom: 8,
 };
 const fieldLabelStyle = {
-  fontSize: 11, color: '#0A919B', fontWeight: 700,
+  fontSize: 11, color: 'var(--accent-text)', fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: 1,
 };
-const fieldDescStyle = { fontSize: 11, color: '#666', marginTop: 2, lineHeight: 1.45 };
+const fieldDescStyle = { fontSize: 11, color: 'var(--faint)', marginTop: 2, lineHeight: 1.45 };
 const editBtnStyle = {
-  background: 'transparent', color: '#666',
-  border: '1px solid #2a2a30', borderRadius: 4,
+  background: 'transparent', color: 'var(--faint)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: 4, cursor: 'pointer',
 };
 const fieldListStyle = { margin: 0, paddingLeft: 22, listStyle: 'disc' };
-const fieldListItemStyle = { fontSize: 13, color: '#e8e2d0', lineHeight: 1.55, marginBottom: 4 };
+const fieldListItemStyle = { fontSize: 13, color: 'var(--ink)', lineHeight: 1.55, marginBottom: 4 };
 const editTextareaStyle = {
   width: '100%',
-  background: '#1a1a1f', color: '#e8e2d0',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'var(--input-bg)', color: 'var(--ink)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '8px 10px', fontSize: 13,
   fontFamily: 'inherit', resize: 'vertical',
 };
 const ghostBtnStyle = {
-  background: 'transparent', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 4,
+  background: 'transparent', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: '4px 10px', fontSize: 11, cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4,
 };
 const saveBtnStyle = {
-  background: '#0A919B', color: '#0a0a0e',
+  background: 'var(--accent-text)', color: 'var(--bg)',
   border: 'none', borderRadius: 4,
   padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4,
 };
 
 const evidenceToggleStyle = {
-  background: 'transparent', color: '#666',
+  background: 'transparent', color: 'var(--faint)',
   border: 'none', cursor: 'pointer',
   fontSize: 10, fontWeight: 600,
   textTransform: 'uppercase', letterSpacing: 0.5,
@@ -515,7 +514,7 @@ const evidenceListStyle = {
 };
 const evidenceRowStyle = {
   padding: '6px 10px',
-  background: '#1a1a1f',
-  border: '1px solid #2a2a30',
+  background: 'var(--input-bg)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
 };

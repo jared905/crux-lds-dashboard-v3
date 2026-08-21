@@ -482,7 +482,7 @@ const BRIEFING_PROMPT_VERSION = 'v15-structured-lead-points-action';
 
 export async function loadOrGenerateBriefing(diagnostic) {
   if (!diagnostic || !supabase) return null;
-  const { client, mode, workingPatterns, workingBuckets, workingSlots, workingSlotsByFormat, gaps, cohort, archetypeBreakdown, peerStats } = diagnostic;
+  const { client, mode, workingPatterns, workingBuckets, workingSlots, workingSlotsByFormat, gaps, archetypeBreakdown } = diagnostic;
 
   // Load spine context once — used both for cache invalidation (a spine
   // edit must flush the cached briefing) and for prompt injection below.

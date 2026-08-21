@@ -39,7 +39,7 @@ export function parseDateSafe(v){
   if(!Number.isNaN(d1.getTime())) return d1;
 
   // 2) "MM/DD/YYYY" or "MM-DD-YYYY"
-  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  let m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if(m){
     const mm = Number(m[1]), dd = Number(m[2]), yy = Number(m[3]);
     const d2 = new Date(Date.UTC(yy, mm - 1, dd));

@@ -7,10 +7,10 @@
  *
  * Only accessible for prospect audits (audit_type === 'prospect').
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import {useState, useEffect, useCallback} from 'react';
 import {
-  X, Save, FileText, Loader, Sparkles, ChevronDown, ChevronUp,
-  Eye, EyeOff, Plus, Trash2, Download,
+  X, Save, FileText, Loader, Sparkles,
+  Eye, EyeOff, Download,
 } from 'lucide-react';
 
 // ─── Section Editor Components ─────────────────────────────────────────
@@ -35,7 +35,7 @@ function SectionHeader({ title, subtitle, included, onToggle, color = '#3b82f6' 
         title={included ? 'Exclude from report' : 'Include in report'}
         style={{
           background: 'transparent', border: '1px solid #444', borderRadius: '6px',
-          padding: '4px 8px', cursor: 'pointer', color: included ? '#10b981' : '#666',
+          padding: '4px 8px', cursor: 'pointer', color: included ? "var(--pos)" : '#666',
           display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px',
         }}
       >
@@ -60,8 +60,8 @@ function EditableTextarea({ value, onChange, placeholder, rows = 3, label }) {
         placeholder={placeholder}
         rows={rows}
         style={{
-          width: '100%', padding: '10px 12px', background: '#252525',
-          border: '1px solid #444', borderRadius: '6px', color: '#E0E0E0',
+          width: '100%', padding: '10px 12px', background: "var(--input-bg)",
+          border: '1px solid #444', borderRadius: '6px', color: "var(--text)",
           fontSize: '13px', lineHeight: '1.6', resize: 'vertical', outline: 'none',
           fontFamily: 'inherit',
         }}
@@ -83,8 +83,8 @@ function EditableInput({ value, onChange, placeholder, label }) {
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         style={{
-          width: '100%', padding: '8px 10px', background: '#252525',
-          border: '1px solid #444', borderRadius: '6px', color: '#E0E0E0',
+          width: '100%', padding: '8px 10px', background: "var(--input-bg)",
+          border: '1px solid #444', borderRadius: '6px', color: "var(--text)",
           fontSize: '12px', outline: 'none',
         }}
       />
@@ -98,7 +98,7 @@ function ItemToggle({ included, onToggle }) {
       onClick={onToggle}
       style={{
         background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
-        color: included ? '#10b981' : '#555', flexShrink: 0,
+        color: included ? "var(--pos)" : '#555', flexShrink: 0,
       }}
     >
       {included ? <Eye size={14} /> : <EyeOff size={14} />}
@@ -291,7 +291,7 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
         const includedBenchmarks = (s.competitive_window.benchmarks || []).filter(b => b.included);
         const benchHtml = includedBenchmarks.map(b => {
           const typeLabel = b.benchmark_type === 'aspirational' ? 'Aspirational Benchmark' : b.benchmark_type === 'cautionary' ? 'Cautionary Example' : 'Direct Competitor';
-          const typeColor = b.benchmark_type === 'aspirational' ? '#8b5cf6' : b.benchmark_type === 'cautionary' ? '#ef4444' : '#3b82f6';
+          const typeColor = b.benchmark_type === 'aspirational' ? '#8b5cf6' : b.benchmark_type === 'cautionary' ? '#ef4444' : 'var(--blue)';
           return `
             <div style="padding:16px;background:#f5f5f5;border-radius:8px;margin-bottom:10px;border-left:4px solid ${typeColor};">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -384,7 +384,7 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
         try {
           const { updateDraftStatus } = await import('../../services/reportDraftService');
           await updateDraftStatus(draftId, 'exported', new Date().toISOString());
-        } catch (e) { /* non-fatal */ }
+        } catch { /* non-fatal */ }
       }
 
     } catch (err) {
@@ -454,18 +454,18 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
       }}>
         {/* Header bar */}
         <div style={{
-          background: '#1E1E1E', border: '1px solid #333', borderRadius: '10px 10px 0 0',
+          background: "var(--card)", border: '1px solid #333', borderRadius: '10px 10px 0 0',
           padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px',
           position: 'sticky', top: 0, zIndex: 10,
         }}>
-          <FileText size={20} style={{ color: '#3b82f6' }} />
+          <FileText size={20} style={{ color: 'var(--blue)' }} />
           <div style={{ flex: 1 }}>
             <input
               value={draftName}
               onChange={e => setDraftName(e.target.value)}
               placeholder="Report name"
               style={{
-                background: 'transparent', border: 'none', color: '#fff',
+                background: 'transparent', border: 'none', color: "var(--ink)",
                 fontSize: '16px', fontWeight: '700', outline: 'none', width: '100%',
               }}
             />
@@ -492,9 +492,9 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
             disabled={saving}
             style={{
               display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '8px 14px', background: '#10b981',
+              padding: '8px 14px', background: "var(--pos)",
               border: 'none', borderRadius: '6px',
-              color: '#fff', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+              color: "var(--ink)", fontSize: '12px', fontWeight: '600', cursor: 'pointer',
               opacity: saving ? 0.5 : 1,
             }}
           >
@@ -508,7 +508,7 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
               display: 'flex', alignItems: 'center', gap: '6px',
               padding: '8px 14px', background: 'rgba(59,130,246,0.15)',
               border: '1px solid #3b82f6', borderRadius: '6px',
-              color: '#60a5fa', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+              color: 'var(--accent-text)', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
               opacity: exporting ? 0.5 : 1,
             }}
           >
@@ -571,10 +571,10 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
               {sections.channel_reality.metrics.map((m, i) => (
-                <div key={m.key} style={{ background: '#252525', borderRadius: '6px', padding: '10px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                <div key={m.key} style={{ background: "var(--input-bg)", borderRadius: '6px', padding: '10px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: '10px', color: '#888', marginBottom: '2px' }}>{m.label}</div>
-                    <div style={{ fontSize: '16px', fontWeight: '700', color: '#fff' }}>{m.value}</div>
+                    <div style={{ fontSize: '16px', fontWeight: '700', color: "var(--ink)" }}>{m.value}</div>
                     {m.benchmark_value && <div style={{ fontSize: '10px', color: '#666' }}>{m.benchmark_value}</div>}
                   </div>
                   <div style={{ flex: 2 }}>
@@ -616,8 +616,8 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
             <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px' }}>
               Alignment: <span style={{
                 fontWeight: '700',
-                color: sections.alignment.alignment_scenario === 'alignment' ? '#10b981'
-                  : sections.alignment.alignment_scenario === 'tension' ? '#ef4444' : '#f59e0b',
+                color: sections.alignment.alignment_scenario === 'alignment' ? "var(--pos)"
+                  : sections.alignment.alignment_scenario === 'tension' ? "var(--neg)" : "var(--warn)",
               }}>
                 {sections.alignment.alignment_scenario === 'alignment' ? 'Aligned'
                   : sections.alignment.alignment_scenario === 'tension' ? 'Tension' : 'Partial Overlap'}
@@ -635,10 +635,9 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
             <div style={{ fontSize: '11px', color: '#888', marginTop: '12px', marginBottom: '6px' }}>Content Gaps (select up to 3 for the report)</div>
             {sections.alignment.gaps.map((gap, i) => (
               <div key={gap.id} style={{
-                background: '#252525', borderRadius: '6px', padding: '10px', marginBottom: '6px',
+                background: "var(--input-bg)", borderRadius: '6px', padding: '10px', marginBottom: '6px',
                 opacity: gap.included ? 1 : 0.5,
-                borderLeft: `3px solid ${gap.included ? '#10b981' : '#444'}`,
-              }}>
+                              }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                   <ItemToggle included={gap.included} onToggle={() => updateSectionItem('alignment', 'gaps', i, 'included', !gap.included)} />
                   <div style={{ flex: 1 }}>
@@ -663,13 +662,13 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
           >
             {sections.competitive_window.benchmarks.map((b, i) => (
               <div key={i} style={{
-                background: '#252525', borderRadius: '6px', padding: '12px', marginBottom: '8px',
+                background: "var(--input-bg)", borderRadius: '6px', padding: '12px', marginBottom: '8px',
                 opacity: b.included ? 1 : 0.5,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                   <ItemToggle included={b.included} onToggle={() => updateSectionItem('competitive_window', 'benchmarks', i, 'included', !b.included)} />
                   {b.channel_thumbnail_url && <img src={b.channel_thumbnail_url} alt="" style={{ width: 24, height: 24, borderRadius: '50%' }} />}
-                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#fff' }}>{b.channel_name}</span>
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: "var(--ink)" }}>{b.channel_name}</span>
                   <span style={{ fontSize: '10px', color: '#888' }}>{(b.subscriber_count || 0).toLocaleString()} subs</span>
                   <select
                     value={b.benchmark_type}
@@ -707,10 +706,9 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
           >
             {sections.what_we_build.show_concepts.map((show, i) => (
               <div key={i} style={{
-                background: '#252525', borderRadius: '8px', padding: '14px', marginBottom: '10px',
+                background: "var(--input-bg)", borderRadius: '8px', padding: '14px', marginBottom: '10px',
                 opacity: show.included ? 1 : 0.5,
-                borderLeft: `3px solid ${show.included ? '#ec4899' : '#444'}`,
-              }}>
+                              }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                   <ItemToggle included={show.included} onToggle={() => updateSectionItem('what_we_build', 'show_concepts', i, 'included', !show.included)} />
                   <EditableInput value={show.show_name} onChange={v => updateSectionItem('what_we_build', 'show_concepts', i, 'show_name', v)} placeholder="Show name..." />
@@ -747,7 +745,7 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
             {sections.path_forward.phases.map((phase, i) => (
               <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '6px', alignItems: 'flex-start' }}>
                 <div style={{
-                  background: '#f97316', color: '#fff', fontSize: '10px', fontWeight: '700',
+                  background: "var(--warn-deep)", color: "var(--ink)", fontSize: '10px', fontWeight: '700',
                   padding: '4px 8px', borderRadius: '4px', flexShrink: 0, marginTop: '6px',
                 }}>
                   {phase.label}

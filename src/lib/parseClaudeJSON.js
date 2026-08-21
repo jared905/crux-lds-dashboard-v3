@@ -20,7 +20,7 @@ export function parseClaudeJSON(rawText, fallback = null) {
   // Try direct parse first
   try {
     return JSON.parse(text);
-  } catch (_firstErr) {
+  } catch {
     // Fall through to extraction attempts
   }
 
@@ -29,7 +29,7 @@ export function parseClaudeJSON(rawText, fallback = null) {
   if (fenceMatch) {
     try {
       return JSON.parse(fenceMatch[1].trim());
-    } catch (_) { /* fall through */ }
+    } catch { /* fall through */ }
   }
 
   // Try extracting the first { ... } or [ ... ] block
@@ -52,7 +52,7 @@ export function parseClaudeJSON(rawText, fallback = null) {
     if (end !== -1) {
       try {
         return JSON.parse(text.slice(start, end + 1));
-      } catch (_) { /* fall through */ }
+      } catch { /* fall through */ }
     }
   }
 

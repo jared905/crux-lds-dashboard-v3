@@ -1,31 +1,161 @@
 :root {
-  /* --- INDUSTRIAL-PREMIUM PALETTE --- */
+  /* --- AZURE KINETIC PALETTE (DESIGN.md, 2026-08-20) ---
+     Deep blue-charcoal surfaces; electric blue primary; cyber lime for
+     growth; impact red for declines. Barlow Condensed stays the display
+     voice (client names, YouTube titles) by explicit instruction —
+     everything else follows the system. */
 
-  /* BACKGROUNDS */
-  --bg: #181817;        /* Warm charcoal canvas */
-  --card: #1E1E1E;      /* Surface - slightly lighter for cards */
-  --input-bg: #252525;  /* Inputs/Search bars */
+  /* BACKGROUNDS — the tonal surface stack */
+  --bg: #0e1417;        /* infinite canvas (background) */
+  --card: #161d1f;      /* surface-container-low */
+  --input-bg: #1a2123;  /* surface-container */
+  --surface-high: #242b2e;    /* surface-container-high: hovers, raised chips */
+  --surface-highest: #2f3639; /* surface-container-highest: pressed, active */
+  --outline: #859399;         /* structural outline / tertiary text */
+  --outline-variant: #3c494e; /* stronger hairline where one is needed */
 
   /* TEXT */
-  --text: #E0E0E0;      /* Primary text */
-  --muted: #9E9E9E;     /* Secondary text */
+  --text: #dde3e7;      /* on-surface */
+  --muted: #a9b8be;     /* between outline and on-surface-variant — secondary */
+  /* Headline ink. The old warm cream belonged to the warm charcoal
+     canvas; on the cool Azure surfaces it read as a stain. Cool paper
+     white carries the High-Contrast Bold direction instead. */
+  --ink: #f4f8fa;
 
   /* ACCENTS & BORDERS */
-  --border: #2A2A2A;    /* Subtle dividers */
-  --blue: #2962FF;      /* Electric Blue - Primary Action */
-  --blue-dim: rgba(41, 98, 255, 0.15);
+  --border: rgba(255, 255, 255, 0.08);  /* hairline strokes per system */
+  --blue: #00D1FF;      /* Energetic Blue - primary */
+  --blue-dim: rgba(0, 209, 255, 0.14);
 
   /* DYNAMIC ACCENT (overridden per-client by ThemeContext) */
-  --accent: #2962FF;
-  --accent-dim: rgba(41, 98, 255, 0.15);
-  --accent-glow: rgba(41, 98, 255, 0.3);
-  --accent-text: #60a5fa;
-  --accent-border: rgba(41, 98, 255, 0.4);
+  --accent: #00D1FF;
+  --accent-dim: rgba(0, 209, 255, 0.14);
+  --accent-glow: rgba(0, 209, 255, 0.3);
+  /* Alias. HomePage's .feature-card:hover reads var(--glow), which was never
+     defined anywhere — an unresolved var() invalidates the whole declaration,
+     so that hover shadow silently did nothing. */
+  --glow: var(--accent-glow);
+  --accent-text: #4cd6ff;
+  --accent-border: rgba(0, 209, 255, 0.4);
 
-  /* STATUS COLORS */
-  --green: #00C853;
+  /* TERTIARY (DESIGN.md peach) — two jobs only: the pre-launch client
+     identity (warm "not live yet" against the cool live-data blue) and
+     packaging/CTR metrics. Not a status colour — declines stay red. */
+  --tert: #ffab9d;
+  --tert-text: #ffd2cb;
+  --tert-bg: rgba(255, 171, 157, 0.12);
+  --tert-border: rgba(255, 171, 157, 0.38);
+
+  /* FORMAT IDENTITY — the two content formats, everywhere they meet:
+     Shorts = cyber lime, Long-form = electric blue (the system's own
+     dual-series pairing; the pre-system orange is retired). */
+  --fmt-shorts: #CDF200;
+  --fmt-long: #00D1FF;
+
+  /* LABEL FONT — all-caps technical labels (Space Grotesk per system) */
+  --font-label: 'Space Grotesk', 'Inter', sans-serif;
+
+  /* STATUS COLORS (legacy aliases — prefer the scales below) */
+  --green: #CDF200;
   --amber: #FFAB00;
-  --red: #CF6679;
+  --red: #FF5540;
+
+  /* ── SEMANTIC STATUS ──────────────────────────────────────────────────
+     One hue per meaning. Live code currently carries 15 distinct greens,
+     22 reds and 14 oranges, so "green" means nothing consistent — a reader
+     can't learn the colour language because there isn't one.
+
+     These are the values already dominant in the codebase (#22c55e, #ef4444,
+     #f59e0b), promoted to tokens rather than invented, so consolidating onto
+     them is close to a no-op visually while making the meaning single.
+     Prefer these over --green/--amber/--red above, which are the older,
+     more saturated set still used by a few surfaces.
+
+     Each status is a three-step scale, not one value. On a dark canvas the
+     lighter variants exist for a reason — they carry text contrast — so
+     flattening 15 greens to a single green would have made status text
+     harder to read, not more consistent. Steps were assigned by measured
+     lightness (L*), so every colour keeps its visual role and only the hue
+     normalises. Largest shift across the whole migration: ΔL 8.
+
+       -deep  fills, borders, dense chart marks
+       (base) icons, solid fills, bars
+       -text  text and thin strokes on a dark surface  */
+  --pos-deep:   #b3d400;
+  --pos:        #CDF200;
+  --pos-text:   #dcff45;
+  --pos-bg:     rgba(205, 242, 0, 0.10);
+  --pos-border: rgba(205, 242, 0, 0.35);
+
+  --warn-deep:   #d97706;
+  --warn:        #f59e0b;
+  --warn-text:   #fbbf24;
+  --warn-bg:     rgba(245, 158, 11, 0.12);
+  --warn-border: rgba(245, 158, 11, 0.35);
+
+  --neg-deep:   #d63e2c;
+  --neg:        #FF5540;
+  --neg-text:   #ff8375;
+  --neg-bg:     rgba(255, 85, 64, 0.12);
+  --neg-border: rgba(255, 85, 64, 0.35);
+
+  --faint:      #67747b;   /* quaternary text — captions, timestamps */
+  --on-accent:  #00232e;   /* ink on electric-blue fills (buttons, chips) */
+  --on-tert:    #2b0a05;   /* ink on peach fills */
+  --yt-red:     #ff0000;   /* YouTube brand mark only */
+  --blue-deep:  #0090c8;   /* mid step of the azure ramp */
+  --blue-pale:  #b7eaff;   /* light end of the azure ramp */
+  --neutral:    var(--muted);
+  --neutral-bg: rgba(158, 158, 158, 0.12);
+
+  /* ── SPACE ── 4px base. If a value isn't here, it shouldn't be used.
+     Live code currently uses 162 distinct padding values. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-12: 48px;
+  --s-16: 64px;
+
+  /* ── TYPE ── five sizes. Live code uses 21, six of them inside a 7px
+     band, which is nudging rather than a scale. */
+  --t-micro:   11px;   /* uppercase labels, +0.06em tracking, weight 500 */
+  --t-body:    14px;
+  --t-lead:    16px;
+  --t-title:   20px;
+  --t-display: 32px;
+  --lh-tight: 1.2;
+  --lh-body:  1.55;
+  /* Weight carries hierarchy, not size. 700+ is reserved for --t-display. */
+  --w-reg:  400;
+  --w-med:  500;
+  --w-semi: 600;
+
+  /* ── RADIUS ── DESIGN.md shape language: generous, friendly curves
+     against the technical palette. 16 = buttons/inputs, 24 = cards. */
+  --r-sm: 8px;
+  --r-md: 16px;
+  --r-lg: 24px;
+  --r-full: 999px;
+
+  /* ── ELEVATION ── three levels, no colour, no glow.
+     Cards get a border, not a shadow; shadows mean "floating above". */
+  --e-1: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --e-2: 0 8px 24px rgba(0, 0, 0, 0.40);
+  --e-3: 0 24px 48px rgba(0, 0, 0, 0.50);
+
+  /* ── TRACKING ── two values, one unit system. Labels were shipping
+     letter-spacing in both px and em across 21 distinct values. */
+  --track-label:   0.06em;   /* uppercase micro labels */
+  --track-display: -0.01em;  /* display headings and big numerals */
+
+  /* ── MOTION ── two durations, one curve. Animate opacity and colour;
+     avoid transform on hover and anything infinite. */
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
 
   /* UTILITIES */
   --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
@@ -50,7 +180,12 @@ body {
   position: relative;
 }
 
-/* Earth at night background */
+/* Page ground — materiality, not colour. The Earth photo read as
+   stock; the melted-colour aurora that replaced it read as AI. What
+   survives is texture: a neutral light falloff from above the fold
+   (stage light on matte black, no hue) with film grain riding on it
+   (.ambient-bg::after). Character comes from the content — type,
+   thumbnails, numbers — not from a wash behind it. */
 body::before {
   content: '';
   position: absolute;
@@ -58,11 +193,9 @@ body::before {
   left: 0;
   width: 100%;
   height: 100vh;
-  background-image: url('/bg-satellite.jpg');
-  background-size: cover;
-  background-position: center center;
-  background-repeat: no-repeat;
-  opacity: 0.7;
+  background:
+    radial-gradient(90% 55% at 50% -12%, rgba(242, 239, 230, 0.055), transparent 72%),
+    radial-gradient(45% 38% at 12% -8%,  rgba(242, 239, 230, 0.03), transparent 65%);
   z-index: 0;
   pointer-events: none;
 }
@@ -77,9 +210,8 @@ body::after {
   height: 100vh;
   background: linear-gradient(to bottom,
     rgba(24, 24, 23, 0) 0%,
-    rgba(24, 24, 23, 0.4) 25%,
-    rgba(24, 24, 23, 0.8) 45%,
-    var(--bg) 65%
+    rgba(24, 24, 23, 0.5) 55%,
+    var(--bg) 85%
   );
   z-index: 0;
   pointer-events: none;
@@ -88,6 +220,50 @@ body::after {
 #root { position: relative; z-index: 1; }
 
 a { color: inherit; text-decoration: none; }
+
+/* Hero insight-card prev/next chevrons: present but quiet — they brighten
+   on the card's hover, when the viewer is already paying attention. */
+.hero-nav-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.35;
+  transition: opacity var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
+  padding: 0 0 3px;
+}
+.hero-nav-arrow::after {
+  /* Extend the hit area to 40x44 while the visible control stays 22px.
+     Dense-desktop minimum is 40px; the chevron itself should stay quiet. */
+  content: "";
+  position: absolute;
+  inset: -5px -9px;
+}
+.hero-nav-arrow:hover { opacity: 1; background: rgba(255, 255, 255, 0.06); }
+.hero-nav-arrow:active { transform: translateY(-50%) scale(0.96); }
+*:hover > .hero-nav-arrow { opacity: 0.7; }
+
+/* Keyboard focus. There was no :focus-visible rule anywhere, so keyboard
+   users navigated an invisible cursor — every hover affordance in the app
+   is mouse-only inline JS. One global ring; :focus-visible (not :focus)
+   keeps it away from mouse clicks. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+  box-shadow: 0 0 12px var(--accent-glow);
+}
 button, select, input, textarea { font-family: inherit; }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 
@@ -118,10 +294,103 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monos
 
 /* --- COMPONENTS --- */
 
+/* ── CANONICAL CONTROLS ─────────────────────────────────────────────
+   475 buttons currently ship ~19 distinct padding/radius combos. New
+   or edited controls use one of these three; nothing else. Migration
+   is incremental — adopt on touch, don't sweep.
+     .btn-primary    the one action that moves the work forward
+     .btn-secondary  everything else clickable
+     .btn-ghost      inline/utility actions inside dense rows        */
+.btn-primary,
+.btn-secondary,
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  font-weight: var(--w-semi);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease),
+              border-color var(--dur-1) var(--ease),
+              color var(--dur-1) var(--ease),
+              transform var(--dur-1) var(--ease);
+}
+/* Tactile press. 0.96 exactly: smaller reads exaggerated. */
+.btn-primary:active,
+.btn-secondary:active,
+.btn-ghost:active { transform: scale(0.96); }
+.btn-primary {
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-md);
+  border: none;
+  background: linear-gradient(135deg, #00D1FF 0%, #0090c8 100%);
+  color: #00232e;           /* on-primary: dark on electric blue (contrast) */
+  font-weight: 600;
+  font-size: 13px;
+}
+.btn-primary:hover { background: linear-gradient(135deg, #33dbff 0%, #00a5e2 100%); }
+.btn-secondary {
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+}
+.btn-secondary:hover { background: var(--input-bg); border-color: #3a3a3a; }
+.btn-ghost {
+  padding: 2px var(--s-2);
+  border-radius: var(--r-sm);
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+.btn-ghost:hover { color: var(--text); background: var(--input-bg); }
+
+/* ── CANONICAL HEADERS ──────────────────────────────────────────────
+   Five tabs currently speak five section-header dialects. Two survive:
+     .page-head   one per screen: kicker, title, optional sub
+     .sect-head   section starts: kicker + title, hairline underneath  */
+.page-head .kicker,
+.sect-head .kicker {
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: var(--w-semi);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+.page-head .title {
+  font-size: var(--t-title);
+  font-weight: 700;
+  letter-spacing: var(--track-display);
+  color: var(--ink);
+  margin: 0;
+}
+.page-head .sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+.sect-head {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--s-2);
+  margin-bottom: var(--s-4);
+}
+.sect-head .title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+
+
 /* KPI Cards */
 .kpi { padding: 20px 24px; }
 .kpi .label { font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
-.kpi .value { font-size: 32px; font-weight: 700; margin-top: 8px; color: #fff; letter-spacing: -0.03em; font-family: var(--font-display); }
+.kpi .value { font-size: 28px; font-weight: 600; margin-top: 8px; color: var(--ink); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .kpi .sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
 
 /* Badges */
@@ -142,7 +411,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monos
   font-weight: 500; 
   color: var(--muted); 
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .pill:hover { background: var(--input-bg); color: var(--text); border-color: #555; }
 .pill.active {
@@ -161,7 +430,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monos
   font-weight: 600; 
   cursor: pointer;
   display: inline-flex; align-items: center; gap: 8px;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
   color: var(--text);
   font-size: 13px;
 }
@@ -170,7 +439,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monos
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--ink);
   box-shadow: 0 2px 8px var(--accent-glow);
 }
 .btn.primary:hover { filter: brightness(0.85); }
@@ -180,7 +449,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monos
 
 /* Typography */
 .small { font-size: 13px; color: var(--muted); font-weight: 500; }
-.h1 { font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.02em; color: #fff; }
+.h1 { font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.02em; color: var(--ink); }
 .h2 { font-size: 18px; font-weight: 600; margin: 0; color: var(--text); }
 
 /* Table */
@@ -296,7 +565,7 @@ textarea.input { min-height: 120px; resize: vertical; }
 .page-header h2 {
   font-size: 22px;
   font-weight: 700;
-  color: #fff;
+  color: var(--ink);
   margin: 0;
 }
 .page-header .subtitle {
@@ -367,17 +636,17 @@ textarea.input { min-height: 120px; resize: vertical; }
   padding: 3px 10px;
   border-radius: 6px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  font-family: var(--font-display);
   letter-spacing: -0.01em;
 }
-.stat-chip.blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-.stat-chip.green { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+.stat-chip.blue { background: rgba(0, 209, 255, 0.14); color: #4cd6ff; }
+.stat-chip.green { background: rgba(205, 242, 0, 0.12); color: #dcff45; }
+.stat-chip.lime { background: rgba(205, 242, 0, 0.12); color: #CDF200; }
 .stat-chip.amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
-.stat-chip.pink { background: rgba(236, 72, 153, 0.15); color: #f472b6; }
-.stat-chip.purple { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
-.stat-chip.red { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+.stat-chip.pink { background: var(--tert-bg); color: var(--tert); }
+.stat-chip.purple { background: rgba(0, 209, 255, 0.14); color: #4cd6ff; }
+.stat-chip.red { background: rgba(255, 85, 64, 0.15); color: #ff8375; }
 .stat-chip.slate { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
 
 /* ========= ENTRANCE ANIMATIONS ========= */
@@ -416,6 +685,35 @@ textarea.input { min-height: 120px; resize: vertical; }
   animation: skeleton 1.5s ease-in-out infinite;
 }
 
+/* ── LOADING SYSTEM ─────────────────────────────────────────────────
+   Two pieces, used together by src/components/Shared/Loading.jsx:
+
+   .skeleton      a placeholder block that pulses (the house skeleton
+                  rhythm above — calmer than a travelling shimmer, and
+                  it matches the shapes it stands in for, per the
+                  "skeletons match the final layout" rule).
+   .brand-loader  the round Full View mark, breathing. Breathing, not
+                  spinning: a spinning logo reads as clip-art; a slow
+                  scale-and-opacity swell reads as something alive and
+                  working. One breath ≈ 2.4s.                        */
+.skeleton {
+  background: var(--input-bg);
+  border-radius: var(--r-sm);
+  animation: skeleton 1.5s ease-in-out infinite;
+}
+.brand-loader {
+  animation: brandBreathe 2.4s var(--ease) infinite alternate;
+  will-change: transform, opacity;
+}
+@keyframes brandBreathe {
+  from { transform: scale(1);    opacity: 0.65; }
+  to   { transform: scale(1.06); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; opacity: 0.5; }
+  .brand-loader { animation: none; opacity: 0.9; }
+}
+
 /* Stagger delays for card grids */
 .animate-delay-1 { animation-delay: 0.05s; }
 .animate-delay-2 { animation-delay: 0.10s; }
@@ -428,110 +726,19 @@ textarea.input { min-height: 120px; resize: vertical; }
 
 /* ========= MICRO-INTERACTION HOVER EFFECTS ========= */
 
-/* KPI card hover — scale + glow */
+/* KPI cell hover. Was scale(1.03) + per-hue glow — motion budget says
+   hover animates colour only. The kept icon jokes below still fire. */
 .kpi-card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: background-color 0.15s ease;
 }
 .kpi-card:hover {
-  transform: scale(1.03);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 0 0 1px var(--glow-color, #333);
-  border-color: var(--glow-color, #333) !important;
-}
-.kpi-card:hover .kpi-icon {
-  box-shadow: 0 4px 20px var(--glow-color, rgba(255, 255, 255, 0.3));
-  transition: box-shadow 0.2s ease;
+  background-color: var(--input-bg) !important;
 }
 
-/* Per-icon hover animations triggered by parent .kpi-card:hover */
-@keyframes uploadArrow {
-  0% { transform: translateY(8px); opacity: 0; }
-  30% { opacity: 1; }
-  70% { opacity: 1; }
-  100% { transform: translateY(-14px); opacity: 0; }
-}
-@keyframes eyeBlink {
-  0%, 30%, 100% { transform: scaleY(1); }
-  15% { transform: scaleY(0.1); }
-}
-@keyframes clockTick {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-@keyframes personPopIn {
-  0% { transform: scale(0); opacity: 0; }
-  60% { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
-}
-@keyframes barGrow {
-  0% { transform: scaleY(0); }
-  80% { transform: scaleY(1.05); }
-  100% { transform: scaleY(1); }
-}
-@keyframes targetClick {
-  0% { transform: scale(1); }
-  20% { transform: scale(0.6); }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); }
-}
-@keyframes targetRipple {
-  0% { transform: scale(0); opacity: 0.9; }
-  100% { transform: scale(1.5); opacity: 0; }
-}
-.kpi-card:hover .icon-upload-arrow { animation: uploadArrow 0.7s ease-out both; }
-.kpi-card:hover .icon-eye { animation: eyeBlink 1s ease; transform-origin: center center; }
-.kpi-card:hover .icon-clock-hand { animation: clockTick 0.8s ease-in-out forwards; transform-origin: 24px 24px; }
-.kpi-card:hover .icon-person-side { animation: personPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-.kpi-card:hover .icon-person-left { animation-delay: 0.1s; transform-origin: center center; }
-.kpi-card:hover .icon-person-right { animation-delay: 0.2s; transform-origin: center center; }
-.kpi-card:hover .icon-bar { animation: barGrow 0.6s ease-out both; transform-origin: bottom center; }
-.kpi-card:hover .icon-target-click { animation: targetClick 0.5s ease; transform-origin: center center; }
-.kpi-card:hover .icon-ripple { animation: targetRipple 0.8s ease-out both; transform-origin: center center; }
-
-/* VS lightning bolt flash */
-@keyframes boltFlash {
-  0%, 100% { opacity: 0; transform: scale(0.5); }
-  15% { opacity: 1; transform: scale(1.2); }
-  30% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.8; transform: scale(1.1); }
-  70% { opacity: 1; transform: scale(1); }
-  85% { opacity: 0.6; transform: scale(0.9); }
-}
-.vs-icon:hover .vs-bolt { animation: boltFlash 0.7s ease both; transform-origin: center center; }
-
-/* Calculator — digits type in on hover */
-@keyframes calcDigit {
-  0%, 90% { opacity: 0; }
-  100% { opacity: 1; }
-}
-.calc-section:hover .calc-d1 { animation: calcDigit 0.1s ease 0.1s both; }
-.calc-section:hover .calc-d2 { animation: calcDigit 0.1s ease 0.25s both; }
-.calc-section:hover .calc-d3 { animation: calcDigit 0.1s ease 0.4s both; }
-.calc-section:hover .calc-d4 { animation: calcDigit 0.1s ease 0.55s both; }
-.calc-section:hover .calc-d5 { animation: calcDigit 0.1s ease 0.7s both; }
-
-/* Pizza — slice gets pulled off screen */
-@keyframes slicePull {
-  0% { transform: translate(0, 0) rotate(0deg); opacity: 0.85; }
-  30% { transform: translate(4px, -4px) rotate(5deg); opacity: 0.85; }
-  100% { transform: translate(30px, -30px) rotate(15deg); opacity: 0; }
-}
-.pizza-section:hover .pizza-slice {
-  animation: slicePull 0.6s ease-in both;
-  transform-origin: 24px 24px;
-}
-
-/* Heart — beats on hover */
-@keyframes heartBeat {
-  0% { transform: scale(1); }
-  15% { transform: scale(1.15); }
-  30% { transform: scale(0.95); }
-  45% { transform: scale(1.1); }
-  60% { transform: scale(1); }
-  100% { transform: scale(1); }
-}
-.heart-section:hover .heart-icon {
-  animation: heartBeat 0.8s ease both;
-}
+/* Hover-animation zoo fully retired 2026-08-20: the hand-drawn icons
+   those animations decorated were replaced by the uniform lucide tile
+   system, so their keyframes and hover hooks left with them. All of it
+   is in git if a signature moment ever earns its way back. */
 
 /* Publishing Pattern — week bars lift on hover */
 .week-bar:hover {
@@ -539,62 +746,10 @@ textarea.input { min-height: 120px; resize: vertical; }
   filter: brightness(1.2);
 }
 
-/* Podium — winner jumps up and down like Excitebike */
-@keyframes podiumJump {
-  0% { transform: translateY(0); }
-  8% { transform: translateY(-7px); }
-  16% { transform: translateY(0); }
-  22% { transform: translateY(-6px); }
-  30% { transform: translateY(0); }
-  36% { transform: translateY(-5px); }
-  44% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-  58% { transform: translateY(0); }
-  64% { transform: translateY(-3px); }
-  72% { transform: translateY(0); }
-  80% { transform: translateY(-2px); }
-  88% { transform: translateY(0); }
-  100% { transform: translateY(0); }
-}
-.podium-section:hover .podium-winner {
-  animation: podiumJump 2s ease both;
-}
-
-/* Radar dish — waves appear at edge, travel as group toward dish, dissolve on contact */
-@keyframes radarReceive {
-  0% { opacity: 0; transform: translateX(4px) translateY(-2px); }
-  15% { opacity: 0.9; transform: translateX(2px) translateY(-1px); }
-  70% { opacity: 0.8; transform: translateX(-14px) translateY(6px); }
-  90% { opacity: 0.3; transform: translateX(-18px) translateY(8px); }
-  100% { opacity: 0; transform: translateX(-20px) translateY(10px); }
-}
-.section-card:hover .radar-waves {
-  animation: radarReceive 1.4s ease both;
-}
-
-/* Target — arrow flies in fast and hits bullseye */
-@keyframes arrowHit {
-  0% { opacity: 0; transform: translate(28px, -22px); }
-  40% { opacity: 1; transform: translate(0, 0); }
-  100% { opacity: 1; transform: translate(0, 0); }
-}
-/* Target board shakes on impact */
-@keyframes targetShake {
-  0% { transform: translate(0, 0) rotate(0deg); }
-  15% { transform: translate(-2px, 1px) rotate(-2deg); }
-  30% { transform: translate(2px, -1px) rotate(2deg); }
-  45% { transform: translate(-1px, 0px) rotate(-1deg); }
-  60% { transform: translate(1px, 0px) rotate(1deg); }
-  75% { transform: translate(-0.5px, 0) rotate(0deg); }
-  100% { transform: translate(0, 0) rotate(0deg); }
-}
-.target-section:hover .target-arrow {
-  animation: arrowHit 0.35s cubic-bezier(0.12, 0, 0.39, 0) both;
-}
-.target-section:hover .target-board {
-  animation: targetShake 0.6s ease 0.14s both;
-}
-
+/* Hover-animation zoo fully retired 2026-08-20: the hand-drawn icons
+   those animations decorated were replaced by the uniform lucide tile
+   system, so their keyframes and hover hooks left with them. All of it
+   is in git if a signature moment ever earns its way back. */
 /* Hero banner — progress fill sweeps left to right in active oval */
 @keyframes progressFill {
   from { transform: scaleX(0); }
@@ -618,13 +773,6 @@ textarea.input { min-height: 120px; resize: vertical; }
 }
 
 /* Insight card hover — pop */
-.insight-card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.insight-card:hover {
-  transform: scale(1.04);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
 
 /* Number pop entrance — bouncy scale-in */
 @keyframes numberPop {
@@ -665,8 +813,135 @@ textarea.input { min-height: 120px; resize: vertical; }
   }
   .kpi-card:hover,
   .donut-hover:hover,
-  .insight-card:hover,
   .production-mix:hover {
     transform: none;
   }
 }
+
+
+/* ───────────────────────────────────────────────────────────────
+   KEY ART  —  .keyart
+   The brand key art, rebuilt in CSS. Static. ONE USE ONLY: the
+   Full View Analytics logo lockup. Not mastheads, not cards, not
+   section headers — the moment this appears twice it becomes a
+   theme instead of a signature.
+
+   Why the colour is blurred as one layer: separate radial
+   gradients each carry their own falloff, so side by side they
+   read as individual glowing lamps — exactly the AI look. In the
+   reference art the fields fuse into continuous ribbons. Painting
+   all pools onto one pseudo-element and blurring THAT melts the
+   boundaries the way airbrushed pigment melts, and the saturate/
+   brightness pull keeps it pigment rather than neon.
+
+   The film grain then breaks the remaining banding the way film
+   breaks any smooth ramp. Two hard-won details: the noise tile is
+   sized in device pixels (an SVG-internal filter scales away to
+   sub-pixel), and it is contrast-stretched (feTurbulence clusters
+   around 50% grey, and overlay-blending 50% grey is a no-op).
+
+   Usage — exactly this shape, nothing else:
+     <div className="keyart"><div className="inner">
+       <img src="/Full_View_Logo.png" … />
+     </div></div>
+   ─────────────────────────────────────────────────────────────── */
+.keyart {
+  position: relative;
+  border-radius: var(--r-lg, 12px);
+  overflow: hidden;
+  isolation: isolate;
+  background: #060708;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+/* one colour field, melted together by a shared blur */
+.keyart::before {
+  content: "";
+  position: absolute;
+  inset: -12%;              /* hides the blur's faded edge */
+  z-index: 0;
+  pointer-events: none;
+  background:
+    /* vignette rides on top of the stack so the centre stays
+       near-black and the colour lives at the rim, like the art */
+    radial-gradient(58% 52% at 50% 50%,
+      #050607 0%, rgba(5, 6, 7, 0.88) 34%, rgba(5, 6, 7, 0.55) 54%,
+      rgba(5, 6, 7, 0.28) 70%, rgba(5, 6, 7, 0.1) 84%, transparent 100%),
+    /* cool run: teal -> blue -> violet -> magenta down the left */
+    radial-gradient(38% 52% at  2%  8%, rgba(45, 212, 191, 0.95), transparent 64%),
+    radial-gradient(34% 48% at  0% 50%, rgba(99, 102, 241, 0.8),  transparent 62%),
+    radial-gradient(38% 52% at 10% 96%, rgba(168, 85, 247, 0.9),  transparent 64%),
+    radial-gradient(30% 40% at 40% 104%, rgba(236, 72, 153, 0.7), transparent 60%),
+    /* warm run: amber -> orange down the right, cooling to blue */
+    radial-gradient(38% 52% at 92%  2%, rgba(251, 146, 60, 0.95), transparent 64%),
+    radial-gradient(28% 40% at 102% 36%, rgba(249, 115, 22, 0.7), transparent 60%),
+    radial-gradient(36% 50% at 96% 90%, rgba(59, 130, 246, 0.9),  transparent 64%);
+  filter: blur(38px) saturate(1.05);
+}
+/* film grain */
+.keyart::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27180%27%20height%3D%27180%27%3E%3Cfilter%20id%3D%27n%27%20color-interpolation-filters%3D%27sRGB%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.7%27%20numOctaves%3D%274%27%20stitchTiles%3D%27stitch%27%2F%3E%3CfeColorMatrix%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3CfeComponentTransfer%3E%3CfeFuncR%20type%3D%27linear%27%20slope%3D%273%27%20intercept%3D%27-1%27%2F%3E%3CfeFuncG%20type%3D%27linear%27%20slope%3D%273%27%20intercept%3D%27-1%27%2F%3E%3CfeFuncB%20type%3D%27linear%27%20slope%3D%273%27%20intercept%3D%27-1%27%2F%3E%3C%2FfeComponentTransfer%3E%3C%2Ffilter%3E%3Crect%20width%3D%27180%27%20height%3D%27180%27%20filter%3D%27url%28%2523n%29%27%2F%3E%3C%2Fsvg%3E");
+  background-size: 180px 180px;
+  mix-blend-mode: overlay;
+  opacity: var(--grain, 0.5);
+}
+.keyart > .inner { position: relative; z-index: 2; }
+
+/* ───────────────────────────────────────────────────────────────
+   AMBIENT BACKGROUND  —  .ambient-bg
+   Page-top field behind the app chrome. Replaces the per-client
+   stock photos (space, mountains) that read as impersonal. Same
+   family as the key art — colour pools melted by one shared blur,
+   broken by film grain — but at whisper volume: the client's own
+   accent bleeding in from above the fold, not a signature piece.
+   The keyart lockup remains the one loud use of this language.
+   ─────────────────────────────────────────────────────────────── */
+.ambient-bg {
+  position: absolute;
+  top: -60px; left: 0;
+  width: 100vw; height: 560px;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.72) 40%, rgba(0,0,0,0.3) 75%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.72) 40%, rgba(0,0,0,0.3) 75%, transparent 100%);
+}
+.ambient-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27180%27%20height%3D%27180%27%3E%3Cfilter%20id%3D%27n%27%20color-interpolation-filters%3D%27sRGB%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.7%27%20numOctaves%3D%274%27%20stitchTiles%3D%27stitch%27%2F%3E%3CfeColorMatrix%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3CfeComponentTransfer%3E%3CfeFuncR%20type%3D%27linear%27%20slope%3D%273%27%20intercept%3D%27-1%27%2F%3E%3CfeFuncG%20type%3D%27linear%27%20slope%3D%273%27%20intercept%3D%27-1%27%2F%3E%3CfeFuncB%20type%3D%27linear%27%20slope%3D%273%27%20intercept%3D%27-1%27%2F%3E%3C%2FfeComponentTransfer%3E%3C%2Ffilter%3E%3Crect%20width%3D%27180%27%20height%3D%27180%27%20filter%3D%27url%28%2523n%29%27%2F%3E%3C%2Fsvg%3E");
+  background-size: 180px 180px;
+  mix-blend-mode: overlay;
+  opacity: 0.3;
+}
+
+/* Sub-navigation pills in the context strip. The visible pill is
+   small; the ::after pad extends the hit area without moving pixels. */
+.subnav-pill {
+  position: relative;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.subnav-pill::after { content: ""; position: absolute; inset: -6px -2px; }
+.subnav-pill:hover { color: var(--ink); }
+.subnav-pill[aria-current="page"] {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Mobile subnav: single swipeable row, scrollbar hidden */
+.subnav-scroll::-webkit-scrollbar { display: none; }

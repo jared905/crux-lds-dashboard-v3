@@ -482,7 +482,7 @@ async function loadCache(key) {
     const ageHours = (Date.now() - new Date(data.updated_at).getTime()) / 3600000;
     if (ageHours > BRIEF_CACHE_HOURS) return null;
     return data.payload;
-  } catch (err) {
+  } catch {
     return null;
   }
 }
@@ -499,8 +499,30 @@ async function saveCache(key, payload) {
 }
 
 function hashIds(ids) {
-  // Stable hash for an unordered set of IDs
-  return [...(ids || [])].sort().slice(0, 50).join(',').slice(0, 200);
+  // Stable key for an unordered set of IDs.
+  //
+  // This used to be `.sort().slice(0,50).join(',').slice(0,200)`. A UUID plus
+  // its comma is 37 chars, so the 200-char slice retained only ~5.4 ids —
+  // everything past the sixth competitor was invisible to the cache key.
+  // Adding competitors therefore did NOT invalidate the entry (a stale brief
+  // was served), and two different scopes sharing their first six sorted ids
+  // resolved to the same key.
+  //
+  // Hash the full joined set instead, and keep the count in the key so a
+  // differently-sized scope can never collide with a smaller one.
+  const sorted = [...(ids || [])].map(String).sort();
+  return `${sorted.length}-${djb2(sorted.join(','))}`;
+}
+
+// djb2 — small, deterministic, dependency-free. Cache keys need collision
+// resistance across plausible id sets, not cryptographic strength.
+function djb2(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) + h) + str.charCodeAt(i);
+    h = h | 0;
+  }
+  return (h >>> 0).toString(36);
 }
 
 export default { analyzeWhiteSpace, resolveScopeToChannelIds };

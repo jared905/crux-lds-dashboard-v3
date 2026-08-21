@@ -19,7 +19,7 @@
  * surfacing the trade-off forces a deliberate choice.
  */
 
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import {
   Sparkles, Loader, Trash2, AlertTriangle, ChevronDown, ChevronRight,
   Clock, Layers, Mic, Video, MessageSquare, FileText, Users, Tv2,
@@ -64,9 +64,9 @@ const CADENCE_LABELS = {
 };
 
 const COMPLEXITY_COLORS = {
-  low:    '#3fa66a',
-  medium: '#E8A82B',
-  high:   '#ef6b6b',
+  low:    'var(--pos-text)',
+  medium: 'var(--warn)',
+  high:   'var(--neg-text)',
 };
 
 export default function RecurringFormatsSection({ clientId, hasPersona }) {
@@ -121,8 +121,8 @@ export default function RecurringFormatsSection({ clientId, hasPersona }) {
   if (!hasPersona) {
     return (
       <div style={lockedShellStyle}>
-        <Sparkles size={14} style={{ color: '#666' }} />
-        <span style={{ fontSize: 12, color: '#888' }}>
+        <Sparkles size={14} style={{ color: 'var(--faint)' }} />
+        <span style={{ fontSize: 12, color: 'var(--outline)' }}>
           Synthesize the persona first — recurring formats derive from audience consumption patterns.
         </span>
       </div>
@@ -176,11 +176,11 @@ export default function RecurringFormatsSection({ clientId, hasPersona }) {
 
       {!loading && formats.length === 0 && !error && (
         <div style={emptyStateStyle}>
-          <Layers size={26} style={{ color: '#0A919B', marginBottom: 10 }} />
-          <div style={{ fontSize: 13, color: '#cde4d6', fontWeight: 600, marginBottom: 4 }}>
+          <Layers size={26} style={{ color: 'var(--accent-text)', marginBottom: 10 }} />
+          <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600, marginBottom: 4 }}>
             No recurring formats yet
           </div>
-          <div style={{ fontSize: 12, color: '#888', maxWidth: 480, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: 'var(--outline)', maxWidth: 480, lineHeight: 1.5 }}>
             Generate 2-4 recurring creative-execution opportunities anchored to the audience persona.
             Each comes with an honest counter-argument so you see when a format would be the wrong choice.
           </div>
@@ -214,12 +214,12 @@ function FormatCard({ format, expanded, onToggle, onPromote, onArchive }) {
   const execLabel = format.creative_execution === 'other'
     ? (format.creative_execution_label || 'Other')
     : EXECUTION_LABELS[format.creative_execution];
-  const complexityColor = COMPLEXITY_COLORS[format.production_complexity] || '#888';
+  const complexityColor = COMPLEXITY_COLORS[format.production_complexity] || 'var(--outline)';
 
   return (
     <div style={cardStyle(format.status)}>
       <div style={cardHeaderStyle} onClick={onToggle}>
-        <ExecIcon size={18} style={{ color: '#0A919B', flexShrink: 0, marginTop: 1 }} />
+        <ExecIcon size={18} style={{ color: 'var(--accent-text)', flexShrink: 0, marginTop: 1 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={cardTitleStyle}>{format.name}</div>
           <div style={cardMetaRowStyle}>
@@ -236,11 +236,11 @@ function FormatCard({ format, expanded, onToggle, onPromote, onArchive }) {
             {format.pillar_label && (
               <span style={pillarChipStyle}>Pillar · {format.pillar_label}</span>
             )}
-            {format.status === 'active' && <span style={statusChipStyle('#3fa66a')}>Active</span>}
-            {format.status === 'piloting' && <span style={statusChipStyle('#E8A82B')}>Piloting</span>}
+            {format.status === 'active' && <span style={statusChipStyle("var(--pos-deep)")}>Active</span>}
+            {format.status === 'piloting' && <span style={statusChipStyle("var(--warn)")}>Piloting</span>}
           </div>
         </div>
-        {expanded ? <ChevronDown size={14} style={{ color: '#666', flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: '#666', flexShrink: 0 }} />}
+        {expanded ? <ChevronDown size={14} style={{ color: 'var(--faint)', flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: 'var(--faint)', flexShrink: 0 }} />}
       </div>
 
       {expanded && (
@@ -253,12 +253,12 @@ function FormatCard({ format, expanded, onToggle, onPromote, onArchive }) {
           {format.counter_argument && (
             <div style={counterStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <AlertTriangle size={12} style={{ color: '#E8A82B' }} />
-                <strong style={{ fontSize: 11, color: '#E8A82B', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                <AlertTriangle size={12} style={{ color: "var(--warn)" }} />
+                <strong style={{ fontSize: 11, color: "var(--warn)", textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   Counter-argument · read before committing
                 </strong>
               </div>
-              <div style={{ fontSize: 12, color: '#cde4d6', lineHeight: 1.5 }}>
+              <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>
                 {format.counter_argument}
               </div>
             </div>
@@ -303,10 +303,10 @@ function FormatCard({ format, expanded, onToggle, onPromote, onArchive }) {
 
 function Note({ tone, children }) {
   const palette = {
-    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: '#0A919B' },
-    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: '#E8A82B' },
-    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: '#ef6b6b' },
-  }[tone] || { bg: '#1a1a1f', border: '#333', fg: '#aaa' };
+    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: 'var(--accent-text)' },
+    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: 'var(--warn)' },
+    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: 'var(--neg-text)' },
+  }[tone] || { bg: 'var(--input-bg)', border: 'var(--outline-variant)', fg: 'var(--muted)' };
   return (
     <div style={{
       padding: '10px 14px', borderRadius: 6,
@@ -326,21 +326,21 @@ const sectionHeaderStyle = {
   marginBottom: 12, flexWrap: 'wrap',
 };
 const kickerStyle = {
-  fontSize: 12, color: '#0A919B', fontWeight: 700,
+  fontSize: 12, color: 'var(--accent-text)', fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4,
 };
-const subtitleStyle = { fontSize: 12, color: '#888', maxWidth: 640, lineHeight: 1.5 };
+const subtitleStyle = { fontSize: 12, color: 'var(--outline)', maxWidth: 640, lineHeight: 1.5 };
 
 const generateBarStyle = { display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 };
 const selectStyle = {
-  background: '#1a1a1f', color: '#cde4d6',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'var(--input-bg)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '7px 10px', fontSize: 12, cursor: 'pointer',
 };
 const generateBtnStyle = (busy) => ({
-  background: busy ? '#1a1a1f' : '#0A919B',
-  color: busy ? '#666' : '#0a0a0e',
-  border: busy ? '1px solid #2a2a30' : 'none',
+  background: busy ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: busy ? 'var(--faint)' : 'var(--bg)',
+  border: busy ? '1px solid var(--border)' : 'none',
   borderRadius: 5,
   padding: '8px 16px',
   fontSize: 12, fontWeight: 700, letterSpacing: 0.3,
@@ -350,23 +350,23 @@ const generateBtnStyle = (busy) => ({
 
 const lockedShellStyle = {
   marginTop: 18,
-  background: '#0e0e11', border: '1px dashed #2a2a30',
+  background: 'var(--card)', border: '1px dashed #2a2a30',
   borderRadius: 6, padding: 14,
   display: 'inline-flex', alignItems: 'center', gap: 8,
 };
 
 const emptyStateStyle = {
   display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
-  padding: 32, background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  padding: 32, background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 6, marginTop: 10,
 };
 
 const formatsListStyle = { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 };
-const cardStyle = (status) => ({
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
-  borderLeft: `2px solid ${status === 'active' ? '#3fa66a' : status === 'piloting' ? '#E8A82B' : '#0A919B'}`,
+const cardStyle = (_status) => ({
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6,
 });
 const cardHeaderStyle = {
@@ -374,42 +374,42 @@ const cardHeaderStyle = {
   display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer',
 };
 const cardTitleStyle = {
-  fontSize: 14, fontWeight: 700, color: '#e8e2d0', lineHeight: 1.3, marginBottom: 6,
+  fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.3, marginBottom: 6,
 };
 const cardMetaRowStyle = {
   display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
 };
 const execChipStyle = {
   background: 'rgba(10,145,155,0.12)',
-  color: '#0A919B', border: '1px solid rgba(10,145,155,0.35)',
+  color: 'var(--accent-text)', border: '1px solid rgba(10,145,155,0.35)',
   borderRadius: 3, padding: '1px 7px',
   fontSize: 10, fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: 0.4,
 };
 const cadenceChipStyle = {
-  background: 'rgba(167,139,250,0.10)',
-  color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)',
+  background: 'rgba(76,214,255,0.10)',
+  color: 'var(--accent-text)', border: '1px solid rgba(76,214,255,0.35)',
   borderRadius: 3, padding: '1px 7px',
   fontSize: 10, fontWeight: 700,
   display: 'inline-flex', alignItems: 'center', gap: 3,
 };
 const lengthChipStyle = {
-  fontSize: 10, color: '#888', background: '#1a1a1f',
-  border: '1px solid #2a2a30',
+  fontSize: 10, color: 'var(--outline)', background: 'var(--input-bg)',
+  border: '1px solid var(--border)',
   borderRadius: 3, padding: '1px 7px',
 };
 const complexityChipStyle = (color) => ({
-  background: `${color}22`, color, border: `1px solid ${color}55`,
+  background: `color-mix(in srgb, ${color} 13%, transparent)`, color, border: `1px solid color-mix(in srgb, ${color} 33%, transparent)`,
   borderRadius: 3, padding: '1px 7px',
   fontSize: 9, fontWeight: 700, letterSpacing: 0.4,
 });
 const pillarChipStyle = {
-  background: 'rgba(255,255,255,0.04)', color: '#cde4d6',
-  border: '1px solid #2a2a30',
+  background: 'rgba(255,255,255,0.04)', color: 'var(--text)',
+  border: '1px solid var(--border)',
   borderRadius: 3, padding: '1px 7px', fontSize: 10, fontWeight: 600,
 };
 const statusChipStyle = (color) => ({
-  background: `${color}22`, color, border: `1px solid ${color}55`,
+  background: `color-mix(in srgb, ${color} 13%, transparent)`, color, border: `1px solid color-mix(in srgb, ${color} 33%, transparent)`,
   borderRadius: 3, padding: '1px 7px',
   fontSize: 9, fontWeight: 700, letterSpacing: 0.4,
   textTransform: 'uppercase',
@@ -422,11 +422,11 @@ const cardBodyStyle = {
 };
 const blockStyle = { marginTop: 10 };
 const blockLabelStyle = {
-  fontSize: 10, color: '#666',
+  fontSize: 10, color: 'var(--faint)',
   textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600,
   marginBottom: 4,
 };
-const blockBodyStyle = { fontSize: 13, color: '#cde4d6', lineHeight: 1.55 };
+const blockBodyStyle = { fontSize: 13, color: 'var(--text)', lineHeight: 1.55 };
 
 const counterStyle = {
   background: 'rgba(232,168,43,0.05)',
@@ -440,18 +440,18 @@ const actionsRowStyle = {
   marginTop: 8, paddingTop: 8, borderTop: '1px dashed #2a2a30',
 };
 const pilotBtnStyle = {
-  background: 'rgba(232,168,43,0.12)', color: '#E8A82B',
+  background: 'rgba(232,168,43,0.12)', color: 'var(--warn)',
   border: '1px solid rgba(232,168,43,0.40)', borderRadius: 4,
   padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
 };
 const activateBtnStyle = {
-  background: '#3fa66a', color: '#0a0a0e',
+  background: 'var(--pos-text)', color: 'var(--bg)',
   border: 'none', borderRadius: 4,
   padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
 };
 const archiveBtnStyle = {
-  background: 'transparent', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 4,
+  background: 'transparent', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4,
 };

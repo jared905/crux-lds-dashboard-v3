@@ -15,9 +15,9 @@
  * the Clients tab) so the strategist can edit the posture in-place if
  * the data underneath has shifted their read.
  */
-import React, { useEffect, useState } from 'react';
-import { Compass, Edit3 } from 'lucide-react';
+import {useEffect, useState} from 'react';
 import { supabase } from '../../services/supabaseClient';
+import { Compass, Edit3 } from 'lucide-react';
 
 export default function CompetitivePostureBanner({ scope }) {
   const clientId = scope?.clientId;
@@ -48,23 +48,22 @@ export default function CompetitivePostureBanner({ scope }) {
 
   return (
     <div style={{
-      background: '#0e1a2a',
+      background: 'var(--card)',
       border: '1px solid #1e3a5f',
-      borderLeft: '3px solid #60a5fa',
-      borderRadius: 8,
+            borderRadius: 8,
       padding: '10px 14px',
       margin: '12px 0',
       display: 'flex', alignItems: 'flex-start', gap: 10,
     }}>
-      <Compass size={15} color="#60a5fa" style={{ marginTop: 1, flexShrink: 0 }} />
+      <Compass size={15} color="#4cd6ff" style={{ marginTop: 1, flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
-          fontSize: 10, color: '#60a5fa', fontWeight: 700,
+          fontSize: 10, color: 'var(--accent-text)', fontWeight: 700,
           textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 3,
         }}>
-          Competitive posture {stale && <span style={{ color: '#fbbf24', marginLeft: 6 }}>· stale, &gt;90 days</span>}
+          Competitive posture {stale && <span style={{ color: "var(--warn-text)", marginLeft: 6 }}>· stale, &gt;90 days</span>}
         </div>
-        <div style={{ fontSize: 13, color: '#dbeafe', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13, color: 'var(--blue-pale)', lineHeight: 1.5 }}>
           {posture}
         </div>
       </div>
@@ -78,7 +77,7 @@ export default function CompetitivePostureBanner({ scope }) {
           e.preventDefault();
         }}
         style={{
-          color: '#60a5fa', fontSize: 11, fontWeight: 600,
+          color: 'var(--accent-text)', fontSize: 11, fontWeight: 600,
           display: 'inline-flex', alignItems: 'center', gap: 4,
           textDecoration: 'none', flexShrink: 0,
           opacity: 0.7,

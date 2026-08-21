@@ -26,12 +26,12 @@
  *     was drafted against (so reading an old brief isn't confusing)
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import {useEffect, useState} from 'react';
 import { generateWeeklyBrief } from '../../../services/weeklyBriefService.js';
 import {
   saveBrief, listBriefsForClient, loadBrief, archiveBrief,
 } from '../../../services/weeklyBriefsService.js';
-import { supabase } from '../../../services/supabaseClient.js';
+import BrandLoader from '../../Shared/Loading.jsx';
 import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
 import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 
@@ -45,7 +45,6 @@ export default function WeeklyBriefWorkspace({ activeClient }) {
   const [generating, setGenerating]       = useState(false);
   const [genError, setGenError]           = useState(null);
   const [copied, setCopied]               = useState(false);
-  const [sourceMeta, setSourceMeta]       = useState({});  // briefId → { auditDate, calibDate }
 
   useEffect(() => {
     if (!clientId) { setBootLoading(false); return undefined; }
@@ -58,7 +57,7 @@ export default function WeeklyBriefWorkspace({ activeClient }) {
         if (cancelled) return;
         setBriefs(res?.briefs || []);
       } catch (err) {
-        if (!cancelled) setBootError(err?.message || 'failed to load briefs');
+        if (!cancelled) setBootError(err?.message || 'Couldn’t load past briefs. Check your connection and try again.');
       } finally {
         if (!cancelled) setBootLoading(false);
       }
@@ -71,7 +70,7 @@ export default function WeeklyBriefWorkspace({ activeClient }) {
       <div style={emptyShellStyle}>
         <div style={emptyHeaderStyle}>Weekly brief</div>
         <div style={emptyBodyStyle}>
-          Pick a client from <strong style={{ color: '#cde4d6' }}>Operate → Clients</strong> first.
+          Pick a client from <strong style={{ color: 'var(--text)' }}>Portfolio → Clients</strong> first.
           The brief generator reads the latest repositioning audit + calibration + Strategy Spine
           for the active client.
         </div>
@@ -121,7 +120,7 @@ export default function WeeklyBriefWorkspace({ activeClient }) {
         // memory so the strategist can at least copy the text.
         setGenError(saved?.error
           ? `Brief generated but save failed: ${saved.error}`
-          : 'Brief generated but save returned no confirmation');
+          : 'Your brief is ready, but it didn’t save. Copy it now so you don’t lose it.');
         setSelectedBrief({
           id:                         null,
           created_at:                 new Date().toISOString(),
@@ -145,7 +144,7 @@ export default function WeeklyBriefWorkspace({ activeClient }) {
   };
 
   const handleArchive = async (briefId) => {
-    if (!window.confirm('Archive this brief?')) return;
+    // Confirmation is the two-step armed button in the row — no dialog.
     await archiveBrief(briefId);
     const list = await listBriefsForClient(clientId, { limit: 12 });
     setBriefs(list?.briefs || []);
@@ -182,7 +181,7 @@ export default function WeeklyBriefWorkspace({ activeClient }) {
         </div>
       </div>
 
-      {bootLoading && <Note tone="info">Loading…</Note>}
+      {bootLoading && <BrandLoader size={32} label="Loading past briefs…" style={{ padding: "28px 20px" }} />}
       {bootError && <Note tone="error">{bootError}</Note>}
 
       {!bootLoading && (
@@ -223,7 +222,7 @@ function GenerateBar({ generating, onGenerate, briefsCount }) {
     <div style={generateBarStyle}>
       <div style={{ flex: 1 }}>
         <div style={kickerSmallStyle}>{briefsCount > 0 ? 'Generate a new brief' : 'Start here'}</div>
-        <div style={{ fontSize: 12, color: '#aaa', marginTop: 4, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>
           Generates a fresh brief from the latest repositioning audit + latest calibration run +
           current Strategy Spine + cohort composition. Honors brand register, cites calibration
           accuracy, names specific videos when relevant. Takes ~5-10 seconds.
@@ -241,7 +240,19 @@ function GenerateBar({ generating, onGenerate, briefsCount }) {
 // ──────────────────────────────────────────────────
 
 function BriefsList({ briefs, selectedId, onLoad, onArchive }) {
+  // Two-step inline confirm: first click arms ("Sure?"), second executes,
+  // 4s or any other row disarms. Replaces window.confirm.
+  const [armedId, setArmedId] = useState(null);
   if (!briefs?.length) return null;
+  const askArchive = (id) => {
+    if (armedId !== id) {
+      setArmedId(id);
+      setTimeout(() => setArmedId(a => (a === id ? null : a)), 4000);
+      return;
+    }
+    setArmedId(null);
+    onArchive(id);
+  };
   return (
     <div style={{ marginTop: 18 }}>
       <div style={kickerSmallStyle}>Past briefs</div>
@@ -257,8 +268,12 @@ function BriefsList({ briefs, selectedId, onLoad, onArchive }) {
                 {b.model && ` · ${b.model}`}
               </div>
             </div>
-            <button onClick={() => onLoad(b.id)} style={smallBtnStyle}>load</button>
-            <button onClick={() => onArchive(b.id)} style={smallBtnStyle}>archive</button>
+            <button onClick={() => onLoad(b.id)} style={smallBtnStyle}>Open</button>
+            <button
+              onClick={() => askArchive(b.id)}
+              style={{ ...smallBtnStyle, ...(armedId === b.id ? { background: 'var(--warn)', color: 'var(--bg)', fontWeight: 700 } : {}) }}
+              title={armedId === b.id ? 'Click again to archive' : 'Archive this brief'}
+            >{armedId === b.id ? 'Sure?' : 'Archive'}</button>
           </div>
         ))}
       </div>
@@ -314,7 +329,7 @@ function renderMarkdown(md) {
       nodes.push(
         <Tag key={`list-${nodes.length}`} style={{ margin: '4px 0 14px 0', paddingLeft: 26 }}>
           {listBuf.map((item, i) => (
-            <li key={i} style={{ fontSize: 14, color: '#e8e2d0', lineHeight: 1.6, marginBottom: 10 }}>
+            <li key={i} style={{ fontSize: 14, color: 'var(--ink)', lineHeight: 1.6, marginBottom: 10 }}>
               {renderInline(item)}
             </li>
           ))}
@@ -327,7 +342,7 @@ function renderMarkdown(md) {
   const flushPara = () => {
     if (paraBuf.length) {
       nodes.push(
-        <p key={`p-${nodes.length}`} style={{ fontSize: 14, color: '#e8e2d0', lineHeight: 1.6, margin: '4px 0 12px 0' }}>
+        <p key={`p-${nodes.length}`} style={{ fontSize: 14, color: 'var(--ink)', lineHeight: 1.6, margin: '4px 0 12px 0' }}>
           {renderInline(paraBuf.join(' '))}
         </p>
       );
@@ -344,7 +359,7 @@ function renderMarkdown(md) {
     if (line.startsWith('## ')) {
       flushList(); flushPara();
       nodes.push(
-        <h3 key={`h-${nodes.length}`} style={{ fontSize: 13, color: '#0A919B', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, margin: '16px 0 8px 0' }}>
+        <h3 key={`h-${nodes.length}`} style={{ fontSize: 13, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, margin: '16px 0 8px 0' }}>
           {line.slice(3)}
         </h3>
       );
@@ -383,13 +398,13 @@ function renderInline(text) {
       const end = text.indexOf('**', bold + 2);
       if (end === -1) { parts.push(text.slice(i)); break; }
       if (bold > i) parts.push(text.slice(i, bold));
-      parts.push(<strong key={key++} style={{ color: '#cde4d6' }}>{text.slice(bold + 2, end)}</strong>);
+      parts.push(<strong key={key++} style={{ color: 'var(--text)' }}>{text.slice(bold + 2, end)}</strong>);
       i = end + 2;
     } else if (italic !== -1) {
       const end = text.indexOf('*', italic + 1);
       if (end === -1) { parts.push(text.slice(i)); break; }
       if (italic > i) parts.push(text.slice(i, italic));
-      parts.push(<em key={key++} style={{ color: '#aaa' }}>{text.slice(italic + 1, end)}</em>);
+      parts.push(<em key={key++} style={{ color: 'var(--muted)' }}>{text.slice(italic + 1, end)}</em>);
       i = end + 1;
     } else {
       parts.push(text.slice(i));
@@ -405,10 +420,10 @@ function renderInline(text) {
 
 function Note({ tone, children }) {
   const palette = {
-    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: '#0A919B' },
-    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: '#E8A82B' },
-    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: '#ef6b6b' },
-  }[tone] || { bg: '#1a1a1f', border: '#333', fg: '#aaa' };
+    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: 'var(--accent-text)' },
+    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: 'var(--warn)' },
+    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: 'var(--neg-text)' },
+  }[tone] || { bg: 'var(--input-bg)', border: 'var(--outline-variant)', fg: 'var(--muted)' };
   return (
     <div style={{
       padding: '10px 14px', borderRadius: 6,
@@ -425,35 +440,35 @@ function Note({ tone, children }) {
 const workspaceShellStyle = { padding: '20px 24px 60px', maxWidth: 1280, margin: '0 auto' };
 const workspaceHeaderStyle = { marginBottom: 18 };
 const kickerStyle = {
-  fontSize: 11, color: '#0A919B',
+  fontSize: 11, color: 'var(--accent-text)',
   textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 4,
 };
 const kickerSmallStyle = {
-  fontSize: 10, color: '#888',
+  fontSize: 10, color: 'var(--outline)',
   textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, marginBottom: 6,
 };
-const titleStyle = { fontSize: 24, fontWeight: 700, color: '#e8e2d0', margin: 0 };
-const subtitleStyle = { fontSize: 13, color: '#888', marginTop: 6, lineHeight: 1.5, maxWidth: 800 };
+const titleStyle = { fontSize: 24, fontWeight: 700, color: 'var(--ink)', margin: 0 };
+const subtitleStyle = { fontSize: 13, color: 'var(--outline)', marginTop: 6, lineHeight: 1.5, maxWidth: 800 };
 
 const emptyShellStyle = { padding: '60px 24px', maxWidth: 720, margin: '0 auto', textAlign: 'center' };
 const emptyHeaderStyle = {
-  fontSize: 14, color: '#0A919B',
+  fontSize: 14, color: 'var(--accent-text)',
   textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 14,
 };
-const emptyBodyStyle = { fontSize: 14, color: '#888', lineHeight: 1.6 };
+const emptyBodyStyle = { fontSize: 14, color: 'var(--outline)', lineHeight: 1.6 };
 
 const generateBarStyle = {
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
-  borderLeft: '2px solid #0A919B',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6, padding: 14,
   display: 'flex', alignItems: 'center', gap: 16,
   marginTop: 14,
 };
 const generateBtnStyle = (generating) => ({
-  background: generating ? '#1a1a1f' : '#0A919B',
-  color: generating ? '#666' : '#0a0a0e',
-  border: generating ? '1px solid #2a2a30' : 'none',
+  background: generating ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: generating ? 'var(--faint)' : 'var(--bg)',
+  border: generating ? '1px solid var(--border)' : 'none',
   padding: '10px 18px', borderRadius: 5,
   fontSize: 13, fontWeight: 700, letterSpacing: 0.3,
   cursor: generating ? 'not-allowed' : 'pointer',
@@ -462,31 +477,31 @@ const generateBtnStyle = (generating) => ({
 
 const listRowStyle = (selected) => ({
   display: 'flex', alignItems: 'center', gap: 10,
-  background: selected ? 'rgba(10,145,155,0.10)' : '#0e0e11',
-  border: `1px solid ${selected ? 'rgba(10,145,155,0.40)' : '#2a2a30'}`,
+  background: selected ? 'rgba(10,145,155,0.10)' : 'var(--card)',
+  border: `1px solid ${selected ? 'rgba(10,145,155,0.40)' : 'var(--outline-variant)'}`,
   borderRadius: 5, padding: 10,
 });
-const listRowDateStyle = { fontSize: 13, fontWeight: 600, color: '#cde4d6' };
-const listRowMetaStyle = { fontSize: 11, color: '#666', marginTop: 2 };
+const listRowDateStyle = { fontSize: 13, fontWeight: 600, color: 'var(--text)' };
+const listRowMetaStyle = { fontSize: 11, color: 'var(--faint)', marginTop: 2 };
 const smallBtnStyle = {
-  background: '#1a1a1f', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 4,
+  background: 'var(--input-bg)', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: '4px 10px', fontSize: 11, cursor: 'pointer',
 };
 
 const detailShellStyle = {
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 6, padding: 22, marginTop: 18,
 };
 const detailHeaderStyle = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12,
-  borderBottom: '1px solid #2a2a30', paddingBottom: 12, marginBottom: 14,
+  borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 14,
 };
-const detailMetaStyle = { fontSize: 12, color: '#666', marginTop: 4 };
+const detailMetaStyle = { fontSize: 12, color: 'var(--faint)', marginTop: 4 };
 const copyBtnStyle = {
-  background: '#1a1a1f', color: '#cde4d6',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'var(--input-bg)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '6px 14px', fontSize: 12, fontWeight: 600,
   cursor: 'pointer', letterSpacing: 0.3, flexShrink: 0,
 };

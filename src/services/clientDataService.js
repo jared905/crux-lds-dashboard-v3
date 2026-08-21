@@ -140,7 +140,6 @@ export async function saveClientToSupabase(clientName, normalizedRows, youtubeCh
   }
 
   const videosToUpsert = Array.from(videoMap.values());
-  console.log(`[Supabase] Prepared ${videosToUpsert.length} unique videos (from ${normalizedRows.length} rows)`);
 
   // 3. Upsert videos in batches (Supabase has limits)
   const BATCH_SIZE = 500;
@@ -249,6 +248,15 @@ async function loadChannelData(channel) {
       avgViewPct: video.avg_view_percentage,
       subscribers: video.subscribers_gained,
       watchHours: video.watch_hours,
+      // Engagement + identity fields: the organic-traffic detector needs
+      // comments/likes on BOTH data paths (snapshot rows already carry
+      // them; without these the flags vanished whenever the lifetime
+      // path loaded — user-reported 2026-08-21). id enables per-video
+      // snapshot lookups (velocity curves).
+      likes: video.like_count ?? null,
+      comments: video.comment_count ?? null,
+      id: video.id,
+      youtubeVideoId: video.youtube_video_id || realVideoId,
       channel: contentSource,
       isCollaboration: video.is_collaboration || false,
       collabRole: video.collaboration_role || null,
@@ -257,9 +265,14 @@ async function loadChannelData(channel) {
   };
 
   // Priority 1: Check if the videos table has live synced data (from daily-sync cron)
+  // Explicit column list, NOT select('*'): the videos table carries a
+  // 1536-dim title_embedding vector per row (~19KB of JSON floats).
+  // select('*') shipped it with every video on every client load —
+  // ~7MB of dead weight for a 366-video channel. Nothing in the
+  // dashboard reads it; the embedding is for server-side similarity.
   const { data: liveVideos, error: videosError } = await supabase
     .from('videos')
-    .select('*')
+    .select('id, title, published_at, view_count, duration_seconds, impressions, ctr, avg_view_percentage, subscribers_gained, content_source, thumbnail_url, video_type, watch_hours, like_count, comment_count, youtube_video_id, is_collaboration, collaboration_role, collaboration_host_channel_title, last_synced_at')
     .eq('channel_id', channel.id)
     .order('published_at', { ascending: false });
 
@@ -960,11 +973,79 @@ export async function getVideoSnapshotAggregates(channelIds, startDate, endDate)
   // If neither source has produced views yet, fall back to lifetime stats.
   const totalViews = rows.reduce((sum, r) => sum + r.views, 0);
   if (totalViews === 0) {
-    console.log('[Snapshots] No view data in snapshots yet, falling back to lifetime stats');
     return null;
   }
 
   return { rows, snapshotDays: maxDays };
+}
+
+/**
+ * Daily channel views series for the Momentum chart. Sums per-video
+ * daily snapshots by date via the get_daily_channel_views RPC
+ * (migration 112). Returns null when the RPC is missing, errors, or
+ * has no rows — the chart then falls back to publish-day bucketing.
+ */
+export async function getDailyChannelViews(channelIds, startDate, endDate) {
+  if (!supabase || !channelIds?.length) return null;
+  const { data, error } = await supabase.rpc('get_daily_channel_views', {
+    channel_ids: channelIds,
+    start_date: startDate,
+    end_date: endDate,
+  });
+  if (error || !data || data.length === 0) return null;
+  return data.map(r => ({
+    date: r.snapshot_date,
+    views: Number(r.views) || 0,
+    watchHours: Number(r.watch_hours) || 0,
+  }));
+}
+
+/**
+ * Daily cumulative subscriber series across channels, forward-filled.
+ *
+ * channel_snapshots stores each channel's subscriber_count per day.
+ * Channels miss days (sync gaps), so naively summing per date makes the
+ * portfolio line dip whenever one channel lacks a row — forward-fill
+ * carries each channel's last known count instead. Chunked queries keep
+ * every request under PostgREST's 1000-row cap.
+ */
+export async function getDailySubscriberSeries(channelIds, startDate, endDate) {
+  if (!supabase || !channelIds?.length) return null;
+  const all = [];
+  const CHUNK = 8; // 8 channels × ≤90 days stays under the row cap
+  for (let i = 0; i < channelIds.length; i += CHUNK) {
+    const { data, error } = await supabase
+      .from('channel_snapshots')
+      .select('channel_id, snapshot_date, subscriber_count')
+      .in('channel_id', channelIds.slice(i, i + CHUNK))
+      .gte('snapshot_date', startDate)
+      .lte('snapshot_date', endDate)
+      .order('snapshot_date', { ascending: true });
+    if (error) { console.warn('[subs series] query failed:', error.message); return null; }
+    all.push(...(data || []));
+  }
+  if (all.length === 0) {
+    return null;
+  }
+
+  const dates = [...new Set(all.map(r => r.snapshot_date))].sort();
+  if (dates.length < 3) {
+    return null;
+  }
+  const byChannel = new Map();
+  for (const r of all) {
+    if (!byChannel.has(r.channel_id)) byChannel.set(r.channel_id, new Map());
+    byChannel.get(r.channel_id).set(r.snapshot_date, r.subscriber_count || 0);
+  }
+  const lastKnown = new Map();
+  return dates.map(date => {
+    let total = 0;
+    for (const [ch, perDate] of byChannel) {
+      if (perDate.has(date)) lastKnown.set(ch, perDate.get(date));
+      total += lastKnown.get(ch) || 0;
+    }
+    return { date, subscribers: total };
+  });
 }
 
 export default {

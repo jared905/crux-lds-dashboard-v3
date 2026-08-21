@@ -26,6 +26,8 @@ export function useInView(options = {}) {
 
     observer.observe(el);
     return () => observer.disconnect();
+  // Mount-only observer; callers pass inline options whose identity changes every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return [ref, isInView];

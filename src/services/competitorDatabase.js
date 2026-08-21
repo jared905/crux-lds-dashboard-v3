@@ -8,12 +8,12 @@
 import { supabase } from './supabaseClient';
 import { youtubeAPI, determineVideoType } from './youtubeAPI';
 
-// Title pattern detection (matches competitorAnalysis.js)
+// Title pattern detection
 const TITLE_PATTERNS = [
   { name: 'question', regex: /\?/ },
   { name: 'number', regex: /\d+/ },
   { name: 'caps_emphasis', regex: /\b[A-Z]{3,}\b/ },
-  { name: 'brackets', regex: /[\(\[\{]/ },
+  { name: 'brackets', regex: /[([{]/ },
   { name: 'first_person', regex: /\b(I|My|We|Our)\b/i },
   { name: 'negative', regex: /\b(never|stop|avoid|worst|fail|bad|terrible|don't)\b/i },
   { name: 'power_word', regex: /\b(secret|ultimate|best|perfect|complete|easy|simple|amazing)\b/i },
@@ -49,15 +49,6 @@ function detectContentFormat(title) {
 /**
  * Parse ISO 8601 duration to seconds
  */
-function parseDuration(duration) {
-  if (!duration) return 0;
-  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!match) return 0;
-  const hours = parseInt(match[1]) || 0;
-  const minutes = parseInt(match[2]) || 0;
-  const seconds = parseInt(match[3]) || 0;
-  return hours * 3600 + minutes * 60 + seconds;
-}
 
 // ============================================
 // CHANNEL OPERATIONS
@@ -937,7 +928,7 @@ export async function createCompetitorGroup({ clientId, name, color }) {
 
   const { data, error } = await supabase
     .from('competitor_groups')
-    .insert({ client_id: clientId, name, color: color || '#3b82f6' })
+    .insert({ client_id: clientId, name, color: color || 'var(--blue)' })
     .select()
     .single();
 

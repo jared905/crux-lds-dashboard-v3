@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Youtube, BarChart3, Users, Zap, ChevronRight, CheckCircle, Loader, ArrowRight } from 'lucide-react';
+import { ArrowRight, CheckCircle, ChevronRight, Loader,Youtube, BarChart3, Users, Zap} from 'lucide-react';
 import { youtubeOAuthService } from '../../services/youtubeOAuthService';
 
 const STEPS = [
@@ -14,7 +14,7 @@ const VALUE_PROPS = [
   { icon: Zap, text: 'AI-powered audits and content strategy recommendations' },
 ];
 
-export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
+export default function WelcomeOnboarding({ onComplete, onSkip, _user }) {
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [channelName, setChannelName] = useState(null);
@@ -51,7 +51,7 @@ export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#0a0a0a',
+      background: 'var(--bg)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -88,18 +88,18 @@ export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: i <= currentStep ? '#2962FF' : '#1a1a1a',
-                border: `2px solid ${i <= currentStep ? '#2962FF' : '#333'}`,
-                transition: 'all 0.3s ease',
+                background: i <= currentStep ? "var(--blue)" : 'var(--input-bg)',
+                border: `2px solid ${i <= currentStep ? "var(--blue)" : 'var(--outline-variant)'}`,
+                transition: 'background-color 0.3s, border-color 0.3s, color 0.3s, opacity 0.3s',
               }}>
                 {i < currentStep
                   ? <CheckCircle size={16} color="#fff" />
-                  : <step.icon size={14} color={i <= currentStep ? '#fff' : '#666'} />
+                  : <step.icon size={14} color={i <= currentStep ? 'var(--ink)' : 'var(--faint)'} />
                 }
               </div>
               <span style={{
                 fontSize: 12,
-                color: i <= currentStep ? '#fff' : '#666',
+                color: i <= currentStep ? 'var(--ink)' : 'var(--faint)',
                 fontWeight: i === currentStep ? 600 : 400,
               }}>
                 {step.label}
@@ -113,8 +113,8 @@ export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
 
         {/* Main card */}
         <div style={{
-          background: '#111',
-          border: '1px solid #222',
+          background: 'var(--bg)',
+          border: '1px solid var(--border)',
           borderRadius: 16,
           padding: '40px 32px',
         }}>
@@ -123,7 +123,7 @@ export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
               <h1 style={{
                 fontSize: 24,
                 fontWeight: 700,
-                color: '#fff',
+                color: "var(--ink)",
                 marginBottom: 8,
                 textAlign: 'center',
               }}>
@@ -131,12 +131,12 @@ export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
               </h1>
               <p style={{
                 fontSize: 14,
-                color: '#888',
+                color: 'var(--outline)',
                 textAlign: 'center',
                 marginBottom: 32,
                 lineHeight: 1.5,
               }}>
-                Link your channel to unlock performance analytics, competitive benchmarks, and AI-powered content strategy.
+                Link your channel to see how it performs, and how it stacks up against the channels you compete with.
               </p>
 
               {/* Value props */}
@@ -153,15 +153,15 @@ export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
                       width: 32,
                       height: 32,
                       borderRadius: 8,
-                      background: '#1a1a1a',
+                      background: 'var(--input-bg)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       flexShrink: 0,
                     }}>
-                      <prop.icon size={16} color="#3b82f6" />
+                      <prop.icon size={16} color="#00D1FF" />
                     </div>
-                    <span style={{ fontSize: 13, color: '#ccc', lineHeight: 1.4 }}>{prop.text}</span>
+                    <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.4 }}>{prop.text}</span>
                   </div>
                 ))}
               </div>
@@ -173,10 +173,10 @@ export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
                 style={{
                   width: '100%',
                   padding: '14px 24px',
-                  background: connecting ? '#1a1a1a' : '#dc2626',
+                  background: connecting ? 'var(--card)' : "var(--neg-deep)",
                   border: 'none',
                   borderRadius: 10,
-                  color: '#fff',
+                  color: "var(--ink)",
                   fontSize: 15,
                   fontWeight: 600,
                   cursor: connecting ? 'not-allowed' : 'pointer',
@@ -184,7 +184,7 @@ export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 10,
-                  transition: 'all 0.2s ease',
+                  transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
                   opacity: connecting ? 0.7 : 1,
                 }}
               >
@@ -205,7 +205,7 @@ export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
                 <p style={{
                   marginTop: 12,
                   fontSize: 13,
-                  color: '#ef4444',
+                  color: "var(--neg)",
                   textAlign: 'center',
                 }}>
                   {error}
@@ -214,13 +214,35 @@ export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
 
               <p style={{
                 fontSize: 11,
-                color: '#444',
+                color: 'var(--outline-variant)',
                 textAlign: 'center',
                 marginTop: 16,
                 lineHeight: 1.4,
               }}>
                 Read-only access. We never post, modify, or delete anything on your channel.
               </p>
+
+              {/* Escape hatch — strategists manage channels that are already
+                  linked, so this screen must never feel like a wall. */}
+              {onSkip && (
+                <button
+                  onClick={onSkip}
+                  style={{
+                    width: '100%',
+                    marginTop: 20,
+                    padding: '10px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--outline)',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Skip for now — my channels are already connected
+                </button>
+              )}
             </>
           ) : (
             <>
@@ -229,29 +251,29 @@ export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
                   width: 56,
                   height: 56,
                   borderRadius: '50%',
-                  background: 'rgba(34, 197, 94, 0.1)',
-                  border: '2px solid #22c55e',
+                  background: 'rgba(205, 242, 0, 0.1)',
+                  border: "2px solid var(--pos)",
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   margin: '0 auto 16px',
                 }}>
-                  <CheckCircle size={28} color="#22c55e" />
+                  <CheckCircle size={28} color="#CDF200" />
                 </div>
-                <h1 style={{ fontSize: 24, fontWeight: 700, color: '#fff', marginBottom: 8 }}>
+                <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--ink)", marginBottom: 8 }}>
                   {channelName || 'Channel'} connected
                 </h1>
-                <p style={{ fontSize: 14, color: '#888', marginBottom: 32, lineHeight: 1.5 }}>
-                  Your data is syncing now. The first full sync takes a few minutes — you can start exploring immediately.
+                <p style={{ fontSize: 14, color: 'var(--outline)', marginBottom: 32, lineHeight: 1.5 }}>
+                  Your data is syncing now. The first full sync takes a few minutes, and you can start exploring immediately.
                 </p>
                 <button
                   onClick={onComplete}
                   style={{
                     padding: '14px 32px',
-                    background: '#2962FF',
+                    background: "var(--blue)",
                     border: 'none',
                     borderRadius: 10,
-                    color: '#fff',
+                    color: "var(--ink)",
                     fontSize: 15,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -277,7 +299,7 @@ export default function WelcomeOnboarding({ onComplete, onSkip, user }) {
           alignItems: 'center',
           gap: 8,
         }}>
-          <span style={{ fontSize: 12, color: '#444' }}>Powered by</span>
+          <span style={{ fontSize: 12, color: 'var(--outline-variant)' }}>Powered by</span>
           <img src="/crux-logo.png" alt="CRUX" style={{ height: 20, objectFit: 'contain', opacity: 0.5 }} />
         </div>
       </div>

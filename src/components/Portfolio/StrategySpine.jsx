@@ -7,14 +7,13 @@
  * Mounted inline within PortfolioView via master/detail. The Portfolio
  * list passes a clientId + name + handle and we own everything else.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   ArrowLeft, Loader, Edit2, Check, X as XIcon, Plus, Trash2,
-  RefreshCw, Calendar, ExternalLink, ChevronDown, ChevronRight,
+  RefreshCw, Calendar, ChevronDown, ChevronRight,
   Camera, History, Sparkles, Printer, ClipboardList, FileText,
-  Briefcase, Globe, Layers, ChevronUp,
+  Briefcase, Globe, Layers,
 } from 'lucide-react';
-import ClientDeliverable from '../ClientDeliverable/ClientDeliverable.jsx';
 import {
   getSpine,
   updateSpineField,
@@ -65,8 +64,9 @@ import {
   confirmBusinessContext,
   discardDraft,
 } from '../../services/clientBusinessContextService.js';
-import SpineAutoFillSection from './SpineAutoFillSection.jsx';
 import AudienceQuickReference from './AudienceQuickReference.jsx';
+import ClientDeliverable from '../ClientDeliverable/ClientDeliverable.jsx';
+import SpineAutoFillSection from './SpineAutoFillSection.jsx';
 
 export default function StrategySpine({ client, onBack, onNavigate }) {
   const [spine, setSpine] = useState(null);
@@ -176,7 +176,7 @@ export default function StrategySpine({ client, onBack, onNavigate }) {
 
   if (loading) {
     return (
-      <div style={{ padding: 60, textAlign: 'center', color: '#666' }}>
+      <div style={{ padding: 60, textAlign: 'center', color: 'var(--faint)' }}>
         <Loader size={20} style={{ animation: 'spin 1s linear infinite' }} />
         <div style={{ marginTop: 8, fontSize: 12 }}>Loading strategy spine…</div>
       </div>
@@ -241,7 +241,7 @@ export default function StrategySpine({ client, onBack, onNavigate }) {
       <Section
         title="Guardrails — do not recommend"
         subtitle="Sensitive topics, vetoed formats, off-limits framings, and recommendations already tried and rejected. Read at the top because it's load-bearing — every AI generation for this client respects these as hard constraints."
-        accent="#f87171"
+        accent="#ff8375"
         value={spine?.guardrails}
         updatedAt={spine?.guardrails_updated_at}
         placeholder="e.g. Do not recommend doctrine commentary. Do not suggest political topics. Avoid clickbait framing — client has explicitly vetoed it. Skip 'X vs Y' format — tested in Q1, low retention. Don't propose collaborations with creators outside the faith space."
@@ -258,7 +258,7 @@ export default function StrategySpine({ client, onBack, onNavigate }) {
       <Section
         title="Competitive posture"
         subtitle="One-line interpretation of how this client is differentiating from the competitive set. Displays as a banner inside Research v2 whenever this client's cohort is loaded — so the cohort data is never read without interpretation."
-        accent="#60a5fa"
+        accent="#4cd6ff"
         value={spine?.competitive_posture}
         updatedAt={spine?.competitive_posture_updated_at}
         placeholder="e.g. We compete on narrative warmth in a cohort that's flooded with utility-first content — when a competitor leans tactical, we lean story; when they lean shorts-heavy, we lean longer-form testimony."
@@ -386,17 +386,17 @@ function SpineHeader({ client, onBack, snapshotCount = 0, snapshotBusy = false, 
           <img src={client.thumbnail} alt="" loading="lazy"
             style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} />
         ) : (
-          <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#18181c' }} />
+          <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--card)' }} />
         )}
         <div style={{ flex: 1 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#fff', margin: 0, letterSpacing: '-0.3px' }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--ink)", margin: 0, letterSpacing: '-0.3px' }}>
             {client.name}
           </h1>
-          <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: 'var(--outline)', marginTop: 4 }}>
             Strategy spine
-            {client.stageLabel && <> · <span style={{ color: '#aaa' }}>{client.stageLabel}</span></>}
+            {client.stageLabel && <> · <span style={{ color: 'var(--muted)' }}>{client.stageLabel}</span></>}
             {client.customUrl && <> · {client.customUrl}</>}
-            {snapshotCount > 0 && <> · <span style={{ color: '#aaa' }}>{snapshotCount} snapshot{snapshotCount === 1 ? '' : 's'}</span></>}
+            {snapshotCount > 0 && <> · <span style={{ color: 'var(--muted)' }}>{snapshotCount} snapshot{snapshotCount === 1 ? '' : 's'}</span></>}
           </div>
         </div>
         {onOpenDeliverable && (
@@ -406,7 +406,7 @@ function SpineHeader({ client, onBack, snapshotCount = 0, snapshotBusy = false, 
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               padding: '7px 12px', borderRadius: 6,
-              background: '#1e3a5f', color: '#dbeafe',
+              background: 'var(--surface-high)', color: 'var(--blue-pale)',
               border: '1px solid #2a4f7f', cursor: 'pointer',
               fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
             }}
@@ -422,7 +422,7 @@ function SpineHeader({ client, onBack, snapshotCount = 0, snapshotBusy = false, 
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               padding: '7px 12px', borderRadius: 6,
-              background: '#18181c', color: '#d4d4d8',
+              background: 'var(--card)', color: 'var(--text)',
               border: '1px solid #232328', cursor: snapshotBusy ? 'wait' : 'pointer',
               fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
               opacity: snapshotBusy ? 0.6 : 1,
@@ -449,7 +449,7 @@ function SnapshotHistory({ snapshots, expanded, onToggle, onView, onDelete }) {
         onClick={onToggle}
         style={{
           background: 'transparent', border: 'none', padding: '4px 0',
-          color: '#888', fontSize: 11, fontWeight: 700,
+          color: 'var(--outline)', fontSize: 11, fontWeight: 700,
           textTransform: 'uppercase', letterSpacing: 0.7,
           display: 'inline-flex', alignItems: 'center', gap: 6,
           cursor: 'pointer', fontFamily: 'inherit',
@@ -461,7 +461,7 @@ function SnapshotHistory({ snapshots, expanded, onToggle, onView, onDelete }) {
       </button>
       {expanded && (
         <div style={{
-          background: '#131316', border: '1px solid #1f1f24', borderRadius: 10,
+          background: 'var(--bg)', border: '1px solid #1f1f24', borderRadius: 10,
           padding: 12, marginTop: 8,
         }}>
           {snapshots.map(s => {
@@ -473,18 +473,18 @@ function SnapshotHistory({ snapshots, expanded, onToggle, onView, onDelete }) {
                 gap: 10, padding: '8px 4px', borderBottom: '1px solid #1c1c20',
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: '#d4d4d8', fontWeight: 600 }}>
-                    {s.label || <span style={{ color: '#666', fontWeight: 400 }}>(unlabeled)</span>}
+                  <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
+                    {s.label || <span style={{ color: 'var(--faint)', fontWeight: 400 }}>(unlabeled)</span>}
                     {s.quarterly_stance_label && s.label !== s.quarterly_stance_label && (
-                      <span style={{ color: '#666', fontWeight: 400, marginLeft: 8 }}>· stance was "{s.quarterly_stance_label}"</span>
+                      <span style={{ color: 'var(--faint)', fontWeight: 400, marginLeft: 8 }}>· stance was "{s.quarterly_stance_label}"</span>
                     )}
                   </div>
-                  <div style={{ fontSize: 11, color: '#777', marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: 'var(--outline)', marginTop: 2 }}>
                     Captured {when} · {new Date(s.captured_at).toISOString().slice(0, 10)}
                   </div>
                 </div>
                 <button onClick={() => onView(s.id)} style={ghostBtnSmall} title="View snapshot">View</button>
-                <button onClick={() => onDelete(s.id)} style={{ ...ghostBtnSmall, color: '#f87171' }} title="Delete snapshot">
+                <button onClick={() => onDelete(s.id)} style={{ ...ghostBtnSmall, color: "var(--neg-text)" }} title="Delete snapshot">
                   <Trash2 size={11} />
                 </button>
               </div>
@@ -500,10 +500,10 @@ function SnapshotViewer({ snapshot, onClose }) {
   if (!snapshot) return null;
   const fmtField = (label, value) => value?.trim() ? (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4, fontWeight: 700 }}>
+      <div style={{ fontSize: 10, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4, fontWeight: 700 }}>
         {label}
       </div>
-      <div style={{ color: '#d4d4d8', fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{value}</div>
+      <div style={{ color: 'var(--text)', fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{value}</div>
     </div>
   ) : null;
 
@@ -520,19 +520,19 @@ function SnapshotViewer({ snapshot, onClose }) {
     >
       <div style={{
         width: 'min(720px, 100%)', maxHeight: '85vh', overflowY: 'auto',
-        background: '#131316', border: '1px solid #2a2a30', borderRadius: 12,
+        background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12,
         padding: 20,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
           <div>
-            <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, marginBottom: 4 }}>
+            <div style={{ fontSize: 10, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, marginBottom: 4 }}>
               Snapshot · {new Date(snapshot.captured_at).toISOString().slice(0, 10)}
             </div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: 0 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)", margin: 0 }}>
               {snapshot.label || 'Unlabeled snapshot'}
             </h2>
             {snapshot.notes && (
-              <div style={{ fontSize: 12, color: '#888', marginTop: 6, lineHeight: 1.5 }}>{snapshot.notes}</div>
+              <div style={{ fontSize: 12, color: 'var(--outline)', marginTop: 6, lineHeight: 1.5 }}>{snapshot.notes}</div>
             )}
           </div>
           <button onClick={onClose} style={ghostBtnSmall} title="Close"><XIcon size={14} /></button>
@@ -550,16 +550,16 @@ function SnapshotViewer({ snapshot, onClose }) {
 
         {plays.length > 0 && (
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6, fontWeight: 700 }}>
+            <div style={{ fontSize: 10, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6, fontWeight: 700 }}>
               Active plays at capture ({plays.length})
             </div>
             {plays.map(p => (
               <div key={p.id} style={{
-                background: '#16161a', border: '1px solid #1f1f24', borderRadius: 6,
-                padding: '8px 10px', marginBottom: 6, fontSize: 12, color: '#d4d4d8',
+                background: 'var(--card)', border: '1px solid #1f1f24', borderRadius: 6,
+                padding: '8px 10px', marginBottom: 6, fontSize: 12, color: 'var(--text)',
               }}>
-                <strong>{p.name}</strong> <span style={{ color: '#888' }}>· {PLAY_STATUS_LABELS[p.status] || p.status}</span>
-                {p.hypothesis && <div style={{ color: '#a1a1aa', marginTop: 3 }}>{p.hypothesis}</div>}
+                <strong>{p.name}</strong> <span style={{ color: 'var(--outline)' }}>· {PLAY_STATUS_LABELS[p.status] || p.status}</span>
+                {p.hypothesis && <div style={{ color: 'var(--muted)', marginTop: 3 }}>{p.hypothesis}</div>}
               </div>
             ))}
           </div>
@@ -641,11 +641,11 @@ function BusinessContextSection({ clientId, active, draft, onChanged }) {
     await onChanged?.();
   };
 
-  const accent = showingDraft ? '#fbbf24' : (active ? '#34d399' : '#a78bfa');
+  const accent = showingDraft ? 'var(--warn-text)' : (active ? 'var(--pos-text)' : 'var(--accent-text)');
   const statusBadge = showingDraft
-    ? <span style={{ fontSize: 10, fontWeight: 700, color: '#fbbf24', background: 'rgba(251,191,36,0.12)', padding: '2px 7px', borderRadius: 10, textTransform: 'uppercase', letterSpacing: 0.6 }}>Draft · awaiting confirm</span>
+    ? <span style={{ fontSize: 10, fontWeight: 700, color: "var(--warn-text)", background: 'rgba(251,191,36,0.12)', padding: '2px 7px', borderRadius: 10, textTransform: 'uppercase', letterSpacing: 0.6 }}>Draft · awaiting confirm</span>
     : active
-      ? <span style={{ fontSize: 10, fontWeight: 700, color: '#34d399', background: 'rgba(52,211,153,0.12)', padding: '2px 7px', borderRadius: 10, textTransform: 'uppercase', letterSpacing: 0.6 }}>Confirmed</span>
+      ? <span style={{ fontSize: 10, fontWeight: 700, color: "var(--pos-text)", background: 'rgba(52,211,153,0.12)', padding: '2px 7px', borderRadius: 10, textTransform: 'uppercase', letterSpacing: 0.6 }}>Confirmed</span>
       : null;
 
   const action = editing ? (
@@ -671,7 +671,7 @@ function BusinessContextSection({ clientId, active, draft, onChanged }) {
       accent={accent}
       action={action}
     >
-      {error && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 10 }}>{error}</div>}
+      {error && <div style={{ color: "var(--neg-text)", fontSize: 12, marginBottom: 10 }}>{error}</div>}
 
       {!current && !auditing && (
         <form onSubmit={handleAudit}>
@@ -689,14 +689,14 @@ function BusinessContextSection({ clientId, active, draft, onChanged }) {
               <Globe size={12} /> Audit website
             </button>
           </div>
-          <div style={{ fontSize: 11, color: '#666', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 11, color: 'var(--faint)', lineHeight: 1.5 }}>
             We'll fetch the homepage server-side, run Claude over the content, and draft a structured summary of what this company offers and doesn't. You'll review before it goes active.
           </div>
         </form>
       )}
 
       {auditing && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', color: '#aaa', fontSize: 13 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', color: 'var(--muted)', fontSize: 13 }}>
           <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
           Fetching site, extracting context… this can take 10–20 seconds.
         </div>
@@ -705,9 +705,9 @@ function BusinessContextSection({ clientId, active, draft, onChanged }) {
       {current && !editing && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {current.source_url && (
-            <div style={{ fontSize: 11, color: '#666', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontSize: 11, color: 'var(--faint)', display: 'flex', alignItems: 'center', gap: 6 }}>
               <Globe size={11} /> {current.source_url}
-              {current.source_fetched_at && <span style={{ color: '#555' }}>· fetched {formatRelative(current.source_fetched_at)}</span>}
+              {current.source_fetched_at && <span style={{ color: 'var(--faint)' }}>· fetched {formatRelative(current.source_fetched_at)}</span>}
             </div>
           )}
           {current.one_line_summary && (
@@ -717,14 +717,14 @@ function BusinessContextSection({ clientId, active, draft, onChanged }) {
             <BizField label="Offers" value={current.products_offered} />
           )}
           {current.products_not_offered && (
-            <BizField label="Does NOT offer" value={current.products_not_offered} accent="#f87171" />
+            <BizField label="Does NOT offer" value={current.products_not_offered} accent="#ff8375" />
           )}
           {current.target_market && (
             <BizField label="Target market" value={current.target_market} />
           )}
 
           {!active && (
-            <div style={{ marginTop: 4, padding: '8px 10px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 4, fontSize: 12, color: '#fbbf24', lineHeight: 1.5 }}>
+            <div style={{ marginTop: 4, padding: '8px 10px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: 4, fontSize: 12, color: "var(--warn-text)", lineHeight: 1.5 }}>
               This is a draft. Click <strong>Confirm</strong> to activate it. AI prompts won't see this context until you do.
             </div>
           )}
@@ -732,7 +732,7 @@ function BusinessContextSection({ clientId, active, draft, onChanged }) {
           {/* Re-audit affordance when active */}
           {active && !showingDraft && (
             <details style={{ marginTop: 6 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 12, color: '#888' }}>Re-audit with a different URL</summary>
+              <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--outline)' }}>Re-audit with a different URL</summary>
               <form onSubmit={handleAudit} style={{ marginTop: 8, display: 'flex', gap: 8 }}>
                 <input
                   type="url"
@@ -789,8 +789,8 @@ function BusinessContextSection({ clientId, active, draft, onChanged }) {
 function BizField({ label, value, accent }) {
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 700, color: accent || '#888', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 13, color: '#d4d4d8', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{value}</div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: accent || 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{value}</div>
     </div>
   );
 }
@@ -844,14 +844,14 @@ function PositioningOneLinerSection({ clientId, clientName, value, updatedAt, on
     }
   };
 
-  const counterColor = overLimit ? '#f87171' : (charCount > POSITIONING_ONELINER_MAX_CHARS * 0.9 ? '#fbbf24' : '#666');
+  const counterColor = overLimit ? 'var(--neg-text)' : (charCount > POSITIONING_ONELINER_MAX_CHARS * 0.9 ? 'var(--warn-text)' : 'var(--faint)');
 
   return (
     <SectionShell
       title="Channel articulation (one-liner)"
       subtitle="The single sentence that names what this channel is. The headline of the Positioning Recommendation section of the client deliverable — strategist-approved, ≤120 chars."
       updatedAt={updatedAt}
-      accent="#a78bfa"
+      accent="#4cd6ff"
       action={editing ? (
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={handleSave} disabled={overLimit} style={{ ...primaryBtn, opacity: overLimit ? 0.4 : 1, cursor: overLimit ? 'not-allowed' : 'pointer' }} title={overLimit ? `Over ${POSITIONING_ONELINER_MAX_CHARS}-char limit` : 'Save'}>
@@ -892,13 +892,13 @@ function PositioningOneLinerSection({ clientId, clientName, value, updatedAt, on
             </div>
           </div>
           {suggestError && (
-            <div style={{ color: '#f87171', fontSize: 12, marginBottom: 8 }}>
+            <div style={{ color: "var(--neg-text)", fontSize: 12, marginBottom: 8 }}>
               {suggestError}
             </div>
           )}
           {candidates && candidates.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
                 Click to use, then edit:
               </div>
               {candidates.map((c, i) => (
@@ -907,19 +907,19 @@ function PositioningOneLinerSection({ clientId, clientName, value, updatedAt, on
                   onClick={() => setDraft(c.oneliner)}
                   style={{
                     textAlign: 'left',
-                    background: '#15151a',
-                    border: '1px solid #2a2a30',
+                    background: 'var(--bg)',
+                    border: '1px solid var(--border)',
                     borderRadius: 6,
                     padding: '8px 10px',
                     fontFamily: 'inherit',
                     fontSize: 13,
-                    color: '#d4d4d8',
+                    color: 'var(--text)',
                     cursor: 'pointer',
                     lineHeight: 1.45,
                   }}
                   title={`Insert this candidate (${c.angle} angle) into the draft`}
                 >
-                  <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: 0.6, marginRight: 8 }}>
+                  <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 700, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: 0.6, marginRight: 8 }}>
                     {c.angle}
                   </span>
                   {c.oneliner}
@@ -929,12 +929,12 @@ function PositioningOneLinerSection({ clientId, clientName, value, updatedAt, on
           )}
         </>
       ) : value ? (
-        <div style={{ color: '#e4e4e7', fontSize: 16, lineHeight: 1.5, fontWeight: 600 }}>
+        <div style={{ color: 'var(--text)', fontSize: 16, lineHeight: 1.5, fontWeight: 600 }}>
           {value}
         </div>
       ) : (
-        <div style={{ color: '#555', fontSize: 13, fontStyle: 'italic' }}>
-          Not yet written. Click <strong style={{ color: '#888' }}>Edit</strong>, then optionally <strong style={{ color: '#888' }}>AI suggest</strong> to generate 3 candidates from the rest of the spine.
+        <div style={{ color: 'var(--faint)', fontSize: 13, fontStyle: 'italic' }}>
+          Not yet written. Click <strong style={{ color: 'var(--outline)' }}>Edit</strong>, then optionally <strong style={{ color: 'var(--outline)' }}>AI suggest</strong> to generate 3 candidates from the rest of the spine.
         </div>
       )}
     </SectionShell>
@@ -1016,20 +1016,20 @@ function Section({ title, subtitle, value, updatedAt, placeholder, onSave, onSug
                   : <><Sparkles size={12} /> AI suggest</>}
               </button>
               {!candidates && !suggesting && (
-                <span style={{ fontSize: 11, color: '#666' }}>
+                <span style={{ fontSize: 11, color: 'var(--faint)' }}>
                   Generates three candidates from the rest of the spine. You pick + edit.
                 </span>
               )}
             </div>
           )}
           {suggestError && (
-            <div style={{ color: '#f87171', fontSize: 12, marginBottom: 8 }}>
+            <div style={{ color: "var(--neg-text)", fontSize: 12, marginBottom: 8 }}>
               {suggestError}
             </div>
           )}
           {candidates && candidates.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
                 Click to use, then edit:
               </div>
               {candidates.map((c, i) => (
@@ -1038,19 +1038,19 @@ function Section({ title, subtitle, value, updatedAt, placeholder, onSave, onSug
                   onClick={() => setDraft(c.text || c.oneliner || '')}
                   style={{
                     textAlign: 'left',
-                    background: '#15151a',
-                    border: '1px solid #2a2a30',
+                    background: 'var(--bg)',
+                    border: '1px solid var(--border)',
                     borderRadius: 6,
                     padding: '10px 12px',
                     fontFamily: 'inherit',
                     fontSize: 13,
-                    color: '#d4d4d8',
+                    color: 'var(--text)',
                     cursor: 'pointer',
                     lineHeight: 1.55,
                   }}
                   title={`Insert this candidate (${c.angle || 'option'}) into the draft`}
                 >
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
                     {c.angle || `option ${i + 1}`}
                   </div>
                   {c.text || c.oneliner || ''}
@@ -1060,11 +1060,11 @@ function Section({ title, subtitle, value, updatedAt, placeholder, onSave, onSug
           )}
         </>
       ) : value ? (
-        <div style={{ color: '#d4d4d8', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+        <div style={{ color: 'var(--text)', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
           {value}
         </div>
       ) : (
-        <div style={{ color: '#555', fontSize: 13, fontStyle: 'italic' }}>
+        <div style={{ color: 'var(--faint)', fontSize: 13, fontStyle: 'italic' }}>
           {placeholder}
         </div>
       )}
@@ -1080,7 +1080,7 @@ function Section({ title, subtitle, value, updatedAt, placeholder, onSave, onSug
 // budget). The strategist drafts pillar candidates here pre-meeting,
 // promotes 1-3 to active after greenlight, retires the weakest after
 // performance data. Hosts (when applicable) get linked per pillar.
-function PillarsPanel({ clientId, clientName, spine, pillars, hosts, onPillarsChanged }) {
+function PillarsPanel({ clientId, _clientName, _spine, pillars, hosts, onPillarsChanged }) {
   const [adding, setAdding] = useState(false);
 
   // Group by status so drafts (pitch candidates) lead, then active
@@ -1103,7 +1103,7 @@ function PillarsPanel({ clientId, clientName, spine, pillars, hosts, onPillarsCh
     <SectionShell
       title={<><Layers size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: -2 }} />Content pillars</>}
       subtitle="Repeatable creative series — the unit you pitch in the vision-alignment meeting. Channels typically run 3 pillars in an A/B/C rotation; draft candidates here pre-meeting, promote 1-3 to active after greenlight."
-      accent="#34d399"
+      accent="#dcff45"
       action={
         <button onClick={() => setAdding(true)} disabled={adding} style={primaryBtn}>
           <Plus size={12} /> Add pillar
@@ -1111,8 +1111,8 @@ function PillarsPanel({ clientId, clientName, spine, pillars, hosts, onPillarsCh
       }
     >
       {pillars.length === 0 && !adding && (
-        <div style={{ color: '#666', fontSize: 13, fontStyle: 'italic', lineHeight: 1.55 }}>
-          No pillars yet. Click <strong style={{ color: '#888' }}>Add pillar</strong> to draft your first candidate. Pillars come from your synthesis (the cohort's strongest opportunity, the client's existing series ideas, an unclaimed format you want to test).
+        <div style={{ color: 'var(--faint)', fontSize: 13, fontStyle: 'italic', lineHeight: 1.55 }}>
+          No pillars yet. Click <strong style={{ color: 'var(--outline)' }}>Add pillar</strong> to draft your first candidate. Pillars come from your synthesis (the cohort's strongest opportunity, the client's existing series ideas, an unclaimed format you want to test).
         </div>
       )}
 
@@ -1138,7 +1138,7 @@ function PillarsPanel({ clientId, clientName, spine, pillars, hosts, onPillarsCh
         <PillarGroup
           label={`Active rotation · ${active.length}`}
           subtle={`Publishing in ${active.length}-pillar rotation. A=${active[0]?.rotation_position ?? 0}, B, C…`}
-          accent="#34d399"
+          accent="#dcff45"
         >
           {active.map(p => (
             <PillarCard
@@ -1156,7 +1156,7 @@ function PillarsPanel({ clientId, clientName, spine, pillars, hosts, onPillarsCh
         <PillarGroup
           label={`Retired · ${retired.length}`}
           subtle="Pillars dropped from rotation after performance data. Kept for history; never re-recommended without new evidence."
-          accent="#666"
+          accent="#67747b"
           defaultCollapsed
         >
           {retired.map(p => (
@@ -1196,11 +1196,11 @@ function PillarGroup({ label, subtle, accent, children, defaultCollapsed = false
     <div style={{ marginTop: 14 }}>
       <button
         onClick={() => setCollapsed(c => !c)}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 'none', padding: '6px 0', cursor: 'pointer', color: '#aaa', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: 'inherit', width: '100%', textAlign: 'left' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 'none', padding: '6px 0', cursor: 'pointer', color: 'var(--muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, fontFamily: 'inherit', width: '100%', textAlign: 'left' }}
       >
         {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
         <span style={{ color: accent }}>{label}</span>
-        {subtle && <span style={{ color: '#666', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>· {subtle}</span>}
+        {subtle && <span style={{ color: 'var(--faint)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>· {subtle}</span>}
       </button>
       {!collapsed && <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>{children}</div>}
     </div>
@@ -1209,7 +1209,7 @@ function PillarGroup({ label, subtle, accent, children, defaultCollapsed = false
 
 // Single pillar card. Compact summary when collapsed; full editor when
 // in edit mode. Inline status controls (activate / retire) on hover.
-function PillarCard({ pillar, hosts, clientId, startEditing = false, onCreate, onCancelCreate, onChanged }) {
+function PillarCard({ pillar, hosts, _clientId, startEditing = false, onCreate, onCancelCreate, onChanged }) {
   const isNew = !pillar;
   const [editing, setEditing] = useState(startEditing);
   const [busy, setBusy] = useState(false);
@@ -1279,18 +1279,15 @@ function PillarCard({ pillar, hosts, clientId, startEditing = false, onCreate, o
   };
 
   const linkedHost = pillar?.host_id ? hosts.find(h => h.id === pillar.host_id) : null;
-  const accent = pillar?.status === 'active' ? '#34d399'
-    : pillar?.status === 'retired' ? '#666'
-    : '#fbbf24';
 
   return (
-    <div style={{ background: '#15151a', border: '1px solid #232328', borderLeft: `3px solid ${accent}`, borderRadius: 8, padding: '14px 16px' }}>
+    <div style={{ background: 'var(--bg)', border: "1px solid var(--border)", borderRadius: 8, padding: '14px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
-            {pillar?.title || draft.title || <span style={{ color: '#666', fontStyle: 'italic' }}>Untitled pillar</span>}
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>
+            {pillar?.title || draft.title || <span style={{ color: 'var(--faint)', fontStyle: 'italic' }}>Untitled pillar</span>}
           </div>
-          <div style={{ fontSize: 11, color: '#888', marginTop: 3, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 11, color: 'var(--outline)', marginTop: 3, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {pillar?.format_type && <span>{PILLAR_FORMAT_LABELS[pillar.format_type]}</span>}
             {pillar?.talent_model && <span>· {PILLAR_TALENT_LABELS[pillar.talent_model]}</span>}
             {linkedHost && <span>· Host: {linkedHost.name || linkedHost.archetype || 'unnamed'}</span>}
@@ -1298,7 +1295,7 @@ function PillarCard({ pillar, hosts, clientId, startEditing = false, onCreate, o
               <span>· ${pillar.budget_per_video_low ?? '?'}–${pillar.budget_per_video_high ?? '?'}/video</span>
             )}
             {pillar?.status === 'active' && pillar.rotation_position != null && (
-              <span style={{ color: '#34d399', fontWeight: 700 }}>· Slot {String.fromCharCode(65 + pillar.rotation_position)}</span>
+              <span style={{ color: "var(--pos-text)", fontWeight: 700 }}>· Slot {String.fromCharCode(65 + pillar.rotation_position)}</span>
             )}
           </div>
         </div>
@@ -1333,10 +1330,10 @@ function PillarCard({ pillar, hosts, clientId, startEditing = false, onCreate, o
       </div>
 
       {!editing && pillar?.creative_description && (
-        <div style={{ fontSize: 12, color: '#d4d4d8', lineHeight: 1.55, marginTop: 6 }}>{pillar.creative_description}</div>
+        <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.55, marginTop: 6 }}>{pillar.creative_description}</div>
       )}
       {!editing && pillar?.intended_audience && (
-        <div style={{ fontSize: 11, color: '#888', marginTop: 4, fontStyle: 'italic' }}>Audience: {pillar.intended_audience}</div>
+        <div style={{ fontSize: 11, color: 'var(--outline)', marginTop: 4, fontStyle: 'italic' }}>Audience: {pillar.intended_audience}</div>
       )}
 
       {editing && (
@@ -1390,7 +1387,7 @@ function PillarCard({ pillar, hosts, clientId, startEditing = false, onCreate, o
             style={textareaStyle}
           />
 
-          <label style={fieldLabel}>Intended audience (with interest-axis position — entertainment ↔ thought leadership)</label>
+          <label style={fieldLabel}>Intended audience (with interest-axis position — entertainment thought leadership)</label>
           <textarea
             value={draft.intended_audience}
             onChange={e => setDraft({ ...draft, intended_audience: e.target.value })}
@@ -1476,7 +1473,7 @@ function HostsPanel({ clientId, clientName, spine, hosts, onHostsChanged }) {
     <SectionShell
       title={<><ClipboardList size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: -2 }} />Hosts</>}
       subtitle="One profile per on-camera host. Each host has its own archetype, voice refinement, and audition rubric. Channels with multiple series typically run multiple hosts."
-      accent="#a78bfa"
+      accent="#4cd6ff"
       action={
         <button onClick={() => setAdding(true)} disabled={adding} style={primaryBtn}>
           <Plus size={12} /> Add host
@@ -1484,8 +1481,8 @@ function HostsPanel({ clientId, clientName, spine, hosts, onHostsChanged }) {
       }
     >
       {hosts.length === 0 && !adding && (
-        <div style={{ color: '#666', fontSize: 13, fontStyle: 'italic', lineHeight: 1.55 }}>
-          No hosts yet. Click <strong style={{ color: '#888' }}>Add host</strong> to define the first on-camera persona. If you've already authored a host archetype on the spine, it'll show up here automatically.
+        <div style={{ color: 'var(--faint)', fontSize: 13, fontStyle: 'italic', lineHeight: 1.55 }}>
+          No hosts yet. Click <strong style={{ color: 'var(--outline)' }}>Add host</strong> to define the first on-camera persona. If you've already authored a host archetype on the spine, it'll show up here automatically.
         </div>
       )}
 
@@ -1520,7 +1517,7 @@ function HostsPanel({ clientId, clientName, spine, hosts, onHostsChanged }) {
 // Single host card. Inline editor for the host's fields + an embedded
 // per-host rubric editor (reuses RubricView / RubricEditor / print
 // modal from the Step 3 work). Each card owns its own rubric state.
-function HostCard({ clientId, clientName, spine, host, startEditing, onCreate, onCancelCreate, onChanged }) {
+function HostCard({ clientId, clientName, _spine, host, startEditing, onCreate, onCancelCreate, onChanged }) {
   const isNew = !host;
   const [editing, setEditing] = useState(!!startEditing);
   const [draft, setDraft] = useState({
@@ -1642,19 +1639,18 @@ function HostCard({ clientId, clientName, spine, host, startEditing, onCreate, o
     });
   };
 
-  const accent = '#a78bfa';
 
   return (
-    <div style={{ background: '#15151a', border: `1px solid #232328`, borderLeft: `3px solid ${accent}`, borderRadius: 8, padding: '14px 16px' }}>
+    <div style={{ background: 'var(--bg)', border: "1px solid var(--border)", borderRadius: 8, padding: '14px 16px' }}>
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
-            {host?.name || draft.name || <span style={{ color: '#666', fontStyle: 'italic' }}>Untitled host</span>}
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>
+            {host?.name || draft.name || <span style={{ color: 'var(--faint)', fontStyle: 'italic' }}>Untitled host</span>}
           </div>
-          <div style={{ fontSize: 11, color: '#888', marginTop: 3 }}>
+          <div style={{ fontSize: 11, color: 'var(--outline)', marginTop: 3 }}>
             {(host?.archetype || composedArchetype) && <span>{host?.archetype || composedArchetype}</span>}
-            {host?.series_label && <span> · <span style={{ color: '#a8a8b0' }}>{host.series_label}</span></span>}
+            {host?.series_label && <span> · <span style={{ color: 'var(--muted)' }}>{host.series_label}</span></span>}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -1764,10 +1760,10 @@ function HostCard({ clientId, clientName, spine, host, startEditing, onCreate, o
       {!editing && !isNew && (
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid #232328` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
               Audition rubric
-              {rubric && <span style={{ color: '#666', fontWeight: 500, textTransform: 'none', marginLeft: 6 }}>· {(rubric.criteria || []).length} criteria · saved {formatRelative(rubric.generated_at)}</span>}
-              {!rubric && rubricLoaded && <span style={{ color: '#666', fontWeight: 500, textTransform: 'none', marginLeft: 6 }}>· not generated</span>}
+              {rubric && <span style={{ color: 'var(--faint)', fontWeight: 500, textTransform: 'none', marginLeft: 6 }}>· {(rubric.criteria || []).length} criteria · saved {formatRelative(rubric.generated_at)}</span>}
+              {!rubric && rubricLoaded && <span style={{ color: 'var(--faint)', fontWeight: 500, textTransform: 'none', marginLeft: 6 }}>· not generated</span>}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               {rubricEditing ? (
@@ -1800,7 +1796,7 @@ function HostCard({ clientId, clientName, spine, host, startEditing, onCreate, o
             </div>
           </div>
 
-          {rubricError && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 8 }}>{rubricError}</div>}
+          {rubricError && <div style={{ color: "var(--neg-text)", fontSize: 12, marginBottom: 8 }}>{rubricError}</div>}
 
           {rubricEditing ? (
             <RubricEditor
@@ -1860,9 +1856,9 @@ function HostSuggestPanel({ clientId, clientName, seriesLabelHint, suggesting, s
   };
 
   return (
-    <div style={{ marginBottom: 12, padding: 10, background: '#0e0e10', border: '1px dashed #2a2a30', borderRadius: 6 }}>
+    <div style={{ marginBottom: 12, padding: 10, background: 'var(--bg)', border: '1px dashed #2a2a30', borderRadius: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ fontSize: 11, color: '#888' }}>
+        <div style={{ fontSize: 11, color: 'var(--outline)' }}>
           Generate three candidate host profiles from the spine. Pick one to pre-fill archetype, refinement, and voice refinement.
         </div>
         <button onClick={handleSuggest} disabled={suggesting} style={{ ...ghostBtn, flexShrink: 0 }}>
@@ -1872,11 +1868,11 @@ function HostSuggestPanel({ clientId, clientName, seriesLabelHint, suggesting, s
         </button>
       </div>
       {error && (
-        <div style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>{error}</div>
+        <div style={{ color: "var(--neg-text)", fontSize: 12, marginTop: 8 }}>{error}</div>
       )}
       {candidates && candidates.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
             Click to use:
           </div>
           {candidates.map((c, i) => (
@@ -1885,28 +1881,28 @@ function HostSuggestPanel({ clientId, clientName, seriesLabelHint, suggesting, s
               onClick={() => onPickCandidate(c)}
               style={{
                 textAlign: 'left',
-                background: '#15151a',
-                border: '1px solid #2a2a30',
+                background: 'var(--bg)',
+                border: '1px solid var(--border)',
                 borderRadius: 6,
                 padding: '10px 12px',
                 fontFamily: 'inherit',
                 fontSize: 13,
-                color: '#d4d4d8',
+                color: 'var(--text)',
                 cursor: 'pointer',
                 lineHeight: 1.5,
               }}
               title="Insert this archetype + refinement + voice refinement into the form"
             >
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 4 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
                 {c.archetypeLabel}{c.refinement ? ` — ${c.refinement}` : ''}
               </div>
               {c.voice_tone_refinement && (
-                <div style={{ fontSize: 12, color: '#a8a8b0', marginBottom: 4 }}>
-                  <span style={{ color: '#a78bfa', fontWeight: 600 }}>Voice:</span> {c.voice_tone_refinement}
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
+                  <span style={{ color: 'var(--accent-text)', fontWeight: 600 }}>Voice:</span> {c.voice_tone_refinement}
                 </div>
               )}
               {c.rationale && (
-                <div style={{ fontSize: 11, color: '#666', fontStyle: 'italic' }}>
+                <div style={{ fontSize: 11, color: 'var(--faint)', fontStyle: 'italic' }}>
                   {c.rationale}
                 </div>
               )}
@@ -1931,29 +1927,29 @@ function extractArchetypeRefinement(value) {
   return suffix.startsWith('—') ? suffix.slice(1).trim() : suffix;
 }
 function RubricView({ rubric }) {
-  const weightTone = { high: '#f87171', medium: '#a78bfa', low: '#666' };
+  const weightTone = { high: 'var(--neg-text)', medium: 'var(--accent-text)', low: 'var(--faint)' };
   return (
     <div>
       {rubric.intro_note && (
-        <div style={{ color: '#d4d4d8', fontSize: 13, lineHeight: 1.55, marginBottom: 14, paddingLeft: 10, borderLeft: '2px solid #2a2a30', fontStyle: 'italic' }}>
+        <div style={{ color: 'var(--text)', fontSize: 13, lineHeight: 1.55, marginBottom: 14, paddingLeft: 10, borderLeft: '2px solid var(--border)', fontStyle: 'italic' }}>
           {rubric.intro_note}
         </div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {(rubric.criteria || []).map((c, i) => (
-          <div key={i} style={{ background: '#15151a', border: '1px solid #232328', borderRadius: 6, padding: '10px 12px' }}>
+          <div key={i} style={{ background: 'var(--bg)', border: '1px solid #232328', borderRadius: 6, padding: '10px 12px' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#e4e4e7' }}>{i + 1}. {c.name}</div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: weightTone[c.weight] || '#666', textTransform: 'uppercase', letterSpacing: 0.6 }}>{c.weight || 'medium'}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{i + 1}. {c.name}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: weightTone[c.weight] || 'var(--faint)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{c.weight || 'medium'}</div>
             </div>
             {c.what_excellence_looks_like && (
-              <div style={{ fontSize: 12, color: '#a8a8b0', lineHeight: 1.5, marginBottom: 4 }}>
-                <strong style={{ color: '#888' }}>5/5:</strong> {c.what_excellence_looks_like}
+              <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 4 }}>
+                <strong style={{ color: 'var(--outline)' }}>5/5:</strong> {c.what_excellence_looks_like}
               </div>
             )}
             {c.disqualifier && (
-              <div style={{ fontSize: 12, color: '#a8a8b0', lineHeight: 1.5 }}>
-                <strong style={{ color: '#f87171' }}>Disqualifier:</strong> {c.disqualifier}
+              <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+                <strong style={{ color: "var(--neg-text)" }}>Disqualifier:</strong> {c.disqualifier}
               </div>
             )}
           </div>
@@ -1994,9 +1990,9 @@ function RubricEditor({ criteria, introNote, onUpdateCriterion, onRemoveCriterio
 
 function CriterionEditor({ index, criterion, onChange, onRemove }) {
   return (
-    <div style={{ background: '#15151a', border: '1px solid #2a2a30', borderRadius: 6, padding: '12px' }}>
+    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: 11, color: '#666', minWidth: 18 }}>#{index + 1}</span>
+        <span style={{ fontSize: 11, color: 'var(--faint)', minWidth: 18 }}>#{index + 1}</span>
         <input
           value={criterion.name}
           onChange={(e) => onChange({ name: e.target.value })}
@@ -2169,11 +2165,11 @@ function TalentRubricPrintModal({ rubric, clientName, onClose }) {
 
         <div className="rubric-footer">
           <div>
-            <div style={{ color: '#666', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Total weight units</div>
+            <div style={{ color: 'var(--faint)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Total weight units</div>
             <div style={{ fontSize: 13 }}>{totalWeight} (high=3, medium=2, low=1)</div>
           </div>
           <div>
-            <div style={{ color: '#666', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Reviewer signature</div>
+            <div style={{ color: 'var(--faint)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Reviewer signature</div>
             <div className="sig-line">&nbsp;</div>
           </div>
         </div>
@@ -2249,11 +2245,11 @@ function QuarterlyStance({ text, label, updatedAt, onSave }) {
           />
         </>
       ) : text ? (
-        <div style={{ color: '#d4d4d8', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+        <div style={{ color: 'var(--text)', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
           {text}
         </div>
       ) : (
-        <div style={{ color: '#555', fontSize: 13, fontStyle: 'italic' }}>
+        <div style={{ color: 'var(--faint)', fontSize: 13, fontStyle: 'italic' }}>
           Not yet set. The stance is the "what call are we making this quarter" — the field every artifact should anchor to.
         </div>
       )}
@@ -2285,7 +2281,7 @@ function ActivePlays({ plays, onAdd, onUpdate, onRemove }) {
         />
       )}
       {plays.length === 0 && !adding && (
-        <div style={{ color: '#555', fontSize: 13, fontStyle: 'italic' }}>
+        <div style={{ color: 'var(--faint)', fontSize: 13, fontStyle: 'italic' }}>
           No plays logged yet. Add the first experiment you're running.
         </div>
       )}
@@ -2312,13 +2308,13 @@ function PlayCard({ play, onUpdate, onRemove }) {
       />
     );
   }
-  const statusColor = play.status === 'in_flight' ? '#60a5fa'
-    : play.status === 'concluded_won' ? '#34d399'
-    : play.status === 'concluded_lost' ? '#f87171'
-    : '#a1a1aa';
+  const statusColor = play.status === 'in_flight' ? 'var(--accent-text)'
+    : play.status === 'concluded_won' ? 'var(--pos-text)'
+    : play.status === 'concluded_lost' ? 'var(--neg-text)'
+    : 'var(--muted)';
   return (
     <div style={{
-      background: '#16161a', border: '1px solid #1f1f24', borderRadius: 8,
+      background: 'var(--card)', border: '1px solid #1f1f24', borderRadius: 8,
       padding: '12px 14px', marginBottom: 10,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
@@ -2326,32 +2322,32 @@ function PlayCard({ play, onUpdate, onRemove }) {
           display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
           background: statusColor,
         }} />
-        <div style={{ fontWeight: 600, color: '#fff', fontSize: 14, flex: 1 }}>{play.name}</div>
+        <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: 14, flex: 1 }}>{play.name}</div>
         <span style={{ fontSize: 11, color: statusColor }}>{PLAY_STATUS_LABELS[play.status]}</span>
         <button onClick={() => setEditing(true)} style={ghostBtnSmall} title="Edit">
           <Edit2 size={11} />
         </button>
-        <button onClick={onRemove} style={{ ...ghostBtnSmall, color: '#f87171' }} title="Remove">
+        <button onClick={onRemove} style={{ ...ghostBtnSmall, color: "var(--neg-text)" }} title="Remove">
           <Trash2 size={11} />
         </button>
       </div>
       {play.hypothesis && (
-        <div style={{ color: '#d4d4d8', fontSize: 13, lineHeight: 1.55, marginBottom: 6, whiteSpace: 'pre-wrap' }}>
+        <div style={{ color: 'var(--text)', fontSize: 13, lineHeight: 1.55, marginBottom: 6, whiteSpace: 'pre-wrap' }}>
           {play.hypothesis}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 14, fontSize: 11, color: '#777' }}>
+      <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--outline)' }}>
         {play.started_at && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <Calendar size={10} /> {play.started_at}
           </span>
         )}
         {play.evidence && (
-          <span style={{ color: '#aaa', wordBreak: 'break-all' }}>Evidence: {play.evidence}</span>
+          <span style={{ color: 'var(--muted)', wordBreak: 'break-all' }}>Evidence: {play.evidence}</span>
         )}
       </div>
       {play.notes && (
-        <div style={{ color: '#888', fontSize: 12, marginTop: 8, whiteSpace: 'pre-wrap' }}>
+        <div style={{ color: 'var(--outline)', fontSize: 12, marginTop: 8, whiteSpace: 'pre-wrap' }}>
           {play.notes}
         </div>
       )}
@@ -2369,7 +2365,7 @@ function PlayEditor({ play, onSave, onCancel }) {
 
   return (
     <div style={{
-      background: '#16161a', border: '1px solid #2a2a30', borderRadius: 8,
+      background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8,
       padding: 14, marginBottom: 10,
     }}>
       <label style={fieldLabel}>Name</label>
@@ -2448,7 +2444,7 @@ class SnapshotErrorBoundary extends React.Component {
             {this.props.busy ? 'Refreshing…' : 'Refresh'}
           </button>
         }>
-          <div style={{ color: '#fbbf24', fontSize: 13, lineHeight: 1.55 }}>
+          <div style={{ color: "var(--warn-text)", fontSize: 13, lineHeight: 1.55 }}>
             Snapshot data couldn't be rendered (likely a shape mismatch in the cached row). Click Refresh above to recompute and replace it.
           </div>
         </SectionShell>
@@ -2474,12 +2470,12 @@ function ComputedSnapshotInner({ snapshot, computedAt, busy, onRefresh }) {
       }
     >
       {!snapshot ? (
-        <div style={{ color: '#555', fontSize: 13, fontStyle: 'italic' }}>
-          Snapshot not yet computed. Click <strong style={{ color: '#888' }}>Compute</strong> to run the full pipeline (diagnostic + patterns + white space).
+        <div style={{ color: 'var(--faint)', fontSize: 13, fontStyle: 'italic' }}>
+          Snapshot not yet computed. Click <strong style={{ color: 'var(--outline)' }}>Compute</strong> to run the full pipeline (diagnostic + patterns + white space).
         </div>
       ) : (
         <>
-          <div style={{ fontSize: 11, color: '#666', marginBottom: 10 }}>
+          <div style={{ fontSize: 11, color: 'var(--faint)', marginBottom: 10 }}>
             Last refreshed {computedAt ? formatRelative(computedAt) : '—'}
             {snapshot.cohort?.videos_analyzed && <> · {snapshot.cohort.videos_analyzed} cohort videos analyzed</>}
           </div>
@@ -2502,8 +2498,8 @@ function ComputedSnapshotInner({ snapshot, computedAt, busy, onRefresh }) {
             {snapshot.archetype_mix && (
               <>
                 {typeof snapshot.archetype_mix.client_archetype === 'string' && (
-                  <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>
-                    This client tagged as <strong style={{ color: '#d4d4d8' }}>{snapshot.archetype_mix.client_archetype}</strong>
+                  <div style={{ fontSize: 11, color: 'var(--outline)', marginBottom: 6 }}>
+                    This client tagged as <strong style={{ color: 'var(--text)' }}>{snapshot.archetype_mix.client_archetype}</strong>
                   </div>
                 )}
                 <ul style={snapshotList}>
@@ -2514,7 +2510,7 @@ function ComputedSnapshotInner({ snapshot, computedAt, busy, onRefresh }) {
                       {typeof s.video_count === 'number' && <>, {s.video_count} videos</>}
                       {typeof s.median_engagement === 'number' && <>, {(s.median_engagement * 100).toFixed(1)}% engagement</>}
                       {Array.isArray(s.top_patterns) && s.top_patterns.length > 0 && (
-                        <span style={{ color: '#777' }}>; top: {
+                        <span style={{ color: 'var(--outline)' }}>; top: {
                           s.top_patterns
                             .filter(p => p && typeof p.label === 'string')
                             .map(p => `${p.label}${typeof p.lift === 'number' ? ` (+${Math.round((p.lift - 1) * 100)}%)` : ''}`)
@@ -2532,7 +2528,7 @@ function ComputedSnapshotInner({ snapshot, computedAt, busy, onRefresh }) {
             {snapshot.format_mix && (
               <>
                 {(snapshot.format_mix.shorts_freq != null || snapshot.format_mix.longs_freq != null) && (
-                  <div style={{ fontSize: 12, color: '#d4d4d8', marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text)', marginBottom: 8 }}>
                     Cohort split: <strong>{Math.round((snapshot.format_mix.shorts_freq || 0) * 100)}% Shorts</strong> · <strong>{Math.round((snapshot.format_mix.longs_freq || 0) * 100)}% long-form</strong>
                   </div>
                 )}
@@ -2544,7 +2540,7 @@ function ComputedSnapshotInner({ snapshot, computedAt, busy, onRefresh }) {
                         {typeof b.freq === 'number' && <> · {(b.freq * 100).toFixed(0)}% of cohort</>}
                         {typeof b.lift === 'number' && <>, +{Math.round((b.lift - 1) * 100)}% views</>}
                         {b.count != null && <> (n={b.count})</>}
-                        {b.confidence && <em style={{ color: '#777' }}> [{b.confidence}]</em>}
+                        {b.confidence && <em style={{ color: 'var(--outline)' }}> [{b.confidence}]</em>}
                       </li>
                     ))}
                   </ul>
@@ -2591,9 +2587,9 @@ function ComputedSnapshotInner({ snapshot, computedAt, busy, onRefresh }) {
                   return (
                     <li key={i} style={{ marginBottom: 4 }}>
                       <strong>{titleStr.slice(0, 80)}{titleStr.length > 80 ? '…' : ''}</strong>
-                      {channelLabel && <span style={{ color: '#888' }}> · {channelLabel}</span>}
-                      {score != null && <span style={{ color: '#777' }}> · {score.toFixed(1)}x median</span>}
-                      {o.suspect && <span style={{ color: '#fbbf24', marginLeft: 6, fontSize: 10 }}>suspect</span>}
+                      {channelLabel && <span style={{ color: 'var(--outline)' }}> · {channelLabel}</span>}
+                      {score != null && <span style={{ color: 'var(--outline)' }}> · {score.toFixed(1)}x median</span>}
+                      {o.suspect && <span style={{ color: "var(--warn-text)", marginLeft: 6, fontSize: 10 }}>suspect</span>}
                     </li>
                   );
                 })}
@@ -2606,16 +2602,16 @@ function ComputedSnapshotInner({ snapshot, computedAt, busy, onRefresh }) {
               <div>
                 {snapshot.opportunity_briefs.opportunities.map((o, i) => (
                   <div key={i} style={{ marginBottom: 12, paddingBottom: 10, borderBottom: i < snapshot.opportunity_briefs.opportunities.length - 1 ? '1px solid #1c1c20' : 'none' }}>
-                    <div style={{ fontWeight: 600, color: '#fff', fontSize: 13, marginBottom: 4 }}>
+                    <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: 13, marginBottom: 4 }}>
                       {typeof o.title === 'string' ? o.title : '(untitled)'}
                     </div>
                     {Array.isArray(o.tags) && o.tags.length > 0 && (
-                      <div style={{ fontSize: 10, color: '#888', marginBottom: 5 }}>
+                      <div style={{ fontSize: 10, color: 'var(--outline)', marginBottom: 5 }}>
                         {o.tags.filter(t => typeof t === 'string').map(t => `#${t}`).join(' ')}
                       </div>
                     )}
                     {typeof o.body === 'string' && o.body.trim() && (
-                      <div style={{ color: '#d4d4d8', fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                      <div style={{ color: 'var(--text)', fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
                         {o.body}
                       </div>
                     )}
@@ -2645,7 +2641,7 @@ function CadenceFormatList({ title, slots, legacySlots }) {
     return (
       <div style={{ marginBottom: 10 }}>
         <div style={cadenceFormatHeader}>{title}</div>
-        <div style={{ color: '#666', fontSize: 12, fontStyle: 'italic', paddingLeft: 4 }}>
+        <div style={{ color: 'var(--faint)', fontSize: 12, fontStyle: 'italic', paddingLeft: 4 }}>
           No actionable slots — too thin in this format or all candidates were release-slot dominated.
         </div>
       </div>
@@ -2661,12 +2657,12 @@ function CadenceFormatList({ title, slots, legacySlots }) {
             <strong>{typeof s.slot === 'string' ? s.slot : `${s.day || ''} ${s.block || ''}`}</strong>
             {typeof s.lift === 'number' && <> — +{Math.round((s.lift - 1) * 100)}% views</>}
             {typeof s.count === 'number' && <> (n={s.count})</>}
-            {s.confidence && <em style={{ color: '#777' }}> [{s.confidence}]</em>}
+            {s.confidence && <em style={{ color: 'var(--outline)' }}> [{s.confidence}]</em>}
           </li>
         ))}
       </ol>
       {degraded && (
-        <div style={{ color: '#fbbf24', fontSize: 11, paddingLeft: 4, marginTop: 4 }}>
+        <div style={{ color: "var(--warn-text)", fontSize: 11, paddingLeft: 4, marginTop: 4 }}>
           Showing legacy combined-format data. Click Refresh to regenerate with per-format split.
         </div>
       )}
@@ -2683,8 +2679,8 @@ function CadenceCaveatList({ slots }) {
   return (
     <div style={{
       marginTop: 8, padding: '8px 10px',
-      background: '#1a1410', border: '1px solid #3a2a1f', borderRadius: 6,
-      fontSize: 11, color: '#fbbf24', lineHeight: 1.5,
+      background: 'var(--card)', border: '1px solid #3a2a1f', borderRadius: 6,
+      fontSize: 11, color: "var(--warn-text)", lineHeight: 1.5,
     }}>
       <strong>Excluded as likely release-slot:</strong>{' '}
       {all.slice(0, 4).map(s => s.slot).filter(Boolean).join(', ')}
@@ -2695,7 +2691,7 @@ function CadenceCaveatList({ slots }) {
 }
 
 const cadenceFormatHeader = {
-  fontSize: 11, color: '#a1a1aa', fontWeight: 700,
+  fontSize: 11, color: 'var(--muted)', fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: 0.5,
   marginBottom: 2,
 };
@@ -2703,14 +2699,14 @@ const cadenceFormatHeader = {
 function SnapshotPanel({ title, empty, children }) {
   return (
     <div style={{
-      background: '#16161a', border: '1px solid #1f1f24', borderRadius: 8,
+      background: 'var(--card)', border: '1px solid #1f1f24', borderRadius: 8,
       padding: '10px 12px', marginBottom: 8,
     }}>
-      <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, marginBottom: 6 }}>
+      <div style={{ fontSize: 10, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, marginBottom: 6 }}>
         {title}
       </div>
       {empty ? (
-        <div style={{ color: '#555', fontSize: 12, fontStyle: 'italic' }}>
+        <div style={{ color: 'var(--faint)', fontSize: 12, fontStyle: 'italic' }}>
           Not yet populated — needs a Refresh, or the cohort is too thin for this signal.
         </div>
       ) : children}
@@ -2720,17 +2716,17 @@ function SnapshotPanel({ title, empty, children }) {
 
 const snapshotList = {
   margin: 0, paddingLeft: 18,
-  color: '#d4d4d8', fontSize: 12, lineHeight: 1.55,
+  color: 'var(--text)', fontSize: 12, lineHeight: 1.55,
 };
 
 function SnapshotStat({ label, value, tone = 'normal' }) {
-  const color = tone === 'good' ? '#34d399'
-    : tone === 'warn' ? '#fbbf24'
-    : tone === 'bad' ? '#f87171'
-    : '#d4d4d8';
+  const color = tone === 'good' ? 'var(--pos-text)'
+    : tone === 'warn' ? 'var(--warn-text)'
+    : tone === 'bad' ? 'var(--neg-text)'
+    : 'var(--text)';
   return (
-    <div style={{ background: '#16161a', border: '1px solid #1f1f24', borderRadius: 8, padding: '10px 12px' }}>
-      <div style={{ fontSize: 10, color: '#777', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
+    <div style={{ background: 'var(--card)', border: '1px solid #1f1f24', borderRadius: 8, padding: '10px 12px' }}>
+      <div style={{ fontSize: 10, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
         {label}
       </div>
       <div style={{ fontSize: 18, fontWeight: 600, color, fontVariantNumeric: 'tabular-nums' }}>
@@ -2746,8 +2742,8 @@ function SnapshotStat({ label, value, tone = 'normal' }) {
 function SectionShell({ title, subtitle, updatedAt, action, accent, children }) {
   return (
     <div style={{
-      background: '#131316',
-      border: `1px solid ${accent || '#1f1f24'}`,
+      background: 'var(--bg)',
+      border: `1px solid ${accent || 'var(--card)'}`,
       borderLeft: accent ? `3px solid ${accent}` : '1px solid #1f1f24',
       borderRadius: 10,
       padding: '18px 20px', marginBottom: 14,
@@ -2755,17 +2751,17 @@ function SectionShell({ title, subtitle, updatedAt, action, accent, children }) 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: 13, fontWeight: 700, color: accent || '#fff', margin: 0, letterSpacing: 0.2, textTransform: 'uppercase' }}>
+            <h2 style={{ fontSize: 13, fontWeight: 700, color: accent || 'var(--ink)', margin: 0, letterSpacing: 0.2, textTransform: 'uppercase' }}>
               {title}
             </h2>
             {updatedAt && (
-              <span style={{ fontSize: 11, color: '#666' }}>
+              <span style={{ fontSize: 11, color: 'var(--faint)' }}>
                 Updated {formatRelative(updatedAt)}
               </span>
             )}
           </div>
           {subtitle && (
-            <div style={{ fontSize: 12, color: '#888', marginTop: 4, lineHeight: 1.5 }}>{subtitle}</div>
+            <div style={{ fontSize: 12, color: 'var(--outline)', marginTop: 4, lineHeight: 1.5 }}>{subtitle}</div>
           )}
         </div>
         {action}
@@ -2781,7 +2777,7 @@ function SectionShell({ title, subtitle, updatedAt, action, accent, children }) 
 const backBtn = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
   padding: '5px 11px', borderRadius: 5,
-  background: '#18181c', color: '#d4d4d8',
+  background: 'var(--card)', color: 'var(--text)',
   border: '1px solid #232328', cursor: 'pointer',
   fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
 };
@@ -2789,7 +2785,7 @@ const backBtn = {
 const primaryBtn = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
   padding: '6px 11px', borderRadius: 5,
-  background: '#1e3a5f', color: '#dbeafe',
+  background: 'var(--surface-high)', color: 'var(--blue-pale)',
   border: '1px solid #2a4f7f', cursor: 'pointer',
   fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
 };
@@ -2797,22 +2793,22 @@ const primaryBtn = {
 const ghostBtn = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
   padding: '6px 11px', borderRadius: 5,
-  background: '#18181c', color: '#d4d4d8',
+  background: 'var(--card)', color: 'var(--text)',
   border: '1px solid #232328', cursor: 'pointer',
   fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
 };
 
 const ghostBtnSmall = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  padding: 5, borderRadius: 4, color: '#888',
+  padding: 5, borderRadius: 4, color: 'var(--outline)',
   background: 'transparent', border: '1px solid transparent',
   cursor: 'pointer',
 };
 
 const textareaStyle = {
   width: '100%', boxSizing: 'border-box',
-  background: '#0e0e10', color: '#e4e4e7',
-  border: '1px solid #2a2a30', borderRadius: 6,
+  background: 'var(--bg)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 6,
   padding: '10px 12px', fontSize: 13, lineHeight: 1.55,
   fontFamily: 'inherit', resize: 'vertical',
   marginBottom: 8,
@@ -2820,15 +2816,15 @@ const textareaStyle = {
 
 const inputStyle = {
   width: '100%', boxSizing: 'border-box',
-  background: '#0e0e10', color: '#e4e4e7',
-  border: '1px solid #2a2a30', borderRadius: 6,
+  background: 'var(--bg)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 6,
   padding: '8px 10px', fontSize: 13,
   fontFamily: 'inherit', marginBottom: 8,
 };
 
 const fieldLabel = {
   display: 'block', fontSize: 10, fontWeight: 700,
-  color: '#888', textTransform: 'uppercase', letterSpacing: 0.6,
+  color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6,
   marginBottom: 4, marginTop: 6,
 };
 

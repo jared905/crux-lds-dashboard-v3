@@ -1,21 +1,21 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useMediaQuery } from "../../hooks/useMediaQuery.js";
 import { fmtInt } from "../../lib/formatters.js";
-import { TrendingUp, TrendingDown, AlertTriangle, ArrowRight } from "lucide-react";
 import { getLatestBrief } from "../../services/intelligenceBriefService.js";
+import { AlertTriangle, ArrowRight } from 'lucide-react';
 
 const ROTATE_INTERVAL = 6000; // 6 seconds per card
 
 const SEVERITY_COLORS = {
-  Critical: { bg: "rgba(239, 68, 68, 0.15)", border: "#ef4444", text: "#ef4444" },
-  Warning:  { bg: "rgba(245, 158, 11, 0.15)", border: "#f59e0b", text: "#f59e0b" },
-  Monitor:  { bg: "rgba(96, 165, 250, 0.15)", border: "#60a5fa", text: "#60a5fa" },
+  Critical: { bg: "rgba(255, 85, 64, 0.15)", border: "var(--neg)", text: "var(--neg)" },
+  Warning:  { bg: "rgba(245, 158, 11, 0.15)", border: "var(--warn)", text: "var(--warn)" },
+  Monitor:  { bg: "rgba(96, 165, 250, 0.15)", border: "var(--accent-text)", text: "var(--accent-text)" },
 };
 
 /**
  * HeroBanner — Editorial hero with client branding + rotating insight cards
  */
-export default function HeroBanner({ activeClient, kpis, previousKpis, channelStats, filtered, narrative, onNavigateToStrategy }) {
+export default function HeroBanner({ activeClient, kpis, _channelStats, filtered, narrative, onNavigateToStrategy }) {
   const { isMobile } = useMediaQuery();
   const [activeIndex, setActiveIndex] = useState(0);
   const [fading, setFading] = useState(false);
@@ -27,10 +27,11 @@ export default function HeroBanner({ activeClient, kpis, previousKpis, channelSt
   // Fetch latest brief for constraint badge + priority card
   useEffect(() => {
     if (!activeClient?.id) { setBrief(null); return; }
+    if (activeClient.isAggregate) { setBrief(null); return; }
     getLatestBrief(activeClient.id)
       .then(b => setBrief(b))
       .catch(() => {});
-  }, [activeClient?.id]);
+  }, [activeClient?.id, activeClient?.isAggregate]);
 
   const constraint = brief?.primary_constraint;
   const sevStyle = constraint ? SEVERITY_COLORS[constraint.severity] || SEVERITY_COLORS.Monitor : null;
@@ -40,43 +41,67 @@ export default function HeroBanner({ activeClient, kpis, previousKpis, channelSt
     if (!kpis || !filtered) return [];
     const items = [];
 
-    // 0. Narrative headline — the period story
-    if (narrative?.headline) {
-      const sentimentColor = narrative.sentiment === "positive" ? "#10b981"
-        : narrative.sentiment === "negative" ? "#ef4444" : "#818cf8";
-      items.push({
-        label: "The Story",
-        value: narrative.headline,
-        detail: narrative.subheadline || "",
-        color: sentimentColor,
-        isNarrative: true,
-      });
-    }
+    // The narrative headline used to be slide 0 ("The Story"). It was the
+    // tallest slide by far, so every rotation through it resized the card
+    // and reflowed the entire page. It now renders as the permanent
+    // standfirst under the client name — the one human sentence anchoring
+    // the hero — and the rotation carries only the stat cards.
 
-    // 0b. Brief priority action — what to focus on this week
-    if (brief?.recommended_actions?.length > 0) {
-      const topAction = brief.recommended_actions[0];
+    // 0b. Brief priority action — what to focus on this week.
+    // Credibility filter on STORED briefs: the generator now suppresses
+    // absurd lifts (mean-of-3-videos artifacts like "32608% more views"),
+    // but rows saved before that fix still carry them. Don't headline a
+    // claim the current pipeline would refuse to make; self-heals on the
+    // next generated brief.
+    const credibleActions = (brief?.recommended_actions || []).filter(a => {
+      const m = /([\d,]+)\s*%\s*more/.exec(a?.title || '');
+      return !m || Number(m[1].replace(/,/g, '')) <= 400;
+    });
+    if (credibleActions.length > 0) {
+      const topAction = credibleActions[0];
       items.push({
         label: "This Week's Priority",
         value: topAction.title,
-        detail: brief.recommended_actions.length > 1
-          ? `+ ${brief.recommended_actions.length - 1} more in your weekly brief`
+        detail: credibleActions.length > 1
+          ? `+ ${credibleActions.length - 1} more in your weekly brief`
           : "From your weekly intelligence brief",
-        color: "#6366f1",
+        color: "var(--blue)",
         isNarrative: true,
         isBriefAction: true,
       });
     }
 
-    // 1. Best performing video
+    // 0c. Aggregate view: which CHANNEL is winning the period. Only
+    // meaningful on "All Channels" — one channel's page has one channel.
     const sorted = [...filtered].filter(v => v.views > 0).sort((a, b) => b.views - a.views);
+    if (activeClient?.isAggregate) {
+      const byChannel = new Map();
+      for (const v of filtered) {
+        if (!v.channel) continue;
+        byChannel.set(v.channel, (byChannel.get(v.channel) || 0) + (v.views || 0));
+      }
+      const ranked = [...byChannel.entries()].sort((a, b) => b[1] - a[1]);
+      if (ranked.length > 1) {
+        const [topName, topViews] = ranked[0];
+        items.push({
+          label: "Top Channel",
+          value: topName,
+          detail: `${fmtInt(topViews)} views this period — best of ${ranked.length} channels`,
+          color: "var(--pos)",
+        });
+      }
+    }
+
+    // 1. Best performing video (on the aggregate, says whose it is)
     if (sorted.length > 0) {
       const top = sorted[0];
       items.push({
         label: "Top Video",
         value: fmtInt(top.views) + " views",
-        detail: top.title || "Untitled",
-        color: "#fbbf24",
+        detail: activeClient?.isAggregate && top.channel
+          ? `${top.title || "Untitled"} — ${top.channel}`
+          : (top.title || "Untitled"),
+        color: "var(--warn-text)",
       });
     }
 
@@ -91,7 +116,7 @@ export default function HeroBanner({ activeClient, kpis, previousKpis, channelSt
           label: "Format Winner",
           value: `${winner} by ${ratio.toFixed(1)}x`,
           detail: `${fmtInt(sViews)} Shorts views vs ${fmtInt(lViews)} Long-form views`,
-          color: sViews > lViews ? "#f97316" : "#0ea5e9",
+          color: sViews > lViews ? "var(--pos)" : "var(--blue)",
         });
       }
     }
@@ -103,7 +128,7 @@ export default function HeroBanner({ activeClient, kpis, previousKpis, channelSt
         label: "Subscriber Conversion",
         value: `1 in ${fmtInt(ratio)}`,
         detail: "viewers subscribed this period",
-        color: "#10b981",
+        color: "var(--pos)",
       });
     }
 
@@ -119,7 +144,7 @@ export default function HeroBanner({ activeClient, kpis, previousKpis, channelSt
             label: "Power Concentration",
             value: `${multiple}x`,
             detail: `Your #1 video outperformed your bottom ${bottomN.length} videos combined`,
-            color: "#8b5cf6",
+            color: "var(--blue-deep)",
           });
         }
       }
@@ -136,23 +161,40 @@ export default function HeroBanner({ activeClient, kpis, previousKpis, channelSt
         label: "Upload Cadence",
         value: `${perWeek}/week`,
         detail: `${withDates.length} videos over ${Math.round(weeks)} weeks`,
-        color: "#ef4444",
+        color: "var(--neg)",
       });
     }
 
-    // 6. Watch time per viewer
-    if (kpis.views > 0 && kpis.watchHours > 0) {
-      const minsPerViewer = ((kpis.watchHours * 60) / kpis.views).toFixed(1);
+    // 6. Watch time per viewer.
+    // Computed ONLY over videos that actually report watch hours — on
+    // "All Channels", views arrive from every channel but watch hours
+    // only from the OAuth-synced ones, so hours ÷ total views collapsed
+    // to "0.0 min" (user-reported 2026-08-20). Divide matching hours by
+    // matching views, and stay silent when coverage is too thin to mean
+    // anything.
+    // On the aggregate this stays hidden entirely: rows there mix
+    // lifetime view counts with period-scoped watch hours from different
+    // sync paths, so ANY division yields a confident-looking nonsense
+    // number ("0.0 min"). No number beats a wrong number; single-channel
+    // views and hours share a source, so the math holds there.
+    const withWatch = activeClient?.isAggregate ? [] : filtered.filter(v => (v.watchHours || 0) > 0 && (v.views || 0) > 0);
+    const watchViews = withWatch.reduce((sum, v) => sum + v.views, 0);
+    const watchHours = withWatch.reduce((sum, v) => sum + v.watchHours, 0);
+    const watchCoverage = filtered.length > 0 ? withWatch.length / filtered.length : 0;
+    if (watchViews > 0 && watchHours > 0 && (watchCoverage >= 0.3 || withWatch.length >= 20)) {
+      const minsPerViewer = ((watchHours * 60) / watchViews).toFixed(1);
       items.push({
         label: "Avg Watch Time",
         value: `${minsPerViewer} min`,
-        detail: "per viewer across all content",
-        color: "#0ea5e9",
+        detail: watchCoverage < 0.95
+          ? `per viewer, from the ${withWatch.length} videos with watch-time data`
+          : "per viewer across all content",
+        color: "var(--blue)",
       });
     }
 
     return items;
-  }, [kpis, previousKpis, filtered, narrative, brief]);
+  }, [kpis, filtered, brief, activeClient?.isAggregate]);
 
   // Auto-rotate
   const advance = useCallback(() => {
@@ -179,6 +221,15 @@ export default function HeroBanner({ activeClient, kpis, previousKpis, channelSt
       progressRef.current.style.animation = `progressFill ${ROTATE_INTERVAL}ms linear both`;
     }
   }, [activeIndex]);
+
+  const goBack = () => {
+    if (insights.length <= 1) return;
+    setFading(true);
+    setTimeout(() => {
+      setActiveIndex(i => (i - 1 + insights.length) % insights.length);
+      setFading(false);
+    }, 300);
+  };
 
   const goTo = (idx) => {
     if (idx === activeIndex) return;
@@ -219,7 +270,7 @@ export default function HeroBanner({ activeClient, kpis, previousKpis, channelSt
           <div style={{
             fontSize: isMobile ? "36px" : "56px",
             fontWeight: "800",
-            color: "#fff",
+            color: "var(--ink)",
             letterSpacing: "-0.02em",
             lineHeight: "1.05",
             textTransform: "uppercase",
@@ -236,7 +287,7 @@ export default function HeroBanner({ activeClient, kpis, previousKpis, channelSt
           }}>
             <span style={{
               fontSize: "13px",
-              color: "#9E9E9E",
+              color: "var(--muted)",
               fontWeight: "500",
               letterSpacing: "0.08em",
               textTransform: "uppercase",
@@ -271,7 +322,7 @@ export default function HeroBanner({ activeClient, kpis, previousKpis, channelSt
                   gap: "4px",
                   fontSize: "10px",
                   fontWeight: "700",
-                  color: "#818cf8",
+                  color: "var(--accent-text)",
                   cursor: "pointer",
                   textTransform: "uppercase",
                   letterSpacing: "0.04em",
@@ -281,6 +332,27 @@ export default function HeroBanner({ activeClient, kpis, previousKpis, channelSt
               </span>
             )}
           </div>
+
+          {/* Editorial standfirst — the period's story in one sentence. */}
+          {narrative?.headline && (
+            <div style={{ marginTop: "14px", maxWidth: "56ch" }}>
+              <div style={{
+                fontSize: isMobile ? "17px" : "21px",
+                fontWeight: "400",
+                color: "var(--ink)",
+                lineHeight: "1.45",
+                letterSpacing: "-0.005em",
+                textWrap: "balance",
+              }}>
+                {narrative.headline}
+              </div>
+              {narrative.subheadline && (
+                <div style={{ fontSize: "13px", color: "var(--muted)", marginTop: "6px", lineHeight: "1.5" }}>
+                  {narrative.subheadline}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -293,51 +365,85 @@ export default function HeroBanner({ activeClient, kpis, previousKpis, channelSt
             display: "inline-flex",
             flexDirection: "column",
             gap: "6px",
+            position: "relative",
             background: "rgba(30, 30, 30, 0.6)",
             backdropFilter: "blur(16px)",
             WebkitBackdropFilter: "blur(16px)",
             border: "1px solid var(--accent-border)",
             borderRadius: "12px",
-            padding: isMobile ? "16px 20px" : "20px 28px",
+            padding: isMobile ? "16px 28px" : "20px 36px",
             minWidth: isMobile ? "100%" : "380px",
             maxWidth: isMobile ? "100%" : "460px",
             transition: "border-color 0.3s ease",
           }}
         >
-          {/* Content with crossfade */}
-          <div style={{
-            opacity: fading ? 0 : 1,
-            transform: fading ? "translateX(-16px)" : "translateX(0)",
-            transition: "opacity 0.3s ease, transform 0.3s ease",
-          }}>
-            <div style={{
-              fontSize: "11px",
-              color: current.color,
-              fontWeight: "700",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              marginBottom: "6px",
-            }}>
-              {current.label}
-            </div>
-            <div style={{
-              fontSize: current.isNarrative ? (isMobile ? "20px" : "26px") : (isMobile ? "36px" : "48px"),
-              fontWeight: current.isNarrative ? "300" : "800",
-              color: "#fff",
-              fontFamily: current.isNarrative ? "inherit" : "'Barlow Condensed', sans-serif",
-              letterSpacing: current.isNarrative ? "0" : "-0.02em",
-              lineHeight: current.isNarrative ? "1.35" : "1",
-              marginBottom: "8px",
-            }}>
-              {current.value}
-            </div>
-            <div style={{
-              fontSize: "13px",
-              color: "#9E9E9E",
-              lineHeight: "1.4",
-            }}>
-              {current.detail}
-            </div>
+          {/* Prev / next — quiet chevrons at the mid-edges. The dots said
+              "there are more"; these say "you can move". Kept alongside the
+              dots and the per-slide progress bar. */}
+          {insights.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={goBack}
+                aria-label="Previous insight"
+                className="hero-nav-arrow"
+                style={{ left: 4 }}
+              >&#8249;</button>
+              <button
+                type="button"
+                onClick={advance}
+                aria-label="Next insight"
+                className="hero-nav-arrow"
+                style={{ right: 4 }}
+              >&#8250;</button>
+            </>
+          )}
+          {/* All slides render into the same grid cell. Hidden slides keep
+              their layout (visibility, not display), so the card is always
+              exactly as tall as its TALLEST slide — the page never reflows
+              when the rotation lands on a longer one. */}
+          <div style={{ display: "grid" }}>
+            {insights.map((ins, idx) => {
+              const isActive = idx === activeIndex;
+              return (
+                <div key={idx} aria-hidden={!isActive} style={{
+                  gridArea: "1 / 1",
+                  visibility: isActive ? "visible" : "hidden",
+                  opacity: isActive && !fading ? 1 : 0,
+                  transform: isActive && !fading ? "translateX(0)" : "translateX(-16px)",
+                  transition: "opacity 0.3s ease, transform 0.3s ease",
+                }}>
+                  <div style={{
+                    fontSize: "11px",
+                    color: ins.color,
+                    fontWeight: "700",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    marginBottom: "6px",
+                  }}>
+                    {ins.label}
+                  </div>
+                  <div style={{
+                    fontSize: ins.isNarrative ? (isMobile ? "20px" : "26px") : (isMobile ? "36px" : "48px"),
+                    fontWeight: ins.isNarrative ? "300" : "800",
+                    color: "var(--ink)",
+                    fontFamily: ins.isNarrative ? "inherit" : "'Barlow Condensed', sans-serif",
+                    letterSpacing: ins.isNarrative ? "0" : "-0.02em",
+                    lineHeight: ins.isNarrative ? "1.35" : "1",
+                    marginBottom: "8px",
+                  }}>
+                    {ins.value}
+                  </div>
+                  <div style={{
+                    fontSize: "13px",
+                    color: "var(--muted)",
+                    lineHeight: "1.4",
+                  }}>
+                    {ins.detail}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Dot indicators — active dot stretches into oval with gradient timer */}

@@ -1,48 +1,18 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import {createContext, useContext, useState, useEffect, useCallback, useMemo} from 'react';
 import { supabase } from '../services/supabaseClient';
+import { ALL_TAB_IDS, TAB_LABELS } from '../lib/navigation';
 
 const AuthContext = createContext({});
 
 // Default tab permissions by role
 const DEFAULT_VIEWER_TABS = ['dashboard', 'actions'];
-const ALL_TABS = [
-  'portfolio',
-  'dashboard',
-  'series-analysis',
-  'channel-summary',
-  'research-v2',
-  'comments',
-  'ideation',
-  'intelligence',
-  'atomizer',
-  'briefs',
-  'actions',
-  'calendar',
-  'audits',
-  'clients',
-  'api-keys',
-  'user-management',
-];
+// Derived from navigation.js so the permission registry can never drift from
+// the nav again. The previous hardcoded list had fallen 24 tabs behind —
+// including 'command-center', which is the default landing page, so a viewer
+// with default permissions booted onto a tab the nav then hid from them.
+const ALL_TABS = ALL_TAB_IDS;
 
-// Human-readable labels for tab IDs
-export const TAB_LABELS = {
-  'portfolio': 'Clients',
-  'dashboard': 'Dashboard',
-  'series-analysis': 'Series Analysis',
-  'channel-summary': 'Channel Summary',
-  'research-v2': 'Competitors',
-  'comments': 'Comments',
-  'ideation': 'Ideation',
-  'intelligence': 'Intelligence',
-  'atomizer': 'Atomizer',
-  'briefs': 'Briefs',
-  'actions': 'Actions',
-  'calendar': 'Calendar',
-  'audits': 'Audits',
-  'clients': 'Clients',
-  'api-keys': 'API Keys',
-  'user-management': 'User Management',
-};
+export { TAB_LABELS };
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -54,8 +24,13 @@ export const AuthProvider = ({ children }) => {
   // Check if user is admin
   const isAdmin = userProfile?.role === 'admin';
 
-  // Get accessible tabs for current user
-  const getAccessibleTabs = () => {
+  // Get accessible tabs for current user.
+  // Memoised: these functions land in the context value, and a fresh identity
+  // on every render invalidated every consumer's useMemo/useEffect that
+  // depended on them - App.jsx's accessibleClients memo recomputed, produced a
+  // new array, re-ran the permission effect, which could setActiveClient and
+  // start the cycle again.
+  const getAccessibleTabs = useCallback(() => {
     if (!user) return [];
     if (isAdmin) return ALL_TABS;
 
@@ -64,34 +39,33 @@ export const AuthProvider = ({ children }) => {
       return tabPermissions;
     }
     return DEFAULT_VIEWER_TABS;
-  };
+  }, [user, isAdmin, tabPermissions]);
 
   // Check if user can access a specific tab
-  const canAccessTab = (tabId) => {
+  const canAccessTab = useCallback((tabId) => {
     if (!user) return false;
     if (isAdmin) return true;
     return getAccessibleTabs().includes(tabId);
-  };
+  }, [user, isAdmin, getAccessibleTabs]);
 
   // Check if user can access a specific client
-  const canAccessClient = (clientId) => {
+  const canAccessClient = useCallback((clientId) => {
     if (!user) return false;
     if (isAdmin) return true;
 
     // Viewers must have explicit client access — no permissions = no access
     if (clientPermissions.length === 0) return false;
     return clientPermissions.includes(clientId);
-  };
+  }, [user, isAdmin, clientPermissions]);
 
   // Fetch user profile and permissions (with timeout to prevent hanging)
-  const fetchUserProfile = async (userId) => {
+  const fetchUserProfile = useCallback(async (userId) => {
     const timeout = (ms) => new Promise((_, reject) =>
       setTimeout(() => reject(new Error(`Profile fetch timed out after ${ms}ms`)), ms)
     );
 
     try {
       // Fetch user profile
-      console.log('[AuthContext] Fetching profile for user:', userId);
       const { data: profile, error: profileError } = await Promise.race([
         supabase.from('user_profiles').select('*').eq('user_id', userId).single(),
         timeout(8000)
@@ -102,7 +76,6 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (profile) {
-        console.log('[AuthContext] Profile loaded, role:', profile.role);
         setUserProfile(profile);
 
         // Fetch tab and client permissions in parallel
@@ -126,7 +99,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
     }
-  };
+  }, []);
 
   // Create initial profile for new users
   const createUserProfile = async (userId, email, role = 'viewer') => {
@@ -158,7 +131,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Sign up with email/password
-  const signUp = async (email, password) => {
+  const signUp = useCallback(async (email, password) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password
@@ -177,10 +150,10 @@ export const AuthProvider = ({ children }) => {
     }
 
     return data;
-  };
+  }, []);
 
   // Sign in with email/password
-  const signIn = async (email, password) => {
+  const signIn = useCallback(async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
@@ -188,10 +161,10 @@ export const AuthProvider = ({ children }) => {
 
     if (error) throw error;
     return data;
-  };
+  }, []);
 
   // Sign out
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
 
@@ -199,11 +172,10 @@ export const AuthProvider = ({ children }) => {
     setUserProfile(null);
     setTabPermissions([]);
     setClientPermissions([]);
-  };
+  }, []);
 
   // Initialize auth state
   useEffect(() => {
-    console.log('[AuthContext] Initializing auth...');
 
     // If supabase is not configured, stop loading but keep user as null
     if (!supabase) {
@@ -216,13 +188,11 @@ export const AuthProvider = ({ children }) => {
     const resolveLoading = () => {
       if (!resolved) {
         resolved = true;
-        console.log('[AuthContext] Setting loading to false');
         setLoading(false);
       }
     };
 
     // Get initial session with timeout
-    console.log('[AuthContext] Getting session...');
 
     // Fallback timeout - if nothing resolves auth in 10s, continue without it
     const sessionTimeout = setTimeout(() => {
@@ -232,10 +202,8 @@ export const AuthProvider = ({ children }) => {
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       clearTimeout(sessionTimeout);
-      console.log('[AuthContext] Session result:', session ? 'User logged in' : 'No session');
       setUser(session?.user ?? null);
       if (session?.user) {
-        console.log('[AuthContext] Fetching user profile...');
         await fetchUserProfile(session.user.id);
       }
       resolveLoading();
@@ -248,7 +216,6 @@ export const AuthProvider = ({ children }) => {
     // Listen for auth changes - this often fires before getSession resolves
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('[AuthContext] Auth state change:', event);
         setUser(session?.user ?? null);
 
         if (session?.user) {
@@ -266,9 +233,14 @@ export const AuthProvider = ({ children }) => {
     );
 
     return () => subscription.unsubscribe();
+  // Mount-only auth subscription.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const value = {
+  // Memoised so consumers only re-render when auth state actually changes.
+  // A fresh object literal here meant every useAuth() consumer re-rendered on
+  // every provider render.
+  const value = useMemo(() => ({
     user,
     userProfile,
     loading,
@@ -284,7 +256,12 @@ export const AuthProvider = ({ children }) => {
     fetchUserProfile,
     ALL_TABS,
     DEFAULT_VIEWER_TABS
-  };
+  }), [
+    user, userProfile, loading, isAdmin,
+    signUp, signIn, signOut, fetchUserProfile,
+    canAccessTab, canAccessClient, getAccessibleTabs,
+    tabPermissions, clientPermissions,
+  ]);
 
   return (
     <AuthContext.Provider value={value}>

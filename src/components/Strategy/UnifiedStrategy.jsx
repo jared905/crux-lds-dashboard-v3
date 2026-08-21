@@ -1,9 +1,8 @@
-import React from "react";
-import DiagnosticEngine from "./DiagnosticEngine.jsx";
-import ContentPerformanceTiers from "./ContentPerformanceTiers.jsx";
-import GrowthSimulator from "./GrowthSimulator.jsx";
-import NextUpPanel from "./NextUpPanel.jsx";
-import IntelligenceBriefView from "./IntelligenceBriefView.jsx";
+import ContentPerformanceTiers from './ContentPerformanceTiers.jsx';
+import DiagnosticEngine from './DiagnosticEngine.jsx';
+import GrowthSimulator from './GrowthSimulator.jsx';
+import IntelligenceBriefView from './IntelligenceBriefView.jsx';
+import NextUpPanel from './NextUpPanel.jsx';
 
 /**
  * Unified Strategy Component

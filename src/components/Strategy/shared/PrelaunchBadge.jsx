@@ -1,3 +1,4 @@
+import { Sparkles } from 'lucide-react';
 /**
  * PrelaunchBadge — tiny chip that surfaces "this client doesn't have a
  * YouTube channel yet" on every Strategy workspace header.
@@ -9,8 +10,6 @@
  *   - Brief, Cohort Roles, Competitor Scan, Strategy Spine: work immediately
  */
 
-import React from 'react';
-import { Sparkles } from 'lucide-react';
 
 export default function PrelaunchBadge({ client }) {
   if (!client?.is_prelaunch) return null;
@@ -39,14 +38,14 @@ export default function PrelaunchBadge({ client }) {
 
 const badgeStyle = {
   display: 'inline-flex', alignItems: 'center', gap: 6,
-  background: 'rgba(167,139,250,0.12)',
-  color: '#a78bfa',
-  border: '1px solid rgba(167,139,250,0.35)',
+  background: 'var(--tert-bg)',
+  color: 'var(--tert)',
+  border: '1px solid var(--tert-border)',
   borderRadius: 4, padding: '3px 10px',
   fontSize: 10, fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: 0.5,
   whiteSpace: 'nowrap',
 };
 const dateStyle = {
-  color: '#aaa', fontWeight: 500, textTransform: 'none', letterSpacing: 0,
+  color: 'var(--muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0,
 };

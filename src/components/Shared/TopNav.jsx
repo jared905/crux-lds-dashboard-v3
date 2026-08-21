@@ -1,12 +1,13 @@
-import React, { useState, useRef, useEffect } from "react";
-import { ChevronDown, Settings, LogOut, User } from "lucide-react";
+import {useState, useRef, useEffect} from "react";
 import { MAIN_SECTIONS, UTILITY_SECTIONS, sectionForTab } from "../../lib/navigation.js";
+import { ChevronDown, LogOut, Settings, User } from 'lucide-react';
+import React from 'react';
 
 /**
  * TopNav — Horizontal top navigation bar for desktop.
  *
  * Layout:
- * [ Logo ] [ Performance ▾ ] [ Research ▾ ] [ Content Lab ▾ ] [ Strategy ▾ ]  —  [ ⚙ ] [ 👤 ]
+ * [ Logo ] [ Performance ] [ Research ] [ Content Lab ] [ Strategy ]  —  [ Settings ] [ Account ]
  *
  * Each section is a dropdown button. Clicking reveals the tabs within.
  * Settings & Onboarding live behind the gear icon.
@@ -82,18 +83,18 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                 background: isActive ? "var(--accent-dim)" : "transparent",
                 border: "none",
                 borderRadius: "8px",
-                color: isActive ? "var(--accent-text)" : "#9E9E9E",
+                color: isActive ? "var(--accent-text)" : "var(--muted)",
                 cursor: "pointer",
                 fontWeight: "600",
                 fontSize: "13px",
                 whiteSpace: "nowrap",
-                transition: "all 0.15s ease",
+                transition: "background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease",
               }}
               onMouseEnter={(e) => {
-                if (!isActive) e.currentTarget.style.color = "#E0E0E0";
+                if (!isActive) e.currentTarget.style.color = "var(--text)";
               }}
               onMouseLeave={(e) => {
-                if (!isActive) e.currentTarget.style.color = "#9E9E9E";
+                if (!isActive) e.currentTarget.style.color = "var(--muted)";
               }}
             >
               <SectionIcon size={16} />
@@ -116,9 +117,9 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                   top: "calc(100% + 6px)",
                   left: 0,
                   minWidth: "200px",
-                  background: "#1E1E1E",
-                  border: "1px solid #333",
-                  borderRadius: "10px",
+                  background: "var(--card)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "24px",
                   padding: "6px",
                   boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
                   zIndex: 200,
@@ -138,7 +139,7 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                       <React.Fragment key={t.id}>
                         {showGroupHeader && (
                           <div style={{
-                            fontSize: 10, color: "#666",
+                            fontSize: 10, color: "var(--faint)",
                             textTransform: "uppercase", letterSpacing: 1, fontWeight: 700,
                             padding: "10px 14px 6px",
                             marginTop: lastGroup === t.group ? 4 : 0,
@@ -157,7 +158,7 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                             background: isTabActive ? "var(--accent-dim)" : "transparent",
                             border: "none",
                             borderRadius: "6px",
-                            color: isTabActive ? "var(--accent-text)" : "#ccc",
+                            color: isTabActive ? "var(--accent-text)" : "var(--text)",
                             cursor: "pointer",
                             fontWeight: isTabActive ? "600" : "500",
                             fontSize: "13px",
@@ -165,7 +166,7 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                             transition: "background 0.1s",
                           }}
                           onMouseEnter={(e) => {
-                            if (!isTabActive) e.currentTarget.style.background = "#252525";
+                            if (!isTabActive) e.currentTarget.style.background = "var(--input-bg)";
                           }}
                           onMouseLeave={(e) => {
                             if (!isTabActive) e.currentTarget.style.background = "transparent";
@@ -178,7 +179,7 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                             <span style={{
                               display: 'inline-block',
                               width: 6, height: 6, borderRadius: '50%',
-                              background: '#3fa66a',
+                              background: "var(--pos-deep)",
                               boxShadow: '0 0 6px rgba(63,166,106,0.6)',
                             }} />
                           )}
@@ -209,11 +210,11 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
               background: openDropdown === "utility" ? "var(--accent-dim)" : "transparent",
               border: "none",
               borderRadius: "8px",
-              color: openDropdown === "utility" ? "var(--accent-text)" : "#9E9E9E",
+              color: openDropdown === "utility" ? "var(--accent-text)" : "var(--muted)",
               cursor: "pointer",
-              transition: "all 0.15s ease",
+              transition: "background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#252525"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--input-bg)"; }}
             onMouseLeave={(e) => {
               if (openDropdown !== "utility") e.currentTarget.style.background = "transparent";
             }}
@@ -228,9 +229,9 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                 top: "calc(100% + 6px)",
                 right: 0,
                 minWidth: "220px",
-                background: "#1E1E1E",
-                border: "1px solid #333",
-                borderRadius: "10px",
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: "24px",
                 padding: "6px",
                 boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
                 zIndex: 200,
@@ -244,7 +245,7 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                 return (
                   <React.Fragment key={t.id}>
                     {showSeparator && (
-                      <div style={{ height: "1px", background: "#333", margin: "4px 8px" }} />
+                      <div style={{ height: "1px", background: "var(--outline-variant)", margin: "4px 8px" }} />
                     )}
                     <button
                       onClick={() => handleTabClick(t.id)}
@@ -257,7 +258,7 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                         background: isTabActive ? "var(--accent-dim)" : "transparent",
                         border: "none",
                         borderRadius: "6px",
-                        color: isTabActive ? "var(--accent-text)" : "#ccc",
+                        color: isTabActive ? "var(--accent-text)" : "var(--text)",
                         cursor: "pointer",
                         fontWeight: isTabActive ? "600" : "500",
                         fontSize: "13px",
@@ -265,7 +266,7 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                         transition: "background 0.1s",
                       }}
                       onMouseEnter={(e) => {
-                        if (!isTabActive) e.currentTarget.style.background = "#252525";
+                        if (!isTabActive) e.currentTarget.style.background = "var(--input-bg)";
                       }}
                       onMouseLeave={(e) => {
                         if (!isTabActive) e.currentTarget.style.background = "transparent";
@@ -292,12 +293,12 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
             justifyContent: "center",
             width: "36px",
             height: "36px",
-            background: openDropdown === "user" ? "var(--accent-dim)" : "#252525",
-            border: "1px solid #333",
+            background: openDropdown === "user" ? "var(--accent-dim)" : "var(--input-bg)",
+            border: "1px solid var(--border)",
             borderRadius: "50%",
-            color: "#9E9E9E",
+            color: "var(--muted)",
             cursor: "pointer",
-            transition: "all 0.15s ease",
+            transition: "background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease",
           }}
         >
           <User size={16} />
@@ -310,9 +311,9 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
               top: "calc(100% + 6px)",
               right: 0,
               minWidth: "220px",
-              background: "#1E1E1E",
-              border: "1px solid #333",
-              borderRadius: "10px",
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "24px",
               padding: "12px",
               boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
               zIndex: 200,
@@ -320,7 +321,7 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
           >
             <div style={{
               fontSize: "12px",
-              color: "#9E9E9E",
+              color: "var(--muted)",
               marginBottom: "4px",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -335,12 +336,12 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                 fontSize: "10px",
                 fontWeight: "600",
                 background: isAdmin ? "var(--accent-dim)" : "rgba(158, 158, 158, 0.15)",
-                color: isAdmin ? "var(--accent-text)" : "#9E9E9E",
+                color: isAdmin ? "var(--accent-text)" : "var(--muted)",
               }}>
                 {isAdmin ? "Admin" : "Viewer"}
               </span>
             </div>
-            <div style={{ height: "1px", background: "#333", margin: "8px 0" }} />
+            <div style={{ height: "1px", background: "var(--outline-variant)", margin: "8px 0" }} />
             <button
               onClick={() => {
                 setOpenDropdown(null);
@@ -355,13 +356,13 @@ export default function TopNav({ tab, setTab, canAccessTab, isAdmin, onSignOut, 
                 background: "transparent",
                 border: "none",
                 borderRadius: "6px",
-                color: "#9E9E9E",
+                color: "var(--muted)",
                 cursor: "pointer",
                 fontWeight: "500",
                 fontSize: "13px",
                 textAlign: "left",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "#252525"; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--input-bg)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
             >
               <LogOut size={16} />

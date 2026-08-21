@@ -7,8 +7,8 @@
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Globe, Users, Smartphone, Monitor, Tv, Tablet, Gamepad2,
-  Search, ExternalLink, Play, List, Bell, BarChart3, Loader, Map,
+  Globe, Smartphone, Monitor, Tv, Tablet, Gamepad2,
+  Search, ExternalLink, Play, List, Bell, Loader, Map,
 } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
 
@@ -36,7 +36,7 @@ const DEVICE_ICONS = {
 const AGE_ORDER = ['age13-17', 'age18-24', 'age25-34', 'age35-44', 'age45-54', 'age55-64', 'age65-'];
 const AGE_LABELS = { 'age13-17': '13-17', 'age18-24': '18-24', 'age25-34': '25-34', 'age35-44': '35-44', 'age45-54': '45-54', 'age55-64': '55-64', 'age65-': '65+' };
 
-const GENDER_COLORS = { male: '#3b82f6', female: '#ec4899', user_specified: '#8b5cf6' };
+const GENDER_COLORS = { male: 'var(--blue)', female: 'var(--neg-text)', user_specified: 'var(--blue-deep)' };
 
 function fmtViews(n) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -145,7 +145,7 @@ export default function AudienceIntelligence({ activeClient, selectedChannel, da
 
     fetchData();
     return () => { cancelled = true; };
-  }, [activeClient?.id, activeClient?.isNetwork, selectedChannel, dateRange]);
+  }, [activeClient?.id, activeClient?.isNetwork, activeClient?.networkMembers, selectedChannel, dateRange]);
 
   const sortedTraffic = useMemo(() => {
     if (!data?.trafficSources) return [];
@@ -182,17 +182,22 @@ export default function AudienceIntelligence({ activeClient, selectedChannel, da
 
   return (
     <div style={{
-      background: '#1E1E1E', border: '1px solid #2A2A2A', borderRadius: '10px',
+      background: "var(--card)", border: "1px solid var(--border)", borderRadius: "24px",
       marginTop: '40px', marginBottom: '24px', overflow: 'hidden',
     }}>
       {/* Header */}
       <div style={{
-        padding: '16px 20px', borderBottom: '1px solid #2A2A2A',
+        padding: '16px 20px', borderBottom: "1px solid var(--border)",
         display: 'flex', alignItems: 'center', gap: '10px',
       }}>
-        <Globe size={18} style={{ color: '#3b82f6' }} />
-        <span style={{ fontSize: '16px', fontWeight: '700', color: '#fff' }}>Audience Intelligence</span>
-        <span style={{ fontSize: '11px', color: '#555', fontWeight: '500', marginLeft: '4px' }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(0, 209, 255, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Globe size={20} style={{ color: 'var(--accent-text)' }} />
+        </div>
+        <div>
+          <div style={{ fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "var(--track-label)", fontFamily: "var(--font-label)", color: "var(--muted)", marginBottom: "2px" }}>Audience</div>
+          <span style={{ fontSize: '16px', fontWeight: '700', color: "var(--ink)" }}>Audience Intelligence</span>
+        </div>
+        <span style={{ fontSize: '11px', color: 'var(--faint)', fontWeight: '500', marginLeft: '4px' }}>
           {sortedCountries.length} countries
         </span>
       </div>
@@ -200,14 +205,14 @@ export default function AudienceIntelligence({ activeClient, selectedChannel, da
       {/* Dual Maps: US States (left) + World (right) */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
         {/* US State Map */}
-        <div style={{ borderRight: '1px solid #2A2A2A' }}>
-          <div style={{ padding: '10px 16px', borderBottom: '1px solid #2A2A2A', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Map size={13} style={{ color: '#60a5fa' }} />
-            <span style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8' }}>United States</span>
+        <div style={{ borderRight: "1px solid var(--border)" }}>
+          <div style={{ padding: '10px 16px', borderBottom: "1px solid var(--border)", display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Map size={13} style={{ color: 'var(--accent-text)' }} />
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--muted)' }}>United States</span>
           </div>
           <React.Suspense fallback={
-            <div style={{ height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c1222' }}>
-              <Loader size={18} style={{ color: '#334155' }} />
+            <div style={{ height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+              <Loader size={18} style={{ color: 'var(--outline-variant)' }} />
             </div>
           }>
             <LazyUSMap provinces={data.province} topCities={data.city} />
@@ -216,13 +221,13 @@ export default function AudienceIntelligence({ activeClient, selectedChannel, da
 
         {/* World Map */}
         <div>
-          <div style={{ padding: '10px 16px', borderBottom: '1px solid #2A2A2A', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Globe size={13} style={{ color: '#60a5fa' }} />
-            <span style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8' }}>Global</span>
+          <div style={{ padding: '10px 16px', borderBottom: "1px solid var(--border)", display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Globe size={13} style={{ color: 'var(--accent-text)' }} />
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--muted)' }}>Global</span>
           </div>
           <React.Suspense fallback={
-            <div style={{ height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c1222' }}>
-              <Loader size={18} style={{ color: '#334155' }} />
+            <div style={{ height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+              <Loader size={18} style={{ color: 'var(--outline-variant)' }} />
             </div>
           }>
             <LazyWorldMap countries={sortedCountries} />
@@ -231,39 +236,39 @@ export default function AudienceIntelligence({ activeClient, selectedChannel, da
       </div>
 
       {/* Demographics row: Age + Gender */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid #2A2A2A' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: "1px solid var(--border)" }}>
         {/* Age Distribution */}
-        <div style={{ padding: '16px 20px', borderRight: '1px solid #2A2A2A' }}>
-          <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Age Distribution</div>
+        <div style={{ padding: '16px 20px', borderRight: "1px solid var(--border)" }}>
+          <div style={{ fontSize: '11px', color: 'var(--faint)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Age Distribution</div>
           {sortedAge.map(a => (
             <div key={a.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
-              <span style={{ width: '38px', fontSize: '11px', color: '#888', textAlign: 'right', fontWeight: '600' }}>{a.label}</span>
-              <div style={{ flex: 1, height: '14px', background: '#252525', borderRadius: '3px', overflow: 'hidden' }}>
+              <span style={{ width: '38px', fontSize: '11px', color: 'var(--outline)', textAlign: 'right', fontWeight: '600' }}>{a.label}</span>
+              <div style={{ flex: 1, height: '14px', background: "var(--input-bg)", borderRadius: '3px', overflow: 'hidden' }}>
                 <div style={{
                   width: `${Math.max((a.value / maxAge) * 100, 2)}%`, height: '100%',
-                  background: 'linear-gradient(90deg, #f59e0b, #fbbf24)',
+                  background: "linear-gradient(90deg, var(--warn), var(--warn-text))",
                   borderRadius: '3px', transition: 'width 0.5s ease',
                 }} />
               </div>
-              <span style={{ width: '40px', fontSize: '11px', color: '#fff', fontWeight: '700', textAlign: 'right' }}>{a.value.toFixed(1)}%</span>
+              <span style={{ width: '40px', fontSize: '11px', color: "var(--ink)", fontWeight: '700', textAlign: 'right' }}>{a.value.toFixed(1)}%</span>
             </div>
           ))}
         </div>
 
         {/* Gender */}
         <div style={{ padding: '16px 20px' }}>
-          <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Gender</div>
+          <div style={{ fontSize: '11px', color: 'var(--faint)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Gender</div>
           {genderEntries.map(([gender, pct]) => {
             const label = gender === 'user_specified' ? 'Other' : gender.charAt(0).toUpperCase() + gender.slice(1);
             const barPct = totalGender > 0 ? (pct / totalGender) * 100 : 0;
             return (
               <div key={gender} style={{ marginBottom: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '13px', color: '#ccc', fontWeight: '500' }}>{label}</span>
-                  <span style={{ fontSize: '13px', color: '#fff', fontWeight: '700' }}>{pct.toFixed(1)}%</span>
+                  <span style={{ fontSize: '13px', color: 'var(--text)', fontWeight: '500' }}>{label}</span>
+                  <span style={{ fontSize: '13px', color: "var(--ink)", fontWeight: '700' }}>{pct.toFixed(1)}%</span>
                 </div>
-                <div style={{ height: '8px', background: '#252525', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: `${barPct}%`, height: '100%', background: GENDER_COLORS[gender] || '#666', borderRadius: '4px', transition: 'width 0.5s ease' }} />
+                <div style={{ height: '8px', background: "var(--input-bg)", borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ width: `${barPct}%`, height: '100%', background: GENDER_COLORS[gender] || 'var(--faint)', borderRadius: '4px', transition: 'width 0.5s ease' }} />
                 </div>
               </div>
             );
@@ -272,10 +277,10 @@ export default function AudienceIntelligence({ activeClient, selectedChannel, da
       </div>
 
       {/* Traffic Sources + Devices row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid #2A2A2A' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: "1px solid var(--border)" }}>
         {/* Traffic Sources */}
-        <div style={{ padding: '16px 20px', borderRight: '1px solid #2A2A2A' }}>
-          <div style={{ fontSize: '11px', color: '#666', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
+        <div style={{ padding: '16px 20px', borderRight: "1px solid var(--border)" }}>
+          <div style={{ fontSize: '11px', color: 'var(--faint)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
             Traffic Sources
           </div>
           {significantTraffic.map(t => {
@@ -284,18 +289,18 @@ export default function AudienceIntelligence({ activeClient, selectedChannel, da
             return (
               <div key={t.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                 <div style={{ width: '14px', display: 'flex', justifyContent: 'center' }}>
-                  {Icon && <Icon size={12} style={{ color: '#555' }} />}
+                  {Icon && <Icon size={12} style={{ color: 'var(--faint)' }} />}
                 </div>
-                <span style={{ width: '100px', fontSize: '12px', color: '#ccc', fontWeight: '500' }}>{t.label}</span>
-                <div style={{ flex: 1, height: '12px', background: '#252525', borderRadius: '3px', overflow: 'hidden' }}>
+                <span style={{ width: '100px', fontSize: '12px', color: 'var(--text)', fontWeight: '500' }}>{t.label}</span>
+                <div style={{ flex: 1, height: '12px', background: "var(--input-bg)", borderRadius: '3px', overflow: 'hidden' }}>
                   <div style={{
                     width: `${Math.max(barWidth, 2)}%`, height: '100%',
-                    background: 'linear-gradient(90deg, #3b82f6, #60a5fa)',
+                    background: 'linear-gradient(90deg, #00D1FF, #4cd6ff)',
                     borderRadius: '3px', transition: 'width 0.5s ease',
                   }} />
                 </div>
-                <span style={{ width: '45px', fontSize: '11px', color: '#888', textAlign: 'right' }}>{fmtViews(t.views)}</span>
-                <span style={{ width: '38px', fontSize: '12px', color: '#fff', fontWeight: '700', textAlign: 'right' }}>{t.pct.toFixed(1)}%</span>
+                <span style={{ width: '45px', fontSize: '11px', color: 'var(--outline)', textAlign: 'right' }}>{fmtViews(t.views)}</span>
+                <span style={{ width: '38px', fontSize: '12px', color: "var(--ink)", fontWeight: '700', textAlign: 'right' }}>{t.pct.toFixed(1)}%</span>
               </div>
             );
           })}
@@ -306,7 +311,7 @@ export default function AudienceIntelligence({ activeClient, selectedChannel, da
           <div style={{ position: 'relative', width: '180px', height: '180px', flexShrink: 0 }}>
             <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
               {(() => {
-                const DONUT_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
+                const DONUT_COLORS = ['var(--pos)', 'var(--blue)', 'var(--blue-deep)', 'var(--warn)', 'var(--neg)'];
                 let offset = 0;
                 return sortedDevices.map((d, i) => {
                   const dash = d.pct * 0.01 * 100; // circumference fraction
@@ -329,21 +334,21 @@ export default function AudienceIntelligence({ activeClient, selectedChannel, da
               position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
               textAlign: 'center',
             }}>
-              <div style={{ fontSize: '11px', color: '#666', fontWeight: '600' }}>Devices</div>
+              <div style={{ fontSize: '11px', color: 'var(--faint)', fontWeight: '600' }}>Devices</div>
             </div>
           </div>
           {/* Legend */}
           <div style={{ flex: 1 }}>
             {(() => {
-              const DONUT_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
+              const DONUT_COLORS = ['var(--pos)', 'var(--blue)', 'var(--blue-deep)', 'var(--warn)', 'var(--neg)'];
               return sortedDevices.map((d, i) => {
                 const Icon = DEVICE_ICONS[d.key] || Monitor;
                 return (
                   <div key={d.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                     <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: DONUT_COLORS[i % DONUT_COLORS.length], flexShrink: 0 }} />
-                    <Icon size={16} style={{ color: '#888', flexShrink: 0 }} />
-                    <span style={{ fontSize: '14px', color: '#ccc', fontWeight: '500', flex: 1 }}>{d.label}</span>
-                    <span style={{ fontSize: '16px', color: '#fff', fontWeight: '800' }}>{d.pct.toFixed(1)}%</span>
+                    <Icon size={16} style={{ color: 'var(--outline)', flexShrink: 0 }} />
+                    <span style={{ fontSize: '14px', color: 'var(--text)', fontWeight: '500', flex: 1 }}>{d.label}</span>
+                    <span style={{ fontSize: '16px', color: "var(--ink)", fontWeight: '800' }}>{d.pct.toFixed(1)}%</span>
                   </div>
                 );
               });

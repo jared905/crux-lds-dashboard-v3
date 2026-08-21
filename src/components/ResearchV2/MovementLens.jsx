@@ -2,7 +2,7 @@
  * Movement lens — alerts feed for the competitor set.
  * Reads competitor_alerts, groups by day, supports type filters and dismiss.
  */
-import React, { useEffect, useState, useMemo } from 'react';
+import {useEffect, useState, useMemo} from 'react';
 import {
   Loader, RefreshCw, Sparkles, X, ExternalLink, TrendingUp, TrendingDown,
   Zap, ArrowLeftRight, UserPlus, BarChart3,
@@ -40,6 +40,9 @@ export default function MovementLens({ scope, refreshKey = 0 }) {
   const [scopeLabel, setScopeLabel] = useState('this scope');
 
   // Load alerts on scope change
+  // The scope object's identity churns per render; this serialized key covers
+  // every scope field the fetch reads, so it stands in as the dependency.
+  const scopeKey = [scope.categoryIds?.join(','), scope.tags?.join(','), scope.tiers?.join(','), scope.clientId].join('|');
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -63,13 +66,8 @@ export default function MovementLens({ scope, refreshKey = 0 }) {
     })();
 
     return () => { cancelled = true; };
-  }, [
-    scope.categoryIds?.join(','),
-    scope.tags?.join(','),
-    scope.tiers?.join(','),
-    scope.clientId,
-    refreshKey,
-  ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey, refreshKey]);
 
   // Generate takeaway when alerts are loaded
   useEffect(() => {
@@ -87,6 +85,9 @@ export default function MovementLens({ scope, refreshKey = 0 }) {
       }
     })();
     return () => { cancelled = true; };
+  // Re-summarize when the alert count or scope changes; alerts/scopeIds
+  // themselves churn identity every fetch.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alerts.length, scopeIds.join(','), scopeLabel]);
 
   const filtered = useMemo(() => {
@@ -153,9 +154,9 @@ export default function MovementLens({ scope, refreshKey = 0 }) {
                   padding: '6px 12px',
                   fontSize: 12,
                   fontWeight: 600,
-                  background: isActive ? '#2563eb' : '#15151a',
-                  color: isActive ? '#fff' : '#a1a1aa',
-                  border: `1px solid ${isActive ? '#2563eb' : '#232328'}`,
+                  background: isActive ? 'var(--blue)' : 'var(--bg)',
+                  color: isActive ? 'var(--ink)' : 'var(--muted)',
+                  border: `1px solid ${isActive ? 'var(--blue)' : 'var(--surface-high)'}`,
                   borderRadius: 6,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
@@ -169,8 +170,8 @@ export default function MovementLens({ scope, refreshKey = 0 }) {
                   fontSize: 10,
                   padding: '1px 6px',
                   borderRadius: 99,
-                  background: isActive ? 'rgba(255,255,255,0.18)' : '#0e0e12',
-                  color: isActive ? '#fff' : '#71717a',
+                  background: isActive ? 'rgba(255,255,255,0.18)' : 'var(--bg)',
+                  color: isActive ? 'var(--ink)' : 'var(--faint)',
                 }}>{count}</span>
               </button>
             );
@@ -180,7 +181,7 @@ export default function MovementLens({ scope, refreshKey = 0 }) {
           {genResult && (
             <span style={{
               fontSize: 12,
-              color: genResult.success ? '#34d399' : '#f87171',
+              color: genResult.success ? "var(--pos-text)" : "var(--neg-text)",
               fontWeight: 500,
             }}>
               {genResult.success
@@ -194,8 +195,8 @@ export default function MovementLens({ scope, refreshKey = 0 }) {
               style={{
                 padding: '6px 12px',
                 fontSize: 12,
-                background: '#15151a',
-                color: '#a1a1aa',
+                background: 'var(--bg)',
+                color: 'var(--muted)',
                 border: '1px solid #232328',
                 borderRadius: 6,
                 cursor: 'pointer',
@@ -212,8 +213,8 @@ export default function MovementLens({ scope, refreshKey = 0 }) {
             style={{
               padding: '6px 12px',
               fontSize: 12,
-              background: generating ? '#1c1c20' : '#18181c',
-              color: generating ? '#666' : '#d4d4d8',
+              background: generating ? 'var(--card)' : 'var(--card)',
+              color: generating ? 'var(--faint)' : 'var(--text)',
               border: '1px solid #232328',
               borderRadius: 6,
               cursor: generating ? 'wait' : 'pointer',
@@ -245,7 +246,7 @@ export default function MovementLens({ scope, refreshKey = 0 }) {
               <div style={{
                 fontSize: 11,
                 fontWeight: 700,
-                color: '#71717a',
+                color: 'var(--faint)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.6px',
                 marginBottom: 8,
@@ -277,13 +278,13 @@ function TakeawayCard({ takeaway, loading, alertCount, scopeLabel }) {
       <div style={{
         padding: '14px 16px',
         marginBottom: 18,
-        background: 'linear-gradient(135deg, rgba(59,130,246,0.10), rgba(139,92,246,0.08))',
-        border: '1px solid rgba(59,130,246,0.25)',
+        background: 'linear-gradient(135deg, rgba(0,209,255,0.10), rgba(0,209,255,0.08))',
+        border: '1px solid rgba(0,209,255,0.25)',
         borderRadius: 8,
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        color: '#a1a1aa',
+        color: 'var(--muted)',
         fontSize: 13,
       }}>
         <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} />
@@ -296,20 +297,20 @@ function TakeawayCard({ takeaway, loading, alertCount, scopeLabel }) {
     <div style={{
       padding: '16px 18px',
       marginBottom: 18,
-      background: 'linear-gradient(135deg, rgba(59,130,246,0.10), rgba(139,92,246,0.08))',
-      border: '1px solid rgba(59,130,246,0.25)',
+      background: 'linear-gradient(135deg, rgba(0,209,255,0.10), rgba(0,209,255,0.08))',
+      border: '1px solid rgba(0,209,255,0.25)',
       borderRadius: 10,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <Sparkles size={14} style={{ color: '#a78bfa' }} />
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+        <Sparkles size={14} style={{ color: 'var(--accent-text)' }} />
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
           This week in motion · {scopeLabel}
         </div>
       </div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: '#f4f4f5', marginBottom: 6, letterSpacing: '-0.2px' }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', marginBottom: 6, letterSpacing: '-0.2px' }}>
         {takeaway.headline}
       </div>
-      <div style={{ fontSize: 13, color: '#d4d4d8', lineHeight: 1.55 }}>
+      <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.55 }}>
         {takeaway.body}
       </div>
     </div>
@@ -332,7 +333,7 @@ function AlertThumbnail({ alert, Icon, color }) {
     height: 56,
     borderRadius: 8,
     overflow: 'hidden',
-    background: '#18181c',
+    background: 'var(--card)',
     flexShrink: 0,
     border: '1px solid #232328',
   };
@@ -345,7 +346,7 @@ function AlertThumbnail({ alert, Icon, color }) {
     height: 20,
     borderRadius: 6,
     background: color,
-    color: '#0a0a0a',
+    color: 'var(--bg)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -378,7 +379,7 @@ function AlertThumbnail({ alert, Icon, color }) {
       height: '100%',
       alignItems: 'center',
       justifyContent: 'center',
-      background: `${color}1a`,
+      background: `color-mix(in srgb, ${color} 10%, transparent)`,
       color,
     }}>
       <Icon size={20} />
@@ -411,14 +412,14 @@ function AlertThumbnail({ alert, Icon, color }) {
 }
 
 function AlertCard({ alert, onDismiss }) {
-  const meta = ALERT_TYPE_META[alert.alert_type] || { label: alert.alert_type, color: '#94a3b8' };
+  const meta = ALERT_TYPE_META[alert.alert_type] || { label: alert.alert_type, color: 'var(--muted)' };
   const Icon = TYPE_ICONS[alert.alert_type] || BarChart3;
   const p = alert.payload || {};
 
   return (
     <div style={{
       padding: '12px 14px',
-      background: '#101014',
+      background: 'var(--bg)',
       border: '1px solid #1c1c22',
       borderRadius: 8,
       display: 'flex',
@@ -433,16 +434,16 @@ function AlertCard({ alert, onDismiss }) {
             fontSize: 10,
             fontWeight: 700,
             color: meta.color,
-            background: `${meta.color}1a`,
+            background: `color-mix(in srgb, ${meta.color} 10%, transparent)`,
             padding: '2px 7px',
             borderRadius: 4,
             textTransform: 'uppercase',
             letterSpacing: '0.4px',
           }}>{meta.label}</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#f4f4f5' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
             {p.channel_name || 'Unknown channel'}
           </span>
-          <span style={{ fontSize: 11, color: '#52525b' }}>
+          <span style={{ fontSize: 11, color: 'var(--faint)' }}>
             {formatTime(alert.generated_at)}
           </span>
         </div>
@@ -454,14 +455,14 @@ function AlertCard({ alert, onDismiss }) {
         style={{
           background: 'transparent',
           border: 'none',
-          color: '#52525b',
+          color: 'var(--faint)',
           cursor: 'pointer',
           padding: 4,
           borderRadius: 4,
         }}
         title="Dismiss alert"
-        onMouseEnter={e => { e.currentTarget.style.color = '#a1a1aa'; }}
-        onMouseLeave={e => { e.currentTarget.style.color = '#52525b'; }}
+        onMouseEnter={e => { e.currentTarget.style.color = 'var(--muted)'; }}
+        onMouseLeave={e => { e.currentTarget.style.color = 'var(--faint)'; }}
       >
         <X size={14} />
       </button>
@@ -472,16 +473,16 @@ function AlertCard({ alert, onDismiss }) {
 function AlertBody({ type, payload: p }) {
   if (type === 'breakout') {
     return (
-      <div style={{ fontSize: 13, color: '#d4d4d8', lineHeight: 1.55 }}>
-        <span style={{ fontWeight: 600, color: '#f4f4f5' }}>"{truncate(p.video_title, 90)}"</span>
-        {' '}hit <strong style={{ color: '#10b981' }}>{p.multiplier}×</strong> the channel median
+      <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.55 }}>
+        <span style={{ fontWeight: 600, color: 'var(--ink)' }}>"{truncate(p.video_title, 90)}"</span>
+        {' '}hit <strong style={{ color: "var(--pos)" }}>{p.multiplier}×</strong> the channel median
         {' '}({fmt(p.views_at_48h)} vs {fmt(p.channel_median)} median at 48h).
         {p.youtube_video_id && (
           <a
             href={`https://youtube.com/watch?v=${p.youtube_video_id}`}
             target="_blank"
             rel="noreferrer"
-            style={{ marginLeft: 6, color: '#60a5fa', display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12 }}
+            style={{ marginLeft: 6, color: 'var(--accent-text)', display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12 }}
           >
             Watch <ExternalLink size={11} />
           </a>
@@ -491,7 +492,7 @@ function AlertBody({ type, payload: p }) {
   }
   if (type === 'format_shift') {
     return (
-      <div style={{ fontSize: 13, color: '#d4d4d8', lineHeight: 1.55 }}>
+      <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.55 }}>
         Dominant format flipped from <FormatTag id={p.prev_format} /> ({p.prev_pct}%) to{' '}
         <FormatTag id={p.curr_format} highlight /> ({p.curr_pct}%).
         {' '}Based on {p.recent_count} recent uploads.
@@ -501,9 +502,9 @@ function AlertBody({ type, payload: p }) {
   if (type === 'rank_change') {
     const isUp = p.direction === 'up';
     const TrendIcon = isUp ? TrendingUp : TrendingDown;
-    const color = isUp ? '#10b981' : '#f87171';
+    const color = isUp ? 'var(--pos)' : 'var(--neg-text)';
     return (
-      <div style={{ fontSize: 13, color: '#d4d4d8', lineHeight: 1.55, display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.55, display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         Avg views per upload
         <span style={{ color, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
           <TrendIcon size={13} /> {Math.abs(p.pct_change)}%
@@ -514,14 +515,14 @@ function AlertBody({ type, payload: p }) {
   }
   if (type === 'new_entrant') {
     return (
-      <div style={{ fontSize: 13, color: '#d4d4d8', lineHeight: 1.55 }}>
+      <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.55 }}>
         Newly added to the tracked set
         {p.subscriber_count ? <> · <strong>{fmt(p.subscriber_count)}</strong> subscribers</> : null}
         {p.channel_tier ? <> · tier: <span style={{ textTransform: 'capitalize' }}>{p.channel_tier}</span></> : null}.
       </div>
     );
   }
-  return <div style={{ fontSize: 12, color: '#71717a' }}>{JSON.stringify(p).slice(0, 200)}</div>;
+  return <div style={{ fontSize: 12, color: 'var(--faint)' }}>{JSON.stringify(p).slice(0, 200)}</div>;
 }
 
 function FormatTag({ id, highlight = false }) {
@@ -540,9 +541,9 @@ function FormatTag({ id, highlight = false }) {
       borderRadius: 4,
       fontSize: 11,
       fontWeight: 600,
-      background: highlight ? 'rgba(59,130,246,0.18)' : '#18181c',
-      color: highlight ? '#60a5fa' : '#a1a1aa',
-      border: `1px solid ${highlight ? 'rgba(59,130,246,0.35)' : '#232328'}`,
+      background: highlight ? 'rgba(0,209,255,0.18)' : 'var(--card)',
+      color: highlight ? 'var(--accent-text)' : 'var(--muted)',
+      border: `1px solid ${highlight ? 'rgba(0,209,255,0.35)' : 'var(--surface-high)'}`,
     }}>{labels[id] || id}</span>
   );
 }
@@ -555,7 +556,7 @@ function Spinner({ label }) {
       alignItems: 'center',
       justifyContent: 'center',
       gap: 10,
-      color: '#71717a',
+      color: 'var(--faint)',
       fontSize: 13,
     }}>
       <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
@@ -569,13 +570,13 @@ function EmptyState({ onScan, hasAlerts }) {
     <div style={{
       padding: '40px 20px',
       textAlign: 'center',
-      background: '#101014',
+      background: 'var(--bg)',
       border: '1px solid #1c1c22',
       borderRadius: 10,
-      color: '#71717a',
+      color: 'var(--faint)',
     }}>
-      <div style={{ fontSize: 28, marginBottom: 8 }}>📡</div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: '#a1a1aa', marginBottom: 6 }}>
+      <div style={{ fontSize: 28, marginBottom: 8 }}></div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--muted)', marginBottom: 6 }}>
         {hasAlerts ? 'No alerts match this filter' : 'No movement detected yet'}
       </div>
       <div style={{ fontSize: 12, maxWidth: 420, margin: '0 auto 12px' }}>
@@ -588,8 +589,8 @@ function EmptyState({ onScan, hasAlerts }) {
         style={{
           padding: '7px 14px',
           fontSize: 12,
-          background: '#18181c',
-          color: '#d4d4d8',
+          background: 'var(--card)',
+          color: 'var(--text)',
           border: '1px solid #232328',
           borderRadius: 6,
           cursor: 'pointer',

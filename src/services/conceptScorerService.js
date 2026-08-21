@@ -983,7 +983,7 @@ export function generateTweaks({ input, scores, cohortContext, maxTweaks = 3 }) 
       const liftPct = Math.round((top.viewsLift - 1) * 100);
       const isRegisterSensitive = REGISTER_SENSITIVE_PATTERNS.has(top.id);
       const registerWarning = (isRegisterSensitive && trustSensitive)
-        ? ` ⚠ may break brand register for this channel`
+        ? `may break brand register for this channel`
         : '';
       tweaks.push({
         dimension: 'title_patterns',

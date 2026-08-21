@@ -20,7 +20,7 @@
  *   3. setSelectedAudit(result) shows the just-completed run inline
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import {useEffect, useState, useMemo} from 'react';
 import { loadDeliverableData } from '../../../services/clientDeliverableService.js';
 import { loadTopicAuthorityContext } from '../../../services/topicAuthorityService.js';
 import { runRepositioningAudit, REPORTED_DIMENSIONS } from '../../../services/repositioningAuditService.js';
@@ -28,8 +28,8 @@ import {
   saveAudit, listAuditsForClient, loadAudit, archiveAudit,
 } from '../../../services/repositioningAuditsService.js';
 import DataFreshnessBadge from '../shared/DataFreshnessBadge.jsx';
-import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 import NextStepCard from '../shared/NextStepCard.jsx';
+import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 
 const DIMENSION_LABELS = {
   title_patterns:  'Title patterns',
@@ -46,11 +46,11 @@ const TIER_LABELS = {
 };
 
 const TIER_COLORS = {
-  very_likely_outperform: '#3fa66a',
-  likely_solid:           '#8fbf6c',
-  risky:                  '#E8A82B',
-  predicted_under:        '#cf6b6b',
-  null_count:             '#3a3a40',
+  very_likely_outperform: 'var(--pos-text)',
+  likely_solid:           'var(--pos-text)',
+  risky:                  'var(--warn)',
+  predicted_under:        'var(--neg-text)',
+  null_count:             'var(--outline-variant)',
 };
 
 const FORMAT_FILTERS = [
@@ -121,7 +121,7 @@ export default function RepositioningWorkspace({ activeClient, onNavigate }) {
       <div style={emptyShellStyle}>
         <div style={emptyHeaderStyle}>Repositioning audit</div>
         <div style={emptyBodyStyle}>
-          Pick a client from <strong style={{ color: '#cde4d6' }}>Operate → Clients</strong> first.
+          Pick a client from <strong style={{ color: 'var(--text)' }}>Portfolio → Clients</strong> first.
           The repositioning audit bulk-scores the channel's existing catalog, so it needs a
           specific channel context to run against.
         </div>
@@ -278,9 +278,9 @@ function RunBar({ cohortContext, formatFilter, onFormatChange, onRun, running, p
         <div style={runBarLineStyle}>
           <span style={runBarLabelStyle}>Embeddings:</span>{' '}
           {embeddingsLoaded ? (
-            <span style={{ color: '#cde4d6' }}>loaded · topic-authority active</span>
+            <span style={{ color: 'var(--text)' }}>loaded · topic-authority active</span>
           ) : (
-            <span style={{ color: '#E8A82B' }}>not loaded · dimension self-excludes</span>
+            <span style={{ color: "var(--warn)" }}>not loaded · dimension self-excludes</span>
           )}
         </div>
         {running && progress.total > 0 && (
@@ -415,7 +415,7 @@ function CompositeStrip({ distribution, total }) {
 function SystemicCallouts({ gaps, strengths }) {
   if (!gaps.length && !strengths.length) {
     return (
-      <div style={{ marginTop: 14, fontSize: 12, color: '#777' }}>
+      <div style={{ marginTop: 14, fontSize: 12, color: 'var(--outline)' }}>
         No dimension crosses systemic gap (&gt;60% under) or systemic strength (&gt;50% over) thresholds.
       </div>
     );
@@ -423,14 +423,14 @@ function SystemicCallouts({ gaps, strengths }) {
   return (
     <div style={calloutsGridStyle}>
       {gaps.length > 0 && (
-        <div style={calloutCardStyle('#cf6b6b')}>
-          <div style={calloutTitleStyle('#cf6b6b')}>Systemic gaps</div>
+        <div style={calloutCardStyle('var(--neg-text)')}>
+          <div style={calloutTitleStyle('var(--neg-text)')}>Systemic gaps</div>
           {gaps.map((g) => (
             <div key={g.dimension} style={calloutRowStyle}>
-              <div style={{ fontWeight: 700, color: '#e8e2d0' }}>
+              <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
                 {DIMENSION_LABELS[g.dimension] || g.dimension}
               </div>
-              <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                 {Math.round(g.share_under * 100)}% scoring risky or predicted_under
               </div>
             </div>
@@ -438,14 +438,14 @@ function SystemicCallouts({ gaps, strengths }) {
         </div>
       )}
       {strengths.length > 0 && (
-        <div style={calloutCardStyle('#3fa66a')}>
-          <div style={calloutTitleStyle('#3fa66a')}>Systemic strengths</div>
+        <div style={calloutCardStyle("var(--pos-deep)")}>
+          <div style={calloutTitleStyle("var(--pos-deep)")}>Systemic strengths</div>
           {strengths.map((s) => (
             <div key={s.dimension} style={calloutRowStyle}>
-              <div style={{ fontWeight: 700, color: '#e8e2d0' }}>
+              <div style={{ fontWeight: 700, color: 'var(--ink)' }}>
                 {DIMENSION_LABELS[s.dimension] || s.dimension}
               </div>
-              <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                 {Math.round(s.share_over * 100)}% scoring likely_solid or very_likely_outperform
               </div>
             </div>
@@ -515,7 +515,7 @@ function WeakestVideosList({ videos }) {
   return (
     <div style={{ marginTop: 18 }}>
       <div style={kickerSmallStyle}>Highest-traffic underperformers</div>
-      <div style={{ fontSize: 11, color: '#777', marginBottom: 6 }}>
+      <div style={{ fontSize: 11, color: 'var(--outline)', marginBottom: 6 }}>
         Sorted by composite tier (weakest first), then by view count. These are the candidates
         for the next round of reformulation.
       </div>
@@ -563,10 +563,10 @@ function formatViews(n) {
 
 function Note({ tone, children }) {
   const palette = {
-    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: '#0A919B' },
-    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: '#E8A82B' },
-    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: '#ef6b6b' },
-  }[tone] || { bg: '#1a1a1f', border: '#333', fg: '#aaa' };
+    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: 'var(--accent-text)' },
+    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: 'var(--warn)' },
+    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: 'var(--neg-text)' },
+  }[tone] || { bg: 'var(--input-bg)', border: 'var(--outline-variant)', fg: 'var(--muted)' };
   return (
     <div style={{
       padding: '10px 14px', borderRadius: 6,
@@ -587,53 +587,53 @@ const workspaceShellStyle = {
 };
 const workspaceHeaderStyle = { marginBottom: 18 };
 const kickerStyle = {
-  fontSize: 11, color: '#0A919B',
+  fontSize: 11, color: 'var(--accent-text)',
   textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700,
   marginBottom: 4,
 };
 const kickerSmallStyle = {
-  fontSize: 10, color: '#888',
+  fontSize: 10, color: 'var(--outline)',
   textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600,
   marginBottom: 6,
 };
 const titleStyle = {
-  fontSize: 24, fontWeight: 700, color: '#e8e2d0', margin: 0,
+  fontSize: 24, fontWeight: 700, color: 'var(--ink)', margin: 0,
 };
 const subtitleStyle = {
-  fontSize: 13, color: '#888', marginTop: 6, lineHeight: 1.5, maxWidth: 720,
+  fontSize: 13, color: 'var(--outline)', marginTop: 6, lineHeight: 1.5, maxWidth: 720,
 };
 
 const emptyShellStyle = {
   padding: '60px 24px', maxWidth: 720, margin: '0 auto', textAlign: 'center',
 };
 const emptyHeaderStyle = {
-  fontSize: 14, color: '#0A919B',
+  fontSize: 14, color: 'var(--accent-text)',
   textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 14,
 };
-const emptyBodyStyle = { fontSize: 14, color: '#888', lineHeight: 1.6 };
+const emptyBodyStyle = { fontSize: 14, color: 'var(--outline)', lineHeight: 1.6 };
 
 const runBarStyle = {
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
-  borderLeft: '2px solid #0A919B',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6, padding: 14,
   display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16,
   marginTop: 14,
 };
-const runBarLineStyle = { fontSize: 12, color: '#cde4d6', marginBottom: 2 };
-const runBarLabelStyle = { color: '#888', fontWeight: 600 };
-const progressLineStyle = { fontSize: 12, color: '#E8A82B', marginTop: 4 };
+const runBarLineStyle = { fontSize: 12, color: 'var(--text)', marginBottom: 2 };
+const runBarLabelStyle = { color: 'var(--outline)', fontWeight: 600 };
+const progressLineStyle = { fontSize: 12, color: 'var(--warn)', marginTop: 4 };
 
 const selectStyle = {
-  background: '#1a1a1f', color: '#cde4d6',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'var(--input-bg)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '6px 10px', fontSize: 12, cursor: 'pointer',
 };
 
 const runBtnStyle = (running) => ({
-  background: running ? '#1a1a1f' : '#0A919B',
-  color: running ? '#666' : '#0a0a0e',
-  border: running ? '1px solid #2a2a30' : 'none',
+  background: running ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: running ? 'var(--faint)' : 'var(--bg)',
+  border: running ? '1px solid var(--border)' : 'none',
   padding: '8px 16px', borderRadius: 5,
   fontSize: 13, fontWeight: 700, letterSpacing: 0.3,
   cursor: running ? 'not-allowed' : 'pointer',
@@ -643,44 +643,44 @@ const listShellStyle = { marginTop: 18 };
 const listGridStyle = { display: 'flex', flexDirection: 'column', gap: 6 };
 const listRowStyle = (selected) => ({
   display: 'flex', alignItems: 'center', gap: 10,
-  background: selected ? 'rgba(10,145,155,0.10)' : '#0e0e11',
-  border: `1px solid ${selected ? 'rgba(10,145,155,0.40)' : '#2a2a30'}`,
+  background: selected ? 'rgba(10,145,155,0.10)' : 'var(--card)',
+  border: `1px solid ${selected ? 'rgba(10,145,155,0.40)' : 'var(--outline-variant)'}`,
   borderRadius: 5, padding: 10,
 });
-const listRowDateStyle = { fontSize: 12, fontWeight: 600, color: '#cde4d6' };
-const listRowMetaStyle = { color: '#888', fontWeight: 400 };
-const listRowGapsStyle = { fontSize: 11, color: '#E8A82B', marginTop: 2 };
+const listRowDateStyle = { fontSize: 12, fontWeight: 600, color: 'var(--text)' };
+const listRowMetaStyle = { color: 'var(--outline)', fontWeight: 400 };
+const listRowGapsStyle = { fontSize: 11, color: 'var(--warn)', marginTop: 2 };
 
 const smallBtnStyle = {
-  background: '#1a1a1f', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 4,
+  background: 'var(--input-bg)', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: '4px 10px', fontSize: 11, cursor: 'pointer',
 };
 
 const detailShellStyle = {
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 6, padding: 20, marginTop: 18,
 };
 const detailHeaderStyle = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-  borderBottom: '1px solid #2a2a30', paddingBottom: 12, marginBottom: 12,
+  borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12,
 };
-const detailMetaStyle = { fontSize: 12, color: '#888' };
+const detailMetaStyle = { fontSize: 12, color: 'var(--outline)' };
 
 const stripStyle = {
   display: 'flex', height: 22, borderRadius: 4, overflow: 'hidden',
-  background: '#1a1a1f', border: '1px solid #2a2a30',
+  background: 'var(--input-bg)', border: '1px solid var(--border)',
 };
 const stripSegmentStyle = (pct, color) => ({
   width: `${pct}%`,
   background: color,
-  color: '#0a0a0e',
+  color: 'var(--bg)',
   fontSize: 10, fontWeight: 700,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 });
 const legendRowStyle = { display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 8 };
-const legendItemStyle = { fontSize: 11, color: '#aaa', display: 'inline-flex', alignItems: 'center', gap: 6 };
+const legendItemStyle = { fontSize: 11, color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: 6 };
 const legendSwatchStyle = (color) => ({
   width: 10, height: 10, borderRadius: 2, background: color, display: 'inline-block',
 });
@@ -689,9 +689,9 @@ const calloutsGridStyle = {
   marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
 };
 const calloutCardStyle = (color) => ({
-  background: '#1a1a1f',
-  border: `1px solid ${color}40`,
-  borderLeft: `2px solid ${color}`,
+  background: 'var(--input-bg)',
+  border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
+  borderLeft: '2px solid var(--border)',
   borderRadius: 5, padding: 12,
 });
 const calloutTitleStyle = (color) => ({
@@ -704,34 +704,34 @@ const tableStyle = {
   width: '100%', borderCollapse: 'collapse', marginTop: 6, fontSize: 12,
 };
 const thStyle = {
-  textAlign: 'left', fontSize: 10, color: '#888',
+  textAlign: 'left', fontSize: 10, color: 'var(--outline)',
   textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600,
-  padding: '8px 8px', borderBottom: '1px solid #2a2a30',
+  padding: '8px 8px', borderBottom: '1px solid var(--border)',
 };
 const tdStyle = {
-  padding: '8px 8px', color: '#cde4d6',
+  padding: '8px 8px', color: 'var(--text)',
   borderBottom: '1px solid #1a1a1f',
 };
-const tdLabelStyle = { ...tdStyle, color: '#e8e2d0', fontWeight: 600 };
-const tdNullStyle = { ...tdStyle, color: '#666' };
+const tdLabelStyle = { ...tdStyle, color: 'var(--ink)', fontWeight: 600 };
+const tdNullStyle = { ...tdStyle, color: 'var(--faint)' };
 
 const videosListStyle = { display: 'flex', flexDirection: 'column', gap: 6 };
 const videoRowStyle = {
   display: 'flex', gap: 12, alignItems: 'flex-start',
-  background: '#1a1a1f', border: '1px solid #2a2a30',
+  background: 'var(--input-bg)', border: '1px solid var(--border)',
   borderRadius: 5, padding: 10,
 };
 const videoTitleStyle = {
-  fontSize: 13, fontWeight: 600, color: '#e8e2d0',
+  fontSize: 13, fontWeight: 600, color: 'var(--ink)',
   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
 };
-const videoMetaStyle = { fontSize: 11, color: '#888', marginTop: 2 };
-const videoRationaleStyle = { fontSize: 11, color: '#aaa', marginTop: 4, fontStyle: 'italic' };
+const videoMetaStyle = { fontSize: 11, color: 'var(--outline)', marginTop: 2 };
+const videoRationaleStyle = { fontSize: 11, color: 'var(--muted)', marginTop: 4, fontStyle: 'italic' };
 
 const tierChipStyle = (color) => ({
-  background: `${color}22`,
+  background: `color-mix(in srgb, ${color} 13%, transparent)`,
   color,
-  border: `1px solid ${color}55`,
+  border: `1px solid color-mix(in srgb, ${color} 33%, transparent)`,
   borderRadius: 4,
   padding: '4px 8px',
   fontSize: 10, fontWeight: 700,

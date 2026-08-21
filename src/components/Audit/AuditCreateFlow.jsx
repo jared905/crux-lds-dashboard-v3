@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import {useState, useEffect} from "react";
 import {
   ArrowLeft,
   Search,
@@ -11,9 +11,6 @@ import {
   Palette,
   Sparkles,
   Check,
-  SkipForward,
-  X,
-  Plus,
   Crosshair,
   Map,
 } from "lucide-react";
@@ -26,7 +23,8 @@ import {
   extractBrandContext,
 } from "../../services/brandContextService";
 import { getChannels } from "../../services/competitorDatabase";
-import CategorySelector from "../Research/CategorySelector";
+import { Plus, SkipForward, X } from 'lucide-react';
+import CategorySelector from '../Research/CategorySelector.jsx';
 
 const TIER_LABELS = {
   emerging: "Emerging (0 – 10K subs)",
@@ -37,11 +35,11 @@ const TIER_LABELS = {
 };
 
 const TIER_COLORS = {
-  emerging: "#6b7280",
-  growing: "#3b82f6",
-  established: "#8b5cf6",
-  major: "#f59e0b",
-  elite: "#ef4444",
+  emerging: "var(--faint)",
+  growing: "var(--blue)",
+  established: "var(--blue-deep)",
+  major: "var(--warn)",
+  elite: "var(--neg)",
 };
 
 const STEP_LABELS = ["Channel", "Preview", "Brand Context", "Competitors", "Configure"];
@@ -184,7 +182,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
     })();
 
     return () => { cancelled = true; };
-  }, [step, activeClient?.id]);
+  }, [step, activeClient?.id, channelPreview?.youtube_channel_id]);
 
   // ── Resolve competitor URL ──
   const handleAddCompetitor = async () => {
@@ -254,11 +252,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
 
   // ── Step 5: Launch audit ──
   const handleLaunch = async () => {
-    // Pre-flight: check API keys before creating audit record
-    if (!claudeAPI.apiKey) {
-      setError("Claude API key not configured. Go to Settings → API Keys and add your Anthropic key.");
-      return;
-    }
+    // Claude runs through the server proxy, which falls back to the
+    // team's shared ANTHROPIC_API_KEY — no per-browser key required.
     if (!youtubeAPI.apiKey) {
       setError("YouTube API key not configured. Go to Settings → API Keys and add your YouTube Data API key.");
       return;
@@ -313,7 +308,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
             background: "transparent",
             border: "1px solid #444",
             borderRadius: "8px",
-            color: "#9E9E9E",
+            color: "var(--muted)",
             cursor: "pointer",
             fontSize: "13px",
           }}
@@ -334,20 +329,20 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
               alignItems: "center",
               gap: "8px",
               padding: "8px 16px",
-              background: step > i + 1 ? "rgba(34, 197, 94, 0.1)" : step === i + 1 ? "rgba(41, 98, 255, 0.15)" : "#252525",
-              border: `1px solid ${step > i + 1 ? "rgba(34, 197, 94, 0.3)" : step === i + 1 ? "#2962FF" : "#333"}`,
+              background: step > i + 1 ? "rgba(205, 242, 0, 0.1)" : step === i + 1 ? "rgba(0, 209, 255, 0.15)" : "var(--input-bg)",
+              border: `1px solid ${step > i + 1 ? "rgba(205, 242, 0, 0.3)" : step === i + 1 ? "var(--blue)" : "var(--outline-variant)"}`,
               borderRadius: "8px",
               fontSize: "13px",
               fontWeight: "600",
-              color: step > i + 1 ? "#22c55e" : step === i + 1 ? "#60a5fa" : "#666",
+              color: step > i + 1 ? "var(--pos)" : step === i + 1 ? "var(--accent-text)" : "var(--faint)",
             }}
           >
             <span style={{
               width: "20px", height: "20px", borderRadius: "50%",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: "11px", fontWeight: "700",
-              background: step > i + 1 ? "#166534" : step === i + 1 ? "#2962FF" : "#444",
-              color: step > i + 1 ? "#22c55e" : "#fff",
+              background: step > i + 1 ? "var(--pos-text)" : step === i + 1 ? "var(--blue)" : "var(--outline-variant)",
+              color: step > i + 1 ? "var(--pos)" : "var(--ink)",
             }}>
               {step > i + 1 ? "\u2713" : i + 1}
             </span>
@@ -360,9 +355,9 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
       {error && (
         <div style={{
           display: "flex", alignItems: "center", gap: "8px",
-          padding: "12px 16px", background: "rgba(239, 68, 68, 0.1)",
-          border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "8px",
-          color: "#ef4444", fontSize: "13px", marginBottom: "16px",
+          padding: "12px 16px", background: "rgba(255, 85, 64, 0.1)",
+          border: "1px solid rgba(255, 85, 64, 0.3)", borderRadius: "8px",
+          color: "var(--neg)", fontSize: "13px", marginBottom: "16px",
         }}>
           <AlertCircle size={16} />
           {error}
@@ -373,13 +368,13 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
       {step === 1 && (
         <div style={{ maxWidth: "600px" }}>
           <div style={{
-            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
+            background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)",
             padding: "32px",
           }}>
             <div style={{ fontSize: "16px", fontWeight: "600", marginBottom: "8px" }}>
               Enter a YouTube Channel
             </div>
-            <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "20px" }}>
+            <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "20px" }}>
               Paste a channel URL, @handle, or channel ID
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
@@ -390,8 +385,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                 onKeyDown={(e) => e.key === "Enter" && handleResolve()}
                 placeholder="https://youtube.com/@channel or UCxxxxxxx"
                 style={{
-                  flex: 1, padding: "12px 16px", background: "#252525",
-                  border: "1px solid #444", borderRadius: "8px", color: "#E0E0E0",
+                  flex: 1, padding: "12px 16px", background: "var(--input-bg)",
+                  border: "1px solid #444", borderRadius: "8px", color: "var(--text)",
                   fontSize: "14px", outline: "none",
                 }}
               />
@@ -400,8 +395,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                 disabled={resolving || !channelInput.trim()}
                 style={{
                   display: "flex", alignItems: "center", gap: "6px",
-                  padding: "12px 20px", background: "#2962FF", border: "none",
-                  borderRadius: "8px", color: "#fff", cursor: "pointer",
+                  padding: "12px 20px", background: "var(--blue)", border: "none",
+                  borderRadius: "8px", color: "var(--ink)", cursor: "pointer",
                   fontWeight: "600", fontSize: "14px",
                   opacity: resolving || !channelInput.trim() ? 0.5 : 1,
                 }}
@@ -418,7 +413,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
       {step === 2 && channelPreview && (
         <div style={{ maxWidth: "600px" }}>
           <div style={{
-            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
+            background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)",
             padding: "32px",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
@@ -431,7 +426,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
               )}
               <div>
                 <div style={{ fontSize: "18px", fontWeight: "700" }}>{channelPreview.name}</div>
-                <div style={{ fontSize: "13px", color: "#9E9E9E" }}>
+                <div style={{ fontSize: "13px", color: "var(--muted)" }}>
                   {channelPreview.custom_url || channelPreview.youtube_channel_id}
                 </div>
               </div>
@@ -439,20 +434,20 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
 
             {/* Stats */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "20px" }}>
-              <div style={{ background: "#252525", borderRadius: "8px", padding: "12px", textAlign: "center" }}>
-                <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Subscribers</div>
+              <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "12px", textAlign: "center" }}>
+                <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>Subscribers</div>
                 <div style={{ fontSize: "18px", fontWeight: "700" }}>
                   {(channelPreview.subscriber_count || 0).toLocaleString()}
                 </div>
               </div>
-              <div style={{ background: "#252525", borderRadius: "8px", padding: "12px", textAlign: "center" }}>
-                <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Total Views</div>
+              <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "12px", textAlign: "center" }}>
+                <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>Total Views</div>
                 <div style={{ fontSize: "18px", fontWeight: "700" }}>
                   {(channelPreview.total_view_count || 0).toLocaleString()}
                 </div>
               </div>
-              <div style={{ background: "#252525", borderRadius: "8px", padding: "12px", textAlign: "center" }}>
-                <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Videos</div>
+              <div style={{ background: "var(--input-bg)", borderRadius: "8px", padding: "12px", textAlign: "center" }}>
+                <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>Videos</div>
                 <div style={{ fontSize: "18px", fontWeight: "700" }}>
                   {(channelPreview.video_count || 0).toLocaleString()}
                 </div>
@@ -462,16 +457,16 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
             {/* Tier */}
             <div style={{
               display: "flex", alignItems: "center", gap: "8px",
-              padding: "10px 14px", background: "#252525", borderRadius: "8px", marginBottom: "20px",
+              padding: "10px 14px", background: "var(--input-bg)", borderRadius: "8px", marginBottom: "20px",
             }}>
               <div style={{
                 width: "10px", height: "10px", borderRadius: "50%",
-                background: TIER_COLORS[sizeTier] || "#666",
+                background: TIER_COLORS[sizeTier] || "var(--faint)",
               }} />
-              <span style={{ fontSize: "13px", fontWeight: "600", color: TIER_COLORS[sizeTier] || "#9E9E9E" }}>
+              <span style={{ fontSize: "13px", fontWeight: "600", color: TIER_COLORS[sizeTier] || "var(--muted)" }}>
                 {TIER_LABELS[sizeTier] || sizeTier}
               </span>
-              <span style={{ fontSize: "12px", color: "#666", marginLeft: "auto" }}>
+              <span style={{ fontSize: "12px", color: "var(--faint)", marginLeft: "auto" }}>
                 Will analyze up to {tierConfig?.maxVideos} videos
               </span>
             </div>
@@ -482,7 +477,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                 style={{
                   padding: "10px 20px", background: "transparent",
                   border: "1px solid #444", borderRadius: "8px",
-                  color: "#9E9E9E", cursor: "pointer", fontSize: "13px",
+                  color: "var(--muted)", cursor: "pointer", fontSize: "13px",
                 }}
               >
                 Change Channel
@@ -490,8 +485,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
               <button
                 onClick={() => setStep(3)}
                 style={{
-                  padding: "10px 24px", background: "#2962FF", border: "none",
-                  borderRadius: "8px", color: "#fff", cursor: "pointer",
+                  padding: "10px 24px", background: "var(--blue)", border: "none",
+                  borderRadius: "8px", color: "var(--ink)", cursor: "pointer",
                   fontWeight: "600", fontSize: "14px",
                 }}
               >
@@ -506,23 +501,23 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
       {step === 3 && (
         <div style={{ maxWidth: "600px" }}>
           <div style={{
-            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
+            background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)",
             padding: "32px",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-              <Palette size={20} style={{ color: "#60a5fa" }} />
+              <Palette size={20} style={{ color: "var(--accent-text)" }} />
               <div style={{ fontSize: "16px", fontWeight: "600" }}>Brand Context</div>
-              <span style={{ fontSize: "11px", color: "#9E9E9E", background: "#333", padding: "2px 8px", borderRadius: "4px" }}>
+              <span style={{ fontSize: "11px", color: "var(--muted)", background: "var(--outline-variant)", padding: "2px 8px", borderRadius: "4px" }}>
                 Optional
               </span>
             </div>
-            <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "20px" }}>
+            <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "20px" }}>
               Provide brand intelligence to make AI analysis more relevant and commercially aligned.
             </div>
 
             {/* Loading state */}
             {bcLoading && (
-              <div style={{ textAlign: "center", padding: "24px", color: "#9E9E9E" }}>
+              <div style={{ textAlign: "center", padding: "24px", color: "var(--muted)" }}>
                 <Loader size={20} style={{ animation: "spin 1s linear infinite", marginBottom: "8px" }} />
                 <div style={{ fontSize: "13px" }}>Checking for existing brand context...</div>
               </div>
@@ -532,17 +527,17 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
             {!bcLoading && existingBrandContext && !bcExtracting && brandContextData === existingBrandContext && (
               <div>
                 <div style={{
-                  padding: "14px", background: "rgba(34, 197, 94, 0.08)",
-                  border: "1px solid rgba(34, 197, 94, 0.3)", borderRadius: "8px",
+                  padding: "14px", background: "rgba(205, 242, 0, 0.08)",
+                  border: "1px solid rgba(205, 242, 0, 0.3)", borderRadius: "8px",
                   marginBottom: "16px",
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                    <Check size={16} style={{ color: "#22c55e" }} />
-                    <span style={{ fontSize: "14px", fontWeight: "600", color: "#22c55e" }}>
+                    <Check size={16} style={{ color: "var(--pos)" }} />
+                    <span style={{ fontSize: "14px", fontWeight: "600", color: "var(--pos)" }}>
                       Existing Brand Context Found
                     </span>
                   </div>
-                  <div style={{ fontSize: "12px", color: "#9E9E9E" }}>
+                  <div style={{ fontSize: "12px", color: "var(--muted)" }}>
                     {countFilledSections(existingBrandContext)} of 6 sections populated
                     {existingBrandContext.snapshot_date && (
                       <span> — saved {new Date(existingBrandContext.snapshot_date).toLocaleDateString()}</span>
@@ -559,7 +554,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                     style={{
                       padding: "10px 16px", background: "transparent",
                       border: "1px solid #444", borderRadius: "8px",
-                      color: "#9E9E9E", cursor: "pointer", fontSize: "13px",
+                      color: "var(--muted)", cursor: "pointer", fontSize: "13px",
                     }}
                   >
                     Re-extract
@@ -570,7 +565,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                       display: "flex", alignItems: "center", gap: "6px",
                       padding: "10px 16px", background: "transparent",
                       border: "1px solid #444", borderRadius: "8px",
-                      color: "#9E9E9E", cursor: "pointer", fontSize: "13px",
+                      color: "var(--muted)", cursor: "pointer", fontSize: "13px",
                     }}
                   >
                     <SkipForward size={14} /> Skip
@@ -579,8 +574,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                     onClick={() => setStep(4)}
                     style={{
                       display: "flex", alignItems: "center", gap: "6px",
-                      padding: "10px 20px", background: "#2962FF", border: "none",
-                      borderRadius: "8px", color: "#fff", cursor: "pointer",
+                      padding: "10px 20px", background: "var(--blue)", border: "none",
+                      borderRadius: "8px", color: "var(--ink)", cursor: "pointer",
                       fontWeight: "600", fontSize: "14px",
                     }}
                   >
@@ -594,17 +589,17 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
             {!bcLoading && brandContextData && brandContextData !== existingBrandContext && !bcExtracting && (
               <div>
                 <div style={{
-                  padding: "14px", background: "rgba(41, 98, 255, 0.08)",
-                  border: "1px solid rgba(41, 98, 255, 0.3)", borderRadius: "8px",
+                  padding: "14px", background: "rgba(0, 209, 255, 0.08)",
+                  border: "1px solid rgba(0, 209, 255, 0.3)", borderRadius: "8px",
                   marginBottom: "16px",
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                    <Sparkles size={16} style={{ color: "#60a5fa" }} />
-                    <span style={{ fontSize: "14px", fontWeight: "600", color: "#60a5fa" }}>
+                    <Sparkles size={16} style={{ color: "var(--accent-text)" }} />
+                    <span style={{ fontSize: "14px", fontWeight: "600", color: "var(--accent-text)" }}>
                       Brand Context Extracted
                     </span>
                   </div>
-                  <div style={{ fontSize: "12px", color: "#9E9E9E" }}>
+                  <div style={{ fontSize: "12px", color: "var(--muted)" }}>
                     {countFilledSections(brandContextData)} of 6 sections populated.
                     This will be saved when the audit runs.
                   </div>
@@ -619,8 +614,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                             fontSize: "11px",
                             padding: "3px 8px",
                             borderRadius: "4px",
-                            background: filled ? "rgba(34, 197, 94, 0.15)" : "#333",
-                            color: filled ? "#22c55e" : "#666",
+                            background: filled ? "rgba(205, 242, 0, 0.15)" : "var(--outline-variant)",
+                            color: filled ? "var(--pos)" : "var(--faint)",
                           }}
                         >
                           {key.replace(/_/g, " ")}
@@ -636,7 +631,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                     style={{
                       padding: "10px 16px", background: "transparent",
                       border: "1px solid #444", borderRadius: "8px",
-                      color: "#9E9E9E", cursor: "pointer", fontSize: "13px",
+                      color: "var(--muted)", cursor: "pointer", fontSize: "13px",
                     }}
                   >
                     Re-extract
@@ -644,8 +639,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                   <button
                     onClick={() => setStep(4)}
                     style={{
-                      padding: "10px 24px", background: "#2962FF", border: "none",
-                      borderRadius: "8px", color: "#fff", cursor: "pointer",
+                      padding: "10px 24px", background: "var(--blue)", border: "none",
+                      borderRadius: "8px", color: "var(--ink)", cursor: "pointer",
                       fontWeight: "600", fontSize: "14px",
                     }}
                   >
@@ -659,7 +654,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
             {!bcLoading && !brandContextData && !bcExtracting && (
               <div>
                 <div style={{ marginBottom: "16px" }}>
-                  <div style={{ fontSize: "12px", color: "#9E9E9E", fontWeight: "600", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  <div style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "600", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                     Brand Name
                   </div>
                   <input
@@ -668,15 +663,15 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                     onChange={(e) => setBrandName(e.target.value)}
                     placeholder={channelPreview?.name || "Brand name"}
                     style={{
-                      width: "100%", padding: "10px 12px", background: "#252525",
-                      border: "1px solid #333", borderRadius: "8px", color: "#E0E0E0",
+                      width: "100%", padding: "10px 12px", background: "var(--input-bg)",
+                      border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text)",
                       fontSize: "14px", boxSizing: "border-box",
                     }}
                   />
                 </div>
 
                 <div style={{ marginBottom: "16px" }}>
-                  <div style={{ fontSize: "12px", color: "#9E9E9E", fontWeight: "600", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  <div style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "600", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                     Paste Content
                   </div>
                   <textarea
@@ -684,13 +679,13 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                     onChange={(e) => setPasteContent(e.target.value)}
                     placeholder="Paste website copy, about page, social media posts, mission statement, or any brand content..."
                     style={{
-                      width: "100%", padding: "12px", background: "#252525",
-                      border: "1px solid #333", borderRadius: "8px", color: "#E0E0E0",
+                      width: "100%", padding: "12px", background: "var(--input-bg)",
+                      border: "1px solid var(--border)", borderRadius: "8px", color: "var(--text)",
                       fontSize: "14px", resize: "vertical", minHeight: "120px",
                       fontFamily: "inherit", boxSizing: "border-box",
                     }}
                   />
-                  <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
+                  <div style={{ fontSize: "11px", color: "var(--faint)", marginTop: "4px" }}>
                     The more content you provide, the better the extraction. Include website copy, social bios, recent posts, etc.
                   </div>
                 </div>
@@ -701,7 +696,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                     style={{
                       padding: "10px 20px", background: "transparent",
                       border: "1px solid #444", borderRadius: "8px",
-                      color: "#9E9E9E", cursor: "pointer", fontSize: "13px",
+                      color: "var(--muted)", cursor: "pointer", fontSize: "13px",
                     }}
                   >
                     Back
@@ -712,7 +707,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                       display: "flex", alignItems: "center", gap: "6px",
                       padding: "10px 16px", background: "transparent",
                       border: "1px solid #444", borderRadius: "8px",
-                      color: "#9E9E9E", cursor: "pointer", fontSize: "13px",
+                      color: "var(--muted)", cursor: "pointer", fontSize: "13px",
                     }}
                   >
                     <SkipForward size={14} /> Skip
@@ -722,8 +717,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                     disabled={!pasteContent.trim()}
                     style={{
                       display: "flex", alignItems: "center", gap: "6px",
-                      padding: "10px 20px", background: "#2962FF", border: "none",
-                      borderRadius: "8px", color: "#fff", cursor: "pointer",
+                      padding: "10px 20px", background: "var(--blue)", border: "none",
+                      borderRadius: "8px", color: "var(--ink)", cursor: "pointer",
                       fontWeight: "600", fontSize: "14px",
                       opacity: !pasteContent.trim() ? 0.5 : 1,
                     }}
@@ -736,9 +731,9 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
 
             {/* Extracting state */}
             {bcExtracting && (
-              <div style={{ textAlign: "center", padding: "32px", color: "#9E9E9E" }}>
+              <div style={{ textAlign: "center", padding: "32px", color: "var(--muted)" }}>
                 <Loader size={24} style={{ animation: "spin 1s linear infinite", marginBottom: "12px" }} />
-                <div style={{ fontSize: "14px", fontWeight: "600", color: "#E0E0E0", marginBottom: "4px" }}>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "var(--text)", marginBottom: "4px" }}>
                   Extracting brand context...
                 </div>
                 <div style={{ fontSize: "12px" }}>
@@ -750,23 +745,23 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
 
           {/* Brand Intent Intake */}
           <div style={{
-            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
+            background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)",
             padding: "32px", marginTop: "16px",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-              <Crosshair size={20} style={{ color: "#f59e0b" }} />
+              <Crosshair size={20} style={{ color: "var(--warn)" }} />
               <div style={{ fontSize: "16px", fontWeight: "600" }}>Brand Intent</div>
-              <span style={{ fontSize: "11px", color: "#9E9E9E", background: "#333", padding: "2px 8px", borderRadius: "4px" }}>
+              <span style={{ fontSize: "11px", color: "var(--muted)", background: "var(--outline-variant)", padding: "2px 8px", borderRadius: "4px" }}>
                 Recommended
               </span>
             </div>
-            <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "16px" }}>
+            <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "16px" }}>
               What does the client want YouTube to do for them? Capture their direction before the data shapes the analysis.
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div>
-                <label style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                <label style={{ fontSize: "11px", color: "var(--outline)", display: "block", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                   Content direction or initiative the client wants YouTube to support *
                 </label>
                 <textarea
@@ -775,8 +770,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                   placeholder="e.g. 'We want to use YouTube to tell our origin story and build affinity with younger audiences through behind-the-scenes content'"
                   rows={3}
                   style={{
-                    width: "100%", padding: "10px 12px", background: "#252525",
-                    border: "1px solid #444", borderRadius: "8px", color: "#E0E0E0",
+                    width: "100%", padding: "10px 12px", background: "var(--input-bg)",
+                    border: "1px solid #444", borderRadius: "8px", color: "var(--text)",
                     fontSize: "13px", resize: "vertical", outline: "none",
                   }}
                 />
@@ -784,7 +779,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <div>
-                  <label style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>
+                  <label style={{ fontSize: "11px", color: "var(--outline)", display: "block", marginBottom: "4px" }}>
                     Who internally is driving this?
                   </label>
                   <input
@@ -792,14 +787,14 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                     onChange={e => setBrandIntentStakeholder(e.target.value)}
                     placeholder="e.g. VP Marketing, CMO"
                     style={{
-                      width: "100%", padding: "8px 10px", background: "#252525",
-                      border: "1px solid #444", borderRadius: "6px", color: "#E0E0E0",
+                      width: "100%", padding: "8px 10px", background: "var(--input-bg)",
+                      border: "1px solid #444", borderRadius: "6px", color: "var(--text)",
                       fontSize: "12px", outline: "none",
                     }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>
+                  <label style={{ fontSize: "11px", color: "var(--outline)", display: "block", marginBottom: "4px" }}>
                     Timeline or campaign pressure?
                   </label>
                   <input
@@ -807,8 +802,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                     onChange={e => setBrandIntentTimeline(e.target.value)}
                     placeholder="e.g. Q3 launch, ongoing"
                     style={{
-                      width: "100%", padding: "8px 10px", background: "#252525",
-                      border: "1px solid #444", borderRadius: "6px", color: "#E0E0E0",
+                      width: "100%", padding: "8px 10px", background: "var(--input-bg)",
+                      border: "1px solid #444", borderRadius: "6px", color: "var(--text)",
                       fontSize: "12px", outline: "none",
                     }}
                   />
@@ -819,23 +814,23 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
 
           {/* Paid Content Classification */}
           <div style={{
-            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
+            background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)",
             padding: "32px", marginTop: "16px",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-              <Tag size={20} style={{ color: "#ef4444" }} />
+              <Tag size={20} style={{ color: "var(--neg)" }} />
               <div style={{ fontSize: "16px", fontWeight: "600" }}>Paid Content Signals</div>
-              <span style={{ fontSize: "11px", color: "#9E9E9E", background: "#333", padding: "2px 8px", borderRadius: "4px" }}>
+              <span style={{ fontSize: "11px", color: "var(--muted)", background: "var(--outline-variant)", padding: "2px 8px", borderRadius: "4px" }}>
                 Optional
               </span>
             </div>
-            <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "16px" }}>
+            <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "16px" }}>
               Keywords that identify paid/boosted content in video titles or descriptions. Paid videos will be excluded from organic performance baselines.
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div>
-                <label style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>
+                <label style={{ fontSize: "11px", color: "var(--outline)", display: "block", marginBottom: "4px" }}>
                   Keyword patterns (comma-separated)
                 </label>
                 <input
@@ -843,17 +838,17 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                   onChange={e => setPaidContentSignals(e.target.value)}
                   placeholder='e.g. :15, :30, OLV, sponsored, paid partnership'
                   style={{
-                    width: "100%", padding: "8px 10px", background: "#252525",
-                    border: "1px solid #444", borderRadius: "6px", color: "#E0E0E0",
+                    width: "100%", padding: "8px 10px", background: "var(--input-bg)",
+                    border: "1px solid #444", borderRadius: "6px", color: "var(--text)",
                     fontSize: "12px", outline: "none",
                   }}
                 />
-                <div style={{ fontSize: "10px", color: "#666", marginTop: "4px" }}>
+                <div style={{ fontSize: "10px", color: "var(--faint)", marginTop: "4px" }}>
                   Matched against video title and description. Case-insensitive.
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>
+                <label style={{ fontSize: "11px", color: "var(--outline)", display: "block", marginBottom: "4px" }}>
                   Manual video ID overrides (comma-separated, optional)
                 </label>
                 <input
@@ -861,12 +856,12 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                   onChange={e => setPaidContentOverride(e.target.value)}
                   placeholder="e.g. dQw4w9WgXcQ, xvFZjo5PgG0"
                   style={{
-                    width: "100%", padding: "8px 10px", background: "#252525",
-                    border: "1px solid #444", borderRadius: "6px", color: "#E0E0E0",
+                    width: "100%", padding: "8px 10px", background: "var(--input-bg)",
+                    border: "1px solid #444", borderRadius: "6px", color: "var(--text)",
                     fontSize: "12px", outline: "none",
                   }}
                 />
-                <div style={{ fontSize: "10px", color: "#666", marginTop: "4px" }}>
+                <div style={{ fontSize: "10px", color: "var(--faint)", marginTop: "4px" }}>
                   Specific YouTube video IDs to always flag as paid, regardless of keyword match.
                 </div>
               </div>
@@ -875,13 +870,13 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
               <div style={{ marginTop: "4px" }}>
                 <label style={{
                   display: "flex", alignItems: "center", gap: "8px",
-                  cursor: "pointer", fontSize: "12px", color: "#E0E0E0",
+                  cursor: "pointer", fontSize: "12px", color: "var(--text)",
                 }}>
                   <input
                     type="checkbox"
                     checked={enableDurationRules}
                     onChange={e => setEnableDurationRules(e.target.checked)}
-                    style={{ accentColor: "#ef4444" }}
+                    style={{ accentColor: "var(--neg)" }}
                   />
                   Flag non-Short videos by duration (common ad lengths)
                 </label>
@@ -895,10 +890,10 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                           onChange={() => {
                             setPaidDurationRules(prev => prev.filter((_, idx) => idx !== i));
                           }}
-                          style={{ accentColor: "#ef4444" }}
+                          style={{ accentColor: "var(--neg)" }}
                         />
-                        <span style={{ fontSize: "11px", color: "#ccc" }}>{rule.label}</span>
-                        <span style={{ fontSize: "10px", color: "#666" }}>({rule.min}-{rule.max}s, non-Shorts only)</span>
+                        <span style={{ fontSize: "11px", color: "var(--text)" }}>{rule.label}</span>
+                        <span style={{ fontSize: "10px", color: "var(--faint)" }}>({rule.min}-{rule.max}s, non-Shorts only)</span>
                       </div>
                     ))}
                     <button
@@ -913,14 +908,14 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                         }
                       }}
                       style={{
-                        fontSize: "11px", color: "#888", background: "transparent",
+                        fontSize: "11px", color: "var(--outline)", background: "transparent",
                         border: "1px dashed #444", borderRadius: "4px",
                         padding: "4px 10px", cursor: "pointer", alignSelf: "flex-start",
                       }}
                     >
                       + Add custom duration range
                     </button>
-                    <div style={{ fontSize: "10px", color: "#666" }}>
+                    <div style={{ fontSize: "10px", color: "var(--faint)" }}>
                       Non-Short videos matching these durations will be flagged as paid (e.g. pre-roll ads uploaded as standalone videos).
                     </div>
                   </div>
@@ -935,17 +930,17 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
       {step === 4 && (
         <div style={{ maxWidth: "600px" }}>
           <div style={{
-            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
+            background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)",
             padding: "32px",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-              <Crosshair size={20} style={{ color: "#60a5fa" }} />
+              <Crosshair size={20} style={{ color: "var(--accent-text)" }} />
               <div style={{ fontSize: "16px", fontWeight: "600" }}>Add Competitors</div>
-              <span style={{ fontSize: "11px", color: "#9E9E9E", background: "#333", padding: "2px 8px", borderRadius: "4px" }}>
+              <span style={{ fontSize: "11px", color: "var(--muted)", background: "var(--outline-variant)", padding: "2px 8px", borderRadius: "4px" }}>
                 Optional
               </span>
             </div>
-            <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "20px" }}>
+            <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "20px" }}>
               Add up to 5 competitor channels for head-to-head benchmarking. Paste YouTube URLs or select from your tracked competitors.
             </div>
 
@@ -959,8 +954,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                 placeholder="https://youtube.com/@channel or UCxxxxxxx"
                 disabled={resolvedCompetitors.length >= 5}
                 style={{
-                  flex: 1, padding: "10px 12px", background: "#252525",
-                  border: "1px solid #444", borderRadius: "8px", color: "#E0E0E0",
+                  flex: 1, padding: "10px 12px", background: "var(--input-bg)",
+                  border: "1px solid #444", borderRadius: "8px", color: "var(--text)",
                   fontSize: "13px", outline: "none",
                   opacity: resolvedCompetitors.length >= 5 ? 0.5 : 1,
                 }}
@@ -970,8 +965,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                 disabled={competitorResolving || !competitorUrl.trim() || resolvedCompetitors.length >= 5}
                 style={{
                   display: "flex", alignItems: "center", gap: "6px",
-                  padding: "10px 16px", background: "#2962FF", border: "none",
-                  borderRadius: "8px", color: "#fff", cursor: "pointer",
+                  padding: "10px 16px", background: "var(--blue)", border: "none",
+                  borderRadius: "8px", color: "var(--ink)", cursor: "pointer",
                   fontWeight: "600", fontSize: "13px",
                   opacity: competitorResolving || !competitorUrl.trim() || resolvedCompetitors.length >= 5 ? 0.5 : 1,
                 }}
@@ -984,14 +979,14 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
             {/* Selected competitors */}
             {resolvedCompetitors.length > 0 && (
               <div style={{ marginBottom: "16px" }}>
-                <div style={{ fontSize: "12px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                <div style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "600", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                   Selected ({resolvedCompetitors.length}/5)
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   {resolvedCompetitors.map(c => (
                     <div key={c.youtube_channel_id} style={{
                       display: "flex", alignItems: "center", gap: "10px",
-                      padding: "8px 12px", background: "#252525", borderRadius: "8px",
+                      padding: "8px 12px", background: "var(--input-bg)", borderRadius: "8px",
                       border: "1px solid #444",
                     }}>
                       {c.thumbnail_url && (
@@ -1001,14 +996,14 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                         <div style={{ fontSize: "13px", fontWeight: "600", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {c.name}
                         </div>
-                        <div style={{ fontSize: "11px", color: "#9E9E9E" }}>
+                        <div style={{ fontSize: "11px", color: "var(--muted)" }}>
                           {(c.subscriber_count || 0).toLocaleString()} subscribers
                         </div>
                       </div>
                       <button
                         onClick={() => handleRemoveCompetitor(c.youtube_channel_id)}
                         style={{
-                          background: "none", border: "none", color: "#9E9E9E",
+                          background: "none", border: "none", color: "var(--muted)",
                           cursor: "pointer", padding: "4px",
                         }}
                       >
@@ -1022,7 +1017,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
 
             {/* Suggestions from database — grouped by category */}
             {suggestionsLoading && (
-              <div style={{ textAlign: "center", padding: "16px", color: "#9E9E9E", fontSize: "12px" }}>
+              <div style={{ textAlign: "center", padding: "16px", color: "var(--muted)", fontSize: "12px" }}>
                 <Loader size={14} style={{ animation: "spin 1s linear infinite", marginRight: "6px", verticalAlign: "middle" }} />
                 Loading tracked competitors...
               </div>
@@ -1033,7 +1028,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
               const catSlugs = {};
               const flattenTree = (nodes) => {
                 nodes.forEach(n => {
-                  catSlugs[n.slug] = { label: n.name, color: n.color || '#666', icon: n.icon };
+                  catSlugs[n.slug] = { label: n.name, color: n.color || 'var(--faint)', icon: n.icon };
                   if (n.children) flattenTree(n.children);
                 });
               };
@@ -1062,7 +1057,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
 
               return (
                 <div style={{ marginBottom: "16px" }}>
-                  <div style={{ fontSize: "12px", color: "#9E9E9E", fontWeight: "600", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  <div style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "600", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                     From Your Competitor Database ({available.length} channels)
                   </div>
 
@@ -1072,9 +1067,9 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                       onClick={() => setSelectedCategoryFilter(null)}
                       style={{
                         padding: "4px 10px", borderRadius: "6px", fontSize: "10px", fontWeight: "600",
-                        border: `1px solid ${!selectedCategoryFilter ? '#3b82f6' : '#444'}`,
-                        background: !selectedCategoryFilter ? 'rgba(59,130,246,0.15)' : 'transparent',
-                        color: !selectedCategoryFilter ? '#60a5fa' : '#888',
+                        border: `1px solid ${!selectedCategoryFilter ? 'var(--blue)' : 'var(--outline-variant)'}`,
+                        background: !selectedCategoryFilter ? 'rgba(0,209,255,0.15)' : 'transparent',
+                        color: !selectedCategoryFilter ? 'var(--accent-text)' : 'var(--outline)',
                         cursor: "pointer",
                       }}
                     >
@@ -1090,9 +1085,9 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                           onClick={() => setSelectedCategoryFilter(isActive ? null : slug)}
                           style={{
                             padding: "4px 10px", borderRadius: "6px", fontSize: "10px", fontWeight: "600",
-                            border: `1px solid ${isActive ? cfg.color || '#3b82f6' : '#444'}`,
-                            background: isActive ? `${cfg.color || '#3b82f6'}20` : 'transparent',
-                            color: isActive ? cfg.color || '#3b82f6' : '#888',
+                            border: `1px solid ${isActive ? cfg.color || 'var(--blue)' : 'var(--outline-variant)'}`,
+                            background: isActive ? `${cfg.color || 'var(--blue)'}20` : 'transparent',
+                            color: isActive ? cfg.color || 'var(--blue)' : 'var(--outline)',
                             cursor: "pointer", whiteSpace: "nowrap",
                           }}
                         >
@@ -1114,21 +1109,21 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                             display: "flex", alignItems: "center", gap: "8px",
                             padding: "6px 10px", background: "transparent",
                             border: "none", borderRadius: "6px",
-                            color: "#E0E0E0", cursor: "pointer", fontSize: "12px",
+                            color: "var(--text)", cursor: "pointer", fontSize: "12px",
                             textAlign: "left", width: "100%",
                             transition: "background 0.1s",
                           }}
-                          onMouseOver={e => e.currentTarget.style.background = "#252525"}
+                          onMouseOver={e => e.currentTarget.style.background = "var(--input-bg)"}
                           onMouseOut={e => e.currentTarget.style.background = "transparent"}
                         >
                           {c.thumbnail_url && (
                             <img src={c.thumbnail_url} alt="" style={{ width: "24px", height: "24px", borderRadius: "50%", flexShrink: 0 }} />
                           )}
                           <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
-                          <span style={{ fontSize: "10px", color: "#888", flexShrink: 0 }}>
+                          <span style={{ fontSize: "10px", color: "var(--outline)", flexShrink: 0 }}>
                             {(c.subscriber_count || 0).toLocaleString()} subs
                           </span>
-                          <Plus size={12} style={{ color: "#60a5fa", flexShrink: 0 }} />
+                          <Plus size={12} style={{ color: "var(--accent-text)", flexShrink: 0 }} />
                         </button>
                       ))
                     }
@@ -1140,8 +1135,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
             {/* Landscape opt-in */}
             {resolvedCompetitors.length > 0 && (
               <div style={{
-                padding: "12px 14px", background: "rgba(41, 98, 255, 0.08)",
-                border: "1px solid rgba(41, 98, 255, 0.2)", borderRadius: "8px",
+                padding: "12px 14px", background: "rgba(0, 209, 255, 0.08)",
+                border: "1px solid rgba(0, 209, 255, 0.2)", borderRadius: "8px",
                 marginBottom: "16px",
               }}>
                 <label style={{
@@ -1152,14 +1147,14 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                     type="checkbox"
                     checked={landscapeOptIn}
                     onChange={(e) => setLandscapeOptIn(e.target.checked)}
-                    style={{ accentColor: "#2962FF", marginTop: "2px" }}
+                    style={{ accentColor: "var(--blue)", marginTop: "2px" }}
                   />
                   <div>
-                    <div style={{ fontSize: "13px", fontWeight: "600", color: "#E0E0E0" }}>
-                      <Map size={14} style={{ verticalAlign: "middle", marginRight: "6px", color: "#60a5fa" }} />
+                    <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--text)" }}>
+                      <Map size={14} style={{ verticalAlign: "middle", marginRight: "6px", color: "var(--accent-text)" }} />
                       Include Landscape Analysis
                     </div>
-                    <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "4px" }}>
+                    <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>
                       AI-generated competitive positioning, content saturation map, and white space identification.
                     </div>
                   </div>
@@ -1173,7 +1168,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                 style={{
                   padding: "10px 20px", background: "transparent",
                   border: "1px solid #444", borderRadius: "8px",
-                  color: "#9E9E9E", cursor: "pointer", fontSize: "13px",
+                  color: "var(--muted)", cursor: "pointer", fontSize: "13px",
                 }}
               >
                 Back
@@ -1182,10 +1177,10 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                 onClick={() => setStep(5)}
                 style={{
                   display: "flex", alignItems: "center", gap: "6px",
-                  padding: "10px 16px", background: resolvedCompetitors.length === 0 ? "transparent" : "#2962FF",
+                  padding: "10px 16px", background: resolvedCompetitors.length === 0 ? "transparent" : "var(--blue)",
                   border: resolvedCompetitors.length === 0 ? "1px solid #444" : "none",
                   borderRadius: "8px",
-                  color: resolvedCompetitors.length === 0 ? "#9E9E9E" : "#fff",
+                  color: resolvedCompetitors.length === 0 ? "var(--muted)" : "var(--ink)",
                   cursor: "pointer", fontSize: "13px", fontWeight: "600",
                 }}
               >
@@ -1204,7 +1199,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
       {step === 5 && (
         <div style={{ maxWidth: "600px" }}>
           <div style={{
-            background: "#1E1E1E", borderRadius: "8px", border: "1px solid #333",
+            background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)",
             padding: "32px",
           }}>
             <div style={{ fontSize: "16px", fontWeight: "600", marginBottom: "20px" }}>
@@ -1215,9 +1210,9 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
             {brandContextData && (
               <div style={{
                 display: "flex", alignItems: "center", gap: "8px",
-                padding: "10px 14px", background: "rgba(34, 197, 94, 0.08)",
-                border: "1px solid rgba(34, 197, 94, 0.2)", borderRadius: "8px",
-                marginBottom: "12px", fontSize: "13px", color: "#22c55e",
+                padding: "10px 14px", background: "rgba(205, 242, 0, 0.08)",
+                border: "1px solid rgba(205, 242, 0, 0.2)", borderRadius: "8px",
+                marginBottom: "12px", fontSize: "13px", color: "var(--pos)",
               }}>
                 <Palette size={16} />
                 Brand context will be included ({countFilledSections(brandContextData)} sections)
@@ -1225,7 +1220,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                   onClick={() => { setBrandContextData(null); setStep(3); }}
                   style={{
                     marginLeft: "auto", background: "none", border: "none",
-                    color: "#9E9E9E", fontSize: "12px", cursor: "pointer",
+                    color: "var(--muted)", fontSize: "12px", cursor: "pointer",
                     textDecoration: "underline",
                   }}
                 >
@@ -1238,18 +1233,18 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
             {resolvedCompetitors.length > 0 && (
               <div style={{
                 display: "flex", alignItems: "center", gap: "8px",
-                padding: "10px 14px", background: "rgba(41, 98, 255, 0.08)",
-                border: "1px solid rgba(41, 98, 255, 0.2)", borderRadius: "8px",
-                marginBottom: "20px", fontSize: "13px", color: "#60a5fa",
+                padding: "10px 14px", background: "rgba(0, 209, 255, 0.08)",
+                border: "1px solid rgba(0, 209, 255, 0.2)", borderRadius: "8px",
+                marginBottom: "20px", fontSize: "13px", color: "var(--accent-text)",
               }}>
                 <Crosshair size={16} />
                 {resolvedCompetitors.length} competitor{resolvedCompetitors.length !== 1 ? "s" : ""} selected
-                {landscapeOptIn && <span style={{ color: "#8b5cf6" }}> + Landscape Analysis</span>}
+                {landscapeOptIn && <span style={{ color: "var(--blue-deep)" }}> + Landscape Analysis</span>}
                 <button
                   onClick={() => setStep(4)}
                   style={{
                     marginLeft: "auto", background: "none", border: "none",
-                    color: "#9E9E9E", fontSize: "12px", cursor: "pointer",
+                    color: "var(--muted)", fontSize: "12px", cursor: "pointer",
                     textDecoration: "underline",
                   }}
                 >
@@ -1260,7 +1255,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
 
             {/* Audit Type */}
             <div style={{ marginBottom: "24px" }}>
-              <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "8px" }}>Audit Type</div>
+              <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "8px" }}>Audit Type</div>
               <div style={{ display: "flex", gap: "8px" }}>
                 {[
                   { id: "prospect", label: "Prospect Analysis", icon: Users, desc: "Positioning & competitive edge for sales" },
@@ -1270,16 +1265,16 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                     key={id}
                     onClick={() => setAuditType(id)}
                     style={{
-                      flex: 1, padding: "16px", background: auditType === id ? "rgba(41, 98, 255, 0.15)" : "#252525",
-                      border: `1px solid ${auditType === id ? "#2962FF" : "#444"}`,
+                      flex: 1, padding: "16px", background: auditType === id ? "rgba(0, 209, 255, 0.15)" : "var(--input-bg)",
+                      border: `1px solid ${auditType === id ? "var(--blue)" : "var(--outline-variant)"}`,
                       borderRadius: "10px", cursor: "pointer", textAlign: "left",
                     }}
                   >
-                    <Icon size={20} style={{ color: auditType === id ? "#60a5fa" : "#666", marginBottom: "8px" }} />
-                    <div style={{ fontSize: "14px", fontWeight: "600", color: auditType === id ? "#60a5fa" : "#E0E0E0" }}>
+                    <Icon size={20} style={{ color: auditType === id ? "var(--accent-text)" : "var(--faint)", marginBottom: "8px" }} />
+                    <div style={{ fontSize: "14px", fontWeight: "600", color: auditType === id ? "var(--accent-text)" : "var(--text)" }}>
                       {label}
                     </div>
-                    <div style={{ fontSize: "12px", color: "#9E9E9E", marginTop: "4px" }}>{desc}</div>
+                    <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>{desc}</div>
                   </button>
                 ))}
               </div>
@@ -1287,11 +1282,11 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
 
             {/* Benchmark Scope - Category Selection (Hierarchical) */}
             <div style={{ marginBottom: "24px" }}>
-              <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "8px" }}>
+              <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "8px" }}>
                 <Tag size={14} style={{ display: "inline", verticalAlign: "middle", marginRight: "6px" }} />
                 Benchmark Categories
               </div>
-              <div style={{ fontSize: "12px", color: "#666", marginBottom: "12px" }}>
+              <div style={{ fontSize: "12px", color: "var(--faint)", marginBottom: "12px" }}>
                 Select categories to compare against. Expand parent categories to select specific subcategories.
                 Leave empty to compare against all competitors.
               </div>
@@ -1301,14 +1296,14 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                 placeholder="Select benchmark categories..."
               />
               {selectedCategoryIds.length > 0 && (
-                <div style={{ fontSize: "12px", color: "#60a5fa", marginTop: "8px" }}>
+                <div style={{ fontSize: "12px", color: "var(--accent-text)", marginTop: "8px" }}>
                   {selectedCategoryIds.length} categor{selectedCategoryIds.length === 1 ? "y" : "ies"} selected
                   <button
                     type="button"
                     onClick={() => setSelectedCategoryIds([])}
                     style={{
                       marginLeft: "12px", background: "none", border: "none",
-                      color: "#9E9E9E", fontSize: "12px", cursor: "pointer",
+                      color: "var(--muted)", fontSize: "12px", cursor: "pointer",
                       textDecoration: "underline",
                     }}
                   >
@@ -1322,13 +1317,13 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
             <div style={{ marginBottom: "24px" }}>
               <label style={{
                 display: "flex", alignItems: "center", gap: "8px",
-                fontSize: "13px", color: "#9E9E9E", cursor: "pointer",
+                fontSize: "13px", color: "var(--muted)", cursor: "pointer",
               }}>
                 <input
                   type="checkbox"
                   checked={forceRefresh}
                   onChange={(e) => setForceRefresh(e.target.checked)}
-                  style={{ accentColor: "#2962FF" }}
+                  style={{ accentColor: "var(--blue)" }}
                 />
                 Force refresh YouTube data (skip cache)
               </label>
@@ -1336,19 +1331,19 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
 
             {/* Summary */}
             <div style={{
-              padding: "14px", background: "#252525", borderRadius: "8px",
-              fontSize: "13px", color: "#9E9E9E", marginBottom: "24px",
+              padding: "14px", background: "var(--input-bg)", borderRadius: "8px",
+              fontSize: "13px", color: "var(--muted)", marginBottom: "24px",
             }}>
-              <div style={{ fontWeight: "600", color: "#E0E0E0", marginBottom: "6px" }}>Audit will include:</div>
+              <div style={{ fontWeight: "600", color: "var(--text)", marginBottom: "6px" }}>Audit will include:</div>
               <ul style={{ margin: 0, paddingLeft: "20px", lineHeight: "1.8" }}>
                 <li>Channel data ingestion & video analysis</li>
                 <li>Content series detection (pattern + AI)</li>
                 <li>
                   {resolvedCompetitors.length > 0
-                    ? <span>Head-to-head benchmarking <span style={{ color: "#60a5fa" }}>({resolvedCompetitors.length} competitor{resolvedCompetitors.length !== 1 ? "s" : ""})</span></span>
+                    ? <span>Head-to-head benchmarking <span style={{ color: "var(--accent-text)" }}>({resolvedCompetitors.length} competitor{resolvedCompetitors.length !== 1 ? "s" : ""})</span></span>
                     : <>Tier-stratified peer benchmarking
                       {selectedCategoryIds.length > 0 && (
-                        <span style={{ color: "#60a5fa" }}>
+                        <span style={{ color: "var(--accent-text)" }}>
                           {" "}(scoped to {selectedCategoryIds.length} selected categor{selectedCategoryIds.length === 1 ? "y" : "ies"})
                         </span>
                       )}
@@ -1356,11 +1351,11 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                   }
                 </li>
                 {landscapeOptIn && resolvedCompetitors.length > 0 && (
-                  <li>AI landscape analysis <span style={{ color: "#8b5cf6" }}>(positioning + white space)</span></li>
+                  <li>AI landscape analysis <span style={{ color: "var(--blue-deep)" }}>(positioning + white space)</span></li>
                 )}
-                <li>AI opportunity analysis{brandContextData ? <span style={{ color: "#22c55e" }}> (brand-aware)</span> : ""}</li>
-                <li>Stop/Start/Optimize recommendations{brandContextData ? <span style={{ color: "#22c55e" }}> (brand-aware)</span> : ""}</li>
-                <li>Executive summary{brandContextData ? <span style={{ color: "#22c55e" }}> (brand-aware)</span> : ""}</li>
+                <li>AI opportunity analysis{brandContextData ? <span style={{ color: "var(--pos)" }}> (brand-aware)</span> : ""}</li>
+                <li>Stop/Start/Optimize recommendations{brandContextData ? <span style={{ color: "var(--pos)" }}> (brand-aware)</span> : ""}</li>
+                <li>Executive summary{brandContextData ? <span style={{ color: "var(--pos)" }}> (brand-aware)</span> : ""}</li>
               </ul>
             </div>
 
@@ -1370,7 +1365,7 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                 style={{
                   padding: "10px 20px", background: "transparent",
                   border: "1px solid #444", borderRadius: "8px",
-                  color: "#9E9E9E", cursor: "pointer", fontSize: "13px",
+                  color: "var(--muted)", cursor: "pointer", fontSize: "13px",
                 }}
               >
                 Back
@@ -1380,8 +1375,8 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                 disabled={launching}
                 style={{
                   display: "flex", alignItems: "center", gap: "6px",
-                  padding: "10px 24px", background: "#22c55e", border: "none",
-                  borderRadius: "8px", color: "#fff", cursor: "pointer",
+                  padding: "10px 24px", background: "var(--pos)", border: "none",
+                  borderRadius: "8px", color: "var(--ink)", cursor: "pointer",
                   fontWeight: "600", fontSize: "14px",
                   opacity: launching ? 0.6 : 1,
                 }}

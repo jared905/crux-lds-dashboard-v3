@@ -13,7 +13,7 @@
  * scoring workflow.
  */
 
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import { youtubeOAuthService } from '../../../services/youtubeOAuthService';
 import { supabase } from '../../../services/supabaseClient';
 
@@ -137,10 +137,10 @@ export default function Phase25Spike() {
     <div style={panelStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
         <div>
-          <div style={{ fontSize: 11, color: '#0A919B', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
+          <div style={{ fontSize: 11, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
             Phase 2.5 Analytics spike
           </div>
-          <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+          <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 2 }}>
             Confirms traffic-source + suggested-video adjacency paths before building Phase 2.5.
           </div>
         </div>
@@ -193,7 +193,7 @@ export default function Phase25Spike() {
         <button onClick={run} disabled={running} style={runBtnStyle(running)}>
           {running ? 'Running spike…' : 'Run spike'}
         </button>
-        {error && <div style={{ fontSize: 12, color: '#ef6b6b' }}>{error}</div>}
+        {error && <div style={{ fontSize: 12, color: "var(--neg-text)" }}>{error}</div>}
       </div>
 
       {verdict}
@@ -275,7 +275,7 @@ function prune(obj) {
 const collapsedBtnStyle = {
   background: 'transparent',
   border: 'none',
-  color: '#666',
+  color: 'var(--faint)',
   fontSize: 11,
   fontWeight: 600,
   textAlign: 'left',
@@ -284,9 +284,9 @@ const collapsedBtnStyle = {
   marginTop: 10,
 };
 const panelStyle = {
-  background: '#0e0e11',
+  background: 'var(--card)',
   border: '1px solid rgba(10, 145, 155, 0.25)',
-  borderLeft: '2px solid #0A919B',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6,
   padding: 12,
   marginTop: 12,
@@ -294,7 +294,7 @@ const panelStyle = {
 const labelStyle = {
   display: 'block',
   fontSize: 10,
-  color: '#888',
+  color: 'var(--outline)',
   textTransform: 'uppercase',
   letterSpacing: 0.6,
   marginBottom: 4,
@@ -303,17 +303,17 @@ const labelStyle = {
 const inputStyle = {
   width: '100%',
   padding: '7px 10px',
-  background: '#1a1a1f',
-  border: '1px solid #2a2a30',
+  background: 'var(--input-bg)',
+  border: '1px solid var(--border)',
   borderRadius: 5,
-  color: '#e8e2d0',
+  color: 'var(--ink)',
   fontSize: 12,
   fontFamily: 'inherit',
   boxSizing: 'border-box',
 };
 const runBtnStyle = (running) => ({
-  background: running ? '#1a1a1f' : '#0A919B',
-  color: running ? '#666' : '#0a0a0e',
+  background: running ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: running ? 'var(--faint)' : 'var(--bg)',
   border: 'none',
   padding: '7px 14px',
   borderRadius: 5,
@@ -325,18 +325,18 @@ const runBtnStyle = (running) => ({
 const verdictStyle = (tone) => ({
   background: tone === 'go' ? 'rgba(10, 145, 155, 0.08)' : 'rgba(239, 107, 107, 0.08)',
   border: `1px solid ${tone === 'go' ? 'rgba(10, 145, 155, 0.30)' : 'rgba(239, 107, 107, 0.30)'}`,
-  color: tone === 'go' ? '#cde4d6' : '#f3c5c5',
+  color: tone === 'go' ? 'var(--text)' : 'var(--neg-text)',
   padding: 10,
   borderRadius: 5,
   marginBottom: 10,
 });
 const preStyle = {
-  background: '#0a0a0e',
+  background: 'var(--bg)',
   border: '1px solid #1f1f24',
   borderRadius: 5,
   padding: 10,
   fontSize: 11,
-  color: '#aaa',
+  color: 'var(--muted)',
   overflow: 'auto',
   maxHeight: 320,
   fontFamily: 'ui-monospace, Menlo, monospace',

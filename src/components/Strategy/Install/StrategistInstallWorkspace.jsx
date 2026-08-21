@@ -24,7 +24,7 @@
  *   - confirmed_by_strategist_at: stamps it as real
  */
 
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import {
   CheckCircle, Circle, Loader, Sparkles, Save, ChevronDown, ChevronRight,
   ClipboardCheck, AlertTriangle, MessageSquare, UserCheck, Wand2,
@@ -41,7 +41,7 @@ import {
 import { supabase } from '../../../services/supabaseClient.js';
 import PrelaunchBadge from '../shared/PrelaunchBadge.jsx';
 
-export default function StrategistInstallWorkspace({ activeClient, onNavigate }) {
+export default function StrategistInstallWorkspace({ activeClient, _onNavigate }) {
   const clientId = activeClient?.id;
   const [answers, setAnswers] = useState({});
   const [completion, setCompletion] = useState(null);
@@ -131,7 +131,7 @@ export default function StrategistInstallWorkspace({ activeClient, onNavigate })
       <div style={emptyShellStyle}>
         <div style={emptyHeaderStyle}>Install</div>
         <div style={emptyBodyStyle}>
-          Pick a client from <strong style={{ color: '#cde4d6' }}>Operate → Clients</strong> first.
+          Pick a client from <strong style={{ color: 'var(--text)' }}>Portfolio → Clients</strong> first.
         </div>
       </div>
     );
@@ -280,19 +280,19 @@ function CompletionStrip({ completion }) {
   return (
     <div style={completionStripStyle}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 12, color: '#888' }}>
-          <strong style={{ color: pct >= 80 ? '#3fa66a' : pct >= 40 ? '#E8A82B' : '#ef6b6b', fontSize: 14 }}>
+        <div style={{ fontSize: 12, color: 'var(--outline)' }}>
+          <strong style={{ color: pct >= 80 ? "var(--pos-deep)" : pct >= 40 ? "var(--warn)" : "var(--neg-text)", fontSize: 14 }}>
             {pct}%
           </strong>{' '}install complete · {completion.confirmed}/{completion.total} confirmed
         </div>
         <div style={progressBarStyle}>
-          <div style={{ width: `${pct}%`, height: '100%', background: pct >= 80 ? '#3fa66a' : pct >= 40 ? '#E8A82B' : '#ef6b6b', transition: 'width 0.3s' }} />
+          <div style={{ width: `${pct}%`, height: '100%', background: pct >= 80 ? "var(--pos-deep)" : pct >= 40 ? "var(--warn)" : "var(--neg-text)", transition: 'width 0.3s' }} />
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 14, marginTop: 8, flexWrap: 'wrap', fontSize: 11, color: '#888' }}>
+      <div style={{ display: 'flex', gap: 14, marginTop: 8, flexWrap: 'wrap', fontSize: 11, color: 'var(--outline)' }}>
         {Object.entries(completion.by_section).map(([sect, st]) => (
           <span key={sect}>
-            <strong style={{ color: '#cde4d6' }}>{sect}:</strong> {st.confirmed}/{st.total}
+            <strong style={{ color: 'var(--text)' }}>{sect}:</strong> {st.confirmed}/{st.total}
           </span>
         ))}
       </div>
@@ -310,12 +310,12 @@ function TokenPanel({ tokens, showIssueForm, setShowIssueForm, tokenForm, setTok
   return (
     <div style={tokenPanelStyle}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
-        <Link2 size={14} style={{ color: '#0A919B', marginTop: 2 }} />
+        <Link2 size={14} style={{ color: 'var(--accent-text)', marginTop: 2 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <strong style={{ fontSize: 12, color: '#0A919B', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+          <strong style={{ fontSize: 12, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
             Client pre-work
           </strong>
-          <div style={{ fontSize: 12, color: '#888', marginTop: 4, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: 'var(--outline)', marginTop: 4, lineHeight: 1.5 }}>
             Send the client a tokenized URL — they answer the 7 client-facing questions async, you focus the
             discovery call on the 9 high-judgment questions. Their submissions appear here as <em>client-submitted · awaiting confirm</em>.
           </div>
@@ -357,13 +357,13 @@ function TokenPanel({ tokens, showIssueForm, setShowIssueForm, tokenForm, setTok
             </button>
           </div>
           {issueResult?.ok === false && (
-            <div style={{ marginTop: 8, fontSize: 11, color: '#ef6b6b' }}>
+            <div style={{ marginTop: 8, fontSize: 11, color: "var(--neg-text)" }}>
               {issueResult.error}
             </div>
           )}
           {issueResult?.ok && (
             <div style={tokenIssuedBoxStyle}>
-              <div style={{ fontSize: 11, color: '#3fa66a', fontWeight: 700, marginBottom: 4 }}>
+              <div style={{ fontSize: 11, color: "var(--pos-deep)", fontWeight: 700, marginBottom: 4 }}>
                 Token issued · expires {new Date(issueResult.expires_at).toLocaleDateString()}
               </div>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -372,7 +372,7 @@ function TokenPanel({ tokens, showIssueForm, setShowIssueForm, tokenForm, setTok
                   <Copy size={11} />
                 </button>
               </div>
-              <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: 'var(--outline)', marginTop: 6 }}>
                 Send this to the client. They can return and edit until the link expires.
               </div>
             </div>
@@ -381,14 +381,14 @@ function TokenPanel({ tokens, showIssueForm, setShowIssueForm, tokenForm, setTok
       )}
 
       {active.length > 0 && (
-        <div style={{ marginTop: 10, fontSize: 11, color: '#888' }}>
-          <strong style={{ color: '#cde4d6' }}>{active.length} active token{active.length === 1 ? '' : 's'}</strong>
+        <div style={{ marginTop: 10, fontSize: 11, color: 'var(--outline)' }}>
+          <strong style={{ color: 'var(--text)' }}>{active.length} active token{active.length === 1 ? '' : 's'}</strong>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
             {active.map(t => (
               <div key={t.id} style={tokenRowStyle}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {t.intended_recipient_name || t.intended_recipient_email || '(no recipient set)'} ·
-                  <span style={{ color: '#666' }}>
+                  <span style={{ color: 'var(--faint)' }}>
                     {' '}expires {new Date(t.expires_at).toLocaleDateString()}
                     {t.first_accessed_at && ` · opened ${new Date(t.first_accessed_at).toLocaleDateString()}`}
                     {t.last_submitted_at && ` · submitted ${new Date(t.last_submitted_at).toLocaleDateString()}`}
@@ -412,12 +412,12 @@ function SuggestionsPanel({ suggestions, onAccept, onDismiss, savingKey }) {
   return (
     <div style={suggestionsPanelStyle}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <Wand2 size={14} style={{ color: '#a78bfa' }} />
-        <strong style={{ fontSize: 12, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+        <Wand2 size={14} style={{ color: 'var(--accent-text)' }} />
+        <strong style={{ fontSize: 12, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
           Crux drafted {Object.keys(suggestions).length} answer{Object.keys(suggestions).length === 1 ? '' : 's'} from your existing Spine
         </strong>
       </div>
-      <div style={{ fontSize: 11, color: '#888', marginBottom: 10, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 11, color: 'var(--outline)', marginBottom: 10, lineHeight: 1.5 }}>
         Accept to add as a draft — strategist must still confirm with the client to commit. The draft sits
         in the question card below as <em>pre_populated</em>, awaiting confirmation.
       </div>
@@ -427,10 +427,10 @@ function SuggestionsPanel({ suggestions, onAccept, onDismiss, savingKey }) {
           return (
             <div key={key} style={suggestionRowStyle}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: '#a78bfa', fontWeight: 700, marginBottom: 4 }}>
+                <div style={{ fontSize: 11, color: 'var(--accent-text)', fontWeight: 700, marginBottom: 4 }}>
                   Q{question?.number}: {question?.text}
                 </div>
-                <div style={{ fontSize: 12, color: '#cde4d6', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                   {text}
                 </div>
               </div>
@@ -519,7 +519,7 @@ function QuestionCard({ question, answer, saving, onSave, onConfirm }) {
           <div style={answerDisplayStyle}>{answer.answer_text}</div>
           {answer.strategist_notes && (
             <div style={notesDisplayStyle}>
-              <strong style={{ color: '#888' }}>Notes:</strong> {answer.strategist_notes}
+              <strong style={{ color: 'var(--outline)' }}>Notes:</strong> {answer.strategist_notes}
             </div>
           )}
           <div style={{ display: 'flex', gap: 6, marginTop: 8, justifyContent: 'flex-end' }}>
@@ -545,18 +545,18 @@ function QuestionCard({ question, answer, saving, onSave, onConfirm }) {
 
 function StatusBadge({ isAnswered, isConfirmed, source }) {
   if (!isAnswered) {
-    return <span style={badgeStyle('#666', '#1a1a1f')}><Circle size={9} /> Unanswered</span>;
+    return <span style={badgeStyle('var(--faint)', 'var(--input-bg)')}><Circle size={9} /> Unanswered</span>;
   }
   if (isConfirmed) {
-    return <span style={badgeStyle('#3fa66a', 'rgba(63,166,106,0.10)')}><CheckCircle size={9} /> Confirmed</span>;
+    return <span style={badgeStyle("var(--pos-deep)", 'rgba(63,166,106,0.10)')}><CheckCircle size={9} /> Confirmed</span>;
   }
   if (source === 'client') {
-    return <span style={badgeStyle('#E8A82B', 'rgba(232,168,43,0.10)')}><AlertTriangle size={9} /> Client-submitted · awaiting confirm</span>;
+    return <span style={badgeStyle("var(--warn)", 'rgba(232,168,43,0.10)')}><AlertTriangle size={9} /> Client-submitted · awaiting confirm</span>;
   }
   if (source === 'pre_populated') {
-    return <span style={badgeStyle('#a78bfa', 'rgba(167,139,250,0.10)')}><Wand2 size={9} /> Drafted from Spine · awaiting confirm</span>;
+    return <span style={badgeStyle('var(--accent-text)', 'rgba(76,214,255,0.10)')}><Wand2 size={9} /> Drafted from Spine · awaiting confirm</span>;
   }
-  return <span style={badgeStyle('#888', '#1a1a1f')}><ClipboardCheck size={9} /> Saved</span>;
+  return <span style={badgeStyle('var(--outline)', 'var(--input-bg)')}><ClipboardCheck size={9} /> Saved</span>;
 }
 
 // ──────────────────────────────────────────────────
@@ -565,10 +565,10 @@ function StatusBadge({ isAnswered, isConfirmed, source }) {
 
 function Note({ tone, children }) {
   const palette = {
-    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: '#0A919B' },
-    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: '#E8A82B' },
-    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: '#ef6b6b' },
-  }[tone] || { bg: '#1a1a1f', border: '#333', fg: '#aaa' };
+    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: 'var(--accent-text)' },
+    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: 'var(--warn)' },
+    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: 'var(--neg-text)' },
+  }[tone] || { bg: 'var(--input-bg)', border: 'var(--outline-variant)', fg: 'var(--muted)' };
   return (
     <div style={{
       padding: '10px 14px', borderRadius: 6,
@@ -585,62 +585,62 @@ function Note({ tone, children }) {
 const shellStyle = { padding: '20px 24px 60px', maxWidth: 1100, margin: '0 auto' };
 const headerStyle = { marginBottom: 18 };
 const kickerStyle = {
-  fontSize: 11, color: '#0A919B',
+  fontSize: 11, color: 'var(--accent-text)',
   textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 4,
 };
-const titleStyle = { fontSize: 24, fontWeight: 700, color: '#e8e2d0', margin: 0 };
-const subtitleStyle = { fontSize: 13, color: '#888', marginTop: 6, lineHeight: 1.5, maxWidth: 800 };
+const titleStyle = { fontSize: 24, fontWeight: 700, color: 'var(--ink)', margin: 0 };
+const subtitleStyle = { fontSize: 13, color: 'var(--outline)', marginTop: 6, lineHeight: 1.5, maxWidth: 800 };
 
 const emptyShellStyle = { padding: '60px 24px', maxWidth: 720, margin: '0 auto', textAlign: 'center' };
 const emptyHeaderStyle = {
-  fontSize: 14, color: '#0A919B',
+  fontSize: 14, color: 'var(--accent-text)',
   textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 14,
 };
-const emptyBodyStyle = { fontSize: 14, color: '#888', lineHeight: 1.6 };
+const emptyBodyStyle = { fontSize: 14, color: 'var(--outline)', lineHeight: 1.6 };
 
 const completionStripStyle = {
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
-  borderLeft: '2px solid #0A919B',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6, padding: 14,
   marginBottom: 16,
 };
 const progressBarStyle = {
   flex: 1, minWidth: 200, height: 6,
-  background: '#1a1a1f', borderRadius: 3, overflow: 'hidden',
+  background: 'var(--input-bg)', borderRadius: 3, overflow: 'hidden',
 };
 
 const tokenPanelStyle = {
   background: 'rgba(10,145,155,0.04)',
   border: '1px solid rgba(10,145,155,0.30)',
-  borderLeft: '2px solid #0A919B',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6, padding: 14,
   marginBottom: 16,
 };
 const issueBtnStyle = {
-  background: 'transparent', color: '#0A919B',
+  background: 'transparent', color: 'var(--accent-text)',
   border: '1px solid rgba(10,145,155,0.40)', borderRadius: 4,
   padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4,
   whiteSpace: 'nowrap', flexShrink: 0,
 };
 const issueBtnPrimaryStyle = (busy) => ({
-  background: busy ? '#1a1a1f' : '#0A919B',
-  color: busy ? '#666' : '#0a0a0e',
-  border: busy ? '1px solid #2a2a30' : 'none',
+  background: busy ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: busy ? 'var(--faint)' : 'var(--bg)',
+  border: busy ? '1px solid var(--border)' : 'none',
   borderRadius: 4,
   padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4,
 });
 const issueFormStyle = {
   marginTop: 10, padding: 10,
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 5,
 };
 const inputStyle = {
-  background: '#1a1a1f', color: '#cde4d6',
-  border: '1px solid #2a2a30', borderRadius: 4,
+  background: 'var(--input-bg)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: '6px 8px', fontSize: 12, fontFamily: 'inherit',
 };
 const tokenIssuedBoxStyle = {
@@ -652,12 +652,12 @@ const tokenIssuedBoxStyle = {
 const tokenUrlStyle = {
   flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  background: '#0a0a0e', color: '#cde4d6',
-  border: '1px solid #2a2a30', borderRadius: 3,
+  background: 'var(--bg)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 3,
   padding: '4px 8px', fontSize: 11, fontFamily: 'ui-monospace, Menlo, monospace',
 };
 const copyBtnStyle = {
-  background: 'transparent', color: '#0A919B',
+  background: 'transparent', color: 'var(--accent-text)',
   border: '1px solid rgba(10,145,155,0.40)', borderRadius: 3,
   padding: '4px 8px', cursor: 'pointer', flexShrink: 0,
 };
@@ -665,44 +665,44 @@ const tokenRowStyle = {
   display: 'flex', alignItems: 'center', gap: 6,
   padding: '4px 8px',
   background: 'rgba(255,255,255,0.02)',
-  border: '1px solid #2a2a30',
+  border: '1px solid var(--border)',
   borderRadius: 4,
   fontSize: 11,
 };
 const revokeBtnStyle = {
-  background: 'transparent', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 3,
+  background: 'transparent', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 3,
   padding: '3px 8px', fontSize: 10, cursor: 'pointer', flexShrink: 0,
 };
 
 const suggestionsPanelStyle = {
-  background: 'rgba(167,139,250,0.04)',
-  border: '1px solid rgba(167,139,250,0.30)',
-  borderLeft: '2px solid #a78bfa',
+  background: 'rgba(76,214,255,0.04)',
+  border: '1px solid rgba(76,214,255,0.30)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6, padding: 14,
   marginBottom: 16,
 };
 const suggestionRowStyle = {
   display: 'flex', gap: 10, alignItems: 'flex-start',
-  padding: 10, background: '#0e0e11',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  padding: 10, background: 'var(--card)',
+  border: '1px solid var(--border)', borderRadius: 5,
 };
 const acceptBtnStyle = {
-  background: '#a78bfa', color: '#0a0a0e',
+  background: 'var(--accent-text)', color: 'var(--bg)',
   border: 'none', borderRadius: 4,
   padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4,
 };
 const dismissBtnStyle = {
-  background: 'transparent', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 4,
+  background: 'transparent', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: '5px 10px', fontSize: 11, cursor: 'pointer',
 };
 
 const sectionShellStyle = {
   marginBottom: 14,
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
 };
 const sectionHeaderStyle = {
@@ -712,43 +712,43 @@ const sectionHeaderStyle = {
   cursor: 'pointer',
 };
 const sectionKickerStyle = {
-  fontSize: 14, color: '#0A919B', fontWeight: 700,
+  fontSize: 14, color: 'var(--accent-text)', fontWeight: 700,
 };
 const sectionLabelStyle = {
-  fontSize: 13, color: '#cde4d6', fontWeight: 600, flex: 1, textAlign: 'left',
+  fontSize: 13, color: 'var(--text)', fontWeight: 600, flex: 1, textAlign: 'left',
 };
 const sectionStatusStyle = {
-  fontSize: 11, color: '#888',
+  fontSize: 11, color: 'var(--outline)',
 };
 
 const questionListStyle = {
   display: 'flex', flexDirection: 'column', gap: 8,
   padding: '0 12px 12px',
 };
-const questionCardStyle = (confirmed) => ({
-  background: '#0a0a0e',
-  border: '1px solid #2a2a30',
-  borderLeft: `2px solid ${confirmed ? '#3fa66a' : '#2a2a30'}`,
+const questionCardStyle = (_confirmed) => ({
+  background: 'var(--bg)',
+  border: '1px solid var(--border)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 5, padding: 12,
 });
 const questionHeaderStyle = {
   display: 'flex', gap: 10, alignItems: 'flex-start',
 };
 const questionNumberStyle = {
-  fontSize: 10, color: '#666',
+  fontSize: 10, color: 'var(--faint)',
   textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700,
   marginBottom: 4,
 };
 const clientTagStyle = {
-  marginLeft: 6, color: '#0A919B',
+  marginLeft: 6, color: 'var(--accent-text)',
   textTransform: 'none', letterSpacing: 0,
 };
 const questionTextStyle = {
-  fontSize: 13, color: '#e8e2d0', fontWeight: 600,
+  fontSize: 13, color: 'var(--ink)', fontWeight: 600,
   lineHeight: 1.45, marginBottom: 6,
 };
 const guidanceStyle = {
-  fontSize: 11, color: '#888', lineHeight: 1.5, fontStyle: 'italic',
+  fontSize: 11, color: 'var(--outline)', lineHeight: 1.5, fontStyle: 'italic',
   background: 'rgba(255,255,255,0.02)',
   border: '1px dashed #2a2a30',
   borderRadius: 4, padding: '6px 8px',
@@ -757,7 +757,7 @@ const guidanceStyle = {
 const badgeStyle = (color, bg) => ({
   display: 'inline-flex', alignItems: 'center', gap: 4,
   background: bg, color,
-  border: `1px solid ${color}44`,
+  border: `1px solid color-mix(in srgb, ${color} 27%, transparent)`,
   borderRadius: 3, padding: '2px 7px',
   fontSize: 9, fontWeight: 700, letterSpacing: 0.3,
   textTransform: 'uppercase',
@@ -766,39 +766,39 @@ const badgeStyle = (color, bg) => ({
 
 const textareaStyle = {
   width: '100%',
-  background: '#1a1a1f', color: '#e8e2d0',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'var(--input-bg)', color: 'var(--ink)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '8px 10px', fontSize: 13,
   fontFamily: 'inherit', resize: 'vertical',
 };
 const cancelBtnStyle = {
-  background: 'transparent', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 4,
+  background: 'transparent', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: '5px 10px', fontSize: 11, cursor: 'pointer',
 };
 const saveBtnStyle = (saving) => ({
-  background: saving ? '#1a1a1f' : '#0A919B',
-  color: saving ? '#666' : '#0a0a0e',
-  border: saving ? '1px solid #2a2a30' : 'none',
+  background: saving ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: saving ? 'var(--faint)' : 'var(--bg)',
+  border: saving ? '1px solid var(--border)' : 'none',
   borderRadius: 4,
   padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4,
 });
 const confirmBtnStyle = (saving) => ({
-  background: saving ? '#1a1a1f' : '#3fa66a',
-  color: saving ? '#666' : '#0a0a0e',
-  border: saving ? '1px solid #2a2a30' : 'none',
+  background: saving ? 'var(--input-bg)' : 'var(--pos-text)',
+  color: saving ? 'var(--faint)' : 'var(--bg)',
+  border: saving ? '1px solid var(--border)' : 'none',
   borderRadius: 4,
   padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4,
 });
 const editBtnStyle = {
-  background: 'transparent', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 4,
+  background: 'transparent', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: '5px 12px', fontSize: 11, cursor: 'pointer',
 };
 const answerDisplayStyle = {
-  fontSize: 13, color: '#cde4d6', lineHeight: 1.55,
+  fontSize: 13, color: 'var(--text)', lineHeight: 1.55,
   whiteSpace: 'pre-wrap',
 };
 const notesDisplayStyle = {
@@ -806,5 +806,5 @@ const notesDisplayStyle = {
   background: 'rgba(255,255,255,0.02)',
   border: '1px dashed #2a2a30',
   borderRadius: 4,
-  fontSize: 11, color: '#aaa', fontStyle: 'italic',
+  fontSize: 11, color: 'var(--muted)', fontStyle: 'italic',
 };

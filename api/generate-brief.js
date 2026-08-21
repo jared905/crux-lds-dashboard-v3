@@ -8,21 +8,22 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { requireCronOrAdmin } from './_lib/auth.js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-export default async function handler(req, res) {
-  // Verify cron secret or auth
-  const cronSecret = req.headers['authorization']?.replace('Bearer ', '');
-  const isCron = cronSecret === process.env.CRON_SECRET;
-  const isManual = req.method === 'POST';
+const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';
 
-  if (!isCron && !isManual) {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+export default async function handler(req, res) {
+  // Vercel Cron, or a signed-in admin. Previously `isManual` was simply
+  // `req.method === 'POST'`, so every POST authenticated itself.
+  const caller = await requireCronOrAdmin(req, res);
+  if (!caller) return;
+  const isCron = caller.via === 'cron';
+  const isManual = !isCron;
 
   try {
     let clientIds = [];
@@ -67,10 +68,16 @@ export default async function handler(req, res) {
           views: v.view_count || 0,
           impressions: v.impressions || 0,
           ctr: v.ctr || 0,
-          retention: v.avg_view_percentage ? v.avg_view_percentage / 100 : 0,
-          avgViewPct: v.avg_view_percentage ? v.avg_view_percentage / 100 : 0,
+          // `avg_view_percentage` is stored as a 0–1 fraction, the same
+          // convention as `ctr` on the line above. This used to divide by 100
+          // a second time, turning 45% retention into 0.45% — which made
+          // computeDiagnostics report a retention emergency in every brief.
+          retention: v.avg_view_percentage || 0,
+          avgViewPct: v.avg_view_percentage || 0,
           subscribers: v.subscribers_gained || 0,
-          watchHours: v.watch_time_minutes ? v.watch_time_minutes / 60 : 0,
+          // Column is `watch_hours`; `watch_time_minutes` does not exist on
+          // `videos`, so this silently evaluated to 0 for every video.
+          watchHours: v.watch_hours || 0,
           publishDate: v.published_at,
           type: v.video_type === 'short' ? 'short' : 'long',
           duration: v.duration_seconds || 0,
@@ -102,42 +109,71 @@ export default async function handler(req, res) {
           effort: p.effort,
         }));
 
-        // Generate executive narrative via Claude proxy
-        let executiveSummary = `Brief generated on ${new Date().toLocaleDateString()}. ${topPatterns.length} patterns detected.`;
+        // Generate executive narrative.
+        //
+        // This used to POST {prompt, systemPrompt, taskId, maxTokens} to
+        // /api/claude-proxy, but that endpoint requires {apiKey, messages}
+        // and 400s on anything else - so claudeRes.ok was never true and
+        // every brief silently saved the placeholder below while still being
+        // marked status:'generated'. Calling Anthropic directly with the
+        // server key also keeps this off the public proxy entirely.
+        const placeholder = `Brief generated on ${new Date().toLocaleDateString()}. ${topPatterns.length} patterns detected.`;
+        let executiveSummary = placeholder;
         let generationCost = 0;
+        let narrativeError = null;
 
-        try {
-          // 2026-06-29: prefer VERCEL_PROJECT_PRODUCTION_URL over VERCEL_URL —
-          // the per-deployment URL is behind Vercel Deployment Protection
-          // and returns the HTML auth wall for internal fetches. See the
-          // matching comment in api/cron/daily-sync.js for the full diagnosis.
-          const internalHost = process.env.FRONTEND_URL
-            || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null)
-            || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
-          const claudeRes = await fetch(`${internalHost}/api/claude-proxy`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              prompt: `Write a 3-4 paragraph executive summary for a weekly YouTube channel intelligence brief.
+        const anthropicKey = process.env.ANTHROPIC_API_KEY;
+        if (!anthropicKey) {
+          narrativeError = 'ANTHROPIC_API_KEY is not configured';
+        } else {
+          try {
+            const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': anthropicKey,
+                'anthropic-version': '2023-06-01',
+              },
+              body: JSON.stringify({
+                model: CLAUDE_MODEL,
+                max_tokens: 1024,
+                system: 'You are a YouTube growth strategist writing a weekly brief. Be direct, no fluff. Never use dashes or hyphens (-) as bullet points, list markers, or separators. Use numbered lists, letters, or plain sentences instead.',
+                messages: [{
+                  role: 'user',
+                  content: `Write a 3-4 paragraph executive summary for a weekly YouTube channel intelligence brief.
 
 Metrics: ${rows.length} videos, ${totalViews.toLocaleString()} views, ${(avgCTR * 100).toFixed(1)}% CTR, ${(avgRet * 100).toFixed(1)}% retention.
 Primary Constraint: ${primaryConstraint?.constraint || 'None'} (${primaryConstraint?.severity || 'N/A'})
 Top Findings: ${topPatterns.map(p => p.finding).join('; ')}
 
 Be concise, direct, and actionable. Lead with the most important insight.`,
-              systemPrompt: 'You are a YouTube growth strategist writing a weekly brief. Be direct, no fluff. Never use dashes or hyphens (-) as bullet points, list markers, or separators. Use numbered lists, letters, or plain sentences instead.',
-              taskId: 'weekly_brief',
-              maxTokens: 1024,
-            }),
-          });
+                }],
+              }),
+            });
 
-          if (claudeRes.ok) {
-            const claudeData = await claudeRes.json();
-            executiveSummary = claudeData.text || executiveSummary;
-            generationCost = claudeData.cost || 0;
+            if (!claudeRes.ok) {
+              const detail = await claudeRes.text().catch(() => '');
+              narrativeError = `Claude API ${claudeRes.status}: ${detail.slice(0, 200)}`;
+            } else {
+              const claudeData = await claudeRes.json();
+              const text = claudeData?.content?.[0]?.text?.trim();
+              if (text) {
+                executiveSummary = text;
+                const usage = claudeData.usage || {};
+                // Sonnet 4.5 list price: $3/M input, $15/M output.
+                generationCost =
+                  ((usage.input_tokens || 0) / 1e6) * 3 +
+                  ((usage.output_tokens || 0) / 1e6) * 15;
+              } else {
+                narrativeError = 'Claude returned an empty response';
+              }
+            }
+          } catch (e) {
+            narrativeError = e.message;
           }
-        } catch (e) {
-          console.warn(`[generate-brief] Claude call failed for ${clientId}:`, e.message);
+        }
+        if (narrativeError) {
+          console.error(`[generate-brief] narrative failed for ${clientId}: ${narrativeError}`);
         }
 
         // Save brief
@@ -147,7 +183,9 @@ Be concise, direct, and actionable. Lead with the most important insight.`,
             client_id: clientId,
             brief_date: new Date().toISOString().split('T')[0],
             brief_type: 'weekly',
-            status: 'generated',
+            // A brief whose narrative fell back to the placeholder is not
+            // 'generated'. Marking it so made a broken pipeline invisible.
+            status: narrativeError ? 'incomplete' : 'generated',
             executive_summary: executiveSummary,
             primary_constraint: primaryConstraint,
             top_patterns: topPatterns,
@@ -164,8 +202,8 @@ Be concise, direct, and actionable. Lead with the most important insight.`,
 
         results.push({
           clientId,
-          status: error ? 'error' : 'generated',
-          error: error?.message,
+          status: error ? 'error' : (narrativeError ? 'incomplete' : 'generated'),
+          error: error?.message || narrativeError || undefined,
         });
       } catch (err) {
         results.push({ clientId, status: 'error', error: err.message });

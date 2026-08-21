@@ -1,19 +1,19 @@
 export default function PrivacyPolicy() {
   const sectionStyle = { marginBottom: "32px" };
-  const h2Style = { fontSize: "18px", fontWeight: "700", marginBottom: "12px", color: "#E0E0E0" };
-  const pStyle = { fontSize: "14px", color: "#BDBDBD", lineHeight: "1.7", marginBottom: "12px" };
-  const ulStyle = { fontSize: "14px", color: "#BDBDBD", lineHeight: "1.8", paddingLeft: "24px", marginBottom: "12px" };
+  const h2Style = { fontSize: "18px", fontWeight: "700", marginBottom: "12px", color: "var(--text)" };
+  const pStyle = { fontSize: "14px", color: "var(--muted)", lineHeight: "1.7", marginBottom: "12px" };
+  const ulStyle = { fontSize: "14px", color: "var(--muted)", lineHeight: "1.8", paddingLeft: "24px", marginBottom: "12px" };
 
   return (
     <div style={{
       minHeight: "100vh",
-      background: "#181817",
-      color: "#E0E0E0",
+      background: "var(--bg)",
+      color: "var(--text)",
       padding: "0",
     }}>
       {/* Header */}
       <div style={{
-        borderBottom: "1px solid #333",
+        borderBottom: "1px solid var(--border)",
         padding: "24px 40px",
         display: "flex",
         alignItems: "center",
@@ -30,7 +30,7 @@ export default function PrivacyPolicy() {
         padding: "48px 40px 80px",
       }}>
         <h1 style={{ fontSize: "32px", fontWeight: "800", marginBottom: "8px" }}>Privacy Policy</h1>
-        <p style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "40px" }}>
+        <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "40px" }}>
           Last updated: March 20, 2026
         </p>
 
@@ -98,18 +98,28 @@ export default function PrivacyPolicy() {
           <h2 style={h2Style}>5. Third-Party Services</h2>
           <p style={pStyle}>Full View Studio integrates with the following third-party services:</p>
           <ul style={ulStyle}>
-            <li><strong>Google/YouTube APIs:</strong> To access your YouTube channel data and analytics. Subject to the <a href="https://policies.google.com/privacy" style={{ color: "#60a5fa" }}>Google Privacy Policy</a></li>
+            <li><strong>Google/YouTube APIs:</strong> To access your YouTube channel data and analytics. Subject to the <a href="https://policies.google.com/privacy" style={{ color: "var(--accent-text)" }}>Google Privacy Policy</a> and the <a href="https://www.youtube.com/t/terms" style={{ color: "var(--accent-text)" }}>YouTube Terms of Service</a></li>
             <li><strong>Supabase:</strong> For database hosting and user authentication</li>
-            <li><strong>Anthropic (Claude AI):</strong> For generating content strategy insights and recommendations. Channel data summaries (not raw video data) may be sent to Claude for analysis. No personally identifiable information is included in AI requests</li>
+            <li><strong>Anthropic (Claude):</strong> For generating content strategy insights, briefs and recommendations. We send channel and video metadata &mdash; including video titles, descriptions, publish dates and performance metrics such as views, watch time, click-through rate and retention. We do not send your account credentials or OAuth tokens</li>
+            <li><strong>OpenAI:</strong> For generating text embeddings used in topic and content-gap analysis. We send video titles and related short text; we do not send credentials, tokens, or viewer-level data</li>
             <li><strong>Vercel:</strong> For application hosting and serverless functions</li>
           </ul>
+          <p style={pStyle}>
+            We use the Anthropic and OpenAI APIs under their commercial terms, which
+            do not permit these providers to train their models on data we submit.
+          </p>
+          <p style={pStyle}>
+            We do not send viewer-level personal information to AI providers. Note
+            that YouTube video titles and comment text are authored by third
+            parties and may themselves contain personal information.
+          </p>
         </div>
 
         <div style={sectionStyle}>
           <h2 style={h2Style}>6. Google API Services User Data Policy</h2>
           <p style={pStyle}>
             Full View Studio's use and transfer of information received from Google APIs adheres to the{" "}
-            <a href="https://developers.google.com/terms/api-services-user-data-policy" style={{ color: "#60a5fa" }}>
+            <a href="https://developers.google.com/terms/api-services-user-data-policy" style={{ color: "var(--accent-text)" }}>
               Google API Services User Data Policy
             </a>, including the Limited Use requirements.
           </p>
@@ -140,7 +150,7 @@ export default function PrivacyPolicy() {
             <li>Access the personal data we hold about you</li>
             <li>Request correction of inaccurate data</li>
             <li>Request deletion of your data</li>
-            <li>Revoke YouTube OAuth access at any time through the App or through your <a href="https://myaccount.google.com/permissions" style={{ color: "#60a5fa" }}>Google Account permissions</a></li>
+            <li>Revoke YouTube OAuth access at any time through the App or through your <a href="https://myaccount.google.com/permissions" style={{ color: "var(--accent-text)" }}>Google Account permissions</a></li>
             <li>Export your data upon request</li>
           </ul>
         </div>
@@ -159,7 +169,7 @@ export default function PrivacyPolicy() {
           </p>
           <p style={pStyle}>
             <strong>Crux Media</strong><br />
-            Email: <a href="mailto:security@crux.media" style={{ color: "#60a5fa" }}>security@crux.media</a>
+            Email: <a href="mailto:security@crux.media" style={{ color: "var(--accent-text)" }}>security@crux.media</a>
           </p>
         </div>
       </div>

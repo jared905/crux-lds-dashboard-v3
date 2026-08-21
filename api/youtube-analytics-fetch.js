@@ -7,6 +7,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { selectAll } from '../_lib/db.js';
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
@@ -452,11 +453,12 @@ export default async function handler(req, res) {
         const apiKey = process.env.YOUTUBE_API_KEY;
         const analyticsVideoIdSet = new Set(Object.keys(videoAnalytics));
 
-        // Get known video IDs from DB
-        const { data: knownVideos } = await supabase
+        // Get known video IDs from DB (paged past PostgREST's 1000-row cap —
+        // a truncated set makes already-known videos look new)
+        const knownVideos = await selectAll(() => supabase
           .from('videos')
           .select('youtube_video_id')
-          .eq('channel_id', dbChannel.id);
+          .eq('channel_id', dbChannel.id), 'known video ids');
 
         const knownVideoIds = new Set((knownVideos || []).map(v => v.youtube_video_id));
 
@@ -534,11 +536,11 @@ export default async function handler(req, res) {
           return nameMatch ? nameMatch[1].trim() : null;
         }
 
-        const { data: ownVideos } = await supabase
+        const ownVideos = await selectAll(() => supabase
           .from('videos')
           .select('id, youtube_video_id, title, description')
           .eq('channel_id', dbChannel.id)
-          .eq('is_collaboration', false);
+          .eq('is_collaboration', false), 'own videos for collab scan');
 
         let savedHosts = 0;
         const hostCollabs = [];

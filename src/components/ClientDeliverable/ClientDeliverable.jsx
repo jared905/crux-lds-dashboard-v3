@@ -16,7 +16,6 @@
 
 import React, { useEffect, useState, useContext, createContext, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, X as XIcon, Loader, Copy, Check, Edit3, RotateCcw, Save } from 'lucide-react';
 import { loadDeliverableData } from '../../services/clientDeliverableService.js';
 import {
   loadOverrides,
@@ -24,6 +23,7 @@ import {
   clearAllOverrides,
 } from '../../services/deliverableOverridesService.js';
 import { brand } from '../../config/brand.js';
+import { Check, Copy, Edit3, Loader, Printer, RotateCcw, Save, XIcon } from 'lucide-react';
 
 // Session-scoped edit mode. When on, certain prose elements become
 // contentEditable. Edits to <E> instances tagged with a `path` prop
@@ -99,11 +99,9 @@ const INK = brand.colors.ink;
 const INK_SOFT = brand.colors.inkSoft;
 const MUTED = brand.colors.muted;
 const BORDER = brand.colors.border;
-const DANGER = brand.colors.danger;
 const FONT_STACK = brand.fontStack;
 const FONT_HEAD_STACK = brand.fontHeadStack || brand.fontStack;
 const FONT_ACCENT_STACK = brand.fontAccentStack || brand.fontStack;
-const ACCENT_BRIGHT = brand.colors.accentBright || brand.colors.accent;
 const ACCENT_WARM = brand.colors.accentWarm || brand.colors.accent;
 const ACCENT_VIVID = brand.colors.accentVivid || brand.colors.accent;
 
@@ -803,7 +801,7 @@ function buildUnclaimedTerritory(whiteSpaceResult) {
     // Full body — the brief prompt already constrains each finding to
     // 1-2 sentences, so no truncation. (Was compressText(220), which
     // cut findings mid-sentence with an ellipsis.)
-    text: o.body || <em style={{ color: '#888' }}>Detail TK</em>,
+    text: o.body || <em style={{ color: '#859399' }}>Detail TK</em>,
   }));
 }
 
@@ -1044,302 +1042,17 @@ function compressText(text, maxChars) {
   return (lastSpace > maxChars * 0.7 ? slice.slice(0, lastSpace) : slice) + '…';
 }
 
-function WhereWeAre({ clientName, mode, spine, hosts, ctx, findings, decisions, actions }) {
-  const synthRef = React.useRef(null);
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    if (!synthRef.current) return;
-    try {
-      await navigator.clipboard.writeText(synthRef.current.innerText.trim());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1400);
-    } catch { /* fallback covered by Print */ }
-  };
-
-  const stateLine = describeWhereWeAre(mode, decisions);
-  const openDecisions = decisions.filter(d => !d.resolved).length;
-  const totalDecisions = decisions.length;
-
-  if (!findings.length && !decisions.length && !actions.length) return null;
-
-  return (
-    <section className="cd-page cd-wherewe">
-      <div className="cd-synthesis-head">
-        <div>
-          <div className="cd-synthesis-kicker">Where we are</div>
-          <h2 className="cd-synthesis-title">{clientName}{stateLine ? ` · ${stateLine}` : ''}</h2>
-        </div>
-        <button onClick={handleCopy} className="cd-copy-btn" title="Copy this page to clipboard">
-          {copied ? <Check size={13} /> : <Copy size={13} />}
-          {copied ? 'Copied' : 'Copy'}
-        </button>
-      </div>
-
-      <div ref={synthRef}>
-        {findings.length > 0 && (
-          <div className="cd-wherewe-block cd-wherewe-learned">
-            <div className="cd-wherewe-block-head">
-              <div className="cd-wherewe-block-num">01</div>
-              <div className="cd-wherewe-block-label">What we've learned</div>
-            </div>
-            <ol className="cd-wherewe-list">
-              {findings.map((f, i) => (
-                <li key={i} className="cd-wherewe-item">
-                  <div className="cd-wherewe-item-num">{String(i + 1).padStart(2, '0')}</div>
-                  <div className="cd-wherewe-item-body">
-                    <div className="cd-wherewe-item-label">{f.label}</div>
-                    <E className="cd-wherewe-item-text">{f.text}</E>
-                    {f.evidence && (
-                      <div className="cd-wherewe-item-evidence">
-                        <span className="cd-wherewe-evidence-tag">Why</span>
-                        <E tag="span">{f.evidence}</E>
-                      </div>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
-
-        {decisions.length > 0 && (
-          <div className="cd-wherewe-block cd-wherewe-decide">
-            <div className="cd-wherewe-block-head">
-              <div className="cd-wherewe-block-num">02</div>
-              <div className="cd-wherewe-block-label">
-                What we want to decide
-                {totalDecisions > 0 && (
-                  <span className="cd-wherewe-block-meta">{totalDecisions - openDecisions}/{totalDecisions} resolved</span>
-                )}
-              </div>
-            </div>
-            <ol className="cd-wherewe-list">
-              {decisions.map((d, i) => (
-                <li key={i} className={`cd-wherewe-item cd-wherewe-decision ${d.resolved ? 'is-resolved' : 'is-open'}`}>
-                  <div className="cd-wherewe-decision-status">
-                    {d.resolved ? <Check size={14} /> : <span className="cd-wherewe-open-dot">?</span>}
-                  </div>
-                  <div className="cd-wherewe-item-body">
-                    <div className="cd-wherewe-item-label">{d.label}</div>
-                    {d.resolved ? (
-                      <E className="cd-wherewe-decision-resolved">{d.resolvedValue}</E>
-                    ) : (
-                      <>
-                        <E className="cd-wherewe-decision-open">{d.openQuestion}</E>
-                        {d.context && (
-                          <div className="cd-wherewe-item-evidence">
-                            <span className="cd-wherewe-evidence-tag">Context</span>
-                            <E tag="span">{d.context}</E>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
-
-        {actions.length > 0 && (
-          <div className="cd-wherewe-block cd-wherewe-do">
-            <div className="cd-wherewe-block-head">
-              <div className="cd-wherewe-block-num">03</div>
-              <div className="cd-wherewe-block-label">What we'll do next</div>
-            </div>
-            <ol className="cd-wherewe-do-list">
-              {actions.map((a, i) => <E key={i} tag="li">{a}</E>)}
-            </ol>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
 
 // Build the "What we want to decide" list. Each entry is either RESOLVED
 // (with the actual value from the spine) or OPEN (with the question we
 // need to answer in the next working session). The label + question
 // stay constant; the resolved value comes directly from the spine.
-function buildDecisions(spine, hosts, mode, ctx) {
-  const decisions = [];
-
-  // Positioning: the headline articulation
-  const positioningResolved = !!(spine?.positioning_oneliner?.trim());
-  decisions.push({
-    label: 'Positioning',
-    resolved: positioningResolved,
-    resolvedValue: spine?.positioning_oneliner?.trim() || null,
-    openQuestion: 'What angle does this channel take in the field?',
-    context: ctx?.topOpportunity?.title
-      ? <>The audit's strongest unclaimed slot is <strong>{ctx.topOpportunity.title}</strong> — a candidate angle worth pressure-testing in the working session.</>
-      : null,
-  });
-
-  // Editorial POV: what the channel argues
-  const povResolved = !!(spine?.editorial_pov?.trim());
-  decisions.push({
-    label: 'Editorial POV',
-    resolved: povResolved,
-    resolvedValue: spine?.editorial_pov?.trim() || null,
-    openQuestion: 'What does this channel argue, and why does it exist?',
-    context: <>The conviction every script tests against. Distinct from positioning (competitive) — this is the editorial soul.</>,
-  });
-
-  // Voice + tone: how the channel sounds
-  const voiceResolved = !!(spine?.voice_tone?.trim());
-  decisions.push({
-    label: 'Voice + tone',
-    resolved: voiceResolved,
-    resolvedValue: spine?.voice_tone?.trim() || null,
-    openQuestion: 'What register does the channel sound in?',
-    context: <>The style sheet talent reads before takes and producers reference during edits.</>,
-  });
-
-  // Host: only surfaces in full mode (premature in audit/direction)
-  if (mode === MODE_FULL) {
-    const hostResolved = (hosts && hosts.length > 0) || !!spine?.host_archetype?.trim();
-    let resolvedText = null;
-    if (hosts && hosts.length > 0) {
-      resolvedText = hosts.map(h => {
-        const parts = [h.archetype || 'Host'];
-        if (h.series_label) parts.push(`(${h.series_label})`);
-        return parts.join(' ');
-      }).join(' · ');
-    } else if (spine?.host_archetype?.trim()) {
-      resolvedText = spine.host_archetype.trim();
-    }
-    decisions.push({
-      label: hosts?.length > 1 ? `Hosts (${hosts.length})` : 'Host',
-      resolved: hostResolved,
-      resolvedValue: resolvedText,
-      openQuestion: 'Who is on screen — and for which series?',
-      context: <>Anchors casting + the audition rubric. In multi-series channels, each series can carry its own host archetype.</>,
-    });
-  }
-
-  return decisions;
-}
 
 // Mode-aware action list — the Do block of WhereWeAre. For audit
 // mode, leads with the Strategy Direction working session CTA;
 // for direction/full modes, leads with operational starters.
-function buildNextActions({ spine, hosts, mode, channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow }) {
-  const ctx = computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow });
-  const actions = [];
 
-  // Audit mode opens with the conversion CTA — the working session is
-  // the next phase, everything else is supporting.
-  if (mode === MODE_AUDIT) {
-    if (ctx.topOpportunity?.title) {
-      actions.push(<>Schedule the <strong>Strategy Direction working session</strong>. Bring <strong>{ctx.topOpportunity.title}</strong> — the audit's strongest unclaimed slot — as the lead candidate to pressure-test.</>);
-    } else {
-      actions.push(<>Schedule the <strong>Strategy Direction working session</strong> to translate the audit findings into a defined positioning, voice, and host plan.</>);
-    }
-  }
 
-  if (ctx.topSlot) {
-    const verb = mode === MODE_AUDIT ? 'Pilot a single upload' : 'Schedule the first 3 uploads';
-    actions.push(<>{verb} in <strong>{ctx.topSlot.slot}</strong> — the cohort's strongest statistical slot at +{ctx.topSlot.liftPct}% lift ({ctx.topSlot.count} reference uploads).</>);
-  }
-
-  if (ctx.statisticalPatterns.length >= 1) {
-    const stack = ctx.statisticalPatterns.slice(0, 2).map(p => p.label).join(' + ');
-    actions.push(<>Test the <strong>{stack}</strong> title pattern{ctx.statisticalPatterns.length > 1 ? ' stack' : ''} on the next 4 uploads — clears the statistical threshold in the cohort.</>);
-  }
-
-  if (ctx.bestBucket && ctx.longBeatsShortBy && ctx.longBeatsShortBy >= 3) {
-    actions.push(<>Produce one <strong>{ctx.bestBucket.label}</strong> anchor video — long-form's median in this length is roughly {ctx.longBeatsShortBy}× the Shorts median.</>);
-  }
-
-  // Host audition action — full mode only
-  if (mode === MODE_FULL) {
-    if (hosts?.length > 0) {
-      actions.push(<>Run the <strong>Talent audition rubric</strong> on 3–5 candidates {hosts.length > 1 ? `for each of the ${hosts.length} hosts` : 'against the host archetype'} this month.</>);
-    } else if (spine?.host_archetype) {
-      actions.push(<>Generate the <strong>Talent audition rubric</strong> from the Strategy Spine and start scoring on-camera candidates.</>);
-    }
-  } else if (mode === MODE_DIRECTION) {
-    actions.push(<>Compress the <strong>Voice + tone</strong> field into a 200-word style sheet — register, signature moves, what to avoid. Producers + AI prompts reference it on every edit.</>);
-  }
-
-  // Storyboard the top opportunity — skip in audit mode (already named in the CTA)
-  if (ctx.topOpportunity?.title && mode !== MODE_AUDIT && actions.length < 5) {
-    actions.push(<>Storyboard one pilot against the <strong>{ctx.topOpportunity.title}</strong> opportunity — the audit's strongest unclaimed direction.</>);
-  }
-
-  return actions.slice(0, 5);
-}
-
-// One-line state description that gets appended to the page title.
-// Reads off the decision-resolution count + mode. Honest about state
-// rather than performative.
-function describeWhereWeAre(mode, decisions) {
-  const total = decisions.length;
-  const open = decisions.filter(d => !d.resolved).length;
-  if (open === 0 && total > 0) return 'strategy locked, ready to execute';
-  if (open === total) {
-    if (mode === MODE_AUDIT) return 'audit complete, strategy to decide';
-    return 'positioning open, working session next';
-  }
-  return `${total - open} of ${total} decisions resolved`;
-}
-
-function buildAuditFindings({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow }) {
-  const findings = [];
-  const ctx = computeSynthesisContext({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, demandRow });
-
-  // Finding 1: the strongest unclaimed opening
-  if (ctx.topOpportunity?.title) {
-    findings.push({
-      label: 'The unclaimed slot',
-      text: ctx.topOpportunity.title,
-      evidence: ctx.topOpportunity.body
-        ? (ctx.topOpportunity.body.length > 200 ? ctx.topOpportunity.body.slice(0, 197) + '…' : ctx.topOpportunity.body)
-        : <>The single strongest cohort gap — content that audiences in this category aren't being served and no competitor is naming clearly.</>,
-    });
-  }
-
-  // Finding 2: top statistical title pattern
-  if (ctx.statisticalPatterns.length >= 1) {
-    const top = ctx.statisticalPatterns[0];
-    findings.push({
-      label: 'What earns views in this category',
-      text: <><strong>{top.label}</strong> titles win by +{Math.round((top.viewsLift - 1) * 100)}% vs. the cohort median (n={top.count}, statistical).</>,
-      evidence: ctx.statisticalPatterns.length >= 2
-        ? <>Multiple patterns clear the statistical threshold; this one tops the list. Stack with the next strongest ({ctx.statisticalPatterns[1].label}, +{Math.round((ctx.statisticalPatterns[1].viewsLift - 1) * 100)}%) for compound effect.</>
-        : <>The clearest reproducible lever in this category — pattern-tested across the cohort, not a one-video fluke.</>,
-    });
-  }
-
-  // Finding 3: cohort visual posture (production tier)
-  if (ctx.totalTiered >= 3 && ctx.dominantTier) {
-    const tierReads = {
-      high: <>The cohort competes on production polish. Differentiation has to be vertical (aesthetic identity, point of view) — outspending isn't a real lane.</>,
-      medium: <>Production is reachable. Most competitors are competent but not distinctive — a coherent visual system is the differentiator the cohort hasn't locked in.</>,
-      low: <>The cohort runs raw production. Polish is an immediate differentiator if executed; even moderate craft reads premium against this baseline.</>,
-      mixed: <>The cohort is visually inconsistent. The bar for differentiation isn't height, it's consistency — a coherent system reads professional by default.</>,
-    };
-    findings.push({
-      label: 'How the cohort presents itself',
-      text: <>Cohort skews <strong>{ctx.dominantTier}-tier production</strong> ({ctx.dominantTierCount}/{ctx.totalTiered} competitors).</>,
-      evidence: tierReads[ctx.dominantTier],
-    });
-  }
-
-  // Finding 4: cadence — when the category gets seen
-  if (ctx.topSlot) {
-    findings.push({
-      label: 'When this category gets seen',
-      text: <><strong>{ctx.topSlot.slot}</strong> leads at +{ctx.topSlot.liftPct}% lift across {ctx.topSlot.count} reference uploads (statistical).</>,
-      evidence: <>The cohort's strongest reproducible posting window. Anchor any test schedule to this slot rather than guessing on launch day timing.</>,
-    });
-  }
-
-  // Cap at 4 to keep the page legible
-  return findings.slice(0, 4);
-}
 
 // Brief framing block that sits between the "01" callout and Part 01
 // content when the client has no published video data. Sets reader
@@ -2100,7 +1813,7 @@ function TitlePatternBars({ patterns }) {
         const width = (Math.abs(clamped) / (2 * maxAbs)) * barAreaWidth;
         const x = clamped >= 0 ? zeroX : zeroX - width;
         const isDirectional = p.confidence === 'directional';
-        const color = clamped >= 0 ? ACCENT : '#9ca3af';
+        const color = clamped >= 0 ? ACCENT : '#a9b8be';
         const skew = formatSkewLabel(p.shortsShare);
         return (
           <g key={i}>
@@ -2173,7 +1886,7 @@ function TopSlotsCallout({ cadenceGaps }) {
   }
 
   return (
-    <div style={{ marginBottom: 14, padding: '12px 14px', background: ACCENT_SOFT, borderRadius: 6, borderLeft: `3px solid ${ACCENT}` }}>
+    <div style={{ marginBottom: 14, padding: '12px 14px', background: ACCENT_SOFT, borderRadius: 6, border: "1px solid var(--border)" }}>
       <div style={{ fontSize: 10, fontWeight: 800, color: ACCENT, textTransform: 'uppercase', letterSpacing: 1.4, marginBottom: 6 }}>When to post</div>
       <div style={{ fontSize: 13, lineHeight: 1.55, color: INK }}>
         {statistical.length > 0 ? (
@@ -2286,7 +1999,7 @@ function UploadTempo({ channels, formatMixByChannel }) {
                   <rect x={labelWidth + shortsW} y={y + 6} width={longsW} height={14} fill={ACCENT} rx={2} />
                 </>
               ) : (
-                <rect x={labelWidth} y={y + 6} width={width} height={14} fill="#cbd5e1" rx={2} />
+                <rect x={labelWidth} y={y + 6} width={width} height={14} fill="#bbc9cf" rx={2} />
               )}
               <text x={labelWidth + barAreaWidth + 6} y={y + 14} fontSize="11" fill={INK} style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 600 }}>
                 {formatTempo(r.uploadsPerWeek)}
@@ -2329,7 +2042,7 @@ function CadenceHeatmap({ cadenceGaps }) {
     if (lift == null) return '#f5f0df';
     if (lift >= 1.05) {
       const intensity = Math.min(1, (lift - 1) / 1.5);  // saturates at +150%
-      return `rgba(236, 72, 153, ${0.18 + intensity * 0.6})`;
+      return `rgba(255, 131, 117, ${0.18 + intensity * 0.6})`;
     }
     if (lift <= 0.85) {
       const intensity = Math.min(1, (1 - lift) / 0.7);
@@ -2386,9 +2099,9 @@ function CadenceHeatmap({ cadenceGaps }) {
         ))}
         {/* Legend */}
         <g transform={`translate(${labelW}, ${headerH + blocks.length * cellH + 8})`}>
-          <rect x={0} y={0} width={14} height={10} fill="rgba(236, 72, 153, 0.7)" rx={2} />
+          <rect x={0} y={0} width={14} height={10} fill="rgba(255, 131, 117, 0.7)" rx={2} />
           <text x={20} y={9} fontSize="10" fill={MUTED}>+lift (statistical)</text>
-          <rect x={150} y={0} width={14} height={10} fill="rgba(236, 72, 153, 0.4)" stroke="#d9cfb1" strokeDasharray="3 2" rx={2} />
+          <rect x={150} y={0} width={14} height={10} fill="rgba(255, 131, 117, 0.4)" stroke="#d9cfb1" strokeDasharray="3 2" rx={2} />
           <text x={170} y={9} fontSize="10" fill={MUTED}>directional</text>
           <rect x={290} y={0} width={14} height={10} fill="rgba(120, 113, 108, 0.4)" rx={2} />
           <text x={310} y={9} fontSize="10" fill={MUTED}>under-performing</text>
@@ -2408,7 +2121,7 @@ function ProductionTierBar({ rollup }) {
   const total = Object.values(rollup).reduce((s, n) => s + n, 0);
   if (total === 0) return null;
   const order = ['high', 'medium', 'mixed', 'low'];
-  const tierColor = { high: ACCENT, medium: '#a78bfa', mixed: '#fbbf24', low: '#9ca3af' };
+  const tierColor = { high: ACCENT, medium: '#4cd6ff', mixed: '#fbbf24', low: '#a9b8be' };
   return (
     <div>
       <div style={{ display: 'flex', width: '100%', height: 20, borderRadius: 4, overflow: 'hidden', border: '1px solid #e8e2d0' }}>
@@ -2417,7 +2130,7 @@ function ProductionTierBar({ rollup }) {
           if (!n) return null;
           const pct = (n / total) * 100;
           return (
-            <div key={t} title={`${t}: ${n}`} style={{ width: `${pct}%`, background: tierColor[t], display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <div key={t} title={`${t}: ${n}`} style={{ width: `${pct}%`, background: tierColor[t], display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--ink)", fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               {pct >= 12 ? `${t} ${n}` : n}
             </div>
           );
@@ -2590,7 +2303,7 @@ function HostBlock({ host }) {
                   <div style={{ marginTop: 3, fontSize: 13 }}><em>5/5:</em> <E tag="span" path={pp ? `${pp}.rubric.criteria.${i}.excellence` : undefined}>{c.what_excellence_looks_like}</E></div>
                 )}
                 {c.disqualifier && (
-                  <div style={{ marginTop: 3, fontSize: 13 }}><em style={{ color: '#b91c1c' }}>Disqualifier:</em> <E tag="span" path={pp ? `${pp}.rubric.criteria.${i}.disqualifier` : undefined}>{c.disqualifier}</E></div>
+                  <div style={{ marginTop: 3, fontSize: 13 }}><em style={{ color: "var(--neg-deep)" }}>Disqualifier:</em> <E tag="span" path={pp ? `${pp}.rubric.criteria.${i}.disqualifier` : undefined}>{c.disqualifier}</E></div>
                 )}
               </li>
             ))}
@@ -2765,7 +2478,7 @@ function InPractice({ children, path }) {
 // a concrete editorial action anchored to evidence (not generic "every
 // script tested against this" filler). Computed deterministically — no
 // LLM call.
-function buildRationales({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, clientProductionRow, demandRow }) {
+function buildRationales({ channels, patternsResult, whiteSpaceResult, productionSignalsByChannel, _clientProductionRow, demandRow }) {
   const out = { whys: {}, inPractice: {} };
 
   const competitorSignals = (channels || [])
@@ -2792,9 +2505,6 @@ function buildRationales({ channels, patternsResult, whiteSpaceResult, productio
   const topSaturated = topicSaturated[0] || null;
 
   const titlePatterns = patternsResult?.scope?.titlePatterns || [];
-  const topPattern = titlePatterns
-    .filter(p => p.viewsLift != null && p.confidence === 'statistical')
-    .sort((a, b) => b.viewsLift - a.viewsLift)[0];
   // viewsLift is a RATIO (0.7 = -30% vs median). Under-performers
   // are ratios below 1; "< 0.7" = worse than -30%. (Was "< -30",
   // which a ratio never satisfies — the guardrail never rendered.)
@@ -2897,11 +2607,6 @@ function fmtNum(n) {
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(Math.round(n));
 }
-function fmtPct(v) {
-  if (v == null) return '—';
-  const pct = v > 1 ? v : v * 100;
-  return `${Math.round(pct)}%`;
-}
 
 // ──────────────────────────────────────────────────
 // Styles — scoped to .cd-* via <style>
@@ -2965,8 +2670,8 @@ function PrintStyles() {
       .cd-edit-banner {
         max-width: 840px; margin: 12px auto -12px;
         padding: 10px 16px;
-        background: rgba(236, 72, 153, 0.12);
-        border: 1px solid rgba(236, 72, 153, 0.35);
+        background: rgba(255, 131, 117, 0.12);
+        border: 1px solid rgba(255, 131, 117, 0.35);
         border-radius: 6px;
         color: #fce7f3;
         font-size: 12px; line-height: 1.55;
@@ -2977,18 +2682,18 @@ function PrintStyles() {
          elements when edit mode is on, brighter on hover/focus.
          Crucially: never appears in print (handled below). */
       .cd-editable {
-        outline: 1px dashed rgba(236, 72, 153, 0.4);
+        outline: 1px dashed rgba(255, 131, 117, 0.4);
         outline-offset: 2px;
         border-radius: 2px;
         cursor: text;
         transition: outline-color 0.15s;
       }
       .cd-editable:hover {
-        outline-color: rgba(236, 72, 153, 0.75);
+        outline-color: rgba(255, 131, 117, 0.75);
       }
       .cd-editable:focus {
         outline: 2px solid ${ACCENT};
-        background: rgba(236, 72, 153, 0.04);
+        background: rgba(255, 131, 117, 0.04);
       }
 
       .cd-doc {
@@ -3596,7 +3301,7 @@ function PrintStyles() {
         flex-shrink: 0;
       }
       .cd-wherewe-decision.is-resolved .cd-wherewe-decision-status {
-        color: #16a34a;
+        color: #b3d400;
       }
       .cd-wherewe-decision.is-open .cd-wherewe-decision-status {
         color: ${ACCENT};

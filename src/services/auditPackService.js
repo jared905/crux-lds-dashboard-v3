@@ -323,7 +323,7 @@ function sectionArchetypes(diagnostic) {
 
   if ((coverage.unknownRatio || 0) > 0.20) {
     lines.push(
-      `> ⚠️ **${Math.round(coverage.unknownRatio * 100)}% of cohort videos come from unclassified channels** — segmentation below excludes them. Run **Classify uncategorized** in Landscape to tighten the read.`,
+      `> **${Math.round(coverage.unknownRatio * 100)}% of cohort videos come from unclassified channels** — segmentation below excludes them. Run **Classify uncategorized** in Landscape to tighten the read.`,
       '',
     );
   }
@@ -617,7 +617,7 @@ function sectionOutliers(outliers) {
     }
   }
   if (suspect.length) {
-    lines.push('', '### ⚠️ Suspect — do not cite as reference', '');
+    lines.push('', "### Suspect — do not cite as reference", '');
     lines.push('_Engagement is well below the channel\'s norm. Likely inflated views (paid amplification, bot traffic, or algorithmic anomaly). Listed for transparency only._', '');
     lines.push('| Channel | Title | Multiplier | Views | Engagement | Why suspect |', '|---|---|---:|---:|---:|---|');
     for (const o of suspect) {

@@ -4,20 +4,21 @@
  * One page, sticky scope picker, four lenses (Landscape / Patterns /
  * White Space / Movement). See mockups/research/ for the spec.
  */
-import React, { useState, useEffect } from 'react';
-import { Globe, BarChart3, Square, Inbox, RefreshCw, Loader, Download, Image as ImageIcon } from 'lucide-react';
+import {useState, useEffect} from 'react';
+import { Download, ImageIcon, Loader, RefreshCw,Globe, BarChart3, Square, Inbox} from 'lucide-react';
 import { generateAuditPack, downloadMarkdown } from '../../services/auditPackService.js';
 import { refreshCohortProductionSignals } from '../../services/productionSignalService.js';
-import ScopeBar from './ScopeBar.jsx';
-import DataFreshnessBadge from '../Strategy/shared/DataFreshnessBadge.jsx';
-import RecipesBar from './RecipesBar.jsx';
+import { countActiveAlerts, resolveScopeToChannelIds } from '../../services/movementService.js';
+import { apiFetch } from '../../services/apiFetch';
 import ClientDiagnostic from './ClientDiagnostic.jsx';
 import CompetitivePostureBanner from './CompetitivePostureBanner.jsx';
+import DataFreshnessBadge from '../Strategy/shared/DataFreshnessBadge.jsx';
 import LandscapeLens from './LandscapeLens.jsx';
-import PatternsLens from './PatternsLens.jsx';
-import WhiteSpaceLens from './WhiteSpaceLens.jsx';
 import MovementLens from './MovementLens.jsx';
-import { countActiveAlerts, resolveScopeToChannelIds } from '../../services/movementService.js';
+import PatternsLens from './PatternsLens.jsx';
+import RecipesBar from './RecipesBar.jsx';
+import ScopeBar from './ScopeBar.jsx';
+import WhiteSpaceLens from './WhiteSpaceLens.jsx';
 
 const LENS_TABS = [
   { id: 'landscape', label: 'Landscape', icon: BarChart3, status: 'live' },
@@ -102,6 +103,9 @@ export default function ResearchV2() {
   };
 
   // Keep the alert badge in sync with current scope
+  // The scope object's identity churns per render; this serialized key covers
+  // every scope field the fetch reads, so it stands in as the dependency.
+  const scopeKey = [scope.categoryIds?.join(','), scope.tags?.join(','), scope.tiers?.join(','), scope.clientId].join('|');
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -115,13 +119,8 @@ export default function ResearchV2() {
       }
     })();
     return () => { cancelled = true; };
-  }, [
-    scope.categoryIds?.join(','),
-    scope.tags?.join(','),
-    scope.tiers?.join(','),
-    scope.clientId,
-    refreshKey,
-  ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey, refreshKey]);
 
   const handleRefresh = async () => {
     if (syncing) return;
@@ -143,8 +142,8 @@ export default function ResearchV2() {
       while (pass < MAX_PASSES) {
         pass++;
         setSyncResult({ ok: true, message: `Syncing… pass ${pass} (${totalSynced} done)` });
-        const resp = await fetch(
-          '/api/sync-competitors?manual=true&limit=25&concurrency=3&skipIfFreshHours=12',
+        const resp = await apiFetch(
+          '/api/sync-competitors?limit=25&concurrency=3&skipIfFreshHours=12',
           { method: 'POST' }
         );
         const data = await resp.json();
@@ -162,7 +161,7 @@ export default function ResearchV2() {
       // Generate movement alerts off the freshly synced data
       let alertSummary = '';
       try {
-        const alertResp = await fetch('/api/generate-competitor-alerts?manual=true', { method: 'POST' });
+        const alertResp = await apiFetch('/api/generate-competitor-alerts', { method: 'POST' });
         if (alertResp.ok) {
           const alertData = await alertResp.json();
           if (alertData?.total > 0) alertSummary = ` · ${alertData.total} new alert${alertData.total === 1 ? '' : 's'}`;
@@ -187,8 +186,8 @@ export default function ResearchV2() {
   return (
     <div style={{ padding: '24px 28px', maxWidth: '1500px', margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>
-          Research <span style={{ fontSize: '13px', fontWeight: 500, color: '#707070', marginLeft: '10px' }}>
+        <h1 style={{ fontSize: '22px', fontWeight: 700, color: "var(--ink)", letterSpacing: '-0.3px' }}>
+          Research <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--faint)', marginLeft: '10px' }}>
             Competitor intelligence hub
           </span>
         </h1>
@@ -196,7 +195,7 @@ export default function ResearchV2() {
           {exportStatus && (
             <span style={{
               fontSize: '12px',
-              color: exportStatus.ok ? '#a78bfa' : '#f87171',
+              color: exportStatus.ok ? 'var(--accent-text)' : "var(--neg-text)",
               fontWeight: 500,
             }}>
               {exportStatus.ok ? '✓ ' : '✕ '}{exportStatus.message}
@@ -205,7 +204,7 @@ export default function ResearchV2() {
           {productionStatus && (
             <span style={{
               fontSize: '12px',
-              color: productionStatus.ok ? '#a78bfa' : '#f87171',
+              color: productionStatus.ok ? 'var(--accent-text)' : "var(--neg-text)",
               fontWeight: 500,
             }}>
               {productionStatus.ok ? '✓ ' : '✕ '}{productionStatus.message}
@@ -214,7 +213,7 @@ export default function ResearchV2() {
           {syncResult && (
             <span style={{
               fontSize: '12px',
-              color: syncResult.ok ? '#34d399' : '#f87171',
+              color: syncResult.ok ? "var(--pos-text)" : "var(--neg-text)",
               fontWeight: 500,
             }}>
               {syncResult.ok ? '✓ ' : '✕ '}{syncResult.message}
@@ -226,9 +225,9 @@ export default function ResearchV2() {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
               padding: '7px 14px', borderRadius: '6px',
-              background: productionRefreshing ? '#1c1c20' : '#18181c',
+              background: productionRefreshing ? 'var(--card)' : 'var(--card)',
               border: '1px solid #232328',
-              color: (productionRefreshing || !scope.clientId) ? '#666' : '#d4d4d8',
+              color: (productionRefreshing || !scope.clientId) ? 'var(--faint)' : 'var(--text)',
               fontSize: '13px', fontWeight: 600,
               cursor: productionRefreshing ? 'wait' : (scope.clientId ? 'pointer' : 'not-allowed'),
               fontFamily: 'inherit',
@@ -247,9 +246,9 @@ export default function ResearchV2() {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
               padding: '7px 14px', borderRadius: '6px',
-              background: exporting ? '#1c1c20' : '#18181c',
+              background: exporting ? 'var(--card)' : 'var(--card)',
               border: '1px solid #232328',
-              color: exporting ? '#666' : '#d4d4d8',
+              color: exporting ? 'var(--faint)' : 'var(--text)',
               fontSize: '13px', fontWeight: 600,
               cursor: exporting ? 'wait' : 'pointer',
               fontFamily: 'inherit',
@@ -266,9 +265,9 @@ export default function ResearchV2() {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
               padding: '7px 14px', borderRadius: '6px',
-              background: syncing ? '#1c1c20' : '#18181c',
+              background: syncing ? 'var(--card)' : 'var(--card)',
               border: '1px solid #232328',
-              color: syncing ? '#666' : '#d4d4d8',
+              color: syncing ? 'var(--faint)' : 'var(--text)',
               fontSize: '13px', fontWeight: 600,
               cursor: syncing ? 'wait' : 'pointer',
               fontFamily: 'inherit',
@@ -326,10 +325,10 @@ export default function ResearchV2() {
                 padding: '10px 18px',
                 fontSize: '13px',
                 fontWeight: 600,
-                color: isActive ? '#fff' : (isLive ? '#888' : '#444'),
+                color: isActive ? 'var(--ink)' : (isLive ? 'var(--outline)' : 'var(--outline-variant)'),
                 background: 'transparent',
                 border: 'none',
-                borderBottom: `2px solid ${isActive ? '#3b82f6' : 'transparent'}`,
+                borderBottom: `2px solid ${isActive ? 'var(--blue)' : 'transparent'}`,
                 marginBottom: '-1px',
                 cursor: isLive ? 'pointer' : 'not-allowed',
                 display: 'inline-flex',
@@ -341,15 +340,15 @@ export default function ResearchV2() {
               <t.icon size={14} />
               {t.label}
               {!isLive && (
-                <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '3px', background: '#1c1c20', color: '#666', letterSpacing: '0.5px' }}>SOON</span>
+                <span style={{ fontSize: '9px', padding: '1px 6px', borderRadius: '3px', background: 'var(--card)', color: 'var(--faint)', letterSpacing: '0.5px' }}>SOON</span>
               )}
               {t.id === 'movement' && alertCount > 0 && (
                 <span style={{
                   fontSize: '10px',
                   padding: '2px 6px',
                   borderRadius: '99px',
-                  background: 'rgba(239,68,68,0.18)',
-                  color: '#f87171',
+                  background: 'rgba(255,85,64,0.18)',
+                  color: "var(--neg-text)",
                   fontWeight: 700,
                   minWidth: '18px',
                   textAlign: 'center',

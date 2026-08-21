@@ -175,7 +175,6 @@ function buildCompetitiveWindow(competitorData, benchmark) {
 
   // Merge data from both sources
   const benchmarks = competitors.map(comp => {
-    const h2h = headToHead.find(h => h.name === comp.channel?.name);
     return {
       channel_name: comp.channel?.name || '',
       channel_thumbnail_url: comp.channel?.thumbnail_url || '',
@@ -218,7 +217,7 @@ function buildCompetitiveWindow(competitorData, benchmark) {
 function buildWhatWeBuild(recommendations) {
   const starts = recommendations.start || [];
 
-  const showConcepts = starts.map((rec, i) => ({
+  const showConcepts = starts.map((rec, _i) => ({
     show_name: rec.show_name || '',
     premise: rec.premise || '',
     format_length: rec.format_length || '',
@@ -241,7 +240,7 @@ function buildWhatWeBuild(recommendations) {
   };
 }
 
-function buildPathForward(audit) {
+function buildPathForward(_audit) {
   return {
     included: true,
     conviction_statement: '[One sentence strategic conviction — what Crux believes about this opportunity]',

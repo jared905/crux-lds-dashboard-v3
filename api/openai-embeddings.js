@@ -83,7 +83,7 @@ export default async function handler(req, res) {
 
     if (!openaiResp.ok) {
       let body = null;
-      try { body = await openaiResp.json(); } catch {}
+      try { body = await openaiResp.json(); } catch { /* response body isn't JSON — the null fallback above is the answer */ }
       return res.status(openaiResp.status).json({
         error: body?.error?.message || `OpenAI HTTP ${openaiResp.status}`,
         type: body?.error?.type || null,

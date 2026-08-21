@@ -2,10 +2,10 @@
  * TaxonomyManager — modal for creating + deleting parent and sub-categories.
  * Opened from the ScopeBar parent dropdown ("Manage categories").
  */
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import { createPortal } from 'react-dom';
-import { X, Plus, Trash2, Loader } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
+import { Loader, Plus, Trash2, X } from 'lucide-react';
 
 function slugify(name) {
   return (name || '')
@@ -47,7 +47,7 @@ export default function TaxonomyManager({ onClose, onChanged }) {
     if (!slug) { setError('Invalid name'); setBusy(false); return; }
     const { error: insertErr } = await supabase.from('categories').insert({
       name: newParentName.trim(), slug, parent_id: null,
-      color: '#3b82f6', icon: 'folder', sort_order: parents.length + 1,
+      color: 'var(--blue)', icon: 'folder', sort_order: parents.length + 1,
     });
     setBusy(false);
     if (insertErr) { setError(insertErr.message); return; }
@@ -63,7 +63,7 @@ export default function TaxonomyManager({ onClose, onChanged }) {
     if (!slug) { setError('Invalid name'); setBusy(false); return; }
     const { error: insertErr } = await supabase.from('categories').insert({
       name: newSubName.trim(), slug, parent_id: parent.id,
-      color: '#93c5fd', icon: 'folder', sort_order: subsOf(parent.id).length + 1,
+      color: 'var(--blue-pale)', icon: 'folder', sort_order: subsOf(parent.id).length + 1,
     });
     setBusy(false);
     if (insertErr) { setError(insertErr.message); return; }
@@ -98,21 +98,21 @@ export default function TaxonomyManager({ onClose, onChanged }) {
     >
       <div style={{
         width: 'min(620px, 100%)', maxHeight: '85vh', overflowY: 'auto',
-        background: '#131316', border: '1px solid #2a2a30', borderRadius: 12,
+        background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12,
       }}>
         <div style={{
           padding: '18px 22px', borderBottom: '1px solid #1f1f24',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          position: 'sticky', top: 0, background: '#131316', zIndex: 1,
+          position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 1,
         }}>
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: '#fff' }}>Manage taxonomy</div>
-            <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: "var(--ink)" }}>Manage taxonomy</div>
+            <div style={{ fontSize: 12, color: 'var(--outline)', marginTop: 2 }}>
               Create or remove parent categories and their sub-categories. Deleting removes channel assignments.
             </div>
           </div>
           <button onClick={onClose} style={{
-            background: 'transparent', border: 'none', color: '#888',
+            background: 'transparent', border: 'none', color: 'var(--outline)',
             cursor: 'pointer', padding: 4, borderRadius: 4,
           }}><X size={18} /></button>
         </div>
@@ -121,15 +121,15 @@ export default function TaxonomyManager({ onClose, onChanged }) {
           {error && (
             <div style={{
               padding: '8px 12px', marginBottom: 10,
-              background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.30)',
-              borderRadius: 6, color: '#f87171', fontSize: 12,
+              background: 'rgba(255,85,64,0.10)', border: '1px solid rgba(255,85,64,0.30)',
+              borderRadius: 6, color: "var(--neg-text)", fontSize: 12,
             }}>{error}</div>
           )}
 
           {/* New parent */}
           <div style={{
             display: 'flex', gap: 6, marginBottom: 14,
-            padding: 10, background: '#15151a', border: '1px solid #1f1f24', borderRadius: 7,
+            padding: 10, background: 'var(--bg)', border: '1px solid #1f1f24', borderRadius: 7,
           }}>
             <input
               value={newParentName}
@@ -144,11 +144,11 @@ export default function TaxonomyManager({ onClose, onChanged }) {
           </div>
 
           {loading ? (
-            <div style={{ padding: 30, textAlign: 'center', color: '#666' }}>
+            <div style={{ padding: 30, textAlign: 'center', color: 'var(--faint)' }}>
               <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
             </div>
           ) : parents.length === 0 ? (
-            <div style={{ padding: 30, textAlign: 'center', color: '#666', fontSize: 13 }}>
+            <div style={{ padding: 30, textAlign: 'center', color: 'var(--faint)', fontSize: 13 }}>
               No categories yet. Add a parent above to start.
             </div>
           ) : (
@@ -156,7 +156,7 @@ export default function TaxonomyManager({ onClose, onChanged }) {
               {parents.map(p => (
                 <div key={p.id} style={{
                   border: '1px solid #1f1f24', borderRadius: 8,
-                  background: '#15151a',
+                  background: 'var(--bg)',
                 }}>
                   <div style={{
                     padding: '10px 12px',
@@ -164,8 +164,8 @@ export default function TaxonomyManager({ onClose, onChanged }) {
                     borderBottom: subsOf(p.id).length ? '1px solid #1f1f24' : 'none',
                   }}>
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{p.name}</div>
-                      <div style={{ fontSize: 10, color: '#666', marginTop: 1 }}>{p.slug}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>{p.name}</div>
+                      <div style={{ fontSize: 10, color: 'var(--faint)', marginTop: 1 }}>{p.slug}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button onClick={() => setAddingSubFor(addingSubFor === p.id ? null : p.id)} style={smallBtn}>
@@ -181,7 +181,7 @@ export default function TaxonomyManager({ onClose, onChanged }) {
                     <div style={{
                       padding: 10, display: 'flex', gap: 6,
                       borderBottom: subsOf(p.id).length ? '1px solid #1f1f24' : 'none',
-                      background: '#101014',
+                      background: 'var(--bg)',
                     }}>
                       <input
                         autoFocus
@@ -202,11 +202,11 @@ export default function TaxonomyManager({ onClose, onChanged }) {
                       padding: '8px 12px 8px 24px',
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       borderTop: '1px solid #1f1f24',
-                      fontSize: 13, color: '#d4d4d8',
+                      fontSize: 13, color: 'var(--text)',
                     }}>
                       <div>
                         <div>{s.name}</div>
-                        <div style={{ fontSize: 10, color: '#666', marginTop: 1 }}>{s.slug}</div>
+                        <div style={{ fontSize: 10, color: 'var(--faint)', marginTop: 1 }}>{s.slug}</div>
                       </div>
                       <button onClick={() => remove(s)} style={dangerBtn}>
                         <Trash2 size={11} />
@@ -226,14 +226,14 @@ export default function TaxonomyManager({ onClose, onChanged }) {
 
 const inputStyle = {
   flex: 1, padding: '6px 10px', borderRadius: 5,
-  background: '#0e0e12', border: '1px solid #2a2a30', color: '#fff',
+  background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--ink)',
   fontSize: 13, fontFamily: 'inherit', outline: 'none',
 };
 
 const primaryBtn = (busy) => ({
   display: 'inline-flex', alignItems: 'center', gap: 4,
   padding: '6px 12px', borderRadius: 5,
-  background: busy ? '#1c1c20' : '#2563eb', color: busy ? '#666' : '#fff',
+  background: busy ? 'var(--card)' : 'var(--blue)', color: busy ? 'var(--faint)' : 'var(--ink)',
   border: 'none', cursor: busy ? 'wait' : 'pointer',
   fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
 });
@@ -241,14 +241,14 @@ const primaryBtn = (busy) => ({
 const smallBtn = {
   display: 'inline-flex', alignItems: 'center', gap: 3,
   padding: '4px 8px', borderRadius: 4,
-  background: '#18181c', color: '#d4d4d8',
+  background: 'var(--card)', color: 'var(--text)',
   border: '1px solid #232328', cursor: 'pointer',
   fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
 };
 
 const dangerBtn = {
   padding: 5, borderRadius: 4,
-  background: 'transparent', color: '#888',
+  background: 'transparent', color: 'var(--outline)',
   border: '1px solid #232328', cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center',
 };

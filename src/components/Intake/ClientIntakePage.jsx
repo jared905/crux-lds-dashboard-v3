@@ -20,8 +20,9 @@
  *   - Polite framing — this is client-facing, not internal IP language
  */
 
-import React, { useEffect, useState } from 'react';
-import { Loader, CheckCircle, AlertCircle, ClipboardCheck } from 'lucide-react';
+import {useEffect, useState} from 'react';
+import { AlertCircle, CheckCircle, ClipboardCheck, Loader } from 'lucide-react';
+import BrandLoader from '../Shared/Loading.jsx';
 
 export default function ClientIntakePage() {
   const [token, setToken] = useState(null);
@@ -86,8 +87,7 @@ export default function ClientIntakePage() {
     return (
       <div style={pageStyle}>
         <div style={cardStyle}>
-          <Loader size={20} style={{ animation: 'spin 1s linear infinite', color: '#0A919B' }} />
-          <div style={{ marginTop: 12, color: '#888' }}>Loading…</div>
+          <BrandLoader size={36} label="Opening your intake…" style={{ padding: 0 }} />
         </div>
       </div>
     );
@@ -97,10 +97,10 @@ export default function ClientIntakePage() {
     return (
       <div style={pageStyle}>
         <div style={cardStyle}>
-          <AlertCircle size={24} style={{ color: '#ef6b6b' }} />
+          <AlertCircle size={24} style={{ color: "var(--neg-text)" }} />
           <h1 style={errorTitleStyle}>This link can't be opened</h1>
           <div style={errorBodyStyle}>{state.error}</div>
-          <div style={{ marginTop: 16, fontSize: 12, color: '#666' }}>
+          <div style={{ marginTop: 16, fontSize: 12, color: 'var(--faint)' }}>
             If you believe this is wrong, reply to the email that sent you the link and we'll send a fresh one.
           </div>
         </div>
@@ -113,13 +113,13 @@ export default function ClientIntakePage() {
     return (
       <div style={pageStyle}>
         <div style={cardStyle}>
-          <CheckCircle size={32} style={{ color: '#3fa66a' }} />
+          <CheckCircle size={32} style={{ color: "var(--pos-deep)" }} />
           <h1 style={successTitleStyle}>Thanks — we've got it</h1>
           <div style={successBodyStyle}>
             Your answers are now in our strategist's prep stack. They'll confirm a few of these with you
             during the discovery conversation; in the meantime, no further action needed on your end.
           </div>
-          <div style={{ marginTop: 18, fontSize: 12, color: '#888' }}>
+          <div style={{ marginTop: 18, fontSize: 12, color: 'var(--outline)' }}>
             Saved {submitResult.saved} {submitResult.saved === 1 ? 'answer' : 'answers'}. You can close this tab.
           </div>
         </div>
@@ -135,7 +135,7 @@ export default function ClientIntakePage() {
     <div style={pageStyle}>
       <div style={formCardStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-          <ClipboardCheck size={18} style={{ color: '#0A919B' }} />
+          <ClipboardCheck size={18} style={{ color: 'var(--accent-text)' }} />
           <div style={kickerStyle}>Crux Installation · Pre-work</div>
         </div>
         <h1 style={titleStyle}>{clientName}</h1>
@@ -146,7 +146,7 @@ export default function ClientIntakePage() {
           Save and close any time; we'll see what you've answered.
         </p>
         {data.intendedRecipient && (
-          <p style={{ fontSize: 12, color: '#888', marginTop: -6, marginBottom: 14 }}>
+          <p style={{ fontSize: 12, color: 'var(--outline)', marginTop: -6, marginBottom: 14 }}>
             We sent this link to {data.intendedRecipient}. If you're someone else on the team, that's
             fine — just answer for the brand.
           </p>
@@ -179,7 +179,7 @@ export default function ClientIntakePage() {
         )}
 
         <div style={{ marginTop: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 11, color: '#666' }}>
+          <div style={{ fontSize: 11, color: 'var(--faint)' }}>
             Link expires {new Date(data.expiresAt).toLocaleDateString()} · You can return and edit until then.
           </div>
           <button
@@ -221,15 +221,15 @@ const CLIENT_FACING_QUESTIONS_LOCAL = [
 
 const pageStyle = {
   minHeight: '100vh',
-  background: '#0a0a0e',
-  color: '#cde4d6',
+  background: 'var(--bg)',
+  color: 'var(--text)',
   fontFamily: 'system-ui, -apple-system, sans-serif',
   display: 'flex', flexDirection: 'column', alignItems: 'center',
   padding: '40px 20px',
 };
 const cardStyle = {
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 8,
   padding: 32,
   maxWidth: 520, width: '100%',
@@ -237,41 +237,41 @@ const cardStyle = {
   display: 'flex', flexDirection: 'column', alignItems: 'center',
 };
 const formCardStyle = {
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 8,
   padding: 32,
   maxWidth: 720, width: '100%',
 };
 const kickerStyle = {
-  fontSize: 11, color: '#0A919B', fontWeight: 700,
+  fontSize: 11, color: 'var(--accent-text)', fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: 1.2,
 };
-const titleStyle = { fontSize: 26, fontWeight: 700, color: '#e8e2d0', margin: '8px 0 12px' };
-const subtitleStyle = { fontSize: 14, color: '#aaa', lineHeight: 1.55, marginBottom: 14 };
+const titleStyle = { fontSize: 26, fontWeight: 700, color: 'var(--ink)', margin: '8px 0 12px' };
+const subtitleStyle = { fontSize: 14, color: 'var(--muted)', lineHeight: 1.55, marginBottom: 14 };
 
 const questionStyle = {
   paddingBottom: 14, borderBottom: '1px dashed #2a2a30',
 };
 const questionLabelStyle = {
-  display: 'block', fontSize: 14, color: '#e8e2d0', fontWeight: 600,
+  display: 'block', fontSize: 14, color: 'var(--ink)', fontWeight: 600,
   lineHeight: 1.45, marginBottom: 4,
 };
-const questionNumStyle = { color: '#0A919B', marginRight: 6 };
+const questionNumStyle = { color: 'var(--accent-text)', marginRight: 6 };
 const hintStyle = {
-  fontSize: 11, color: '#888', marginBottom: 6,
+  fontSize: 11, color: 'var(--outline)', marginBottom: 6,
 };
 const textareaStyle = {
   width: '100%',
-  background: '#1a1a1f', color: '#e8e2d0',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'var(--input-bg)', color: 'var(--ink)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '10px 12px', fontSize: 13, fontFamily: 'inherit',
   resize: 'vertical', boxSizing: 'border-box',
 };
 const submitBtnStyle = (submitting) => ({
-  background: submitting ? '#1a1a1f' : '#0A919B',
-  color: submitting ? '#666' : '#0a0a0e',
-  border: submitting ? '1px solid #2a2a30' : 'none',
+  background: submitting ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: submitting ? 'var(--faint)' : 'var(--bg)',
+  border: submitting ? '1px solid var(--border)' : 'none',
   borderRadius: 5,
   padding: '10px 22px',
   fontSize: 13, fontWeight: 700, letterSpacing: 0.3,
@@ -283,14 +283,14 @@ const submitErrorStyle = {
   background: 'rgba(239,107,107,0.08)',
   border: '1px solid rgba(239,107,107,0.30)',
   borderRadius: 5,
-  fontSize: 12, color: '#ef6b6b',
+  fontSize: 12, color: 'var(--neg-text)',
 };
-const errorTitleStyle = { fontSize: 18, fontWeight: 700, color: '#e8e2d0', margin: '12px 0 6px' };
-const errorBodyStyle = { fontSize: 13, color: '#aaa' };
-const successTitleStyle = { fontSize: 22, fontWeight: 700, color: '#e8e2d0', margin: '14px 0 8px' };
-const successBodyStyle = { fontSize: 14, color: '#aaa', lineHeight: 1.55 };
+const errorTitleStyle = { fontSize: 18, fontWeight: 700, color: 'var(--ink)', margin: '12px 0 6px' };
+const errorBodyStyle = { fontSize: 13, color: 'var(--muted)' };
+const successTitleStyle = { fontSize: 22, fontWeight: 700, color: 'var(--ink)', margin: '14px 0 8px' };
+const successBodyStyle = { fontSize: 14, color: 'var(--muted)', lineHeight: 1.55 };
 
 const footerStyle = {
-  marginTop: 24, fontSize: 11, color: '#555',
+  marginTop: 24, fontSize: 11, color: 'var(--faint)',
   textAlign: 'center',
 };

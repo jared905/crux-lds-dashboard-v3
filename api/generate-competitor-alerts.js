@@ -21,6 +21,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { requireCronOrAdmin } from './_lib/auth.js';
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
@@ -116,7 +117,6 @@ async function detectBreakouts() {
         channel_id: ch.id,
         channel_tier: ch.tier,
         channel_thumbnail_url: ch.thumbnail_url,
-      channel_youtube_id: ch.youtube_channel_id,
         channel_youtube_id: ch.youtube_channel_id,
         video_id: v.id,
         youtube_video_id: v.youtube_video_id,
@@ -375,13 +375,8 @@ async function detectNewEntrants() {
 // Handler
 // ──────────────────────────────────────────────────
 export default async function handler(req, res) {
-  const authHeader = req.headers.authorization;
-  const manual = req.query?.manual === 'true';
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}` && !manual) {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-  }
+  const caller = await requireCronOrAdmin(req, res);
+  if (!caller) return;
 
   const startTime = Date.now();
   const summary = { breakouts: 0, format_shifts: 0, rank_changes: 0, new_entrants: 0, errors: [] };

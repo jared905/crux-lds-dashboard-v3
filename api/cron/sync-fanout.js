@@ -58,6 +58,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { requireCronOrAdmin } from '../_lib/auth.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -72,14 +73,8 @@ const supabase = createClient(
 const PER_CHANNEL_TIMEOUT_MS = 240_000;
 
 export default async function handler(req, res) {
-  // Same auth pattern as every other cron endpoint
-  const authHeader = req.headers.authorization;
-  const manualTrigger = req.query?.manual === 'true';
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}` && !manualTrigger) {
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-  }
+  const caller = await requireCronOrAdmin(req, res);
+  if (!caller) return;
 
   const startTime = Date.now();
   console.log('[Sync Fanout] Starting...');

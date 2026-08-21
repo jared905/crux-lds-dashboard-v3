@@ -24,7 +24,6 @@ import { getCohortComposition } from './cohortRolesService';
 import { renderForSystemPrompt as renderPlatformMechanics } from '../lib/platformMechanics.js';
 
 export const SEEDS_PROMPT_VERSION = 'v4-concept-seeds-platform-mechanics';
-const DEFAULT_MODEL = 'claude-sonnet-4-5';
 
 // ──────────────────────────────────────────────────
 // Public entry

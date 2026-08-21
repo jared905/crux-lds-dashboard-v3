@@ -15,8 +15,8 @@
  * just-created one.
  */
 
-import React, { useState } from 'react';
-import { X as XIcon, Sparkles, Calendar, ArrowRight, Users, Target, ScrollText, CheckCircle } from 'lucide-react';
+import {useState} from 'react';
+import { ArrowRight, CheckCircle, Sparkles, XIcon,Users, Target, ScrollText} from 'lucide-react';
 import { createPrelaunchClient } from '../../services/prelaunchClientService.js';
 
 export default function AddPrelaunchClientModal({ open, onClose, onCreated, onNavigate }) {
@@ -85,9 +85,9 @@ export default function AddPrelaunchClientModal({ open, onClose, onCreated, onNa
         <div style={modalStyle}>
           <div style={headerStyle}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <CheckCircle size={18} style={{ color: '#3fa66a' }} />
+              <CheckCircle size={18} style={{ color: "var(--pos-deep)" }} />
               <div>
-                <div style={{ ...kickerStyle, color: '#3fa66a' }}>Created</div>
+                <div style={{ ...kickerStyle, color: "var(--pos-deep)" }}>Created</div>
                 <h2 style={titleStyle}>{createdClient.name} is ready</h2>
               </div>
             </div>
@@ -124,7 +124,7 @@ export default function AddPrelaunchClientModal({ open, onClose, onCreated, onNa
               />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #2a2a30', paddingTop: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: 14 }}>
               <button onClick={handleCloseFromSuccess} style={ghostBtnStyle}>
                 Skip — I'll figure it out
               </button>
@@ -140,7 +140,7 @@ export default function AddPrelaunchClientModal({ open, onClose, onCreated, onNa
       <div style={modalStyle}>
         <div style={headerStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Sparkles size={18} style={{ color: '#a78bfa' }} />
+            <Sparkles size={18} style={{ color: 'var(--tert)' }} />
             <div>
               <div style={kickerStyle}>Pre-launch client</div>
               <h2 style={titleStyle}>Add a client before they have a YouTube channel</h2>
@@ -234,16 +234,16 @@ function NextStepRow({ index, icon: Icon, label, description, onClick }) {
   return (
     <button onClick={onClick} style={nextStepRowStyle}>
       <div style={nextStepIndexStyle}>{index}</div>
-      <Icon size={16} style={{ color: '#0A919B', flexShrink: 0 }} />
+      <Icon size={16} style={{ color: 'var(--accent-text)', flexShrink: 0 }} />
       <div style={{ flex: 1, textAlign: 'left' }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e2d0', marginBottom: 2 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginBottom: 2 }}>
           {label}
         </div>
-        <div style={{ fontSize: 11, color: '#888', lineHeight: 1.45 }}>
+        <div style={{ fontSize: 11, color: 'var(--outline)', lineHeight: 1.45 }}>
           {description}
         </div>
       </div>
-      <ArrowRight size={14} style={{ color: '#0A919B', flexShrink: 0 }} />
+      <ArrowRight size={14} style={{ color: 'var(--accent-text)', flexShrink: 0 }} />
     </button>
   );
 }
@@ -252,14 +252,14 @@ const nextStepRowStyle = {
   display: 'flex', alignItems: 'flex-start', gap: 10,
   background: 'rgba(10,145,155,0.04)',
   border: '1px solid rgba(10,145,155,0.20)',
-  borderLeft: '2px solid rgba(10,145,155,0.50)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 5, padding: 12,
   cursor: 'pointer',
   fontFamily: 'inherit',
 };
 const nextStepIndexStyle = {
   width: 22, height: 22, borderRadius: '50%',
-  background: '#0A919B', color: '#0a0a0e',
+  background: 'var(--accent-text)', color: 'var(--bg)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   fontSize: 11, fontWeight: 700, flexShrink: 0,
 };
@@ -275,9 +275,8 @@ const overlayStyle = {
   zIndex: 1000, padding: 24,
 };
 const modalStyle = {
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
-  borderLeft: '2px solid #a78bfa',
+  background: 'var(--card)',
+  border: '1px solid var(--tert-border)',
   borderRadius: 8,
   width: '100%', maxWidth: 560,
   maxHeight: '90vh', overflowY: 'auto',
@@ -285,35 +284,35 @@ const modalStyle = {
 const headerStyle = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
   padding: '18px 22px 12px',
-  borderBottom: '1px solid #2a2a30',
+  borderBottom: '1px solid var(--border)',
 };
 const kickerStyle = {
-  fontSize: 10, color: '#a78bfa',
+  fontSize: 10, color: 'var(--tert)',
   textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700,
 };
 const titleStyle = {
-  fontSize: 16, fontWeight: 700, color: '#e8e2d0', margin: '2px 0 0', lineHeight: 1.3,
+  fontSize: 16, fontWeight: 700, color: 'var(--ink)', margin: '2px 0 0', lineHeight: 1.3,
 };
 const closeBtnStyle = {
-  background: 'transparent', color: '#888',
+  background: 'transparent', color: 'var(--outline)',
   border: 'none', cursor: 'pointer', padding: 4,
 };
 const bodyStyle = { padding: '14px 22px 18px' };
 const subtitleStyle = {
-  fontSize: 12, color: '#888', lineHeight: 1.55, marginTop: 0, marginBottom: 16,
+  fontSize: 12, color: 'var(--outline)', lineHeight: 1.55, marginTop: 0, marginBottom: 16,
 };
 const labelStyle = {
   display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14,
 };
 const labelTextStyle = {
-  fontSize: 11, color: '#cde4d6',
+  fontSize: 11, color: 'var(--text)',
   textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600,
 };
-const requiredStyle = { color: '#ef6b6b' };
-const hintStyle = { fontSize: 11, color: '#666', fontWeight: 400, marginTop: -2 };
+const requiredStyle = { color: 'var(--neg-text)' };
+const hintStyle = { fontSize: 11, color: 'var(--faint)', fontWeight: 400, marginTop: -2 };
 const inputStyle = {
-  background: '#1a1a1f', color: '#e8e2d0',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'var(--input-bg)', color: 'var(--ink)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '8px 12px', fontSize: 13,
   fontFamily: 'inherit',
 };
@@ -327,23 +326,23 @@ const twoColStyle = {
 const errorBoxStyle = {
   background: 'rgba(239,107,107,0.08)',
   border: '1px solid rgba(239,107,107,0.30)',
-  color: '#ef6b6b',
+  color: 'var(--neg-text)',
   borderRadius: 5, padding: '8px 12px',
   fontSize: 12, marginBottom: 12,
 };
 const footerStyle = {
   display: 'flex', justifyContent: 'flex-end', gap: 8,
-  marginTop: 16, paddingTop: 14, borderTop: '1px solid #2a2a30',
+  marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)',
 };
 const ghostBtnStyle = {
-  background: 'transparent', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'transparent', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '8px 14px', fontSize: 12, cursor: 'pointer',
 };
 const primaryBtnStyle = (submitting) => ({
-  background: submitting ? '#1a1a1f' : '#a78bfa',
-  color: submitting ? '#666' : '#0a0a0e',
-  border: submitting ? '1px solid #2a2a30' : 'none',
+  background: submitting ? 'var(--input-bg)' : 'var(--tert)',
+  color: submitting ? 'var(--faint)' : 'var(--bg)',
+  border: submitting ? '1px solid var(--border)' : 'none',
   borderRadius: 5,
   padding: '8px 16px',
   fontSize: 12, fontWeight: 700, letterSpacing: 0.3,

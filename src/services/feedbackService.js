@@ -4,8 +4,6 @@
  * All functions are pure (no DB calls) — they operate on data passed in.
  */
 
-const fmtInt = (n) => (!n || isNaN(n)) ? '0' : Math.round(n).toLocaleString();
-const fmtPct = (n) => (!n || isNaN(n)) ? '0%' : `${(n * 100).toFixed(1)}%`;
 
 // ─── Title Similarity (Jaccard on word tokens) ─────────────────────────────
 

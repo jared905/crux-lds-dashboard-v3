@@ -2,7 +2,7 @@
  * USStateMap — Static choropleth US state density map
  * Matches the world map style — same color scale, same density treatment.
  */
-import React, { useState, useMemo } from 'react';
+import {useState, useMemo} from 'react';
 import {
   ComposableMap,
   Geographies,
@@ -47,11 +47,11 @@ const NAME_TO_PROVINCE = {
 function getDensityColor(pct) {
   if (pct <= 0) return '#151d2e';
   if (pct < 0.5) return '#1a2d50';
-  if (pct < 1) return '#1d4ed8';
-  if (pct < 2) return '#2563eb';
-  if (pct < 4) return '#3b82f6';
-  if (pct < 8) return '#60a5fa';
-  if (pct < 15) return '#93c5fd';
+  if (pct < 1) return '#0090c8';
+  if (pct < 2) return '#00b0d8';
+  if (pct < 4) return '#00D1FF';
+  if (pct < 8) return '#4cd6ff';
+  if (pct < 15) return '#b7eaff';
   return '#dbeafe';
 }
 
@@ -61,7 +61,7 @@ function formatViews(n) {
   return n.toLocaleString();
 }
 
-export default function USStateMap({ provinces, topCities }) {
+export default function USStateMap({ provinces, _topCities }) {
   const [hoveredState, setHoveredState] = useState(null);
   const [tooltipData, setTooltipData] = useState(null);
 
@@ -144,11 +144,11 @@ export default function USStateMap({ provinces, topCities }) {
           borderRadius: '10px', padding: '12px 16px', minWidth: '160px',
           pointerEvents: 'none', backdropFilter: 'blur(8px)',
         }}>
-          <div style={{ fontSize: '14px', fontWeight: '700', color: '#fff', marginBottom: '6px' }}>
+          <div style={{ fontSize: '14px', fontWeight: '700', color: "var(--ink)", marginBottom: '6px' }}>
             {tooltipData.name}
           </div>
           <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: '1.6' }}>
-            <span style={{ color: '#60a5fa', fontWeight: '700' }}>{formatViews(tooltipData.views)}</span> views
+            <span style={{ color: 'var(--accent-text)', fontWeight: '700' }}>{formatViews(tooltipData.views)}</span> views
             <span style={{ color: '#475569', margin: '0 6px' }}>|</span>
             {tooltipData.pct.toFixed(1)}%
           </div>
@@ -169,9 +169,9 @@ export default function USStateMap({ provinces, topCities }) {
           {sortedProvinces.slice(0, 6).map((s, i) => (
             <div key={s.code} style={{
               fontSize: '11px', padding: '3px 10px', borderRadius: '5px',
-              background: i === 0 ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255,255,255,0.06)',
-              border: i === 0 ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid rgba(255,255,255,0.08)',
-              color: i === 0 ? '#93c5fd' : '#94a3b8',
+              background: i === 0 ? 'rgba(0, 209, 255, 0.25)' : 'rgba(255,255,255,0.06)',
+              border: i === 0 ? '1px solid rgba(0, 209, 255, 0.4)' : '1px solid rgba(255,255,255,0.08)',
+              color: i === 0 ? '#b7eaff' : '#94a3b8',
             }}>
               <span style={{ fontWeight: '700', color: i === 0 ? '#bfdbfe' : '#e2e8f0' }}>{s.stateAbbr}</span>{' '}
               {s.pct.toFixed(1)}%
@@ -181,7 +181,7 @@ export default function USStateMap({ provinces, topCities }) {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '9px', color: '#475569', flexShrink: 0 }}>
           <span>Low</span>
-          {['#1a2d50', '#1d4ed8', '#3b82f6', '#60a5fa', '#93c5fd', '#dbeafe'].map((c, i) => (
+          {['#1a2d50', '#0090c8', '#00D1FF', '#4cd6ff', '#b7eaff', '#dbeafe'].map((c, i) => (
             <div key={i} style={{ width: '14px', height: '6px', background: c, borderRadius: '1px' }} />
           ))}
           <span>High</span>

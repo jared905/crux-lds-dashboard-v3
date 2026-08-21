@@ -13,9 +13,9 @@
  * Read-only here; edits happen in the Audience workspace.
  */
 
-import React, { useEffect, useState } from 'react';
-import { Users, ArrowRight, Sparkles } from 'lucide-react';
+import {useEffect, useState} from 'react';
 import { supabase } from '../../services/supabaseClient.js';
+import { ArrowRight, Sparkles, Users } from 'lucide-react';
 
 const FIELDS = [
   { key: 'pain_points',     label: 'Pain points', cap: 3 },
@@ -41,7 +41,7 @@ export default function AudienceQuickReference({ clientId, onNavigateToAudience 
         if (cancelled) return;
         setPersona(data?.audience_persona || null);
         setSynthesizedAt(data?.audience_persona_synthesized_at || null);
-      } catch (err) {
+      } catch {
         // non-fatal
       } finally {
         if (!cancelled) setLoading(false);
@@ -52,7 +52,7 @@ export default function AudienceQuickReference({ clientId, onNavigateToAudience 
 
   if (loading) return null;
 
-  const accent = persona ? '#0A919B' : '#a78bfa';
+  const accent = persona ? 'var(--accent-text)' : 'var(--accent-text)';
 
   return (
     <div style={panelStyle(accent)}>
@@ -88,7 +88,7 @@ export default function AudienceQuickReference({ clientId, onNavigateToAudience 
                 <div style={fieldItemsStyle}>
                   {items.join(' · ')}
                   {(persona[f.key]?.length || 0) > f.cap && (
-                    <span style={{ color: '#666', marginLeft: 6 }}>
+                    <span style={{ color: 'var(--faint)', marginLeft: 6 }}>
                       +{persona[f.key].length - f.cap} more
                     </span>
                   )}
@@ -102,10 +102,10 @@ export default function AudienceQuickReference({ clientId, onNavigateToAudience 
   );
 }
 
-const panelStyle = (accent) => ({
+const panelStyle = (_accent) => ({
   background: 'rgba(10,145,155,0.04)',
   border: '1px solid rgba(10,145,155,0.20)',
-  borderLeft: `2px solid ${accent}`,
+  borderLeft: '2px solid var(--border)',
   borderRadius: 8, padding: 14,
   marginBottom: 16,
 });
@@ -117,10 +117,10 @@ const kickerStyle = (accent) => ({
   textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700,
 });
 const subtitleStyle = {
-  fontSize: 12, color: '#888', marginTop: 2, lineHeight: 1.45,
+  fontSize: 12, color: 'var(--outline)', marginTop: 2, lineHeight: 1.45,
 };
 const ctaBtnStyle = (accent) => ({
-  background: accent, color: '#0a0a0e',
+  background: accent, color: 'var(--bg)',
   border: 'none', borderRadius: 4,
   padding: '5px 12px', fontSize: 11, fontWeight: 700,
   cursor: 'pointer', letterSpacing: 0.3,
@@ -134,10 +134,10 @@ const fieldsStyle = {
 };
 const fieldRowStyle = { display: 'flex', gap: 10, alignItems: 'flex-start' };
 const fieldLabelStyle = {
-  fontSize: 10, color: '#888',
+  fontSize: 10, color: 'var(--outline)',
   textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600,
   flexShrink: 0, width: 110,
 };
 const fieldItemsStyle = {
-  fontSize: 12, color: '#cde4d6', lineHeight: 1.4, flex: 1,
+  fontSize: 12, color: 'var(--text)', lineHeight: 1.4, flex: 1,
 };

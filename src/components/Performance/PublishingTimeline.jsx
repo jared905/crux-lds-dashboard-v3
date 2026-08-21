@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+import {useMemo} from "react";
+import { Activity } from 'lucide-react';
 
 /**
  * Publishing Pattern Timeline
@@ -29,11 +30,15 @@ export default function PublishingTimeline({ rows, dateRange = '28d', compact = 
         periodDays = 90;
         numWeeks = 13;
         break;
-      case 'ytd':
+      case 'ytd': {
+        // Braces scope `startOfYear` to this case. Without them it is hoisted
+        // to the whole switch block, so any other branch referencing it would
+        // hit a temporal dead zone error.
         const startOfYear = new Date(now.getFullYear(), 0, 1);
         periodDays = Math.floor((now - startOfYear) / (1000 * 60 * 60 * 24));
         numWeeks = Math.ceil(periodDays / 7);
         break;
+      }
       case 'all':
       default:
         // For "all", show last 12 weeks
@@ -111,8 +116,8 @@ export default function PublishingTimeline({ rows, dateRange = '28d', compact = 
 
   const s = {
     container: {
-      background: "#1E1E1E",
-      border: "1px solid #333",
+      background: "var(--card)",
+      border: "1px solid var(--border)",
       borderRadius: "8px",
       padding: compact ? "16px" : "24px",
       marginBottom: compact ? 0 : "20px",
@@ -124,24 +129,26 @@ export default function PublishingTimeline({ rows, dateRange = '28d', compact = 
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: compact ? "12px" : "20px"
+      // Extra clearance: the first bar's "N total" label sat right under
+      // the icon tile and read as a mistake (user, 2026-08-20).
+      marginBottom: compact ? "20px" : "30px"
     },
     title: {
       fontSize: compact ? "16px" : "20px",
       fontWeight: "700",
-      color: "#fff"
+      color: "var(--ink)"
     },
     subtitle: {
       fontSize: compact ? "11px" : "13px",
-      color: "#888",
+      color: "var(--outline)",
       marginTop: "4px"
     },
     avg: {
       fontSize: compact ? "11px" : "13px",
-      color: "#888"
+      color: "var(--outline)"
     },
     avgValue: {
-      color: "#fff",
+      color: "var(--ink)",
       fontWeight: "600",
       fontSize: compact ? "14px" : "16px"
     },
@@ -153,7 +160,7 @@ export default function PublishingTimeline({ rows, dateRange = '28d', compact = 
       flex: compact ? 1 : undefined,
       minHeight: compact ? "120px" : undefined,
       padding: compact ? "12px 0" : "20px 0",
-      borderBottom: "1px solid #333"
+      borderBottom: "1px solid var(--border)"
     },
     barWrapper: {
       flex: 1,
@@ -177,7 +184,7 @@ export default function PublishingTimeline({ rows, dateRange = '28d', compact = 
       height: `${height}px`,
       backgroundColor: color,
       borderRadius: "4px 4px 0 0",
-      transition: "all 0.2s",
+      transition: "background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s",
       position: "relative",
       display: "flex",
       alignItems: "center",
@@ -185,13 +192,13 @@ export default function PublishingTimeline({ rows, dateRange = '28d', compact = 
     }),
     weekLabel: {
       fontSize: "10px",
-      color: "#666",
+      color: "var(--faint)",
       textAlign: "center"
     },
     count: (hasUploads) => ({
       fontSize: "11px",
       fontWeight: "600",
-      color: hasUploads ? "#fff" : "#444",
+      color: hasUploads ? "var(--ink)" : "var(--outline-variant)",
       position: "absolute",
       top: "-20px"
     }),
@@ -199,7 +206,7 @@ export default function PublishingTimeline({ rows, dateRange = '28d', compact = 
       position: "absolute",
       left: 0,
       right: 0,
-      borderTop: "2px dashed #666",
+      borderTop: '1px solid var(--border)',
       pointerEvents: "none"
     },
     avgLabel: {
@@ -207,7 +214,7 @@ export default function PublishingTimeline({ rows, dateRange = '28d', compact = 
       right: "-60px",
       top: "-10px",
       fontSize: "10px",
-      color: "#666",
+      color: "var(--faint)",
       whiteSpace: "nowrap"
     },
     legend: {
@@ -216,9 +223,9 @@ export default function PublishingTimeline({ rows, dateRange = '28d', compact = 
       gap: compact ? "10px" : "16px",
       marginTop: compact ? "10px" : "16px",
       fontSize: compact ? "10px" : "12px",
-      color: "#888",
+      color: "var(--outline)",
       paddingTop: compact ? "10px" : "16px",
-      borderTop: "1px solid #333",
+      borderTop: "1px solid var(--border)",
       flexWrap: compact ? "wrap" : "nowrap",
     },
     legendItem: {
@@ -237,8 +244,8 @@ export default function PublishingTimeline({ rows, dateRange = '28d', compact = 
       bottom: "100%",
       left: "50%",
       transform: "translateX(-50%)",
-      backgroundColor: "#000",
-      color: "#fff",
+      backgroundColor: "var(--bg)",
+      color: "var(--ink)",
       padding: "10px 14px",
       borderRadius: "6px",
       fontSize: "11px",
@@ -263,18 +270,8 @@ export default function PublishingTimeline({ rows, dateRange = '28d', compact = 
     <div style={s.container} className="section-card heart-section">
       <div style={s.header}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #ef4444, #ef4444cc)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px #ef44444d" }}>
-            <svg className="heart-icon" width="28" height="28" viewBox="0 0 48 48" fill="none">
-              {/* Anatomical heart */}
-              {/* Main chambers */}
-              <path d="M24 40 C24 40, 10 30, 10 20 C10 14, 14 10, 18 10 C20 10, 22 12, 24 14 C26 12, 28 10, 30 10 C34 10, 38 14, 38 20 C38 30, 24 40, 24 40Z" fill="white" opacity="0.9" />
-              {/* Aorta — top vessels */}
-              <path d="M20 12 C18 6, 14 4, 14 4" stroke="white" strokeWidth="3" strokeLinecap="round" fill="none" opacity="0.8" />
-              <path d="M24 10 C24 6, 26 3, 26 3" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.75" />
-              <path d="M28 12 C30 6, 34 5, 34 5" stroke="white" strokeWidth="3" strokeLinecap="round" fill="none" opacity="0.8" />
-              {/* Ventricle line */}
-              <path d="M24 16 C24 22, 22 28, 24 36" stroke="#ef4444" strokeWidth="1.5" fill="none" opacity="0.4" />
-            </svg>
+          <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "rgba(255, 85, 64, 0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Activity size={20} style={{ color: "var(--neg-text)" }} />
           </div>
           <div>
             <div style={s.title}>Publishing Pattern</div>
@@ -312,11 +309,11 @@ export default function PublishingTimeline({ rows, dateRange = '28d', compact = 
       {/* Legend */}
       <div style={s.legend}>
         <div style={s.legendItem}>
-          <div style={s.legendBox("#f97316")} />
+          <div style={s.legendBox("var(--fmt-shorts)")} />
           <span>Shorts</span>
         </div>
         <div style={s.legendItem}>
-          <div style={s.legendBox("#0ea5e9")} />
+          <div style={s.legendBox("var(--blue)")} />
           <span>Long-form</span>
         </div>
         <div style={s.legendItem}>
@@ -339,19 +336,18 @@ function WeekBar({ week, maxUploads, chartHeight, formatDate, s }) {
     >
       {week.total > 0 && (
         <div style={s.count(true)}>
-          {week.total} <span style={{ fontSize: "9px", color: "#666", fontWeight: "500" }}>total</span>
+          {week.total} <span style={{ fontSize: "9px", color: "var(--faint)", fontWeight: "500" }}>total</span>
         </div>
       )}
 
       <div style={s.barStack}>
         {week.shorts > 0 && (
-          <div style={s.bar(shortsHeight, "#f97316")}>
+          <div style={s.bar(shortsHeight, "var(--fmt-shorts)")}>
             {shortsHeight > 20 && (
               <span style={{
                 fontSize: "10px",
                 fontWeight: "700",
-                color: "#fff",
-                textShadow: "0 1px 2px rgba(0,0,0,0.3)"
+                color: "var(--bg)",
               }}>
                 {week.shorts}
               </span>
@@ -359,13 +355,12 @@ function WeekBar({ week, maxUploads, chartHeight, formatDate, s }) {
           </div>
         )}
         {week.longs > 0 && (
-          <div style={s.bar(longsHeight, "#0ea5e9")}>
+          <div style={s.bar(longsHeight, "var(--blue)")}>
             {longsHeight > 20 && (
               <span style={{
                 fontSize: "10px",
                 fontWeight: "700",
-                color: "#fff",
-                textShadow: "0 1px 2px rgba(0,0,0,0.3)"
+                color: "var(--bg)",
               }}>
                 {week.longs}
               </span>

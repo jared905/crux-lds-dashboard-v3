@@ -38,7 +38,6 @@ export function generateNarrative(kpis, previousKpis, filtered) {
 
   // Determine format split
   const shortsViews = kpis.shortsMetrics?.views || 0;
-  const longsViews = kpis.longsMetrics?.views || 0;
   const totalViews = kpis.views || 1;
   const shortsPct = Math.round((shortsViews / totalViews) * 100);
 

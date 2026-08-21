@@ -53,7 +53,7 @@ export function generateActionItems(rows) {
 
     actions.push({
       priority: "high",
-      icon: "\u{1F4C9}",
+      icon: "",
       title: "Upload Frequency Declining",
       description: `${last30Days.length} uploads in last 30 days vs ${days3060.length} in previous 30 days (${dropPct}% decrease)`,
       action: `Return to ${days3060.length} uploads/month pace`,
@@ -83,7 +83,7 @@ export function generateActionItems(rows) {
 
       actions.push({
         priority: "high",
-        icon: "\u{1F4F1}",
+        icon: "",
         contentType: "short",
         title: "Improve Shorts Thumbnail & Title Packaging",
         description: `Shorts CTR ${fmtPct(avgCTR)} vs top performers ${fmtPct(topAvgCTR)}`,
@@ -111,7 +111,7 @@ export function generateActionItems(rows) {
 
       actions.push({
         priority: "high",
-        icon: "\u{1F3AC}",
+        icon: "",
         contentType: "long",
         title: "Improve Long-Form Thumbnail & Title Packaging",
         description: `Long-form CTR ${fmtPct(avgCTR)} vs top performers ${fmtPct(topAvgCTR)}`,
@@ -152,7 +152,7 @@ export function generateActionItems(rows) {
 
       actions.push({
         priority: "high",
-        icon: "\u{1F4F1}",
+        icon: "",
         contentType: "short",
         title: "Replicate Top-Performing Shorts Formula",
         description: `Top 20% of Shorts average ${fmtInt(topAvgViews)} views vs overall avg ${fmtInt(avgViews)}`,
@@ -197,7 +197,7 @@ export function generateActionItems(rows) {
 
       actions.push({
         priority: "high",
-        icon: "\u{1F3AC}",
+        icon: "",
         contentType: "long",
         title: "Replicate Top-Performing Long-Form Formula",
         description: `Top 20% of long-form videos average ${fmtInt(topAvgViews)} views vs overall avg ${fmtInt(avgViews)}`,
@@ -224,7 +224,7 @@ export function generateActionItems(rows) {
     if (avgRetention > 0 && avgRetention < topAvgRetention * 0.85) {
       actions.push({
         priority: "medium",
-        icon: "\u{1F4F1}",
+        icon: "",
         contentType: "short",
         title: "Improve Shorts Viewer Retention",
         description: `Shorts retention ${fmtPct(avgRetention)} vs top performers ${fmtPct(topAvgRetention)}`,
@@ -249,7 +249,7 @@ export function generateActionItems(rows) {
     if (avgRetention > 0 && avgRetention < topAvgRetention * 0.85) {
       actions.push({
         priority: "medium",
-        icon: "\u{1F3AC}",
+        icon: "",
         contentType: "long",
         title: "Improve Long-Form Viewer Retention",
         description: `Long-form retention ${fmtPct(avgRetention)} vs top performers ${fmtPct(topAvgRetention)}`,
@@ -283,7 +283,7 @@ export function generateActionItems(rows) {
 
     actions.push({
       priority: "medium",
-      icon: "\u{1F6AB}",
+      icon: "",
       title: "Avoid Bottom-Performer Patterns",
       description: `Bottom 20% average only ${fmtInt(bottomAvgViews)} views (${Math.round(((1 - bottomAvgViews / viewsPerVideo) * 100))}% below avg)`,
       action: `Review bottom ${bottom20Pct.length} videos - identify ${antiPattern} and avoid in future content`,
@@ -306,7 +306,7 @@ export function generateActionItems(rows) {
       const topShort = [...shorts].sort((a, b) => b.views - a.views)[0];
       actions.push({
         priority: "medium",
-        icon: "\u{1F4F1}",
+        icon: "",
         contentType: "short",
         title: "Increase Shorts Production",
         description: `Shorts averaging ${fmtInt(shortsAvgViews)} views vs long-form ${fmtInt(longsAvgViews)} (${Math.round(((shortsAvgViews / longsAvgViews - 1) * 100))}% better)`,
@@ -318,7 +318,7 @@ export function generateActionItems(rows) {
       const topLong = [...longs].sort((a, b) => b.views - a.views)[0];
       actions.push({
         priority: "medium",
-        icon: "\u{1F3AC}",
+        icon: "",
         contentType: "long",
         title: "Increase Long-Form Production",
         description: `Long-form averaging ${fmtInt(longsAvgViews)} views vs Shorts ${fmtInt(shortsAvgViews)} (${Math.round(((longsAvgViews / shortsAvgViews - 1) * 100))}% better)`,
@@ -341,7 +341,7 @@ export function generateActionItems(rows) {
 
     actions.push({
       priority: "high",
-      icon: "\u{1F48E}",
+      icon: "",
       title: "Fix Packaging on High-Quality Videos",
       description: `${highRetentionLowCTR.length} videos have great retention (${fmtPct(bestRetentionWorstCTR.retention)}) but low CTR (${fmtPct(bestRetentionWorstCTR.ctr)})`,
       action: `Replace thumbnails/titles on these ${highRetentionLowCTR.length} videos - the content is already working`,
@@ -368,7 +368,7 @@ export function generateActionItems(rows) {
 
     actions.push({
       priority: "high",
-      icon: "\u{1F50D}",
+      icon: "",
       title: "Refresh Thumbnails on High-Impression Videos",
       description: `${highImpressionLowCTR.length} videos with ${fmtInt(totalMissedViews)} potential missed views`,
       action: "Update thumbnails on top 3 underperforming videos with high impressions",

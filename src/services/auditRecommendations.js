@@ -48,7 +48,7 @@ export async function generateRecommendations(auditId, context) {
   await updateAuditProgress(auditId, { step: 'recommendations', pct: 72, message: 'Generating recommendations...' });
 
   try {
-    const { channelId, channelSnapshot, seriesSummary, benchmarkData, competitorData, opportunities, longFormVideos = [], shortFormVideos = [], formatMix = {}, brandIntent = null, auditVoice, audienceBlock, auditStructure } = context;
+    const { channelId, channelSnapshot, seriesSummary, benchmarkData, opportunities, longFormVideos = [], shortFormVideos = [], formatMix = {}, brandIntent = null, auditVoice, audienceBlock, auditStructure } = context;
 
     // Fetch brand context for prompt enrichment
     let brandContextBlock = '';

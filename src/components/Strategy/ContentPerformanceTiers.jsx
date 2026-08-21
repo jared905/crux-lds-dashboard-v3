@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import { TrendingUp, Award, AlertCircle, CheckCircle } from "lucide-react";
+import {useMemo} from "react";
+import { AlertCircle, Award, CheckCircle, TrendingUp } from 'lucide-react';
 
 export default function ContentPerformanceTiers({ rows }) {
   const analysis = useMemo(() => {
@@ -52,8 +52,8 @@ export default function ContentPerformanceTiers({ rows }) {
 
   if (!analysis) {
     return (
-      <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px", padding: "40px", marginBottom: "20px" }}>
-        <div style={{ textAlign: "center", color: "#9E9E9E" }}>
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "24px", padding: "40px", marginBottom: "20px" }}>
+        <div style={{ textAlign: "center", color: "var(--muted)" }}>
           No data available for performance tier analysis
         </div>
       </div>
@@ -90,12 +90,12 @@ export default function ContentPerformanceTiers({ rows }) {
 
   const s = {
     card: {
-      background: "linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(245, 158, 11, 0.03))",
-      border: "1px solid rgba(16, 185, 129, 0.12)",
+      background: "linear-gradient(135deg, rgba(205, 242, 0, 0.05), rgba(245, 158, 11, 0.03))",
+      border: "1px solid rgba(205, 242, 0, 0.12)",
       borderRadius: "8px",
       padding: "24px",
       marginBottom: "20px",
-      "--glow-color": "rgba(16, 185, 129, 0.2)",
+      "--glow-color": "rgba(205, 242, 0, 0.2)",
     },
     header: {
       display: "flex",
@@ -106,7 +106,7 @@ export default function ContentPerformanceTiers({ rows }) {
     title: {
       fontSize: "26px",
       fontWeight: "700",
-      color: "#fff",
+      color: "var(--ink)",
     },
     mainContent: {
       display: "grid",
@@ -126,12 +126,12 @@ export default function ContentPerformanceTiers({ rows }) {
       gap: "12px",
       width: "100%"
     },
-    legendItem: (color) => ({
+    legendItem: (_color) => ({
       display: "flex",
       alignItems: "center",
       gap: "10px",
       fontSize: "13px",
-      color: "#E0E0E0"
+      color: "var(--text)"
     }),
     legendDot: (color) => ({
       width: "16px",
@@ -146,9 +146,8 @@ export default function ContentPerformanceTiers({ rows }) {
       gap: "16px"
     },
     tierCard: (color) => ({
-      background: "#252525",
+      background: "var(--surface-high)",
       border: `1px solid ${color}`,
-      borderLeft: `4px solid ${color}`,
       borderRadius: "8px",
       padding: "20px"
     }),
@@ -184,7 +183,7 @@ export default function ContentPerformanceTiers({ rows }) {
     },
     metricLabel: {
       fontSize: "11px",
-      color: "#9E9E9E",
+      color: "var(--muted)",
       fontWeight: "600",
       textTransform: "uppercase"
     },
@@ -194,35 +193,35 @@ export default function ContentPerformanceTiers({ rows }) {
       color
     }),
     insight: {
-      background: "#1E1E1E",
+      background: "var(--card)",
       padding: "12px",
       borderRadius: "6px",
       fontSize: "13px",
-      color: "#E0E0E0",
+      color: "var(--text)",
       lineHeight: "1.5"
     },
     videoList: {
       marginTop: "12px",
       fontSize: "12px",
-      color: "#9E9E9E"
+      color: "var(--muted)"
     },
     videoItem: {
       padding: "6px 0",
-      borderBottom: "1px solid #333"
+      borderBottom: "1px solid var(--border)"
     }
   };
 
   const colors = {
-    winners: "#10b981",
-    average: "#f59e0b", 
-    underperformers: "#ef4444"
+    winners: "var(--pos)",
+    average: "var(--warn)", 
+    underperformers: "var(--neg)"
   };
 
   return (
     <div className="section-card" style={s.card}>
       <div style={s.header}>
-        <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #10b981, #f59e0b)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(16, 185, 129, 0.3)", flexShrink: 0 }}>
-          <Award size={22} style={{ color: "#fff" }} />
+        <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "var(--pos-bg)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Award size={22} style={{ color: "var(--pos)" }} />
         </div>
         <div style={s.title}>Content Performance Tiers</div>
         <span className="stat-chip green">Distribution by Views</span>
@@ -291,8 +290,8 @@ export default function ContentPerformanceTiers({ rows }) {
               transform: "translate(-50%, -50%)",
               textAlign: "center"
             }}>
-              <div style={{ fontSize: "32px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif", color: "#fff" }}>{total}</div>
-              <div style={{ fontSize: "12px", color: "#9E9E9E" }}>Total Videos</div>
+              <div style={{ fontSize: "32px", fontWeight: "700", fontFamily: "'Barlow Condensed', sans-serif", color: "var(--ink)" }}>{total}</div>
+              <div style={{ fontSize: "12px", color: "var(--muted)" }}>Total Videos</div>
             </div>
           </div>
 
@@ -328,7 +327,7 @@ export default function ContentPerformanceTiers({ rows }) {
             <div style={s.tierHeader}>
               <div style={s.tierTitle(colors.winners)}>
                 <TrendingUp size={20} />
-                <span>🚀 Scale — Double Down (Top 20%)</span>
+                <span>Scale — Double Down (Top 20%)</span>
               </div>
               <div style={s.tierCount(colors.winners)}>{analysis.winners.count}</div>
             </div>
@@ -357,7 +356,7 @@ export default function ContentPerformanceTiers({ rows }) {
             </div>
 
             <div style={s.insight}>
-              <strong style={{ color: colors.winners }}>💡 Key Insight:</strong> Your top {analysis.winners.count} video{analysis.winners.count !== 1 ? 's' : ''} ({winnerPct.toFixed(0)}% of content) generate{analysis.winners.count === 1 ? 's' : ''} {fmtPct(analysis.winners.viewShare)} of total views. 
+              <strong style={{ color: colors.winners }}>Key Insight:</strong> Your top {analysis.winners.count} video{analysis.winners.count !== 1 ? 's' : ''} ({winnerPct.toFixed(0)}% of content) generate{analysis.winners.count === 1 ? 's' : ''} {fmtPct(analysis.winners.viewShare)} of total views. 
               {analysis.winners.avgCtr > 0.06 && analysis.winners.avgRetention > 0.5 
                 ? " These videos excel in both packaging (CTR) and quality (retention) — analyze what makes them work and replicate the formula."
                 : analysis.winners.avgCtr > 0.06 
@@ -367,13 +366,13 @@ export default function ContentPerformanceTiers({ rows }) {
 
             {analysis.winners.videos.length <= 5 && (
               <div style={s.videoList}>
-                <div style={{ fontWeight: "600", marginBottom: "6px", color: "#E0E0E0" }}>Top Performers:</div>
+                <div style={{ fontWeight: "600", marginBottom: "6px", color: "var(--text)" }}>Top Performers:</div>
                 {analysis.winners.videos.slice(0, 3).map((v, i) => (
                   <div key={i} style={s.videoItem}>
                     <div style={{ marginBottom: "2px" }}>
                       {i + 1}. {v.title}
                     </div>
-                    <div style={{ fontSize: "11px", color: "#666", paddingLeft: "14px" }}>
+                    <div style={{ fontSize: "11px", color: "var(--faint)", paddingLeft: "14px" }}>
                       {fmtDate(v.publishDate)} • <strong>{fmtInt(v.views)}</strong> views
                     </div>
                   </div>
@@ -416,7 +415,7 @@ export default function ContentPerformanceTiers({ rows }) {
             </div>
 
             <div style={s.insight}>
-              <strong style={{ color: colors.average }}>💡 Key Insight:</strong> This is your baseline performance. 
+              <strong style={{ color: colors.average }}>Key Insight:</strong> This is your baseline performance. 
               {Math.abs(analysis.average.avgCtr - analysis.winners.avgCtr) / analysis.winners.avgCtr > 0.3
                 ? ` CTR is ${fmtPct(Math.abs(analysis.winners.avgCtr - analysis.average.avgCtr) / analysis.winners.avgCtr)} lower than winners — small thumbnail/title improvements could move these videos up a tier.`
                 : Math.abs(analysis.average.avgRetention - analysis.winners.avgRetention) / analysis.winners.avgRetention > 0.3
@@ -430,7 +429,7 @@ export default function ContentPerformanceTiers({ rows }) {
             <div style={s.tierHeader}>
               <div style={s.tierTitle(colors.underperformers)}>
                 <AlertCircle size={20} />
-                <span>⚠️ Cut/Pivot — Rethink Strategy (Bottom 20%)</span>
+                <span>Cut/Pivot — Rethink Strategy (Bottom 20%)</span>
               </div>
               <div style={s.tierCount(colors.underperformers)}>{analysis.underperformers.count}</div>
             </div>
@@ -459,7 +458,7 @@ export default function ContentPerformanceTiers({ rows }) {
             </div>
 
             <div style={s.insight}>
-              <strong style={{ color: colors.underperformers }}>💡 Key Insight:</strong> These {analysis.underperformers.count} videos need attention. 
+              <strong style={{ color: colors.underperformers }}>Key Insight:</strong> These {analysis.underperformers.count} videos need attention. 
               {analysis.underperformers.avgCtr < 0.03 && analysis.underperformers.avgRetention > 0.4
                 ? " Good retention but poor CTR suggests packaging issues — the content is solid but thumbnails/titles aren't driving clicks."
                 : analysis.underperformers.avgCtr > 0.05 && analysis.underperformers.avgRetention < 0.3
@@ -469,13 +468,13 @@ export default function ContentPerformanceTiers({ rows }) {
 
             {analysis.underperformers.videos.length <= 5 && (
               <div style={s.videoList}>
-                <div style={{ fontWeight: "600", marginBottom: "6px", color: "#E0E0E0" }}>Needs Improvement:</div>
+                <div style={{ fontWeight: "600", marginBottom: "6px", color: "var(--text)" }}>Needs Improvement:</div>
                 {analysis.underperformers.videos.slice(0, 3).map((v, i) => (
                   <div key={i} style={s.videoItem}>
                     <div style={{ marginBottom: "2px" }}>
                       {v.title}
                     </div>
-                    <div style={{ fontSize: "11px", color: "#666" }}>
+                    <div style={{ fontSize: "11px", color: "var(--faint)" }}>
                       {fmtDate(v.publishDate)} • <strong>{fmtInt(v.views)}</strong> views (CTR: {fmtPct(v.ctr)}, Ret: {fmtPct(v.retention)})
                     </div>
                   </div>
@@ -490,15 +489,15 @@ export default function ContentPerformanceTiers({ rows }) {
       <div style={{ 
         marginTop: "24px", 
         paddingTop: "20px", 
-        borderTop: "1px solid #333",
-        background: "#252525",
+        borderTop: "1px solid var(--border)",
+        background: "var(--input-bg)",
         padding: "16px",
         borderRadius: "8px"
       }}>
-        <div style={{ fontSize: "14px", fontWeight: "700", color: "#fff", marginBottom: "8px" }}>
-          📊 Portfolio Health Summary
-        </div>
-        <div style={{ fontSize: "13px", color: "#E0E0E0", lineHeight: "1.6" }}>
+        <div style={{ fontSize: "14px", fontWeight: "700", color: "var(--ink)", marginBottom: "8px" }}>
+Portfolio Health Summary
+</div>
+        <div style={{ fontSize: "13px", color: "var(--text)", lineHeight: "1.6" }}>
           {analysis.winners.viewShare > 0.6 
             ? `Strong concentration: Top ${winnerPct.toFixed(0)}% of content drives ${fmtPct(analysis.winners.viewShare)} of views. This is normal, but diversifying successful patterns could reduce risk.`
             : analysis.winners.viewShare > 0.4

@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react';
-import {
+import { RefreshCw, Trash2,
   Shield,
   Lock,
   Key,
@@ -19,14 +19,12 @@ import {
   ChevronRight,
   ExternalLink,
   Database,
-  RefreshCw,
-  Trash2
 } from 'lucide-react';
 
 const cardStyle = {
-  background: "#1E1E1E",
+  background: "var(--card)",
   borderRadius: "8px",
-  border: "1px solid #333",
+  border: "1px solid var(--border)",
   marginBottom: "16px",
   overflow: "hidden",
 };
@@ -42,7 +40,7 @@ const sectionHeaderStyle = {
 
 const sectionContentStyle = {
   padding: "0 24px 24px",
-  borderTop: "1px solid #333",
+  borderTop: "1px solid var(--border)",
 };
 
 const bulletStyle = {
@@ -61,14 +59,14 @@ const tableStyle = {
 const thStyle = {
   textAlign: "left",
   padding: "12px 16px",
-  background: "#252525",
+  background: "var(--surface-high)",
   fontWeight: "600",
-  borderBottom: "1px solid #333",
+  borderBottom: "1px solid var(--border)",
 };
 
 const tdStyle = {
   padding: "12px 16px",
-  borderBottom: "1px solid #2a2a2a",
+  borderBottom: "1px solid var(--border)",
   verticalAlign: "top",
 };
 
@@ -86,11 +84,11 @@ function ExpandableSection({ icon: Icon, iconColor, title, subtitle, children, d
           <div>
             <h3 style={{ fontSize: "16px", fontWeight: "600", margin: 0 }}>{title}</h3>
             {subtitle && (
-              <p style={{ fontSize: "12px", color: "#9E9E9E", margin: "4px 0 0" }}>{subtitle}</p>
+              <p style={{ fontSize: "12px", color: "var(--muted)", margin: "4px 0 0" }}>{subtitle}</p>
             )}
           </div>
         </div>
-        {isOpen ? <ChevronDown size={20} style={{ color: "#9E9E9E" }} /> : <ChevronRight size={20} style={{ color: "#9E9E9E" }} />}
+        {isOpen ? <ChevronDown size={20} style={{ color: "var(--muted)" }} /> : <ChevronRight size={20} style={{ color: "var(--muted)" }} />}
       </div>
       {isOpen && (
         <div style={sectionContentStyle}>
@@ -106,10 +104,10 @@ export default function SecurityDocs() {
     <div>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
-        <Shield size={28} style={{ color: "#22c55e" }} />
+        <Shield size={28} style={{ color: "var(--pos)" }} />
         <div>
           <h2 style={{ fontSize: "22px", fontWeight: "700", margin: 0 }}>Security Documentation</h2>
-          <p style={{ fontSize: "13px", color: "#9E9E9E", margin: "4px 0 0" }}>
+          <p style={{ fontSize: "13px", color: "var(--muted)", margin: "4px 0 0" }}>
             How we protect your data and credentials
           </p>
         </div>
@@ -118,12 +116,12 @@ export default function SecurityDocs() {
       {/* Overview Card */}
       <div style={{
         ...cardStyle,
-        background: "linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)",
-        border: "1px solid rgba(34, 197, 94, 0.3)",
+        background: "linear-gradient(135deg, rgba(205, 242, 0, 0.1) 0%, rgba(0, 209, 255, 0.1) 100%)",
+        border: "1px solid rgba(205, 242, 0, 0.3)",
         padding: "24px",
       }}>
-        <h3 style={{ fontSize: "16px", fontWeight: "600", margin: "0 0 16px", color: "#22c55e" }}>
-          Security at a Glance
+        <h3 style={{ fontSize: "16px", fontWeight: "600", margin: "0 0 16px", color: "var(--pos)" }}>
+          Security summary
         </h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
           {[
@@ -135,10 +133,10 @@ export default function SecurityDocs() {
             { icon: Database, label: "Isolated Storage", desc: "Per-user data isolation" },
           ].map((item, i) => (
             <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
-              <item.icon size={18} style={{ color: "#22c55e", flexShrink: 0, marginTop: "2px" }} />
+              <item.icon size={18} style={{ color: "var(--pos)", flexShrink: 0, marginTop: "2px" }} />
               <div>
                 <div style={{ fontWeight: "600", fontSize: "13px", marginBottom: "2px" }}>{item.label}</div>
-                <div style={{ fontSize: "11px", color: "#9E9E9E" }}>{item.desc}</div>
+                <div style={{ fontSize: "11px", color: "var(--muted)" }}>{item.desc}</div>
               </div>
             </div>
           ))}
@@ -148,16 +146,16 @@ export default function SecurityDocs() {
       {/* OAuth Security */}
       <ExpandableSection
         icon={Key}
-        iconColor="#a78bfa"
+        iconColor="#4cd6ff"
         title="OAuth Security"
         subtitle="How we authenticate with YouTube"
         defaultOpen={true}
       >
         <div style={bulletStyle}>
-          <CheckCircle2 size={18} style={{ color: "#22c55e", flexShrink: 0, marginTop: "2px" }} />
+          <CheckCircle2 size={18} style={{ color: "var(--pos)", flexShrink: 0, marginTop: "2px" }} />
           <div>
             <div style={{ fontWeight: "600", marginBottom: "6px" }}>PKCE (Proof Key for Code Exchange)</div>
-            <p style={{ fontSize: "13px", color: "#9E9E9E", margin: 0, lineHeight: "1.6" }}>
+            <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0, lineHeight: "1.6" }}>
               We use PKCE with SHA-256 code challenges as specified in RFC 7636. This prevents authorization
               code interception attacks, even if an attacker intercepts the OAuth redirect.
             </p>
@@ -165,10 +163,10 @@ export default function SecurityDocs() {
         </div>
 
         <div style={bulletStyle}>
-          <CheckCircle2 size={18} style={{ color: "#22c55e", flexShrink: 0, marginTop: "2px" }} />
+          <CheckCircle2 size={18} style={{ color: "var(--pos)", flexShrink: 0, marginTop: "2px" }} />
           <div>
             <div style={{ fontWeight: "600", marginBottom: "6px" }}>Server-Side Token Exchange</div>
-            <p style={{ fontSize: "13px", color: "#9E9E9E", margin: 0, lineHeight: "1.6" }}>
+            <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0, lineHeight: "1.6" }}>
               Authorization codes are exchanged for tokens entirely server-side. Your browser never sees
               the client secret or the raw tokens. The code verifier is stored server-side and never
               transmitted to the client.
@@ -177,11 +175,11 @@ export default function SecurityDocs() {
         </div>
 
         <div style={bulletStyle}>
-          <CheckCircle2 size={18} style={{ color: "#22c55e", flexShrink: 0, marginTop: "2px" }} />
+          <CheckCircle2 size={18} style={{ color: "var(--pos)", flexShrink: 0, marginTop: "2px" }} />
           <div>
             <div style={{ fontWeight: "600", marginBottom: "6px" }}>Minimal Scope</div>
-            <p style={{ fontSize: "13px", color: "#9E9E9E", margin: 0, lineHeight: "1.6" }}>
-              We request only <code style={{ background: "#333", padding: "2px 6px", borderRadius: "4px" }}>youtube.readonly</code> and <code style={{ background: "#333", padding: "2px 6px", borderRadius: "4px" }}>yt-analytics-monetary.readonly</code> access.
+            <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0, lineHeight: "1.6" }}>
+              We request only <code style={{ background: "var(--outline-variant)", padding: "2px 6px", borderRadius: "4px" }}>youtube.readonly</code> and <code style={{ background: "var(--outline-variant)", padding: "2px 6px", borderRadius: "4px" }}>yt-analytics-monetary.readonly</code> access.
               This means we can view your channel data and analytics but cannot modify anything, upload videos,
               or access private information. Both scopes are verified by Google.
             </p>
@@ -197,10 +195,10 @@ export default function SecurityDocs() {
         subtitle="How we protect stored credentials"
       >
         <div style={bulletStyle}>
-          <CheckCircle2 size={18} style={{ color: "#22c55e", flexShrink: 0, marginTop: "2px" }} />
+          <CheckCircle2 size={18} style={{ color: "var(--pos)", flexShrink: 0, marginTop: "2px" }} />
           <div>
             <div style={{ fontWeight: "600", marginBottom: "6px" }}>AES-256-GCM Encryption</div>
-            <p style={{ fontSize: "13px", color: "#9E9E9E", margin: 0, lineHeight: "1.6" }}>
+            <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0, lineHeight: "1.6" }}>
               All OAuth tokens are encrypted using AES-256-GCM before being stored in our database.
               This is an authenticated encryption algorithm that provides both confidentiality and
               integrity protection.
@@ -209,10 +207,10 @@ export default function SecurityDocs() {
         </div>
 
         <div style={bulletStyle}>
-          <CheckCircle2 size={18} style={{ color: "#22c55e", flexShrink: 0, marginTop: "2px" }} />
+          <CheckCircle2 size={18} style={{ color: "var(--pos)", flexShrink: 0, marginTop: "2px" }} />
           <div>
             <div style={{ fontWeight: "600", marginBottom: "6px" }}>Secure Key Management</div>
-            <p style={{ fontSize: "13px", color: "#9E9E9E", margin: 0, lineHeight: "1.6" }}>
+            <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0, lineHeight: "1.6" }}>
               Encryption keys are stored in secure environment variables, never in code or version control.
               Keys are rotated periodically and old keys are archived for disaster recovery.
             </p>
@@ -232,12 +230,12 @@ export default function SecurityDocs() {
             <tbody>
               <tr>
                 <td style={tdStyle}>Access Token</td>
-                <td style={tdStyle}><CheckCircle2 size={16} style={{ color: "#22c55e" }} /></td>
+                <td style={tdStyle}><CheckCircle2 size={16} style={{ color: "var(--pos)" }} /></td>
                 <td style={tdStyle}>Used for API calls, expires in 1 hour</td>
               </tr>
               <tr>
                 <td style={tdStyle}>Refresh Token</td>
-                <td style={tdStyle}><CheckCircle2 size={16} style={{ color: "#22c55e" }} /></td>
+                <td style={tdStyle}><CheckCircle2 size={16} style={{ color: "var(--pos)" }} /></td>
                 <td style={tdStyle}>Used to obtain new access tokens</td>
               </tr>
               <tr>
@@ -258,16 +256,16 @@ export default function SecurityDocs() {
       {/* Access Controls */}
       <ExpandableSection
         icon={Eye}
-        iconColor="#60a5fa"
+        iconColor="#4cd6ff"
         title="Access Controls"
         subtitle="What we can and cannot access"
       >
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
           <div>
-            <h4 style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "#22c55e" }}>
+            <h4 style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "var(--pos)" }}>
               What We CAN Access
             </h4>
-            <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "13px", color: "#9E9E9E", lineHeight: "2" }}>
+            <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "13px", color: "var(--muted)", lineHeight: "2" }}>
               <li>Public channel information</li>
               <li>Video metadata (titles, views, etc.)</li>
               <li>Channel statistics</li>
@@ -275,10 +273,10 @@ export default function SecurityDocs() {
             </ul>
           </div>
           <div>
-            <h4 style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "#ef4444" }}>
+            <h4 style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "var(--neg)" }}>
               What We CANNOT Access
             </h4>
-            <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "13px", color: "#9E9E9E", lineHeight: "2" }}>
+            <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "13px", color: "var(--muted)", lineHeight: "2" }}>
               <li>Upload or modify videos</li>
               <li>Change channel settings</li>
               <li>Access private/unlisted content</li>
@@ -292,11 +290,11 @@ export default function SecurityDocs() {
       {/* Audit Logging */}
       <ExpandableSection
         icon={FileText}
-        iconColor="#22c55e"
+        iconColor="#CDF200"
         title="Audit Logging"
         subtitle="How we track credential usage"
       >
-        <p style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "20px", lineHeight: "1.6" }}>
+        <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "20px", lineHeight: "1.6" }}>
           Every OAuth-related action is logged for security and compliance purposes.
           Audit logs are retained for 90 days and are available to administrators upon request.
         </p>
@@ -333,15 +331,15 @@ export default function SecurityDocs() {
       {/* Data Handling */}
       <ExpandableSection
         icon={Database}
-        iconColor="#ec4899"
+        iconColor="#ff8375"
         title="Data Handling"
         subtitle="How to manage and remove your data"
       >
         <div style={bulletStyle}>
-          <RefreshCw size={18} style={{ color: "#60a5fa", flexShrink: 0, marginTop: "2px" }} />
+          <RefreshCw size={18} style={{ color: "var(--accent-text)", flexShrink: 0, marginTop: "2px" }} />
           <div>
             <div style={{ fontWeight: "600", marginBottom: "6px" }}>Token Refresh</div>
-            <p style={{ fontSize: "13px", color: "#9E9E9E", margin: 0, lineHeight: "1.6" }}>
+            <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0, lineHeight: "1.6" }}>
               YouTube access tokens expire every hour. We automatically refresh tokens before they expire
               to maintain uninterrupted access. You can also manually refresh tokens from the settings page.
             </p>
@@ -349,14 +347,14 @@ export default function SecurityDocs() {
         </div>
 
         <div style={bulletStyle}>
-          <Trash2 size={18} style={{ color: "#ef4444", flexShrink: 0, marginTop: "2px" }} />
+          <Trash2 size={18} style={{ color: "var(--neg)", flexShrink: 0, marginTop: "2px" }} />
           <div>
             <div style={{ fontWeight: "600", marginBottom: "6px" }}>Disconnecting Your Account</div>
-            <p style={{ fontSize: "13px", color: "#9E9E9E", margin: 0, lineHeight: "1.6" }}>
+            <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0, lineHeight: "1.6" }}>
               You can disconnect your YouTube account at any time from the API Settings page.
               When you disconnect:
             </p>
-            <ul style={{ margin: "8px 0 0", paddingLeft: "18px", fontSize: "13px", color: "#9E9E9E", lineHeight: "1.8" }}>
+            <ul style={{ margin: "8px 0 0", paddingLeft: "18px", fontSize: "13px", color: "var(--muted)", lineHeight: "1.8" }}>
               <li>We revoke the token with Google</li>
               <li>All stored tokens are permanently deleted</li>
               <li>The disconnection is logged for audit purposes</li>
@@ -367,19 +365,19 @@ export default function SecurityDocs() {
 
         <div style={{
           marginTop: "20px", padding: "16px",
-          background: "rgba(239, 68, 68, 0.08)",
-          border: "1px solid rgba(239, 68, 68, 0.2)",
+          background: "rgba(255, 85, 64, 0.08)",
+          border: "1px solid rgba(255, 85, 64, 0.2)",
           borderRadius: "8px"
         }}>
-          <div style={{ fontWeight: "600", marginBottom: "8px", color: "#ef4444", fontSize: "13px" }}>
+          <div style={{ fontWeight: "600", marginBottom: "8px", color: "var(--neg)", fontSize: "13px" }}>
             You can also revoke access directly from Google
           </div>
-          <p style={{ fontSize: "12px", color: "#fca5a5", margin: 0, lineHeight: "1.6" }}>
+          <p style={{ fontSize: "12px", color: "var(--neg-text)", margin: 0, lineHeight: "1.6" }}>
             Visit <a
               href="https://myaccount.google.com/permissions"
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: "#fca5a5", textDecoration: "underline" }}
+              style={{ color: "var(--neg-text)", textDecoration: "underline" }}
             >
               Google Account Permissions
             </a> to view and revoke third-party app access at any time.
@@ -391,12 +389,12 @@ export default function SecurityDocs() {
       <div style={{
         ...cardStyle,
         padding: "24px",
-        background: "#1E1E1E",
+        background: "var(--card)",
       }}>
         <h3 style={{ fontSize: "16px", fontWeight: "600", margin: "0 0 16px" }}>
           Questions?
         </h3>
-        <p style={{ fontSize: "13px", color: "#9E9E9E", margin: "0 0 16px", lineHeight: "1.6" }}>
+        <p style={{ fontSize: "13px", color: "var(--muted)", margin: "0 0 16px", lineHeight: "1.6" }}>
           If you have questions about our security practices or need additional documentation
           for compliance review, please contact your account representative.
         </p>
@@ -405,9 +403,9 @@ export default function SecurityDocs() {
             href="mailto:security@crux.media"
             style={{
               display: "inline-flex", alignItems: "center", gap: "6px",
-              padding: "10px 16px", background: "#2962FF",
+              padding: "10px 16px", background: "var(--blue)",
               border: "none", borderRadius: "8px",
-              color: "#fff", fontSize: "13px", fontWeight: "600",
+              color: "var(--ink)", fontSize: "13px", fontWeight: "600",
               textDecoration: "none"
             }}
           >

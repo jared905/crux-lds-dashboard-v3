@@ -14,10 +14,10 @@
  *   - handles: just shows the synthetic id, the Resolve handles button on
  *              the Landscape header runs the bulk YouTube lookup.
  */
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import { createPortal } from 'react-dom';
-import { X, Loader, AlertTriangle, Wand2, Archive, ExternalLink } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
+import { AlertTriangle, Archive, ExternalLink, Loader, Wand2, X } from 'lucide-react';
 
 export default function ChannelIssuesModal({ view, clientId, clientName, onClose, onChanged }) {
   const [rows, setRows] = useState(null); // null = loading, [] = empty, [...] = list
@@ -91,24 +91,24 @@ export default function ChannelIssuesModal({ view, clientId, clientName, onClose
     >
       <div style={{
         width: 'min(720px, 100%)', maxHeight: '85vh', overflowY: 'auto',
-        background: '#131316', border: '1px solid #2a2a30', borderRadius: 12,
+        background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12,
       }}>
         {/* Header */}
         <div style={{
           padding: '18px 22px', borderBottom: '1px solid #1f1f24',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          position: 'sticky', top: 0, background: '#131316', zIndex: 1,
+          position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 1,
         }}>
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              {view === 'failing' ? <AlertTriangle size={16} color="#f87171" /> : <Wand2 size={16} color="#fbbf24" />}
+            <div style={{ fontSize: 17, fontWeight: 700, color: "var(--ink)", display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              {view === 'failing' ? <AlertTriangle size={16} color="#ff8375" /> : <Wand2 size={16} color="#fbbf24" />}
               {title}
-              {rows && <span style={{ color: '#888', fontWeight: 400, fontSize: 14 }}>· {rows.length}</span>}
+              {rows && <span style={{ color: 'var(--outline)', fontWeight: 400, fontSize: 14 }}>· {rows.length}</span>}
             </div>
-            <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{subtitle}</div>
+            <div style={{ fontSize: 12, color: 'var(--outline)', marginTop: 4 }}>{subtitle}</div>
           </div>
           <button onClick={onClose} style={{
-            background: 'transparent', border: 'none', color: '#888',
+            background: 'transparent', border: 'none', color: 'var(--outline)',
             cursor: 'pointer', padding: 4, borderRadius: 4,
           }}><X size={18} /></button>
         </div>
@@ -116,11 +116,11 @@ export default function ChannelIssuesModal({ view, clientId, clientName, onClose
         {/* Body */}
         <div style={{ padding: rows === null ? 30 : '4px 12px 16px' }}>
           {rows === null ? (
-            <div style={{ textAlign: 'center', color: '#666' }}>
+            <div style={{ textAlign: 'center', color: 'var(--faint)' }}>
               <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
             </div>
           ) : rows.length === 0 ? (
-            <div style={{ padding: 24, textAlign: 'center', color: '#666', fontSize: 13 }}>
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--faint)', fontSize: 13 }}>
               Nothing here — pipeline is healthy on this dimension.
             </div>
           ) : rows.map(r => (
@@ -132,16 +132,16 @@ export default function ChannelIssuesModal({ view, clientId, clientName, onClose
                 <img src={r.thumbnail_url} alt="" loading="lazy"
                   style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
               ) : (
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#18181c', flexShrink: 0 }} />
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--card)', flexShrink: 0 }} />
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", display: 'flex', alignItems: 'center', gap: 6 }}>
                   {r.name}
                   {r.custom_url && (
-                    <span style={{ fontSize: 11, color: '#666', fontWeight: 400 }}>· {r.custom_url}</span>
+                    <span style={{ fontSize: 11, color: 'var(--faint)', fontWeight: 400 }}>· {r.custom_url}</span>
                   )}
                 </div>
-                <div style={{ fontSize: 11, color: view === 'failing' ? '#f87171' : '#fbbf24', marginTop: 3, wordBreak: 'break-word' }}>
+                <div style={{ fontSize: 11, color: view === 'failing' ? "var(--neg-text)" : "var(--warn-text)", marginTop: 3, wordBreak: 'break-word' }}>
                   {view === 'failing'
                     ? r.last_sync_error || '(no error message)'
                     : `Stored as ${r.youtube_channel_id} — not yet resolved`}
@@ -177,15 +177,15 @@ export default function ChannelIssuesModal({ view, clientId, clientName, onClose
 
 const iconLink = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  padding: 6, borderRadius: 5, color: '#888',
-  background: '#18181c', border: '1px solid #232328',
+  padding: 6, borderRadius: 5, color: 'var(--outline)',
+  background: 'var(--card)', border: '1px solid #232328',
   cursor: 'pointer', textDecoration: 'none',
 };
 
 const archiveBtn = {
   display: 'inline-flex', alignItems: 'center', gap: 4,
   padding: '5px 9px', borderRadius: 5,
-  background: '#18181c', color: '#d4d4d8',
+  background: 'var(--card)', color: 'var(--text)',
   border: '1px solid #232328', cursor: 'pointer',
   fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
 };

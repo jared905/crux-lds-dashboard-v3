@@ -7,15 +7,16 @@
 
 import { supabase } from './supabaseClient';
 import { resolveScopeToChannelIds } from './patternsService.js';
+import { apiFetch } from './apiFetch';
 
 const TAKEAWAY_CACHE_HOURS = 24;
 
 const ALERT_TYPE_META = {
-  breakout:     { label: 'Breakout',      color: '#10b981' },
-  format_shift: { label: 'Format shift',  color: '#3b82f6' },
-  rank_change:  { label: 'Rank change',   color: '#a78bfa' },
-  new_entrant:  { label: 'New entrant',   color: '#f59e0b' },
-  trend:        { label: 'Trend',         color: '#94a3b8' },
+  breakout:     { label: 'Breakout',      color: 'var(--pos)' },
+  format_shift: { label: 'Format shift',  color: 'var(--blue)' },
+  rank_change:  { label: 'Rank change',   color: 'var(--accent-text)' },
+  new_entrant:  { label: 'New entrant',   color: 'var(--warn)' },
+  trend:        { label: 'Trend',         color: 'var(--muted)' },
 };
 
 export { ALERT_TYPE_META, resolveScopeToChannelIds };
@@ -134,7 +135,7 @@ export async function dismissAllInScope({ scopeChannelIds, windowDays = 30 }) {
 // ──────────────────────────────────────────────────
 export async function triggerAlertGeneration() {
   try {
-    const resp = await fetch('/api/generate-competitor-alerts?manual=true', { method: 'POST' });
+    const resp = await apiFetch('/api/generate-competitor-alerts', { method: 'POST' });
     if (!resp.ok) {
       const t = await resp.text();
       throw new Error(`HTTP ${resp.status}: ${t.slice(0, 200)}`);
@@ -262,7 +263,30 @@ async function saveCache(key, payload) {
 }
 
 function hashIds(ids) {
-  return [...(ids || [])].sort().slice(0, 50).join(',').slice(0, 200);
+  // Stable key for an unordered set of IDs.
+  //
+  // This used to be `.sort().slice(0,50).join(',').slice(0,200)`. A UUID plus
+  // its comma is 37 chars, so the 200-char slice retained only ~5.4 ids —
+  // everything past the sixth competitor was invisible to the cache key.
+  // Adding competitors therefore did NOT invalidate the entry (a stale brief
+  // was served), and two different scopes sharing their first six sorted ids
+  // resolved to the same key.
+  //
+  // Hash the full joined set instead, and keep the count in the key so a
+  // differently-sized scope can never collide with a smaller one.
+  const sorted = [...(ids || [])].map(String).sort();
+  return `${sorted.length}-${djb2(sorted.join(','))}`;
+}
+
+// djb2 — small, deterministic, dependency-free. Cache keys need collision
+// resistance across plausible id sets, not cryptographic strength.
+function djb2(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) + h) + str.charCodeAt(i);
+    h = h | 0;
+  }
+  return (h >>> 0).toString(36);
 }
 
 export default {

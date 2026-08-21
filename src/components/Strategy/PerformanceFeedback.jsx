@@ -1,20 +1,20 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import {useState, useEffect, useCallback} from "react";
 import {
   Activity, TrendingUp, TrendingDown, ArrowRight, BarChart3,
-  CheckCircle2, XCircle, Loader, Link2,
+  Loader, Link2,
 } from "lucide-react";
-import UnifiedStrategy from "./UnifiedStrategy.jsx";
+import UnifiedStrategy from './UnifiedStrategy.jsx';
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
 
 const SOURCE_COLORS = {
-  manual: "#6b7280",
-  creative_brief: "#3b82f6",
-  atomizer: "#8b5cf6",
-  competitor_inspired: "#ec4899",
-  opportunity_synthesis: "#f59e0b",
-  gap_detection: "#ef4444",
+  manual: "var(--faint)",
+  creative_brief: "var(--blue)",
+  atomizer: "var(--blue-deep)",
+  competitor_inspired: "var(--neg-text)",
+  opportunity_synthesis: "var(--warn)",
+  gap_detection: "var(--neg)",
 };
 
 const SOURCE_LABELS = {
@@ -71,22 +71,22 @@ export default function PerformanceFeedback({
     <div style={{ padding: "0" }}>
       {/* Header */}
       <div className="section-card" style={{
-        background: "linear-gradient(135deg, rgba(34, 197, 94, 0.05), rgba(59, 130, 246, 0.03))",
-        border: "1px solid rgba(34, 197, 94, 0.12)",
+        background: "linear-gradient(135deg, rgba(205, 242, 0, 0.05), rgba(0, 209, 255, 0.03))",
+        border: "1px solid rgba(205, 242, 0, 0.12)",
         borderRadius: "8px",
-        "--glow-color": "rgba(34, 197, 94, 0.2)",
+        "--glow-color": "rgba(205, 242, 0, 0.2)",
         padding: "24px",
         marginBottom: "24px",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #22c55e, #3b82f6)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(34, 197, 94, 0.3)", flexShrink: 0 }}>
-            <Activity size={22} style={{ color: "#fff" }} />
+          <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "var(--pos-bg)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Activity size={22} style={{ color: "var(--pos)" }} />
           </div>
-          <div style={{ fontSize: "26px", fontWeight: "700", color: "#fff" }}>
+          <div style={{ fontSize: "26px", fontWeight: "700", color: "var(--ink)" }}>
             Performance Feedback
           </div>
         </div>
-        <div style={{ fontSize: "12px", color: "#888" }}>
+        <div style={{ fontSize: "12px", color: "var(--outline)" }}>
           Track whether recommendations improved performance — link published briefs to videos in the Briefs tab
         </div>
       </div>
@@ -94,12 +94,12 @@ export default function PerformanceFeedback({
       {/* Section 1: Recommendation Accuracy */}
       {loading ? (
         <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "8px",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: "24px",
           padding: "32px",
           textAlign: "center",
-          color: "#888",
+          color: "var(--outline)",
           marginBottom: "24px",
         }}>
           <Loader size={20} style={{ animation: "spin 1s linear infinite", margin: "0 auto 8px" }} />
@@ -136,28 +136,28 @@ function AccuracySection({ feedback }) {
   if (!accuracy) {
     return (
       <div style={{
-        background: "#1E1E1E",
-        border: "1px solid #333",
-        borderRadius: "8px",
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: "24px",
         padding: "24px",
         marginBottom: "24px",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-          <BarChart3 size={18} color="#3b82f6" />
-          <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>
+          <BarChart3 size={18} color="#00D1FF" />
+          <div style={{ fontSize: "16px", fontWeight: "700", color: "var(--ink)" }}>
             Recommendation Accuracy
           </div>
         </div>
 
         <div style={{
-          background: "#252525",
+          background: "var(--input-bg)",
           borderRadius: "8px",
           padding: "24px",
           textAlign: "center",
-          color: "#666",
+          color: "var(--faint)",
         }}>
           <Link2 size={32} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
-          <div style={{ fontSize: "14px", color: "#888", marginBottom: "4px" }}>
+          <div style={{ fontSize: "14px", color: "var(--outline)", marginBottom: "4px" }}>
             No linked briefs yet
           </div>
           <div style={{ fontSize: "12px" }}>
@@ -172,19 +172,19 @@ function AccuracySection({ feedback }) {
 
   return (
     <div style={{
-      background: "#1E1E1E",
-      border: "1px solid #333",
-      borderRadius: "8px",
+      background: "var(--card)",
+      border: "1px solid var(--border)",
+      borderRadius: "24px",
       padding: "24px",
       marginBottom: "24px",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-        <BarChart3 size={18} color="#3b82f6" />
-        <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>
+        <BarChart3 size={18} color="#00D1FF" />
+        <div style={{ fontSize: "16px", fontWeight: "700", color: "var(--ink)" }}>
           Recommendation Accuracy
         </div>
         <div style={{
-          fontSize: "11px", color: "#888", background: "#252525",
+          fontSize: "11px", color: "var(--outline)", background: "var(--input-bg)",
           padding: "2px 8px", borderRadius: "4px",
         }}>
           {accuracy.total} linked brief{accuracy.total !== 1 ? 's' : ''}
@@ -196,8 +196,8 @@ function AccuracySection({ feedback }) {
         <div style={{
           flex: 1,
           minWidth: "180px",
-          background: accuracy.outperformedPct >= 50 ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)",
-          border: `1px solid ${accuracy.outperformedPct >= 50 ? "#10b981" : "#ef4444"}`,
+          background: accuracy.outperformedPct >= 50 ? "rgba(205, 242, 0, 0.08)" : "rgba(255, 85, 64, 0.08)",
+          border: `1px solid ${accuracy.outperformedPct >= 50 ? "var(--pos)" : "var(--neg)"}`,
           borderRadius: "8px",
           padding: "20px",
           textAlign: "center",
@@ -205,14 +205,14 @@ function AccuracySection({ feedback }) {
           <div style={{
             fontSize: "36px",
             fontWeight: "800",
-            color: accuracy.outperformedPct >= 50 ? "#10b981" : "#ef4444",
+            color: accuracy.outperformedPct >= 50 ? "var(--pos)" : "var(--neg)",
           }}>
             {accuracy.outperformedPct}%
           </div>
-          <div style={{ fontSize: "12px", color: "#888", marginTop: "4px" }}>
+          <div style={{ fontSize: "12px", color: "var(--outline)", marginTop: "4px" }}>
             outperformed baseline
           </div>
-          <div style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}>
+          <div style={{ fontSize: "11px", color: "var(--faint)", marginTop: "2px" }}>
             {accuracy.outperformed} of {accuracy.total} recommendations
           </div>
         </div>
@@ -221,19 +221,19 @@ function AccuracySection({ feedback }) {
           <div style={{
             flex: 1,
             minWidth: "180px",
-            background: "rgba(59, 130, 246, 0.08)",
-            border: "1px solid #3b82f6",
+            background: "rgba(0, 209, 255, 0.08)",
+            border: "1px solid #00D1FF",
             borderRadius: "8px",
             padding: "20px",
             textAlign: "center",
           }}>
-            <div style={{ fontSize: "36px", fontWeight: "800", color: "#3b82f6", fontFamily: "'Barlow Condensed', sans-serif" }}>
+            <div style={{ fontSize: "36px", fontWeight: "800", color: "var(--blue)", fontFamily: "'Barlow Condensed', sans-serif" }}>
               {accuracy.exceededPredictionPct}%
             </div>
-            <div style={{ fontSize: "12px", color: "#888", marginTop: "4px" }}>
+            <div style={{ fontSize: "12px", color: "var(--outline)", marginTop: "4px" }}>
               exceeded predictions
             </div>
-            <div style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}>
+            <div style={{ fontSize: "11px", color: "var(--faint)", marginTop: "2px" }}>
               {accuracy.exceededPrediction} beat their estimated impact
             </div>
           </div>
@@ -244,7 +244,7 @@ function AccuracySection({ feedback }) {
       {Object.keys(bySourceType).length > 0 && (
         <div>
           <div style={{
-            fontSize: "11px", fontWeight: "600", color: "#888",
+            fontSize: "11px", fontWeight: "600", color: "var(--outline)",
             textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px",
           }}>
             Accuracy by Source
@@ -252,19 +252,19 @@ function AccuracySection({ feedback }) {
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             {Object.entries(bySourceType).map(([src, data]) => {
               const pct = data.total > 0 ? Math.round((data.outperformed / data.total) * 100) : 0;
-              const color = SOURCE_COLORS[src] || "#666";
+              const color = SOURCE_COLORS[src] || "var(--faint)";
               return (
                 <div key={src} style={{
                   display: "flex", alignItems: "center", gap: "10px",
                   padding: "6px 0",
                 }}>
                   <div style={{
-                    width: "100px", fontSize: "12px", color: "#b0b0b0", fontWeight: "500",
+                    width: "100px", fontSize: "12px", color: "var(--muted)", fontWeight: "500",
                   }}>
                     {SOURCE_LABELS[src] || src}
                   </div>
                   <div style={{
-                    flex: 1, height: "8px", background: "#252525",
+                    flex: 1, height: "8px", background: "var(--input-bg)",
                     borderRadius: "4px", overflow: "hidden",
                   }}>
                     <div style={{
@@ -275,7 +275,7 @@ function AccuracySection({ feedback }) {
                   <div style={{ width: "40px", fontSize: "12px", fontWeight: "700", color, textAlign: "right" }}>
                     {pct}%
                   </div>
-                  <div style={{ width: "50px", fontSize: "11px", color: "#666", textAlign: "right" }}>
+                  <div style={{ width: "50px", fontSize: "11px", color: "var(--faint)", textAlign: "right" }}>
                     {data.outperformed}/{data.total}
                   </div>
                 </div>
@@ -325,19 +325,19 @@ function ChannelTrendSection({ feedback }) {
 
   return (
     <div style={{
-      background: "#1E1E1E",
-      border: "1px solid #333",
-      borderRadius: "8px",
+      background: "var(--card)",
+      border: "1px solid var(--border)",
+      borderRadius: "24px",
       padding: "24px",
       marginBottom: "24px",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-        <TrendingUp size={18} color="#22c55e" />
-        <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>
+        <TrendingUp size={18} color="#CDF200" />
+        <div style={{ fontSize: "16px", fontWeight: "700", color: "var(--ink)" }}>
           Channel Performance Trend
         </div>
         <div style={{
-          fontSize: "11px", color: "#888", background: "#252525",
+          fontSize: "11px", color: "var(--outline)", background: "var(--input-bg)",
           padding: "2px 8px", borderRadius: "4px",
         }}>
           Auto-computed
@@ -351,14 +351,14 @@ function ChannelTrendSection({ feedback }) {
         gap: "12px",
         marginBottom: "12px",
         padding: "0 0 8px 0",
-        borderBottom: "1px solid #333",
+        borderBottom: "1px solid var(--border)",
       }}>
         <div />
-        <div style={{ fontSize: "11px", fontWeight: "600", color: "#888", textTransform: "uppercase", textAlign: "center" }}>
+        <div style={{ fontSize: "11px", fontWeight: "600", color: "var(--outline)", textTransform: "uppercase", textAlign: "center" }}>
           {channelBefore.period}
         </div>
         <div />
-        <div style={{ fontSize: "11px", fontWeight: "600", color: "#888", textTransform: "uppercase", textAlign: "center" }}>
+        <div style={{ fontSize: "11px", fontWeight: "600", color: "var(--outline)", textTransform: "uppercase", textAlign: "center" }}>
           {channelAfter.period}
         </div>
       </div>
@@ -380,22 +380,22 @@ function ChannelTrendSection({ feedback }) {
             gridTemplateColumns: "140px 1fr 40px 1fr",
             gap: "12px",
             padding: "10px 0",
-            borderBottom: idx < metrics.length - 1 ? "1px solid #2a2a2a" : "none",
+            borderBottom: idx < metrics.length - 1 ? "1px solid var(--border)" : "none",
             alignItems: "center",
           }}>
-            <div style={{ fontSize: "13px", color: "#b0b0b0", fontWeight: "500" }}>
+            <div style={{ fontSize: "13px", color: "var(--muted)", fontWeight: "500" }}>
               {m.label}
             </div>
             <div style={{
               textAlign: "center",
               fontSize: "15px",
               fontWeight: "700",
-              color: "#9ca3af",
+              color: "var(--muted)",
             }}>
               {formatVal(m.before)}
             </div>
             <div style={{ textAlign: "center" }}>
-              <ArrowRight size={14} color="#666" />
+              <ArrowRight size={14} color="#67747b" />
             </div>
             <div style={{
               textAlign: "center",
@@ -404,14 +404,14 @@ function ChannelTrendSection({ feedback }) {
               justifyContent: "center",
               gap: "8px",
             }}>
-              <span style={{ fontSize: "15px", fontWeight: "700", color: "#fff" }}>
+              <span style={{ fontSize: "15px", fontWeight: "700", color: "var(--ink)" }}>
                 {formatVal(m.after)}
               </span>
               {delta != null && (
                 <span style={{
                   fontSize: "11px",
                   fontWeight: "600",
-                  color: isPositive ? "#22c55e" : isNegative ? "#ef4444" : "#888",
+                  color: isPositive ? "var(--pos)" : isNegative ? "var(--neg)" : "var(--outline)",
                   display: "flex",
                   alignItems: "center",
                   gap: "2px",

@@ -1,12 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import {
-  extractDominantColor,
-  generateAccentPalette,
-  getDefaultPalette,
-  getCachedAccent,
-  setCachedAccent,
-  hexToHsl,
-} from '../lib/colorExtractor.js';
+import {createContext, useContext, useState, useEffect, useCallback} from 'react';
+import { getDefaultPalette } from '../lib/colorExtractor.js';
 
 const ThemeContext = createContext({
   palette: getDefaultPalette(),
@@ -25,62 +18,47 @@ function applyPaletteToDOM(palette) {
   root.setProperty('--accent-border', palette.accentBorder);
 }
 
-export function ThemeProvider({ activeClient, brandContext, children }) {
+export function ThemeProvider({ activeClient, _brandContext, children }) {
   const [palette, setPalette] = useState(() => {
-    // Try to restore cached accent for the initial client
-    if (activeClient?.id) {
-      const cached = getCachedAccent(activeClient.id);
-      if (cached) return generateAccentPalette(cached);
-    }
+    // One product-wide accent (Azure Kinetic) — no cached per-client
+    // restore, which was flashing retired palettes on first paint.
     return getDefaultPalette();
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
 
-  const resolveAccent = useCallback(async (client) => {
-    if (!client) {
-      const def = getDefaultPalette();
-      setPalette(def);
-      applyPaletteToDOM(def);
-      return;
-    }
+  // Azure Kinetic (2026-08-20): ONE accent across the whole product.
+  // Per-client accents were extracted from banner images that no longer
+  // display, and their localStorage cache kept resurfacing the retired
+  // 2962FF-era blues in the nav and footer. Extraction code lives on in
+  // colorExtractor.js if per-client theming ever returns.
+  const resolveAccent = useCallback(async () => {
+    const def = getDefaultPalette();
+    setPalette(def);
+    applyPaletteToDOM(def);
+  }, []);
 
-    // 1. Check cache first (instant)
-    const cached = getCachedAccent(client.id);
-    if (cached) {
-      const p = generateAccentPalette(cached);
-      setPalette(p);
-      applyPaletteToDOM(p);
-      return;
-    }
-
-    setIsLoading(true);
-
-    // 2. Try extracting from banner image
-    const imageUrl = client.backgroundImageUrl || client.background_image_url;
-    let hsl = await extractDominantColor(imageUrl);
-
-    // 3. Fallback: brand_context color palette
-    if (!hsl && brandContext?.visual_identity?.color_palette?.primary?.[0]) {
-      hsl = hexToHsl(brandContext.visual_identity.color_palette.primary[0]);
-    }
-
-    // 4. Generate palette (falls back to default if hsl is null)
-    const p = generateAccentPalette(hsl);
-    if (hsl && client.id) setCachedAccent(client.id, hsl);
-
-    setPalette(p);
-    applyPaletteToDOM(p);
-    setIsLoading(false);
-  }, [brandContext]);
+  // One-time cleanup: the retired per-client accent extraction left
+  // cached palettes in localStorage on every browser that ever loaded
+  // the old theme system. Dead weight — purge on boot.
+  useEffect(() => {
+    try {
+      const stale = Object.keys(localStorage).filter(k => k.startsWith('fullview_accent_'));
+      stale.forEach(k => localStorage.removeItem(k));
+    } catch { /* storage unavailable — nothing to clean */ }
+  }, []);
 
   // Re-extract when client changes
   useEffect(() => {
     resolveAccent(activeClient);
+  // Keyed on the fields the accent derives from; the client object churns per merge.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeClient?.id, activeClient?.backgroundImageUrl, resolveAccent]);
 
   // Apply palette on mount
   useEffect(() => {
     applyPaletteToDOM(palette);
+  // Mount-only initial paint; later palette changes are applied by resolveAccent.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

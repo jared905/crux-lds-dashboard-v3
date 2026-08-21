@@ -21,9 +21,9 @@
  * danger red = predicted under).
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import {useEffect, useState} from 'react';
 import { loadDeliverableData } from '../../../services/clientDeliverableService';
-import { scoreConcept, TIERS } from '../../../services/conceptScorerService';
+import {scoreConcept} from '../../../services/conceptScorerService';
 import {
   saveScorecard,
   listScorecards,
@@ -41,9 +41,9 @@ import {
   getConceptEmbedding,
   loadTopicAuthorityContext,
 } from '../../../services/topicAuthorityService';
+import EmbeddingsBackfillPanel from './EmbeddingsBackfillPanel.jsx';
 import Phase25Spike from './Phase25Spike.jsx';
 import SurfacePullPanel from './SurfacePullPanel.jsx';
-import EmbeddingsBackfillPanel from './EmbeddingsBackfillPanel.jsx';
 
 // ──────────────────────────────────────────────────
 // Constants
@@ -60,10 +60,10 @@ const TIER_LABELS = {
 // strong, amber for risky, red for predicted-under). Background is a
 // muted tint so the badges don't overwhelm a dark form.
 const TIER_COLORS = {
-  very_likely_outperform: { fg: '#0A919B', bg: 'rgba(10, 145, 155, 0.12)', border: 'rgba(10, 145, 155, 0.35)' },
-  likely_solid:           { fg: '#cde4d6', bg: 'rgba(205, 228, 214, 0.08)', border: 'rgba(205, 228, 214, 0.22)' },
-  risky:                  { fg: '#E8A82B', bg: 'rgba(232, 168, 43, 0.12)',  border: 'rgba(232, 168, 43, 0.35)' },
-  predicted_under:        { fg: '#ef6b6b', bg: 'rgba(239, 107, 107, 0.12)', border: 'rgba(239, 107, 107, 0.35)' },
+  very_likely_outperform: { fg: 'var(--accent-text)', bg: 'rgba(10, 145, 155, 0.12)', border: 'rgba(10, 145, 155, 0.35)' },
+  likely_solid:           { fg: 'var(--text)', bg: 'rgba(205, 228, 214, 0.08)', border: 'rgba(205, 228, 214, 0.22)' },
+  risky:                  { fg: 'var(--warn)', bg: 'rgba(232, 168, 43, 0.12)',  border: 'rgba(232, 168, 43, 0.35)' },
+  predicted_under:        { fg: 'var(--neg-text)', bg: 'rgba(239, 107, 107, 0.12)', border: 'rgba(239, 107, 107, 0.35)' },
 };
 
 const DAY_OPTIONS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -197,7 +197,10 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
       setSurfaceContext(null);
     }
   };
-  useEffect(() => { refreshSurfaceContext(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [clientId]);
+  // Reload only when the client changes; the refresh helper is recreated
+  // every render and would loop as a dependency.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { refreshSurfaceContext(); }, [clientId]);
 
   // Topic-authority context (top historical + cohort embeddings).
   // Re-fired after EmbeddingsBackfillPanel completes a batch.
@@ -210,7 +213,10 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
       setTopicAuthorityContext(null);
     }
   };
-  useEffect(() => { refreshTopicAuthorityContext(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [clientId]);
+  // Reload only when the client changes; the refresh helper is recreated
+  // every render and would loop as a dependency.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { refreshTopicAuthorityContext(); }, [clientId]);
 
   // Load history on mount + refresh after each save
   const refreshHistory = async () => {
@@ -219,7 +225,10 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
     setHistory(rows);
     setHistoryLoading(false);
   };
-  useEffect(() => { refreshHistory(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [clientId]);
+  // Reload only when the client changes; the refresh helper is recreated
+  // every render and would loop as a dependency.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { refreshHistory(); }, [clientId]);
 
   // ── Score handler ──
   const handleScore = async () => {
@@ -412,7 +421,7 @@ export default function PreflightPanel({ clientId, clientName, pillars = [] }) {
           </div>
         </div>
         {cohortContext?.coverage?.generatedAt && (
-          <div style={{ fontSize: 11, color: '#666', textAlign: 'right' }}>
+          <div style={{ fontSize: 11, color: 'var(--faint)', textAlign: 'right' }}>
             Cohort data:<br />{formatRelative(cohortContext.coverage.generatedAt)}
           </div>
         )}
@@ -629,7 +638,7 @@ function ConceptForm({ form, setForm, optionalsOpen, setOptionalsOpen, pillars, 
 function Field({ label, required, children, full }) {
   return (
     <div style={{ gridColumn: full ? '1 / -1' : undefined }}>
-      <label style={labelStyle}>{label}{required && <span style={{ color: '#ef6b6b' }}> *</span>}</label>
+      <label style={labelStyle}>{label}{required && <span style={{ color: "var(--neg-text)" }}> *</span>}</label>
       {children}
     </div>
   );
@@ -646,7 +655,7 @@ function TargetSurfaceTag({ value, onChange, surfaceContext }) {
   return (
     <div style={targetTagStyle}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 700 }}>
+        <span style={{ fontSize: 10, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 700 }}>
           Target surface
         </span>
         {TARGET_SURFACES.map(s => {
@@ -672,13 +681,13 @@ function TargetSurfaceTag({ value, onChange, surfaceContext }) {
           );
         })}
         {haveData && value && (
-          <span style={{ fontSize: 11, color: '#666', marginLeft: 'auto' }}>
-            scoring against <strong style={{ color: '#cde4d6' }}>{value}</strong>
+          <span style={{ fontSize: 11, color: 'var(--faint)', marginLeft: 'auto' }}>
+            scoring against <strong style={{ color: 'var(--text)' }}>{value}</strong>
           </span>
         )}
         {!haveData && (
-          <span style={{ fontSize: 11, color: '#E8A82B', marginLeft: 'auto' }}>
-            No surface snapshot yet — pull one below to unlock surface scoring.
+          <span style={{ fontSize: 11, color: "var(--warn)", marginLeft: 'auto' }}>
+            No surface snapshot yet — pull one below to enable surface scoring.
           </span>
         )}
       </div>
@@ -700,9 +709,9 @@ function ScorecardDisplay({ scorecard, reading, memoGenerating, memoError, onGen
     <div style={scorecardCardStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, marginBottom: 14 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Scoring result</div>
-          {input?.title && <div style={{ fontSize: 14, fontWeight: 600, color: '#e8e2d0', marginBottom: 6 }}>"{input.title}"</div>}
-          <div style={{ fontSize: 12, color: '#888' }}>{composite_rationale}</div>
+          <div style={{ fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Scoring result</div>
+          {input?.title && <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 6 }}>"{input.title}"</div>}
+          <div style={{ fontSize: 12, color: 'var(--outline)' }}>{composite_rationale}</div>
         </div>
         <TierBadge tier={composite_tier} size="lg" />
       </div>
@@ -721,11 +730,11 @@ function ScorecardDisplay({ scorecard, reading, memoGenerating, memoError, onGen
 
       {suggested_tweaks?.length > 0 && (
         <div style={tweaksCardStyle}>
-          <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Suggested tweaks</div>
+          <div style={{ fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Suggested tweaks</div>
           <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
             {suggested_tweaks.map((t, i) => (
-              <li key={i} style={{ fontSize: 13, color: '#cde4d6', marginBottom: 6, paddingLeft: 16, position: 'relative' }}>
-                <span style={{ position: 'absolute', left: 0, color: '#0A919B', fontWeight: 700 }}>→</span>
+              <li key={i} style={{ fontSize: 13, color: 'var(--text)', marginBottom: 6, paddingLeft: 16, position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 0, color: 'var(--accent-text)', fontWeight: 700 }}>→</span>
                 {t.suggestion}
               </li>
             ))}
@@ -735,12 +744,12 @@ function ScorecardDisplay({ scorecard, reading, memoGenerating, memoError, onGen
 
       {/* Strategic read — LLM narrative below the deterministic panel */}
       <div style={strategicReadCardStyle}>
-        <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Strategic read</div>
+        <div style={{ fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Strategic read</div>
         {strategic_read
-          ? <div style={{ fontSize: 13, color: '#e8e2d0', lineHeight: 1.55 }}>{strategic_read}</div>
+          ? <div style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.55 }}>{strategic_read}</div>
           : reading
-            ? <div style={{ fontSize: 13, color: '#888', fontStyle: 'italic' }}>Writing strategic read…</div>
-            : <div style={{ fontSize: 13, color: '#666', fontStyle: 'italic' }}>No strategic read on this scorecard.</div>}
+            ? <div style={{ fontSize: 13, color: 'var(--outline)', fontStyle: 'italic' }}>Writing strategic read…</div>
+            : <div style={{ fontSize: 13, color: 'var(--faint)', fontStyle: 'italic' }}>No strategic read on this scorecard.</div>}
       </div>
 
       {/* Phase 2.7c — alternative titles. Editorial reframes proposed
@@ -750,25 +759,25 @@ function ScorecardDisplay({ scorecard, reading, memoGenerating, memoError, onGen
           the parallel LLM call is still in flight. */}
       {(alternative_titles?.length > 0 || reading) && (
         <div style={altTitlesCardStyle}>
-          <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+          <div style={{ fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
             Alternative titles
           </div>
           {!alternative_titles?.length && reading
-            ? <div style={{ fontSize: 13, color: '#888', fontStyle: 'italic' }}>Generating alternatives…</div>
+            ? <div style={{ fontSize: 13, color: 'var(--outline)', fontStyle: 'italic' }}>Generating alternatives…</div>
             : (
               <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
                 {alternative_titles.map((alt, i) => (
                   <li key={i} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: i === alternative_titles.length - 1 ? 'none' : '1px solid #1f1f24' }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e2d0', marginBottom: 4 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>
                       "{alt.title}"
                     </div>
                     {alt.addresses && (
-                      <div style={{ fontSize: 10, color: '#0A919B', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, marginBottom: 2 }}>
+                      <div style={{ fontSize: 10, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 700, marginBottom: 2 }}>
                         Addresses: {alt.addresses}
                       </div>
                     )}
                     {alt.rationale && (
-                      <div style={{ fontSize: 12, color: '#888', lineHeight: 1.4 }}>
+                      <div style={{ fontSize: 12, color: 'var(--outline)', lineHeight: 1.4 }}>
                         {alt.rationale}
                       </div>
                     )}
@@ -832,17 +841,17 @@ function ExecutiveMemoSection({ memo, generatedAt, generating, error, saved, onG
     if (!open) {
       return (
         <button type="button" onClick={() => setOpen(true)} style={memoDisclosureBtnStyle}>
-          ▸ Executive justification memo · <span style={{ color: '#666' }}>generate when headed to Director / VP approval</span>
+          ▸ Executive justification memo · <span style={{ color: 'var(--faint)' }}>generate when headed to Director / VP approval</span>
         </button>
       );
     }
     return (
       <div style={memoCollapsedStyle}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
+          <div style={{ fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
             Executive justification memo
           </div>
-          <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: 'var(--outline)', lineHeight: 1.5 }}>
             One-page stakeholder-ready artifact: verdict, hypothesis, why-now, predicted performance,
             risks, success criteria.
           </div>
@@ -863,11 +872,11 @@ function ExecutiveMemoSection({ memo, generatedAt, generating, error, saved, onG
     <div style={memoCardStyle}>
       <div style={memoHeaderStyle}>
         <div>
-          <div style={{ fontSize: 10, color: '#0A919B', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 4 }}>
+          <div style={{ fontSize: 10, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 4 }}>
             Executive justification memo
           </div>
           {generatedAt && (
-            <div style={{ fontSize: 11, color: '#666' }}>
+            <div style={{ fontSize: 11, color: 'var(--faint)' }}>
               Generated {formatRelative(generatedAt)}
             </div>
           )}
@@ -885,7 +894,7 @@ function ExecutiveMemoSection({ memo, generatedAt, generating, error, saved, onG
       </div>
 
       {generating && !memo && (
-        <div style={{ fontSize: 13, color: '#888', fontStyle: 'italic', padding: '20px 0' }}>
+        <div style={{ fontSize: 13, color: 'var(--outline)', fontStyle: 'italic', padding: '20px 0' }}>
           Drafting the executive memo…
         </div>
       )}
@@ -917,7 +926,7 @@ function renderMarkdown(md) {
       nodes.push(
         <ul key={`ul-${nodes.length}`} style={{ margin: '4px 0 10px 0', paddingLeft: 22 }}>
           {listBuf.map((item, i) => (
-            <li key={i} style={{ fontSize: 13, color: '#e8e2d0', lineHeight: 1.5, marginBottom: 4 }}>
+            <li key={i} style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.5, marginBottom: 4 }}>
               {renderInline(item)}
             </li>
           ))}
@@ -930,7 +939,7 @@ function renderMarkdown(md) {
     if (paraBuf.length) {
       const text = paraBuf.join(' ');
       nodes.push(
-        <p key={`p-${nodes.length}`} style={{ fontSize: 13, color: '#e8e2d0', lineHeight: 1.55, margin: '4px 0 10px 0' }}>
+        <p key={`p-${nodes.length}`} style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.55, margin: '4px 0 10px 0' }}>
           {renderInline(text)}
         </p>
       );
@@ -947,7 +956,7 @@ function renderMarkdown(md) {
     if (line.startsWith('## ')) {
       flushList(); flushPara();
       nodes.push(
-        <h3 key={`h-${nodes.length}`} style={{ fontSize: 12, color: '#0A919B', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, margin: '14px 0 6px 0' }}>
+        <h3 key={`h-${nodes.length}`} style={{ fontSize: 12, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, margin: '14px 0 6px 0' }}>
           {line.slice(3)}
         </h3>
       );
@@ -980,13 +989,13 @@ function renderInline(text) {
       const end = text.indexOf('**', bold + 2);
       if (end === -1) { parts.push(text.slice(i)); break; }
       if (bold > i) parts.push(text.slice(i, bold));
-      parts.push(<strong key={key++} style={{ color: '#cde4d6' }}>{text.slice(bold + 2, end)}</strong>);
+      parts.push(<strong key={key++} style={{ color: 'var(--text)' }}>{text.slice(bold + 2, end)}</strong>);
       i = end + 2;
     } else if (italic !== -1) {
       const end = text.indexOf('*', italic + 1);
       if (end === -1) { parts.push(text.slice(i)); break; }
       if (italic > i) parts.push(text.slice(i, italic));
-      parts.push(<em key={key++} style={{ color: '#aaa' }}>{text.slice(italic + 1, end)}</em>);
+      parts.push(<em key={key++} style={{ color: 'var(--muted)' }}>{text.slice(italic + 1, end)}</em>);
       i = end + 1;
     } else {
       parts.push(text.slice(i));
@@ -1087,53 +1096,53 @@ function DimensionCard({ name, dim }) {
   const hasFormatSkew = dim.matched?.some?.(m => m.format_skew_warning);
   return (
     <div style={dimensionCardStyle(dim.tier)}>
-      <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>{name}</div>
+      <div style={{ fontSize: 10, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>{name}</div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
-        {primary && <div style={{ fontSize: 20, fontWeight: 700, color: TIER_COLORS[dim.tier]?.fg || '#fff' }}>{primary}</div>}
-        {subLabel && <div style={{ fontSize: 10, color: '#888' }}>{subLabel}</div>}
+        {primary && <div style={{ fontSize: 20, fontWeight: 700, color: TIER_COLORS[dim.tier]?.fg || 'var(--ink)' }}>{primary}</div>}
+        {subLabel && <div style={{ fontSize: 10, color: 'var(--outline)' }}>{subLabel}</div>}
       </div>
       <TierBadge tier={dim.tier} />
-      {hasFormatSkew && <div style={{ fontSize: 11, color: '#E8A82B', marginTop: 6 }}>⚠ Format-skew warning on matched pattern</div>}
-      {dim.saturation && <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>Saturation: {dim.saturation}</div>}
+      {hasFormatSkew && <div style={{ fontSize: 11, color: "var(--warn)", marginTop: 6 }}>Format-skew warning on matched pattern</div>}
+      {dim.saturation && <div style={{ fontSize: 11, color: 'var(--outline)', marginTop: 6 }}>Saturation: {dim.saturation}</div>}
       {dim.divergence_warning && (
-        <div style={{ fontSize: 11, color: '#E8A82B', marginTop: 6, lineHeight: 1.4 }}>
-          ⚠ {dim.divergence_warning}
+        <div style={{ fontSize: 11, color: "var(--warn)", marginTop: 6, lineHeight: 1.4 }}>
+{dim.divergence_warning}
         </div>
       )}
       {dim.top_matches?.length > 0 && (
-        <div style={{ fontSize: 11, color: '#888', marginTop: 6, lineHeight: 1.4 }}>
-          Top match: <em style={{ color: '#cde4d6' }}>"{dim.top_matches[0].query}"</em>
+        <div style={{ fontSize: 11, color: 'var(--outline)', marginTop: 6, lineHeight: 1.4 }}>
+          Top match: <em style={{ color: 'var(--text)' }}>"{dim.top_matches[0].query}"</em>
         </div>
       )}
       {/* Topic authority — surface the single closest neighbor; the
           full match list is in the persisted scorecard JSON for
           strategist drill-down later. */}
       {dim.top_channel_matches?.length > 0 && dim.dominant_source === 'channel' && (
-        <div style={{ fontSize: 11, color: '#888', marginTop: 6, lineHeight: 1.4 }}>
-          Closest hit on this channel: <em style={{ color: '#cde4d6' }}>"{dim.top_channel_matches[0].title}"</em>
+        <div style={{ fontSize: 11, color: 'var(--outline)', marginTop: 6, lineHeight: 1.4 }}>
+          Closest hit on this channel: <em style={{ color: 'var(--text)' }}>"{dim.top_channel_matches[0].title}"</em>
         </div>
       )}
       {dim.top_cohort_matches?.length > 0 && dim.dominant_source === 'cohort' && (
-        <div style={{ fontSize: 11, color: '#888', marginTop: 6, lineHeight: 1.4 }}>
-          Closest hit in cohort: <em style={{ color: '#cde4d6' }}>"{dim.top_cohort_matches[0].title}"</em>
+        <div style={{ fontSize: 11, color: 'var(--outline)', marginTop: 6, lineHeight: 1.4 }}>
+          Closest hit in cohort: <em style={{ color: 'var(--text)' }}>"{dim.top_cohort_matches[0].title}"</em>
         </div>
       )}
       {dim.format_scope_note && (
-        <div style={{ fontSize: 10, color: '#666', marginTop: 4, fontStyle: 'italic' }}>
+        <div style={{ fontSize: 10, color: 'var(--faint)', marginTop: 4, fontStyle: 'italic' }}>
           {dim.format_scope_note}
         </div>
       )}
       {dim.scope_used && dim.scope_used !== 'combined' && (
-        <div style={{ fontSize: 10, color: '#666', marginTop: 4, fontStyle: 'italic' }}>
+        <div style={{ fontSize: 10, color: 'var(--faint)', marginTop: 4, fontStyle: 'italic' }}>
           Scope: {dim.scope_used === 'long_form' ? 'long-form' : dim.scope_used} cohort
         </div>
       )}
       {dim.rationale && (
-        <div style={{ fontSize: 11, color: '#888', marginTop: 6, lineHeight: 1.4 }}>
+        <div style={{ fontSize: 11, color: 'var(--outline)', marginTop: 6, lineHeight: 1.4 }}>
           {dim.rationale}
         </div>
       )}
-      {dim.note && <div style={{ fontSize: 11, color: '#888', marginTop: 4, fontStyle: 'italic' }}>{dim.note}</div>}
+      {dim.note && <div style={{ fontSize: 11, color: 'var(--outline)', marginTop: 4, fontStyle: 'italic' }}>{dim.note}</div>}
 
       {/* Methodology — collapsed by default. The data the methodology
           block reads is the same data the score above is built from;
@@ -1188,8 +1197,7 @@ function MethodLine({ label, body }) {
 // Reads the same fields the DimensionCard already renders — confidence,
 // n, scope_used, format-skew warnings, dominant_source, etc. — and
 // composes them into prose a strategist can show a stakeholder.
-function buildMethodology(dim, dimensionName) {
-  const name = (dimensionName || '').toLowerCase();
+function buildMethodology(dim, _dimensionName) {
 
   // Title pattern stack
   if (dim.matched !== undefined && dim.drags !== undefined) {
@@ -1257,7 +1265,7 @@ function buildMethodology(dim, dimensionName) {
       confidence: 'Statistical when n ≥ 10 videos in the snapshot. Direct measurement from YouTube Analytics — no inference layer, but reflects only THIS channel, not the cohort.',
       caveats: [
         dim.divergence_warning,
-        !dim.is_dominant && dim.dominant_surface ? `Targeting ${dim.target_surface} but ${dim.dominant_surface} carries ${dim.dominant_share_pct}% — this channel\'s algorithmic home is elsewhere.` : null,
+        !dim.is_dominant && dim.dominant_surface ? `Targeting ${dim.target_surface} but ${dim.dominant_surface} carries ${dim.dominant_share_pct}% — this channel's algorithmic home is elsewhere.` : null,
       ].filter(Boolean),
       source: 'client_video_traffic_sources (latest snapshot) — direct YouTube Analytics insightTrafficSourceType.',
     };
@@ -1360,7 +1368,7 @@ function ScorecardHistory({ history, loading, currentId, onLoad, onArchive }) {
   if (!history.length) return null;
   return (
     <div style={{ marginTop: 18 }}>
-      <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+      <div style={{ fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
         Recent scorecards
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1369,9 +1377,9 @@ function ScorecardHistory({ history, loading, currentId, onLoad, onArchive }) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
                 <TierBadge tier={row.composite_tier} />
-                <div style={{ fontSize: 11, color: '#888' }}>{formatRelative(row.created_at)}</div>
+                <div style={{ fontSize: 11, color: 'var(--outline)' }}>{formatRelative(row.created_at)}</div>
               </div>
-              <div style={{ fontSize: 13, color: '#e8e2d0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 13, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {row.input?.title || '(no title)'}
               </div>
             </div>
@@ -1421,9 +1429,9 @@ function formatRelative(iso) {
 
 function InlineNote({ tone, children }) {
   const colors = {
-    info:  { bg: 'rgba(10, 145, 155, 0.08)', border: 'rgba(10, 145, 155, 0.25)', fg: '#0A919B' },
-    error: { bg: 'rgba(239, 107, 107, 0.10)', border: 'rgba(239, 107, 107, 0.30)', fg: '#ef6b6b' },
-  }[tone] || { bg: '#1a1a1f', border: '#333', fg: '#aaa' };
+    info:  { bg: 'rgba(10, 145, 155, 0.08)', border: 'rgba(10, 145, 155, 0.25)', fg: 'var(--accent-text)' },
+    error: { bg: 'rgba(239, 107, 107, 0.10)', border: 'rgba(239, 107, 107, 0.30)', fg: 'var(--neg-text)' },
+  }[tone] || { bg: 'var(--input-bg)', border: 'var(--outline-variant)', fg: 'var(--muted)' };
   return (
     <div style={{
       padding: '8px 12px',
@@ -1443,33 +1451,32 @@ function InlineNote({ tone, children }) {
 // Styles
 // ──────────────────────────────────────────────────
 
-const shellStyle = (accent) => ({
-  background: '#131316',
+const shellStyle = (_accent) => ({
+  background: 'var(--bg)',
   border: '1px solid #1f1f24',
-  borderLeft: `3px solid ${accent}`,
   borderRadius: 10,
   padding: '18px 20px',
   marginBottom: 14,
 });
 const shellHeaderStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14 };
 const shellTitleStyle = (accent) => ({ fontSize: 13, fontWeight: 700, color: accent, margin: 0, letterSpacing: 0.2, textTransform: 'uppercase' });
-const shellSubtitleStyle = { fontSize: 12, color: '#888', marginTop: 4, lineHeight: 1.5 };
+const shellSubtitleStyle = { fontSize: 12, color: 'var(--outline)', marginTop: 4, lineHeight: 1.5 };
 
 const formCardStyle = {
-  background: '#0e0e11',
+  background: 'var(--card)',
   border: '1px solid #1f1f24',
   borderRadius: 8,
   padding: 14,
   marginBottom: 14,
 };
-const labelStyle = { display: 'block', fontSize: 11, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4, fontWeight: 600 };
+const labelStyle = { display: 'block', fontSize: 11, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4, fontWeight: 600 };
 const inputStyle = {
   width: '100%',
   padding: '8px 10px',
-  background: '#1a1a1f',
-  border: '1px solid #2a2a30',
+  background: 'var(--input-bg)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
-  color: '#e8e2d0',
+  color: 'var(--ink)',
   fontSize: 13,
   fontFamily: 'inherit',
   boxSizing: 'border-box',
@@ -1477,7 +1484,7 @@ const inputStyle = {
 const disclosureBtnStyle = {
   background: 'transparent',
   border: 'none',
-  color: '#888',
+  color: 'var(--outline)',
   fontSize: 12,
   fontWeight: 600,
   padding: 0,
@@ -1487,16 +1494,16 @@ const disclosureBtnStyle = {
 const presetChipStyle = (active) => ({
   padding: '6px 10px',
   borderRadius: 99,
-  background: active ? 'rgba(10, 145, 155, 0.16)' : '#1a1a1f',
-  border: `1px solid ${active ? 'rgba(10, 145, 155, 0.45)' : '#2a2a30'}`,
-  color: active ? '#0A919B' : '#cde4d6',
+  background: active ? 'rgba(10, 145, 155, 0.16)' : 'var(--input-bg)',
+  border: `1px solid ${active ? 'rgba(10, 145, 155, 0.45)' : 'var(--outline-variant)'}`,
+  color: active ? 'var(--accent-text)' : 'var(--text)',
   fontSize: 12,
   cursor: 'pointer',
   fontWeight: 600,
 });
 const scoreBtnStyle = (disabled) => ({
-  background: disabled ? '#1a1a1f' : '#0A919B',
-  color: disabled ? '#666' : '#0a0a0e',
+  background: disabled ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: disabled ? 'var(--faint)' : 'var(--bg)',
   border: 'none',
   padding: '10px 18px',
   borderRadius: 6,
@@ -1507,8 +1514,8 @@ const scoreBtnStyle = (disabled) => ({
 });
 const ghostBtnStyle = {
   background: 'transparent',
-  border: '1px solid #2a2a30',
-  color: '#888',
+  border: '1px solid var(--border)',
+  color: 'var(--outline)',
   padding: '8px 14px',
   borderRadius: 6,
   fontSize: 12,
@@ -1521,15 +1528,15 @@ const ghostBtnSmStyle = {
 };
 
 const scorecardCardStyle = {
-  background: '#0e0e11',
+  background: 'var(--card)',
   border: '1px solid #1f1f24',
   borderRadius: 8,
   padding: 16,
   marginBottom: 14,
 };
 const dimensionCardStyle = (tier) => ({
-  background: '#1a1a1f',
-  border: `1px solid ${TIER_COLORS[tier]?.border || '#2a2a30'}`,
+  background: 'var(--input-bg)',
+  border: `1px solid ${TIER_COLORS[tier]?.border || 'var(--outline-variant)'}`,
   borderRadius: 6,
   padding: 12,
 });
@@ -1541,15 +1548,15 @@ const tweaksCardStyle = {
   marginBottom: 10,
 };
 const strategicReadCardStyle = {
-  background: '#1a1a1f',
-  border: '1px solid #2a2a30',
+  background: 'var(--input-bg)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
   padding: 12,
 };
 const altTitlesCardStyle = {
   background: 'rgba(10, 145, 155, 0.04)',
   border: '1px solid rgba(10, 145, 155, 0.20)',
-  borderLeft: '2px solid #0A919B',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6,
   padding: 12,
   marginTop: 10,
@@ -1557,42 +1564,42 @@ const altTitlesCardStyle = {
 
 const memoDisclosureBtnStyle = {
   background: 'transparent', border: 'none',
-  color: '#888', fontSize: 11, fontWeight: 600,
+  color: 'var(--outline)', fontSize: 11, fontWeight: 600,
   textAlign: 'left', padding: '8px 0',
   cursor: 'pointer', marginTop: 10,
   letterSpacing: 0.3,
 };
 const memoCollapsedStyle = {
   display: 'flex', alignItems: 'center', gap: 14,
-  background: '#1a1a1f',
+  background: 'var(--input-bg)',
   border: '1px dashed #2a2a30',
   borderRadius: 6,
   padding: 14,
   marginTop: 10,
 };
 const memoCardStyle = {
-  background: '#0e0e11',
+  background: 'var(--card)',
   border: '1px solid rgba(10, 145, 155, 0.20)',
-  borderLeft: '2px solid #0A919B',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6,
   padding: 16,
   marginTop: 10,
 };
 const memoHeaderStyle = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12,
-  paddingBottom: 10, marginBottom: 6, borderBottom: '1px solid #2a2a30',
+  paddingBottom: 10, marginBottom: 6, borderBottom: '1px solid var(--border)',
 };
 const memoBodyStyle = { paddingTop: 4 };
 const memoActionBtnStyle = {
-  background: '#1a1a1f', color: '#cde4d6',
-  border: '1px solid #2a2a30', borderRadius: 4,
+  background: 'var(--input-bg)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: '5px 12px', fontSize: 11, fontWeight: 600,
   cursor: 'pointer', letterSpacing: 0.3,
 };
 const memoGenerateBtnStyle = (disabled) => ({
-  background: disabled ? '#1a1a1f' : '#0A919B',
-  color: disabled ? '#666' : '#0a0a0e',
-  border: disabled ? '1px solid #2a2a30' : 'none',
+  background: disabled ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: disabled ? 'var(--faint)' : 'var(--bg)',
+  border: disabled ? '1px solid var(--border)' : 'none',
   padding: '8px 16px', borderRadius: 5,
   fontSize: 12, fontWeight: 700, letterSpacing: 0.3,
   cursor: disabled ? 'not-allowed' : 'pointer',
@@ -1607,7 +1614,7 @@ const methodologyToggleStyle = {
   background: 'transparent',
   border: 'none',
   padding: 0,
-  color: '#666',
+  color: 'var(--faint)',
   fontSize: 10,
   fontWeight: 600,
   letterSpacing: 0.4,
@@ -1620,30 +1627,30 @@ const methodologyBlockStyle = {
   padding: 10,
   background: 'rgba(255, 250, 241, 0.03)',
   border: '1px solid rgba(255, 250, 241, 0.08)',
-  borderLeft: '2px solid rgba(10, 145, 155, 0.40)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 4,
 };
 const methodLabelStyle = {
   fontSize: 10,
-  color: '#0A919B',
+  color: 'var(--accent-text)',
   textTransform: 'uppercase',
   letterSpacing: 0.7,
   fontWeight: 700,
 };
 const methodBodyStyle = {
   fontSize: 11,
-  color: '#aaa',
+  color: 'var(--muted)',
   lineHeight: 1.5,
 };
 const methodCaveatStyle = {
   fontSize: 11,
-  color: '#E8A82B',
+  color: 'var(--warn)',
   lineHeight: 1.5,
   marginTop: 3,
 };
 // Phase 2.5 — target-surface tag bar + chip styles
 const targetTagStyle = {
-  background: '#0e0e11',
+  background: 'var(--card)',
   border: '1px solid #1f1f24',
   borderRadius: 6,
   padding: '8px 12px',
@@ -1652,9 +1659,9 @@ const targetTagStyle = {
 const surfaceChipStyle = (picked, dominant, enabled) => ({
   padding: '5px 12px',
   borderRadius: 99,
-  border: `1px solid ${picked ? 'rgba(10, 145, 155, 0.55)' : dominant ? 'rgba(232, 168, 43, 0.45)' : '#2a2a30'}`,
+  border: `1px solid ${picked ? 'rgba(10, 145, 155, 0.55)' : dominant ? 'rgba(232, 168, 43, 0.45)' : 'var(--outline-variant)'}`,
   background: picked ? 'rgba(10, 145, 155, 0.18)' : 'transparent',
-  color: !enabled ? '#444' : picked ? '#0A919B' : dominant ? '#E8A82B' : '#cde4d6',
+  color: !enabled ? 'var(--outline-variant)' : picked ? 'var(--accent-text)' : dominant ? 'var(--warn)' : 'var(--text)',
   fontSize: 12,
   fontWeight: 600,
   cursor: enabled ? 'pointer' : 'not-allowed',
@@ -1667,7 +1674,7 @@ const historyRowStyle = (active) => ({
   alignItems: 'center',
   gap: 10,
   padding: '8px 12px',
-  background: active ? 'rgba(10, 145, 155, 0.06)' : '#1a1a1f',
-  border: `1px solid ${active ? 'rgba(10, 145, 155, 0.25)' : '#1f1f24'}`,
+  background: active ? 'rgba(10, 145, 155, 0.06)' : 'var(--input-bg)',
+  border: `1px solid ${active ? 'rgba(10, 145, 155, 0.25)' : 'var(--card)'}`,
   borderRadius: 6,
 });

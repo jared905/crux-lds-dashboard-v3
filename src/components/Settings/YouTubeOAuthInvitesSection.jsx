@@ -15,9 +15,9 @@
  *   2. Pending + redeemed invites table with copy-link + revoke actions
  */
 
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import {
-  Send, Link as LinkIcon, Copy, Check, Trash2, ExternalLink,
+  Send, Link as LinkIcon, Copy, Check, Trash2,
   Clock, AlertCircle, RefreshCw,
 } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';
@@ -29,10 +29,10 @@ const STATUS_LABELS = {
   revoked:  'Revoked',
 };
 const STATUS_COLORS = {
-  pending:  '#E8A82B',
-  redeemed: '#3fa66a',
-  expired:  '#888',
-  revoked:  '#888',
+  pending:  'var(--warn)',
+  redeemed: 'var(--pos-text)',
+  expired:  'var(--outline)',
+  revoked:  'var(--outline)',
 };
 
 export default function YouTubeOAuthInvitesSection() {
@@ -81,7 +81,7 @@ export default function YouTubeOAuthInvitesSection() {
         .eq('is_competitor', false)
         .order('name');
       setClients(data || []);
-    } catch (err) { /* non-fatal */ }
+    } catch { /* non-fatal */ }
   };
 
   const handleCreate = async (e) => {
@@ -150,19 +150,19 @@ export default function YouTubeOAuthInvitesSection() {
       await navigator.clipboard.writeText(url);
       setCopiedId(invite.id);
       setTimeout(() => setCopiedId(null), 1800);
-    } catch (err) { /* silent */ }
+    } catch { /* silent */ }
   };
 
   return (
     <div style={cardStyle}>
       <div style={headerStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Send size={20} style={{ color: '#0A919B' }} />
+          <Send size={20} style={{ color: 'var(--accent-text)' }} />
           <div>
-            <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: '#E0E0E0' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: "var(--text)" }}>
               Client OAuth invites
             </h3>
-            <p style={{ fontSize: 12, color: '#9E9E9E', margin: '4px 0 0' }}>
+            <p style={{ fontSize: 12, color: "var(--muted)", margin: '4px 0 0' }}>
               Generate a single-use link for a channel owner who isn't a Full View user. They
               grant access in 60 seconds without creating an account.
             </p>
@@ -243,7 +243,7 @@ export default function YouTubeOAuthInvitesSection() {
         <div style={tableHeaderStyle}>
           {invites.length > 0 ? `${invites.length} invite${invites.length === 1 ? '' : 's'}` : 'No invites yet'}
         </div>
-        {loading && <div style={{ fontSize: 12, color: '#888' }}>Loading…</div>}
+        {loading && <div style={{ fontSize: 12, color: 'var(--outline)' }}>Fetching invites…</div>}
         {!loading && invites.length === 0 && (
           <div style={emptyStateStyle}>
             Create your first invite above. You'll get a link to send the channel owner.
@@ -270,7 +270,7 @@ export default function YouTubeOAuthInvitesSection() {
 // ──────────────────────────────────────────────────
 
 function InviteRow({ invite, copied, onCopy, onRevoke }) {
-  const color = STATUS_COLORS[invite.status] || '#888';
+  const color = STATUS_COLORS[invite.status] || 'var(--outline)';
   return (
     <div style={rowStyle(color)}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -286,7 +286,7 @@ function InviteRow({ invite, copied, onCopy, onRevoke }) {
             </>
           )}
           {invite.status === 'redeemed' && invite.redeemed_youtube_channel_title && (
-            <>{' · '}granted by <strong style={{ color: '#cde4d6' }}>{invite.redeemed_youtube_email || invite.redeemed_youtube_channel_title}</strong></>
+            <>{' · '}granted by <strong style={{ color: 'var(--text)' }}>{invite.redeemed_youtube_email || invite.redeemed_youtube_channel_title}</strong></>
           )}
           {invite.notes && <>{' · '}{invite.notes}</>}
         </div>
@@ -319,9 +319,9 @@ function buildInviteUrl(token) {
 // ──────────────────────────────────────────────────
 
 const cardStyle = {
-  background: '#1E1E1E',
+  background: 'var(--card)',
   borderRadius: 8,
-  border: '1px solid #333',
+  border: '1px solid var(--border)',
   padding: 24,
   marginBottom: 16,
 };
@@ -330,20 +330,20 @@ const headerStyle = {
   marginBottom: 16,
 };
 const refreshBtnStyle = {
-  background: '#252525', color: '#9E9E9E',
-  border: '1px solid #333', borderRadius: 6,
+  background: 'var(--surface-high)', color: 'var(--muted)',
+  border: '1px solid var(--border)', borderRadius: 6,
   padding: 6, cursor: 'pointer',
 };
 const errorBoxStyle = {
   display: 'flex', alignItems: 'center', gap: 8,
   background: 'rgba(239,107,107,0.08)',
   border: '1px solid rgba(239,107,107,0.30)',
-  color: '#ef6b6b',
+  color: 'var(--neg-text)',
   borderRadius: 6, padding: '8px 12px',
   fontSize: 12, marginBottom: 12,
 };
 const formStyle = {
-  background: '#252525', borderRadius: 6, padding: 14, marginBottom: 16,
+  background: 'var(--surface-high)', borderRadius: 6, padding: 14, marginBottom: 16,
   display: 'flex', flexDirection: 'column', gap: 10,
 };
 const formRowStyle = {
@@ -353,19 +353,19 @@ const labelStyle = {
   display: 'flex', flexDirection: 'column', gap: 4,
 };
 const labelTextStyle = {
-  fontSize: 11, color: '#9E9E9E',
+  fontSize: 11, color: 'var(--muted)',
   textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600,
 };
 const inputStyle = {
-  background: '#1a1a1a', color: '#E0E0E0',
-  border: '1px solid #333', borderRadius: 5,
+  background: 'var(--input-bg)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '7px 10px', fontSize: 12,
 };
 const createBtnStyle = (creating) => ({
   alignSelf: 'flex-start',
-  background: creating ? '#252525' : '#0A919B',
-  color: creating ? '#666' : '#0a0a0e',
-  border: creating ? '1px solid #333' : 'none',
+  background: creating ? 'var(--surface-high)' : 'var(--accent-text)',
+  color: creating ? 'var(--faint)' : 'var(--bg)',
+  border: creating ? '1px solid var(--border)' : 'none',
   borderRadius: 5,
   padding: '8px 14px',
   fontSize: 13, fontWeight: 700, letterSpacing: 0.3,
@@ -373,29 +373,29 @@ const createBtnStyle = (creating) => ({
   display: 'inline-flex', alignItems: 'center', gap: 6,
 });
 const tableHeaderStyle = {
-  fontSize: 11, color: '#9E9E9E',
+  fontSize: 11, color: 'var(--muted)',
   textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600,
   marginBottom: 6,
 };
 const emptyStateStyle = {
-  fontSize: 12, color: '#666', padding: 16, textAlign: 'center',
-  background: '#252525', borderRadius: 6,
+  fontSize: 12, color: 'var(--faint)', padding: 16, textAlign: 'center',
+  background: 'var(--surface-high)', borderRadius: 6,
 };
-const rowStyle = (color) => ({
+const rowStyle = (_color) => ({
   display: 'flex', alignItems: 'center', gap: 8,
-  background: '#252525',
-  border: '1px solid #333', borderLeft: `2px solid ${color}`,
+  background: 'var(--surface-high)',
+  border: '1px solid var(--border)', borderLeft: '2px solid var(--border)',
   borderRadius: 5, padding: 10,
 });
 const rowTitleStyle = {
-  fontSize: 13, fontWeight: 600, color: '#E0E0E0',
+  fontSize: 13, fontWeight: 600, color: 'var(--text)',
 };
 const rowMetaStyle = {
-  fontSize: 11, color: '#9E9E9E', marginTop: 2,
+  fontSize: 11, color: 'var(--muted)', marginTop: 2,
 };
 const smallBtnStyle = {
-  background: '#1a1a1a', color: '#9E9E9E',
-  border: '1px solid #333', borderRadius: 4,
+  background: 'var(--input-bg)', color: 'var(--muted)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: '5px 10px', fontSize: 11, cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4,
 };

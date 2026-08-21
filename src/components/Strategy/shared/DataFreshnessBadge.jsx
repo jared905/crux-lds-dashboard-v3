@@ -31,16 +31,16 @@
  * navigating to Settings.
  */
 
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import { loadChannelFreshness, formatRelativeAge } from '../../../services/dataFreshnessService.js';
 
 const TIER_COLORS = {
-  fresh:          '#3fa66a',
-  stale:          '#E8A82B',
-  very_stale:     '#ef6b6b',
-  error:          '#ef6b6b',
-  missing:        '#666',
-  not_applicable: '#a78bfa',  // pre-launch
+  fresh:          'var(--pos-text)',
+  stale:          'var(--warn)',
+  very_stale:     'var(--neg-text)',
+  error:          'var(--neg-text)',
+  missing:        'var(--faint)',
+  not_applicable: 'var(--tert)',  // pre-launch (tertiary peach)
 };
 const TIER_LABELS = {
   fresh:          'Fresh',
@@ -76,7 +76,7 @@ export default function DataFreshnessBadge({ clientId, compact = false }) {
   if (loading) {
     return (
       <div style={containerStyle(compact)}>
-        <span style={dotStyle('#444')} />
+        <span style={dotStyle('var(--outline-variant)')} />
         <span style={chipTextStyle}>checking freshness…</span>
       </div>
     );
@@ -108,11 +108,11 @@ export default function DataFreshnessBadge({ clientId, compact = false }) {
         <Chip value={freshness.oauth_refresh}  skipIfMissing />
         {freshness.data_api_pull?.silentFailure && (
           <span style={errorBadgeStyle} title="Cron attempted recently but did not write a fresh data_api timestamp — data is likely older than the chip suggests.">
-            ⚠ silent sync failure
-          </span>
+silent sync failure
+</span>
         )}
         {freshness.anyError && !freshness.data_api_pull?.silentFailure && (
-          <span style={errorBadgeStyle}>⚠ error</span>
+          <span style={errorBadgeStyle}>error</span>
         )}
       </button>
 
@@ -137,11 +137,11 @@ function PrelaunchFreshness({ launchAt, compact }) {
   }
   return (
     <div style={containerStyle(compact)}>
-      <span style={dotStyle('#a78bfa')} />
-      <span style={{ fontSize: 11, color: '#a78bfa', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <span style={dotStyle('var(--accent-text)')} />
+      <span style={{ fontSize: 11, color: 'var(--accent-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
         Pre-launch
       </span>
-      <span style={{ fontSize: 11, color: '#888' }}>· {detail}</span>
+      <span style={{ fontSize: 11, color: 'var(--outline)' }}>· {detail}</span>
     </div>
   );
 }
@@ -153,7 +153,7 @@ function PrelaunchFreshness({ launchAt, compact }) {
 function Chip({ value, skipIfMissing }) {
   if (!value) return null;
   if (skipIfMissing && value.tier === 'missing') return null;
-  const color = TIER_COLORS[value.tier] || '#666';
+  const color = TIER_COLORS[value.tier] || 'var(--faint)';
   const label = value.label || 'Source';
   const display = value.tier === 'error'
     ? 'error'
@@ -165,7 +165,7 @@ function Chip({ value, skipIfMissing }) {
       style={chipStyle(color)}
       title={value.errorMessage ? `${label}: ${value.errorMessage}` : undefined}
     >
-      <span style={{ color: '#888' }}>{label}:</span>{' '}
+      <span style={{ color: 'var(--outline)' }}>{label}:</span>{' '}
       <strong style={{ color }}>{display}</strong>
     </span>
   );
@@ -226,10 +226,10 @@ function ExpandedDetails({ freshness }) {
       {/* Silent-failure callout pinned to the top so it isn't buried. */}
       {freshness.data_api_pull?.silentFailure && (
         <div style={silentFailureNoteStyle}>
-          <strong style={{ color: '#ef6b6b', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>
+          <strong style={{ color: "var(--neg-text)", textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 10 }}>
             Silent sync failure detected
           </strong>
-          <div style={{ marginTop: 4, color: '#cde4d6', lineHeight: 1.5 }}>
+          <div style={{ marginTop: 4, color: 'var(--text)', lineHeight: 1.5 }}>
             The sync cron ran more recently ({formatRelativeAge(freshness.data_api_pull.lastAttemptAt)})
             than the last <em>successful</em> Data API pull
             ({freshness.data_api_pull.at ? formatRelativeAge(freshness.data_api_pull.at) : 'never'}).
@@ -244,28 +244,28 @@ function ExpandedDetails({ freshness }) {
         <div key={r.key} style={rowStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={dotStyle(TIER_COLORS[r.value.tier])} />
-            <strong style={{ color: '#cde4d6', fontSize: 11 }}>{r.label}</strong>
+            <strong style={{ color: 'var(--text)', fontSize: 11 }}>{r.label}</strong>
             <span style={{ color: TIER_COLORS[r.value.tier], fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               · {TIER_LABELS[r.value.tier]}
             </span>
           </div>
-          <div style={{ fontSize: 11, color: '#888', marginLeft: 14, marginTop: 2 }}>
+          <div style={{ fontSize: 11, color: 'var(--outline)', marginLeft: 14, marginTop: 2 }}>
             {r.value.at
               ? <>Last successful: {new Date(r.value.at).toLocaleString()} ({formatRelativeAge(r.value.at)}){r.value.isFallback ? ' (legacy last_synced_at — per-source column not populated yet)' : ''}</>
               : <>Not yet pulled.</>}
           </div>
           {r.value.errorMessage && (
-            <div style={{ fontSize: 11, color: '#ef6b6b', marginLeft: 14, marginTop: 2, lineHeight: 1.4 }}>
+            <div style={{ fontSize: 11, color: "var(--neg-text)", marginLeft: 14, marginTop: 2, lineHeight: 1.4 }}>
               Error: {r.value.errorMessage}
             </div>
           )}
           {r.errorHint && (
-            <div style={{ fontSize: 11, color: '#E8A82B', marginLeft: 14, marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>
+            <div style={{ fontSize: 11, color: "var(--warn)", marginLeft: 14, marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>
               → {r.errorHint}
             </div>
           )}
           {r.missingNote && r.value.tier === 'missing' && (
-            <div style={{ fontSize: 11, color: '#888', marginLeft: 14, marginTop: 2, lineHeight: 1.4 }}>
+            <div style={{ fontSize: 11, color: 'var(--outline)', marginLeft: 14, marginTop: 2, lineHeight: 1.4 }}>
               {r.missingNote}
             </div>
           )}
@@ -282,27 +282,27 @@ function ExpandedDetails({ freshness }) {
 const containerStyle = (compact) => ({
   display: 'inline-flex', alignItems: 'center', gap: compact ? 6 : 10,
   background: 'rgba(255,255,255,0.02)',
-  border: '1px solid #2a2a30',
+  border: '1px solid var(--border)',
   borderRadius: 6, padding: compact ? '4px 10px' : '6px 12px',
   cursor: 'pointer', fontSize: 11,
-  color: '#cde4d6', fontFamily: 'inherit',
+  color: 'var(--text)', fontFamily: 'inherit',
 });
 
 const dotStyle = (color) => ({
   display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
   background: color,
-  boxShadow: `0 0 4px ${color}55`,
+  boxShadow: `0 0 4px color-mix(in srgb, ${color} 33%, transparent)`,
   flexShrink: 0,
 });
 
-const chipTextStyle = { fontSize: 11, color: '#888' };
-const chipStyle = (color) => ({
-  fontSize: 11, color: '#aaa',
+const chipTextStyle = { fontSize: 11, color: 'var(--outline)' };
+const chipStyle = (_color) => ({
+  fontSize: 11, color: 'var(--muted)',
 });
 
 const errorBadgeStyle = {
   background: 'rgba(239,107,107,0.10)',
-  color: '#ef6b6b',
+  color: 'var(--neg-text)',
   border: '1px solid rgba(239,107,107,0.30)',
   borderRadius: 4, padding: '1px 6px',
   fontSize: 10, fontWeight: 700,
@@ -313,8 +313,8 @@ const expandedStyle = {
   position: 'absolute',
   zIndex: 10,
   marginTop: 6,
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
   padding: 12,
   minWidth: 360,
@@ -330,19 +330,9 @@ const rowStyle = {
 const silentFailureNoteStyle = {
   background: 'rgba(239,107,107,0.08)',
   border: '1px solid rgba(239,107,107,0.30)',
-  borderLeft: '2px solid #ef6b6b',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 5,
   padding: 10,
   fontSize: 11,
 };
 
-const honestyNoteStyle = {
-  marginTop: 4,
-  background: 'rgba(255,255,255,0.02)',
-  border: '1px dashed #2a2a30',
-  borderRadius: 5,
-  padding: 10,
-  fontSize: 11,
-  color: '#888',
-  lineHeight: 1.55,
-};

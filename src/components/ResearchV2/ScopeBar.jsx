@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, X, ChevronDown, Settings2, Search, Briefcase } from 'lucide-react';
+import React, {useEffect, useMemo, useState} from 'react';
 import { supabase } from '../../services/supabaseClient';
+import { Briefcase, ChevronDown, Plus, Search, Settings2, X } from 'lucide-react';
 import TaxonomyManager from './TaxonomyManager.jsx';
 
 /**
@@ -144,7 +144,7 @@ export default function ScopeBar({ scope, onChange }) {
 
   return (
     <div style={{
-      background: '#131316',
+      background: 'var(--bg)',
       border: '1px solid #1f1f24',
       borderRadius: '10px',
       padding: '12px 16px',
@@ -203,8 +203,8 @@ export default function ScopeBar({ scope, onChange }) {
               All categories
             </PickerItem>
             <PickerItem onClick={setUncategorized} active={isUncategorized}>
-              <span style={{ color: '#fbbf24' }}>Uncategorized</span>
-              <span style={{ color: '#666', fontSize: 11, marginLeft: 6 }}>— channels with no category</span>
+              <span style={{ color: "var(--warn-text)" }}>Uncategorized</span>
+              <span style={{ color: 'var(--faint)', fontSize: 11, marginLeft: 6 }}>— channels with no category</span>
             </PickerItem>
             {parentCategories.length === 0 && (
               <PickerItem disabled>No categories yet</PickerItem>
@@ -220,7 +220,7 @@ export default function ScopeBar({ scope, onChange }) {
             ))}
             <div style={{ borderTop: '1px solid #232328', marginTop: 4, paddingTop: 4 }}>
               <PickerItem onClick={() => { setShowParentMenu(false); setShowTaxonomyManager(true); }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#60a5fa' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--accent-text)' }}>
                   <Settings2 size={11} /> Manage categories…
                 </span>
               </PickerItem>
@@ -285,7 +285,7 @@ export default function ScopeBar({ scope, onChange }) {
                 .map(facet => (
                   <React.Fragment key={facet}>
                     <div style={{
-                      fontSize: 9, fontWeight: 700, color: '#555',
+                      fontSize: 9, fontWeight: 700, color: 'var(--faint)',
                       textTransform: 'uppercase', letterSpacing: '0.6px',
                       padding: '6px 10px 2px',
                     }}>{facet}</div>
@@ -298,7 +298,7 @@ export default function ScopeBar({ scope, onChange }) {
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <span>{t.value}</span>
                           {t.description && (
-                            <span style={{ fontSize: 10, color: '#666', marginTop: 1 }}>{t.description}</span>
+                            <span style={{ fontSize: 10, color: 'var(--faint)', marginTop: 1 }}>{t.description}</span>
                           )}
                         </div>
                       </PickerItem>
@@ -314,22 +314,22 @@ export default function ScopeBar({ scope, onChange }) {
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           padding: '4px 10px', borderRadius: 6,
-          background: '#18181c', border: '1px solid #232328',
+          background: 'var(--card)', border: '1px solid #232328',
         }}>
-          <Search size={11} style={{ color: '#666' }} />
+          <Search size={11} style={{ color: 'var(--faint)' }} />
           <input
             value={scope.search || ''}
             onChange={e => onChange({ ...scope, search: e.target.value })}
             placeholder="Search channels…"
             style={{
               background: 'transparent', border: 'none', outline: 'none',
-              color: '#d4d4d8', fontSize: 12, width: 160, fontFamily: 'inherit',
+              color: 'var(--text)', fontSize: 12, width: 160, fontFamily: 'inherit',
             }}
           />
           {scope.search && (
             <button
               onClick={() => onChange({ ...scope, search: '' })}
-              style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'inline-flex' }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--faint)', cursor: 'pointer', padding: 0, display: 'inline-flex' }}
               title="Clear search"
             >
               <X size={11} />
@@ -341,7 +341,7 @@ export default function ScopeBar({ scope, onChange }) {
           value={scope.windowDays}
           onChange={e => onChange({ ...scope, windowDays: Number(e.target.value) })}
           style={{
-            background: '#18181c', border: '1px solid #232328', color: '#d4d4d8',
+            background: 'var(--card)', border: '1px solid #232328', color: 'var(--text)',
             padding: '5px 10px', borderRadius: '6px', fontSize: '12px',
             cursor: 'pointer', fontFamily: 'inherit',
           }}
@@ -371,7 +371,7 @@ function Label({ children, className }) {
       fontSize: '10px',
       fontWeight: 700,
       letterSpacing: '1.2px',
-      color: '#555',
+      color: 'var(--faint)',
       textTransform: 'uppercase',
       marginRight: '2px',
       marginLeft: className === 'left-margin' ? '8px' : 0,
@@ -389,10 +389,10 @@ function Select({ children, active, onClick }) {
         gap: '6px',
         padding: '5px 11px',
         borderRadius: '6px',
-        background: active ? '#1e3a8a' : '#18181c',
-        border: `1px solid ${active ? '#2563eb' : '#232328'}`,
+        background: active ? 'var(--blue-deep)' : 'var(--card)',
+        border: `1px solid ${active ? 'var(--blue)' : 'var(--surface-high)'}`,
         fontSize: '12px',
-        color: active ? '#fff' : '#d4d4d8',
+        color: active ? 'var(--ink)' : 'var(--text)',
         cursor: 'pointer',
         fontFamily: 'inherit',
         fontWeight: 600,
@@ -413,10 +413,10 @@ function Pill({ children, active, dashed, onClick, onRemove }) {
         gap: '6px',
         padding: '5px 11px',
         borderRadius: '6px',
-        background: active ? '#1e3a8a' : '#1c1c20',
-        border: dashed ? '1px dashed #2a2a30' : `1px solid ${active ? '#2563eb' : '#2a2a30'}`,
+        background: active ? 'var(--blue-deep)' : 'var(--card)',
+        border: dashed ? '1px dashed #2a2a30' : `1px solid ${active ? 'var(--blue)' : 'var(--outline-variant)'}`,
         fontSize: '12px',
-        color: active ? '#fff' : '#c0c0c0',
+        color: active ? 'var(--ink)' : 'var(--muted)',
         cursor: onClick ? 'pointer' : 'default',
         fontFamily: 'inherit',
       }}
@@ -426,7 +426,7 @@ function Pill({ children, active, dashed, onClick, onRemove }) {
         <button
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
           style={{
-            background: 'transparent', border: 'none', color: '#93b8e0',
+            background: 'transparent', border: 'none', color: 'var(--blue-pale)',
             cursor: 'pointer', padding: 0, marginLeft: '2px', display: 'inline-flex',
           }}
         >
@@ -443,7 +443,7 @@ function PickerMenu({ children, onClose }) {
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
       <div style={{
         position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 91,
-        background: '#1c1c20', border: '1px solid #2a2a30', borderRadius: '8px',
+        background: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px',
         padding: '4px', minWidth: '240px', maxHeight: '320px', overflowY: 'auto',
         boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
       }}>
@@ -466,23 +466,23 @@ function PickerItem({ children, onClick, disabled, active, checked }) {
         width: '100%',
         textAlign: 'left',
         padding: '7px 10px',
-        background: active ? '#252528' : 'transparent',
+        background: active ? 'var(--surface-high)' : 'transparent',
         border: 'none',
-        color: disabled ? '#555' : '#d4d4d8',
+        color: disabled ? 'var(--faint)' : 'var(--text)',
         fontSize: '12px',
         fontWeight: active ? 600 : 400,
         borderRadius: '5px',
         cursor: disabled ? 'default' : 'pointer',
         fontFamily: 'inherit',
       }}
-      onMouseEnter={e => !disabled && (e.currentTarget.style.background = '#252528')}
-      onMouseLeave={e => !disabled && (e.currentTarget.style.background = active ? '#252528' : 'transparent')}
+      onMouseEnter={e => !disabled && (e.currentTarget.style.background = 'var(--surface-high)')}
+      onMouseLeave={e => !disabled && (e.currentTarget.style.background = active ? 'var(--surface-high)' : 'transparent')}
     >
       {hasCheckbox && (
         <span style={{
           width: 13, height: 13, borderRadius: 3,
-          border: `1px solid ${checked ? '#3b82f6' : '#3a3a40'}`,
-          background: checked ? '#3b82f6' : 'transparent',
+          border: `1px solid ${checked ? 'var(--blue)' : 'var(--outline-variant)'}`,
+          background: checked ? 'var(--blue)' : 'transparent',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',

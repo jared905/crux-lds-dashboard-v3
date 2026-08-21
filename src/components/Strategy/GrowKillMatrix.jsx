@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import {useMemo} from "react";
 import { Rocket, Wrench, Coffee, XCircle } from "lucide-react";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
@@ -62,8 +62,8 @@ export default function GrowKillMatrix({ patterns }) {
 
   const QuadrantCard = ({ title, icon: Icon, color, items, description, priority }) => (
     <div style={{
-      background: "#252525",
-      border: `2px solid ${color}40`,
+      background: "var(--input-bg)",
+      border: `2px solid color-mix(in srgb, ${color} 25%, transparent)`,
       borderRadius: "8px",
       padding: "20px",
       display: "flex",
@@ -73,13 +73,13 @@ export default function GrowKillMatrix({ patterns }) {
       <div style={{ marginBottom: "16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
           <Icon size={20} style={{ color }} />
-          <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>{title}</div>
+          <div style={{ fontSize: "16px", fontWeight: "700", color: "var(--ink)" }}>{title}</div>
         </div>
-        <div style={{ fontSize: "11px", color: "#888", marginBottom: "6px" }}>{description}</div>
+        <div style={{ fontSize: "11px", color: "var(--outline)", marginBottom: "6px" }}>{description}</div>
         <div style={{
           fontSize: "10px",
           color,
-          background: `${color}20`,
+          background: `color-mix(in srgb, ${color} 13%, transparent)`,
           padding: "4px 8px",
           borderRadius: "4px",
           display: "inline-block",
@@ -95,7 +95,7 @@ export default function GrowKillMatrix({ patterns }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "#555",
+          color: "var(--faint)",
           fontSize: "12px",
           fontStyle: "italic"
         }}>
@@ -107,25 +107,25 @@ export default function GrowKillMatrix({ patterns }) {
             <div
               key={idx}
               style={{
-                background: "#1E1E1E",
-                border: "1px solid #333",
+                background: "var(--card)",
+                border: "1px solid var(--border)",
                 borderRadius: "6px",
                 padding: "12px"
               }}
             >
-              <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", marginBottom: "6px" }}>
+              <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--ink)", marginBottom: "6px" }}>
                 {item.finding}
               </div>
-              <div style={{ fontSize: "11px", color: "#b0b0b0", marginBottom: "6px" }}>
+              <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "6px" }}>
                 {item.recommendation}
               </div>
               {item.action && (
                 <div style={{
                   fontSize: "11px",
-                  color: "#fff",
-                  background: "#0a0a0a",
-                  border: `1px solid ${color}40`,
-                  borderLeft: `2px solid ${color}`,
+                  color: "var(--ink)",
+                  background: "var(--bg)",
+                  border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
+                  borderLeft: '2px solid var(--border)',
                   padding: "8px 10px",
                   borderRadius: "4px",
                   marginBottom: "6px",
@@ -136,25 +136,25 @@ export default function GrowKillMatrix({ patterns }) {
               )}
               {item.videoExamples && item.videoExamples.length > 0 && (
                 <div style={{ marginTop: "8px", marginBottom: "8px" }}>
-                  <div style={{ fontSize: "9px", color: "#888", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600" }}>
+                  <div style={{ fontSize: "9px", color: "var(--outline)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600" }}>
                     Example Videos:
                   </div>
                   {item.videoExamples.map((video, vIdx) => (
                     <div
                       key={vIdx}
                       style={{
-                        background: "#0d0d0d",
-                        border: "1px solid #222",
+                        background: "var(--bg)",
+                        border: "1px solid var(--border)",
                         borderRadius: "4px",
                         padding: "6px 8px",
                         marginBottom: "4px",
                         fontSize: "10px"
                       }}
                     >
-                      <div style={{ color: "#e0e0e0", marginBottom: "3px", fontSize: "10px" }}>
+                      <div style={{ color: "var(--text)", marginBottom: "3px", fontSize: "10px" }}>
                         {video.title}
                       </div>
-                      <div style={{ display: "flex", gap: "10px", fontSize: "9px", color: "#777" }}>
+                      <div style={{ display: "flex", gap: "10px", fontSize: "9px", color: "var(--outline)" }}>
                         <span>{fmtInt(video.views)} views</span>
                         <span>{fmtPct(video.ctr)} CTR</span>
                         <span>{fmtPct(video.retention)} retention</span>
@@ -163,8 +163,8 @@ export default function GrowKillMatrix({ patterns }) {
                   ))}
                 </div>
               )}
-              <div style={{ display: "flex", gap: "12px", fontSize: "10px", color: "#666" }}>
-                <div>Impact: <span style={{ color: "#10b981", fontWeight: "600" }}>+{fmtInt(item.opportunity)}</span></div>
+              <div style={{ display: "flex", gap: "12px", fontSize: "10px", color: "var(--faint)" }}>
+                <div>Impact: <span style={{ color: "var(--pos)", fontWeight: "600" }}>+{fmtInt(item.opportunity)}</span></div>
                 <div>Effort: <span style={{ color: color, fontWeight: "600" }}>{item.effort}</span></div>
               </div>
             </div>
@@ -176,17 +176,17 @@ export default function GrowKillMatrix({ patterns }) {
 
   return (
     <div style={{
-      background: "#1E1E1E",
-      border: "1px solid #333",
-      borderRadius: "8px",
+      background: "var(--card)",
+      border: "1px solid var(--border)",
+      borderRadius: "24px",
       padding: "24px",
       marginTop: "24px"
     }}>
       <div style={{ marginBottom: "24px" }}>
-        <div style={{ fontSize: "20px", fontWeight: "700", color: "#fff", marginBottom: "8px" }}>
+        <div style={{ fontSize: "20px", fontWeight: "700", color: "var(--ink)", marginBottom: "8px" }}>
           Strategic Prioritization Matrix
         </div>
-        <div style={{ fontSize: "14px", color: "#9E9E9E" }}>
+        <div style={{ fontSize: "14px", color: "var(--muted)" }}>
           What to grow, optimize, maintain, and stop
         </div>
       </div>
@@ -200,7 +200,7 @@ export default function GrowKillMatrix({ patterns }) {
         <QuadrantCard
           title="GROW"
           icon={Rocket}
-          color="#10b981"
+          color="#CDF200"
           items={quadrants.grow}
           description="Quick wins - High impact, low effort"
           priority="Priority 1: Execute Now"
@@ -218,7 +218,7 @@ export default function GrowKillMatrix({ patterns }) {
         <QuadrantCard
           title="MAINTAIN"
           icon={Coffee}
-          color="#60a5fa"
+          color="#4cd6ff"
           items={quadrants.maintain}
           description="Small tweaks - Low impact, low effort"
           priority="Priority 3: Nice to Have"
@@ -227,7 +227,7 @@ export default function GrowKillMatrix({ patterns }) {
         <QuadrantCard
           title="STOP"
           icon={XCircle}
-          color="#ef4444"
+          color="#FF5540"
           items={quadrants.stop}
           description="Topics to eliminate - Stop making this content"
           priority="Priority 4: Deprioritize"
@@ -238,17 +238,17 @@ export default function GrowKillMatrix({ patterns }) {
       <div style={{
         marginTop: "24px",
         padding: "16px",
-        background: "#252525",
+        background: "var(--input-bg)",
         borderRadius: "8px",
         fontSize: "12px",
-        color: "#888"
+        color: "var(--outline)"
       }}>
-        <div style={{ fontWeight: "600", color: "#fff", marginBottom: "8px" }}>How to Use This Matrix:</div>
+        <div style={{ fontWeight: "600", color: "var(--ink)", marginBottom: "8px" }}>How to Use This Matrix:</div>
         <ul style={{ margin: 0, paddingLeft: "20px", lineHeight: "1.8" }}>
-          <li><strong style={{ color: "#10b981" }}>GROW:</strong> Execute these immediately. Low effort, high return = best ROI</li>
-          <li><strong style={{ color: "#f59e0b" }}>OPTIMIZE:</strong> Plan resources for these. High impact justifies the effort</li>
-          <li><strong style={{ color: "#60a5fa" }}>MAINTAIN:</strong> Do if you have spare capacity. Small wins add up</li>
-          <li><strong style={{ color: "#ef4444" }}>STOP:</strong> Stop making this content. Remove from production calendar</li>
+          <li><strong style={{ color: "var(--pos)" }}>GROW:</strong> Execute these immediately. Low effort, high return = best ROI</li>
+          <li><strong style={{ color: "var(--warn)" }}>OPTIMIZE:</strong> Plan resources for these. High impact justifies the effort</li>
+          <li><strong style={{ color: "var(--accent-text)" }}>MAINTAIN:</strong> Do if you have spare capacity. Small wins add up</li>
+          <li><strong style={{ color: "var(--neg)" }}>STOP:</strong> Stop making this content. Remove from production calendar</li>
         </ul>
       </div>
     </div>

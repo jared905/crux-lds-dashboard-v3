@@ -24,13 +24,13 @@
  *     filled)" so the strategist knows what landed.
  */
 
-import React, { useRef, useState } from 'react';
-import { Sparkles, ChevronDown, ChevronRight, Check, X as XIcon, Loader, FileText, Globe, Upload } from 'lucide-react';
+import {useRef, useState} from 'react';
 import {
   extractSpineFromWebsite,
   extractSpineFromPdf,
   applySpineExtraction,
 } from '../../services/spineAutoFillService.js';
+import { Check, ChevronDown, ChevronRight, FileText, Globe, Loader, Sparkles, Upload, XIcon } from 'lucide-react';
 
 const MAX_PDF_BYTES = 4_500_000;
 
@@ -141,18 +141,18 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
   // ── Collapsed state ──
   if (!open) {
     const tone = completeness >= 70 ? 'good' : completeness >= 30 ? 'warn' : 'empty';
-    const accent = tone === 'good' ? '#34d399' : tone === 'warn' ? '#fbbf24' : '#a78bfa';
+    const accent = tone === 'good' ? 'var(--pos-text)' : tone === 'warn' ? 'var(--warn-text)' : 'var(--accent-text)';
     return (
       <button onClick={() => setOpen(true)} style={collapsedBtnStyle(accent)}>
         <Sparkles size={14} style={{ color: accent }} />
         <span style={{ flex: 1, textAlign: 'left' }}>
           <strong style={{ color: accent }}>Auto-fill Strategy Spine from website</strong>
           {' · '}
-          <span style={{ color: '#888' }}>
+          <span style={{ color: 'var(--outline)' }}>
             Spine {completeness}% complete — populate positioning, audience, voice from the client's site in under a minute
           </span>
         </span>
-        <ChevronDown size={14} style={{ color: '#666' }} />
+        <ChevronDown size={14} style={{ color: 'var(--faint)' }} />
       </button>
     );
   }
@@ -162,18 +162,18 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
     <div style={panelStyle}>
       <div style={panelHeaderStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Sparkles size={14} style={{ color: '#a78bfa' }} />
-          <strong style={{ color: '#cde4d6', fontSize: 13 }}>Auto-fill Strategy Spine</strong>
-          <span style={{ fontSize: 11, color: '#666' }}>· {completeness}% complete</span>
+          <Sparkles size={14} style={{ color: 'var(--accent-text)' }} />
+          <strong style={{ color: 'var(--text)', fontSize: 13 }}>Auto-fill Strategy Spine</strong>
+          <span style={{ fontSize: 11, color: 'var(--faint)' }}>· {completeness}% complete</span>
         </div>
         <button onClick={() => setOpen(false)} style={iconBtnStyle} title="Collapse">
           <ChevronRight size={14} />
         </button>
       </div>
 
-      <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5, marginBottom: 10 }}>
+      <div style={{ fontSize: 12, color: 'var(--outline)', lineHeight: 1.5, marginBottom: 10 }}>
         Extract positioning, audience, editorial POV, voice/tone, competitive posture, and guardrails from
-        the client's website (multi-page crawl via sitemap.xml) <strong style={{ color: '#cde4d6' }}>or</strong> an
+        the client's website (multi-page crawl via sitemap.xml) <strong style={{ color: 'var(--text)' }}>or</strong> an
         uploaded pitch deck / brand book PDF. Strategist reviews the draft below before applying.
       </div>
 
@@ -225,18 +225,18 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
           {!pdfFile ? (
             <button type="button" onClick={() => fileInputRef.current?.click()} disabled={extracting} style={uploadBtnStyle}>
               <Upload size={14} /> Choose PDF
-              <span style={{ fontSize: 11, color: '#666', marginLeft: 8 }}>
+              <span style={{ fontSize: 11, color: 'var(--faint)', marginLeft: 8 }}>
                 · max {(MAX_PDF_BYTES / 1_000_000).toFixed(1)}MB · text-based PDFs only (scanned images need OCR)
               </span>
             </button>
           ) : (
             <div style={pdfChosenStyle}>
-              <FileText size={14} style={{ color: '#a78bfa' }} />
+              <FileText size={14} style={{ color: 'var(--accent-text)' }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, color: '#cde4d6', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {pdfFile.name}
                 </div>
-                <div style={{ fontSize: 11, color: '#666' }}>
+                <div style={{ fontSize: 11, color: 'var(--faint)' }}>
                   {(pdfFile.size / 1_000_000).toFixed(2)}MB
                 </div>
               </div>
@@ -259,7 +259,7 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
       {draft && (
         <div style={draftBoxStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <strong style={{ fontSize: 12, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+            <strong style={{ fontSize: 12, color: "var(--warn-text)", textTransform: 'uppercase', letterSpacing: 0.6 }}>
               Extracted draft · review before applying
             </strong>
             <button onClick={handleDiscardDraft} style={ghostBtnStyle}>
@@ -278,16 +278,16 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
               const existing = spine?.[f.key]?.trim?.();
               return (
                 <div key={f.key} style={fieldRowStyle(has)}>
-                  <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 3 }}>
+                  <div style={{ fontSize: 10, color: 'var(--outline)', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 3 }}>
                     {f.label}
                     {existing && (
-                      <span style={{ marginLeft: 8, color: '#fbbf24' }}>· current value will be {overwriteMode ? 'OVERWRITTEN' : 'KEPT'}</span>
+                      <span style={{ marginLeft: 8, color: "var(--warn-text)" }}>· current value will be {overwriteMode ? 'OVERWRITTEN' : 'KEPT'}</span>
                     )}
                     {!has && (
-                      <span style={{ marginLeft: 8, color: '#666' }}>· extraction empty</span>
+                      <span style={{ marginLeft: 8, color: 'var(--faint)' }}>· extraction empty</span>
                     )}
                   </div>
-                  <div style={{ fontSize: 12, color: has ? '#cde4d6' : '#444', lineHeight: 1.45, fontStyle: has ? 'normal' : 'italic' }}>
+                  <div style={{ fontSize: 12, color: has ? 'var(--text)' : 'var(--outline-variant)', lineHeight: 1.45, fontStyle: has ? 'normal' : 'italic' }}>
                     {has ? v : '(empty)'}
                   </div>
                 </div>
@@ -302,7 +302,7 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
 
           {/* Apply controls */}
           <div style={applyBarStyle}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#cde4d6', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text)', cursor: 'pointer' }}>
               <input
                 type="checkbox"
                 checked={overwriteMode}
@@ -310,7 +310,7 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
                 disabled={applying}
               />
               Overwrite existing values
-              <span style={{ fontSize: 11, color: '#666' }}>
+              <span style={{ fontSize: 11, color: 'var(--faint)' }}>
                 ({overwriteMode ? 'every field gets the extracted value' : 'safe — only empty fields get written'})
               </span>
             </label>
@@ -325,16 +325,16 @@ export default function SpineAutoFillSection({ clientId, clientName, spine, busi
       {applyResult && (
         <div style={resultBoxStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-            <Check size={14} style={{ color: '#34d399' }} />
-            <strong style={{ color: '#34d399', fontSize: 12 }}>Applied to Spine</strong>
+            <Check size={14} style={{ color: "var(--pos-text)" }} />
+            <strong style={{ color: "var(--pos-text)", fontSize: 12 }}>Applied to Spine</strong>
           </div>
-          <div style={{ fontSize: 11, color: '#aaa', lineHeight: 1.5 }}>
-            <strong style={{ color: '#cde4d6' }}>{applyResult.written.length}</strong> field{applyResult.written.length === 1 ? '' : 's'} written:
+          <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+            <strong style={{ color: 'var(--text)' }}>{applyResult.written.length}</strong> field{applyResult.written.length === 1 ? '' : 's'} written:
             {' '}{applyResult.written.join(', ') || '(none)'}
             {applyResult.skipped.length > 0 && (
               <>
                 <br />
-                <strong style={{ color: '#888' }}>{applyResult.skipped.length}</strong> skipped:
+                <strong style={{ color: 'var(--outline)' }}>{applyResult.skipped.length}</strong> skipped:
                 {' '}{applyResult.skipped.join(', ')}
               </>
             )}
@@ -366,15 +366,15 @@ function CrawlSummary({ fetched }) {
         {isPdf ? (
           <span>
             Extracted from PDF{' '}
-            <strong style={{ color: '#cde4d6' }}>{fetched.filename}</strong>
-            {' '}· <strong style={{ color: '#cde4d6' }}>{fetched.pageCount} page{fetched.pageCount === 1 ? '' : 's'}</strong>
+            <strong style={{ color: 'var(--text)' }}>{fetched.filename}</strong>
+            {' '}· <strong style={{ color: 'var(--text)' }}>{fetched.pageCount} page{fetched.pageCount === 1 ? '' : 's'}</strong>
             {fetched.sizeChars ? <> · {fetched.sizeChars.toLocaleString()} chars</> : null}
-            {fetched.truncated ? <span style={{ color: '#fbbf24' }}> · truncated</span> : null}
+            {fetched.truncated ? <span style={{ color: "var(--warn-text)" }}> · truncated</span> : null}
           </span>
         ) : (
           <span>
-            Extracted from <strong style={{ color: '#cde4d6' }}>{fetched.pagesFetched} page{fetched.pagesFetched === 1 ? '' : 's'}</strong>
-            {' '}· discovery: <strong style={{ color: '#cde4d6' }}>{sourceLabel}</strong>
+            Extracted from <strong style={{ color: 'var(--text)' }}>{fetched.pagesFetched} page{fetched.pagesFetched === 1 ? '' : 's'}</strong>
+            {' '}· discovery: <strong style={{ color: 'var(--text)' }}>{sourceLabel}</strong>
             {fetched.sizeChars ? <> · {fetched.sizeChars.toLocaleString()} chars</> : null}
           </span>
         )}
@@ -383,11 +383,11 @@ function CrawlSummary({ fetched }) {
         <ul style={crawlPageListStyle}>
           {pages.map((p, i) => (
             <li key={i} style={crawlPageItemStyle}>
-              <span style={{ color: '#a78bfa', fontWeight: 600 }}>{p.title || '(untitled)'}</span>
+              <span style={{ color: 'var(--accent-text)', fontWeight: 600 }}>{p.title || '(untitled)'}</span>
               {' · '}
-              <span style={{ color: '#666' }}>{p.url}</span>
+              <span style={{ color: 'var(--faint)' }}>{p.url}</span>
               {' · '}
-              <span style={{ color: '#666' }}>{p.sizeChars?.toLocaleString?.() || '?'} chars</span>
+              <span style={{ color: 'var(--faint)' }}>{p.sizeChars?.toLocaleString?.() || '?'} chars</span>
             </li>
           ))}
         </ul>
@@ -402,36 +402,36 @@ function CrawlSummary({ fetched }) {
 
 const crawlSummaryStyle = {
   marginBottom: 10,
-  background: 'rgba(167,139,250,0.04)',
-  border: '1px solid rgba(167,139,250,0.20)',
+  background: 'rgba(76,214,255,0.04)',
+  border: '1px solid rgba(76,214,255,0.20)',
   borderRadius: 5,
   padding: '6px 10px',
 };
 const crawlSummaryHeaderStyle = {
   background: 'transparent', border: 'none', padding: 0,
-  color: '#888', fontSize: 11, cursor: 'pointer',
+  color: 'var(--outline)', fontSize: 11, cursor: 'pointer',
   display: 'flex', alignItems: 'center', gap: 5, width: '100%', textAlign: 'left',
 };
 const crawlPageListStyle = {
   margin: '6px 0 0', paddingLeft: 16, listStyle: 'disc',
-  fontSize: 11, color: '#888',
+  fontSize: 11, color: 'var(--outline)',
 };
 const crawlPageItemStyle = { lineHeight: 1.5, marginBottom: 2 };
 
 const collapsedBtnStyle = (accent) => ({
   display: 'flex', alignItems: 'center', gap: 10,
   width: '100%',
-  background: 'rgba(167, 139, 250, 0.04)',
-  border: `1px dashed ${accent}66`,
+  background: 'rgba(76, 214, 255, 0.04)',
+  border: `1px dashed color-mix(in srgb, ${accent} 40%, transparent)`,
   borderRadius: 8, padding: '10px 14px',
-  fontSize: 12, color: '#cde4d6', cursor: 'pointer',
+  fontSize: 12, color: 'var(--text)', cursor: 'pointer',
   marginBottom: 16,
 });
 
 const panelStyle = {
-  background: 'rgba(167, 139, 250, 0.04)',
-  border: '1px solid rgba(167, 139, 250, 0.30)',
-  borderLeft: '2px solid #a78bfa',
+  background: 'rgba(76, 214, 255, 0.04)',
+  border: '1px solid rgba(76, 214, 255, 0.30)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 8, padding: 16,
   marginBottom: 16,
 };
@@ -440,20 +440,20 @@ const panelHeaderStyle = {
 };
 const inputStyle = {
   flex: 1,
-  background: '#0e0e11', color: '#cde4d6',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'var(--card)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '7px 10px', fontSize: 12,
 };
 
 const modeTabsStyle = {
   display: 'flex', gap: 4, marginBottom: 10,
-  borderBottom: '1px solid #2a2a30',
+  borderBottom: '1px solid var(--border)',
 };
 const modeTabStyle = (active) => ({
   background: 'transparent',
-  color: active ? '#a78bfa' : '#888',
+  color: active ? 'var(--accent-text)' : 'var(--outline)',
   border: 'none',
-  borderBottom: active ? '2px solid #a78bfa' : '2px solid transparent',
+  borderBottom: active ? '2px solid #4cd6ff' : '2px solid transparent',
   padding: '6px 12px',
   fontSize: 12, fontWeight: 600,
   cursor: 'pointer',
@@ -462,9 +462,9 @@ const modeTabStyle = (active) => ({
 });
 
 const uploadBtnStyle = {
-  background: '#0e0e11',
-  color: '#cde4d6',
-  border: '1px dashed rgba(167,139,250,0.4)',
+  background: 'var(--card)',
+  color: 'var(--text)',
+  border: '1px dashed rgba(76,214,255,0.4)',
   borderRadius: 6,
   padding: '14px 16px',
   fontSize: 12, fontWeight: 600,
@@ -474,62 +474,62 @@ const uploadBtnStyle = {
 };
 
 const pdfChosenStyle = {
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 5,
   padding: '8px 10px',
   display: 'flex', alignItems: 'center', gap: 8,
 };
 const primaryBtnStyle = {
-  background: '#a78bfa', color: '#0a0a0e',
+  background: 'var(--accent-text)', color: 'var(--bg)',
   border: 'none', borderRadius: 5,
   padding: '7px 14px', fontSize: 12, fontWeight: 700,
   cursor: 'pointer', letterSpacing: 0.3,
   display: 'inline-flex', alignItems: 'center', gap: 6,
 };
 const ghostBtnStyle = {
-  background: 'transparent', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'transparent', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '4px 10px', fontSize: 11, cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4,
 };
 const iconBtnStyle = {
-  background: 'transparent', color: '#666',
+  background: 'transparent', color: 'var(--faint)',
   border: 'none', cursor: 'pointer', padding: 4,
 };
 const errorBoxStyle = {
   background: 'rgba(239,107,107,0.08)',
   border: '1px solid rgba(239,107,107,0.30)',
-  color: '#ef6b6b',
+  color: 'var(--neg-text)',
   borderRadius: 5, padding: '8px 12px',
   fontSize: 12, marginBottom: 10,
 };
 const draftBoxStyle = {
-  background: '#0e0e11',
+  background: 'var(--card)',
   border: '1px solid rgba(251,191,36,0.30)',
   borderRadius: 6, padding: 12,
 };
 const fieldRowStyle = (has) => ({
-  background: '#1a1a1f',
-  border: `1px solid ${has ? '#2a2a30' : '#222'}`,
+  background: 'var(--input-bg)',
+  border: `1px solid ${has ? 'var(--outline-variant)' : 'var(--surface-high)'}`,
   borderRadius: 4, padding: 10,
 });
 const notesBoxStyle = {
-  background: '#1a1a1f',
+  background: 'var(--input-bg)',
   border: '1px dashed #2a2a30',
   borderRadius: 4, padding: 8,
-  fontSize: 11, color: '#888', lineHeight: 1.4,
+  fontSize: 11, color: 'var(--outline)', lineHeight: 1.4,
 };
 const applyBarStyle = {
   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  borderTop: '1px solid #2a2a30',
+  borderTop: '1px solid var(--border)',
   paddingTop: 10, marginTop: 4,
   gap: 12, flexWrap: 'wrap',
 };
 const applyBtnStyle = (applying) => ({
-  background: applying ? '#1a1a1f' : '#34d399',
-  color: applying ? '#666' : '#0a0a0e',
-  border: applying ? '1px solid #2a2a30' : 'none',
+  background: applying ? 'var(--input-bg)' : 'var(--pos-text)',
+  color: applying ? 'var(--faint)' : 'var(--bg)',
+  border: applying ? '1px solid var(--border)' : 'none',
   padding: '7px 14px', borderRadius: 5,
   fontSize: 12, fontWeight: 700, letterSpacing: 0.3,
   cursor: applying ? 'not-allowed' : 'pointer',

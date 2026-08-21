@@ -5,7 +5,7 @@
  * Claude generates narrative insights and recommendations.
  * Exportable to PDF.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import {useState, useEffect, useCallback} from 'react';
 import {
   TrendingUp, TrendingDown, Minus, ArrowRight, Loader, Sparkles,
   Download, BarChart3, Eye, Users, Clock, Video, Play, Target,
@@ -25,10 +25,10 @@ const fmtPct = (n) => {
 };
 
 function DeltaBadge({ delta }) {
-  if (!delta || delta.pct === null) return <span style={{ fontSize: '11px', color: '#555' }}>No prior data</span>;
+  if (!delta || delta.pct === null) return <span style={{ fontSize: '11px', color: 'var(--outline)' }}>No prior data</span>;
   const isUp = delta.pct > 0;
   const isFlat = Math.abs(delta.pct) < 1;
-  const color = isFlat ? '#888' : isUp ? '#10b981' : '#ef4444';
+  const color = isFlat ? 'var(--muted)' : isUp ? 'var(--pos-text)' : 'var(--neg)';
   const Icon = isFlat ? Minus : isUp ? TrendingUp : TrendingDown;
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '600', color }}>
@@ -38,18 +38,28 @@ function DeltaBadge({ delta }) {
 }
 
 function MetricCard({ label, value, prevValue, delta, color, icon: Icon }) {
+  // Identity comes from the tinted icon tile (site tile recipe, scaled down);
+  // the number stays the hero — big, white, condensed.
   return (
-    <div style={{ background: '#1E1E1E', borderRadius: '10px', border: '1px solid #333', padding: '18px 20px', borderTop: `3px solid ${color}` }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-        <span style={{ fontSize: '12px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600' }}>{label}</span>
-        {Icon && <Icon size={16} style={{ color: '#555' }} />}
+    <div style={{ background: "var(--card)", borderRadius: "24px", border: '1px solid var(--border)', padding: '18px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+        {Icon && (
+          <div style={{
+            width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+            background: `color-mix(in srgb, ${color} 14%, transparent)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Icon size={15} style={{ color }} />
+          </div>
+        )}
+        <span style={{ fontFamily: 'var(--font-label)', fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600' }}>{label}</span>
       </div>
-      <div style={{ fontSize: '28px', fontWeight: '800', color, fontFamily: "'Barlow Condensed', sans-serif", marginBottom: '6px', lineHeight: 1 }}>
+      <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--ink)', fontFamily: "'Barlow Condensed', sans-serif", marginBottom: '6px', lineHeight: 1 }}>
         {value}
       </div>
       <DeltaBadge delta={delta} />
       {prevValue !== undefined && prevValue !== null && (
-        <div style={{ fontSize: '11px', color: '#555', marginTop: '4px' }}>prev: {prevValue}</div>
+        <div style={{ fontSize: '11px', color: 'var(--outline)', marginTop: '4px' }}>prev: {prevValue}</div>
       )}
     </div>
   );
@@ -89,7 +99,7 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
     } finally {
       setLoading(false);
     }
-  }, [activeClient?.id, activeClient?.isNetwork, selectedChannel, selectedYear, selectedQuarter]);
+  }, [activeClient?.id, activeClient?.isNetwork, activeClient?.networkMembers, selectedChannel, selectedYear, selectedQuarter]);
 
   useEffect(() => { loadReport(); }, [loadReport]);
 
@@ -108,7 +118,9 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
     }
   }, [reportData]);
 
-  // PDF Export — light-themed, matching main PDF report style
+  // PDF Export — dark editorial document in the ship-audit style: near-black
+  // ground, condensed uppercase display, eyebrow section labels, stat band,
+  // delta chips. Rendered offscreen in-app so the brand fonts apply.
   const handleExport = useCallback(async () => {
     if (!reportData) return;
     setExporting(true);
@@ -122,327 +134,312 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
       const clientName = activeClient?.name || ch?.name || 'Channel';
       const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
       const f = (n) => { if (!n || isNaN(n)) return '0'; if (n >= 1e6) return (n/1e6).toFixed(1)+'M'; if (n >= 1e3) return (n/1e3).toFixed(n >= 1e4 ? 0 : 1)+'K'; return Math.round(n).toLocaleString(); };
-      const dp = (delta) => {
-        if (!delta || delta.pct === null) return '';
-        const color = delta.pct >= 0 ? '#16a34a' : '#dc2626';
-        const arrow = delta.pct >= 0 ? '↑' : '↓';
-        return `<span style="font-size: 12px; color: ${color}; font-weight: 600;">${arrow} ${Math.abs(delta.pct).toFixed(1)}%</span>`;
+
+      // Document palette — the app's tokens, inlined for the offscreen render
+      const INK = '#f4f8fa', TEXT = '#dde3e7', MUTED = '#a9b8be', FAINT = '#67747b';
+      const CARD = '#11181b', LINE = 'rgba(255,255,255,0.08)';
+      const BLUE = '#00D1FF', BLUE_SOFT = '#4cd6ff', LIME = '#CDF200', RED = '#ff8a7a', AMBER = '#f5b040';
+      const EYEBROW = "font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;";
+      const DISPLAY = "font-family: 'Barlow Condensed', 'Inter', sans-serif; text-transform: uppercase;";
+
+      const chip = (delta) => {
+        if (!delta || delta.pct === null) return '<span style="font-size: 11px; color: ' + FAINT + ';">no prior data</span>';
+        const up = delta.pct >= 0;
+        const col = up ? LIME : RED;
+        const bg = up ? 'rgba(205,242,0,0.10)' : 'rgba(255,85,64,0.12)';
+        const bd = up ? 'rgba(205,242,0,0.35)' : 'rgba(255,85,64,0.35)';
+        return '<span style="display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: ' + col + '; background: ' + bg + '; border: 1px solid ' + bd + ';">' + (up ? '&#8599;' : '&#8600;') + ' ' + Math.abs(delta.pct).toFixed(1) + '%</span>';
       };
-      const metricBox = (label, value, delta, color, prev) =>
-        `<div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid ${color};">
-          <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">${label}</div>
-          <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1.25;">${value}</div>
-          <div style="margin-top: 8px;">${dp(delta)}</div>
-          ${prev ? `<div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">prev: ${prev}</div>` : ''}
+
+      const sectionHead = (eyebrow, title, sub) => `
+        <div style="margin: 44px 0 18px;">
+          <div style="${EYEBROW} color: ${BLUE}; margin-bottom: 8px;">${eyebrow}</div>
+          <div style="font-size: 25px; font-weight: 700; color: ${INK}; letter-spacing: -0.01em;">${title}</div>
+          ${sub ? `<div style="font-size: 14px; color: ${MUTED}; margin-top: 6px; line-height: 1.6;">${sub}</div>` : ''}
         </div>`;
 
-      // Build top videos HTML with thumbnails and type badges
+      const kpiCard = (label, value, delta, prev) => `
+        <div style="background: ${CARD}; border: 1px solid ${LINE}; border-radius: 16px; padding: 18px 20px;">
+          <div style="${EYEBROW} color: ${MUTED}; margin-bottom: 12px;">${label}</div>
+          <div style="${DISPLAY} font-size: 36px; font-weight: 700; color: ${INK}; line-height: 1; margin-bottom: 12px;">${value}</div>
+          <div>${chip(delta)}</div>
+          ${prev ? `<div style="font-size: 11px; color: ${FAINT}; margin-top: 10px;">prev: ${prev}</div>` : ''}
+        </div>`;
+
+      const statCell = (label, value, caption, i) => `
+        <div style="padding: 22px 20px; ${i > 0 ? 'border-left: 1px solid ' + LINE + ';' : ''}">
+          <div style="${EYEBROW} color: ${MUTED}; margin-bottom: 12px;">${label}</div>
+          <div style="${DISPLAY} font-size: 40px; font-weight: 700; color: ${INK}; line-height: 1;">${value}</div>
+          ${caption ? `<div style="font-size: 12px; color: ${FAINT}; margin-top: 10px;">${caption}</div>` : ''}
+        </div>`;
+
+      const typeBadge = (isShort) => isShort
+        ? '<span style="font-size: 10px; padding: 2px 9px; border-radius: 999px; font-weight: 700; letter-spacing: 0.06em; background: rgba(205,242,0,0.10); color: ' + LIME + '; border: 1px solid rgba(205,242,0,0.3);">SHORT</span>'
+        : '<span style="font-size: 10px; padding: 2px 9px; border-radius: 999px; font-weight: 700; letter-spacing: 0.06em; background: rgba(0,209,255,0.10); color: ' + BLUE_SOFT + '; border: 1px solid rgba(0,209,255,0.3);">LONG</span>';
+
       const topVideosHtml = m.topByViews.slice(0, 10).map((v, i) => {
         const ytId = v.youtube_video_id || '';
         const thumb = ytId ? `https://i.ytimg.com/vi/${ytId}/mqdefault.jpg` : '';
         const isShort = v.video_type === 'short' || (v.duration_seconds && v.duration_seconds <= 60);
-        const typeBadge = isShort
-          ? '<span style="font-size: 10px; padding: 2px 8px; background: #fff7ed; color: #f97316; border-radius: 4px; font-weight: 700; border: 1px solid #fed7aa;">SHORT</span>'
-          : '<span style="font-size: 10px; padding: 2px 8px; background: #eff6ff; color: #0ea5e9; border-radius: 4px; font-weight: 700; border: 1px solid #bae6fd;">LONG</span>';
-        const date = v.published_at ? new Date(v.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
-        const ctr = v.ctr ? (v.ctr * 100).toFixed(1) + '%' : '—';
-        const ret = v.avg_view_percentage ? (v.avg_view_percentage > 1 ? v.avg_view_percentage.toFixed(1) : (v.avg_view_percentage * 100).toFixed(1)) + '%' : '—';
-        return `<tr style="border-bottom: 1px solid #e2e8f0;">
-          <td style="padding: 10px 14px;">
+        const date = v.published_at ? new Date(v.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '&mdash;';
+        const ctr = v.ctr ? (v.ctr * 100).toFixed(1) + '%' : '&mdash;';
+        const ret = v.avg_view_percentage ? (v.avg_view_percentage > 1 ? v.avg_view_percentage.toFixed(1) : (v.avg_view_percentage * 100).toFixed(1)) + '%' : '&mdash;';
+        return `<tr style="border-bottom: 1px solid ${LINE};">
+          <td style="padding: 12px 16px;">
             <div style="display: flex; align-items: center; gap: 12px;">
-              ${thumb ? `<img src="${thumb}" style="width: 64px; height: 36px; border-radius: 4px; object-fit: cover; flex-shrink: 0;" crossorigin="anonymous" />` : ''}
+              <span style="${DISPLAY} font-size: 15px; font-weight: 700; color: ${i < 3 ? INK : FAINT}; min-width: 22px;">${i + 1}</span>
+              ${thumb ? `<img src="${thumb}" style="width: 64px; height: 36px; border-radius: 6px; object-fit: cover; flex-shrink: 0;" crossorigin="anonymous" />` : ''}
               <div style="overflow: hidden;">
-                <div style="font-size: 13px; color: #1e293b; font-weight: ${i < 3 ? '600' : '400'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px;">${esc(v.title)}</div>
-                <div style="margin-top: 3px;">${typeBadge}</div>
+                <div style="font-size: 13px; color: ${i < 3 ? INK : TEXT}; font-weight: ${i < 3 ? '600' : '400'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px;">${esc(v.title)}</div>
+                <div style="margin-top: 4px;">${typeBadge(isShort)}</div>
               </div>
             </div>
           </td>
-          <td style="padding: 10px 14px; font-size: 14px; color: #1e293b; text-align: right; font-weight: 600;">${f(v.view_count)}</td>
-          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${ctr}</td>
-          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${ret}</td>
-          <td style="padding: 10px 14px; font-size: 13px; color: #64748b; text-align: right;">${date}</td>
+          <td style="padding: 12px 16px; font-size: 14px; color: ${INK}; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums;">${f(v.view_count)}</td>
+          <td style="padding: 12px 16px; font-size: 13px; color: ${MUTED}; text-align: right; font-variant-numeric: tabular-nums;">${ctr}</td>
+          <td style="padding: 12px 16px; font-size: 13px; color: ${MUTED}; text-align: right; font-variant-numeric: tabular-nums;">${ret}</td>
+          <td style="padding: 12px 16px; font-size: 13px; color: ${FAINT}; text-align: right; white-space: nowrap;">${date}</td>
         </tr>`;
       }).join('');
 
-      // Build narrative HTML if available
-      const narrativeHtml = narrative ? `
-        <div data-pdf-section style="margin-top: 32px;">
-          <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; letter-spacing: 0.5px;">AI ANALYSIS</h2>
-          ${narrative.executive_summary ? `<div style="background: #f8fafc; padding: 20px; border-radius: 12px; border-left: 5px solid #8b5cf6; margin-bottom: 20px; font-size: 15px; color: #334155; line-height: 1.7;">${esc(narrative.executive_summary)}</div>` : ''}
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+      const th = (label, align) => `<th style="${EYEBROW} color: ${FAINT}; text-align: ${align}; padding: 12px 16px; font-weight: 600;">${label}</th>`;
+
+      // Audience section (only when the data exists)
+      let audienceHtml = '';
+      if (reportData.audienceData) {
+        const ad = reportData.audienceData;
+        const genderEntries = Object.entries(ad.gender || {}).sort(([,a],[,b]) => b - a);
+        const totalGender = genderEntries.reduce((s, [,v]) => s + v, 0);
+        const ageOrder = ['age13-17','age18-24','age25-34','age35-44','age45-54','age55-64','age65-'];
+        const ageLabels = {'age13-17':'13-17','age18-24':'18-24','age25-34':'25-34','age35-44':'35-44','age45-54':'45-54','age55-64':'55-64','age65-':'65+'};
+        const ageEntries = ageOrder.filter(k => ad.age?.[k] != null).map(k => [ageLabels[k], ad.age[k]]);
+        const maxAge = Math.max(...ageEntries.map(([,v]) => v), 1);
+        const trafficLabels = {YT_SEARCH:'YouTube Search',SUBSCRIBER:'Subscribers',SUGGESTED:'Suggested',BROWSE:'Browse',EXT_URL:'External',SHORTS:'Shorts Feed',NOTIFICATION:'Notifications',YT_CHANNEL:'Channel Page',END_SCREEN:'End Screens',NO_LINK_OTHER:'Direct',PLAYLIST:'Playlists'};
+        const totalTV = Object.values(ad.trafficSources || {}).reduce((s,t) => s + t.views, 0);
+        const trafficEntries = Object.entries(ad.trafficSources || {}).sort(([,a],[,b]) => b.views - a.views).filter(([,v]) => totalTV > 0 && (v.views/totalTV)*100 >= 1);
+        const maxTPct = trafficEntries.length > 0 && totalTV > 0 ? (trafficEntries[0][1].views / totalTV) * 100 : 1;
+        const topCountries = Object.entries(ad.country || {}).sort(([,a],[,b]) => b.views - a.views).slice(0, 8);
+        const totalCV = Object.values(ad.country || {}).reduce((s,c) => s + c.views, 0);
+        const topStates = Object.entries(ad.province || {}).sort(([,a],[,b]) => b.views - a.views).slice(0, 8);
+        const totalPV = Object.values(ad.province || {}).reduce((s,p) => s + p.views, 0);
+
+        const bar = (pctW, color) => `<div style="height: 8px; background: rgba(255,255,255,0.07); border-radius: 4px; overflow: hidden;"><div style="width: ${Math.max(pctW, 2)}%; height: 100%; background: ${color}; border-radius: 4px;"></div></div>`;
+        const geoChip = (label, first) => `<span style="font-size: 10px; padding: 3px 9px; border-radius: 999px; background: ${first ? 'rgba(0,209,255,0.12)' : 'rgba(255,255,255,0.05)'}; border: 1px solid ${first ? 'rgba(0,209,255,0.35)' : LINE}; color: ${first ? BLUE_SOFT : MUTED}; font-weight: ${first ? '700' : '600'};">${label}</span>`;
+
+        audienceHtml = `
+          ${sectionHead('AUDIENCE', 'Who watched this quarter', 'Demographics and discovery paths, averaged across the synced channels.')}
+          <div data-pdf-section style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div style="background: ${CARD}; border: 1px solid ${LINE}; border-radius: 16px; padding: 22px;">
+              <div style="${EYEBROW} color: ${MUTED}; margin-bottom: 14px;">Gender</div>
+              ${genderEntries.map(([g, pct]) => {
+                const label = g === 'user_specified' ? 'Other' : g.charAt(0).toUpperCase() + g.slice(1);
+                const color = g === 'male' ? BLUE : g === 'female' ? '#ffab9d' : MUTED;
+                const barW = totalGender > 0 ? (pct / totalGender) * 100 : 0;
+                return `<div style="margin-bottom: 8px;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                    <span style="font-size: 13px; color: ${TEXT}; font-weight: 500;">${label}</span>
+                    <span style="font-size: 13px; color: ${INK}; font-weight: 700; font-variant-numeric: tabular-nums;">${pct.toFixed(1)}%</span>
+                  </div>
+                  ${bar(barW, color)}
+                </div>`;
+              }).join('')}
+              <div style="${EYEBROW} color: ${MUTED}; margin: 18px 0 12px;">Age</div>
+              ${ageEntries.map(([label, val]) => `<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <div style="min-width: 44px; width: 44px; flex-shrink: 0; font-size: 12px; color: ${MUTED}; text-align: right; font-weight: 600;">${label}</div>
+                <div style="flex: 1;">${bar((val / maxAge) * 100, AMBER)}</div>
+                <div style="min-width: 44px; width: 44px; flex-shrink: 0; font-size: 12px; color: ${INK}; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums;">${val.toFixed(1)}%</div>
+              </div>`).join('')}
+            </div>
+            <div style="background: ${CARD}; border: 1px solid ${LINE}; border-radius: 16px; padding: 22px;">
+              <div style="${EYEBROW} color: ${MUTED}; margin-bottom: 14px;">Traffic sources</div>
+              ${trafficEntries.map(([key, val]) => {
+                const label = trafficLabels[key] || key.replace(/_/g, ' ');
+                const pct = totalTV > 0 ? (val.views / totalTV) * 100 : 0;
+                return `<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 7px;">
+                  <span style="width: 108px; flex-shrink: 0; font-size: 12px; color: ${TEXT}; font-weight: 500;">${label}</span>
+                  <div style="flex: 1;">${bar((pct / maxTPct) * 100, BLUE)}</div>
+                  <span style="width: 44px; flex-shrink: 0; font-size: 12px; color: ${INK}; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums;">${pct.toFixed(1)}%</span>
+                </div>`;
+              }).join('')}
+              ${topCountries.length > 0 ? `
+                <div style="${EYEBROW} color: ${MUTED}; margin: 18px 0 10px;">Top countries</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                  ${topCountries.map(([code, val], i) => geoChip(`${code} ${totalCV > 0 ? ((val.views/totalCV)*100).toFixed(1) : 0}%`, i === 0)).join('')}
+                </div>` : ''}
+              ${topStates.length > 0 ? `
+                <div style="${EYEBROW} color: ${MUTED}; margin: 14px 0 10px;">Top US states</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                  ${topStates.map(([code, val], i) => geoChip(`${code.replace('US-','')} ${totalPV > 0 ? ((val.views/totalPV)*100).toFixed(1) : 0}%`, i === 0)).join('')}
+                </div>` : ''}
+            </div>
+          </div>`;
+      }
+
+      // AI analysis section (only when a narrative was generated)
+      let narrativeHtml = '';
+      if (narrative) {
+        const listCard = (text, color, bg, bd) => `<div style="padding: 12px 16px; background: ${bg}; border: 1px solid ${bd}; border-radius: 10px; margin-bottom: 8px; font-size: 13px; color: ${TEXT}; line-height: 1.65;">${esc(text)}</div>`;
+        const recs = (narrative.q2_recommendations || []).map((r, i) => {
+          if (typeof r === 'string') return listCard(r, BLUE_SOFT, 'rgba(0,209,255,0.05)', 'rgba(0,209,255,0.2)');
+          const rank = r.rank || (i + 1);
+          const title = r.title || r.claim || 'Recommendation';
+          const parts = [];
+          if (r.claim && r.claim !== title) parts.push(`<div style="font-size: 13px; color: ${TEXT}; line-height: 1.6; margin-bottom: 8px;">${esc(r.claim)}</div>`);
+          if (r.evidence) parts.push(`<div style="font-size: 13px; color: ${MUTED}; line-height: 1.65; margin-bottom: 8px;"><strong style="color: ${BLUE_SOFT};">Evidence:</strong> ${esc(r.evidence)}</div>`);
+          if (r.option_a || r.option_b) {
+            parts.push(`<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0;">
+              ${r.option_a ? `<div style="background: rgba(255,255,255,0.04); padding: 10px 12px; border-radius: 8px; font-size: 12px; color: ${TEXT}; line-height: 1.55;"><strong style="color: ${INK};">Option A:</strong> ${esc(r.option_a)}</div>` : ''}
+              ${r.option_b ? `<div style="background: rgba(255,255,255,0.04); padding: 10px 12px; border-radius: 8px; font-size: 12px; color: ${TEXT}; line-height: 1.55;"><strong style="color: ${INK};">Option B:</strong> ${esc(r.option_b)}</div>` : ''}
+            </div>`);
+          }
+          if (r.recommendation) parts.push(`<div style="font-size: 13px; color: ${TEXT}; line-height: 1.65; margin-bottom: 8px;"><strong style="color: ${LIME};">Pick:</strong> ${esc(r.recommendation)}</div>`);
+          if (r.assumption || r.invalidation) {
+            parts.push(`<div style="font-size: 12px; color: ${MUTED}; line-height: 1.55; margin-bottom: 8px; padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: 8px;">
+              ${r.assumption ? `<div><strong>Assumes:</strong> ${esc(r.assumption)}</div>` : ''}
+              ${r.invalidation ? `<div><strong>Disproved if:</strong> ${esc(r.invalidation)}</div>` : ''}
+            </div>`);
+          }
+          if (r.decision) parts.push(`<div style="font-size: 13px; color: ${BLUE_SOFT}; font-weight: 600; line-height: 1.55;">&rarr; ${esc(r.decision)}</div>`);
+          return `<div data-pdf-section style="padding: 18px 20px; background: ${CARD}; border: 1px solid ${LINE}; border-radius: 16px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px;">
+              <span style="${DISPLAY} font-size: 22px; font-weight: 700; color: ${BLUE}; line-height: 1;">${rank}</span>
+              <span style="font-size: 15px; font-weight: 700; color: ${INK}; line-height: 1.4;">${esc(title)}</span>
+            </div>
+            ${parts.join('')}
+          </div>`;
+        }).join('');
+
+        narrativeHtml = `
+          ${sectionHead('ANALYSIS', 'The quarter, read closely', 'What worked, what to watch, and where next quarter&rsquo;s leverage sits.')}
+          ${narrative.executive_summary ? `<div data-pdf-section style="background: ${CARD}; border: 1px solid ${LINE}; border-radius: 16px; padding: 22px 24px; margin-bottom: 18px; font-size: 14px; color: ${TEXT}; line-height: 1.75;">${esc(narrative.executive_summary)}</div>` : ''}
+          <div data-pdf-section style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px;">
             ${narrative.wins?.length > 0 ? `<div>
-              <div style="font-size: 14px; font-weight: 700; color: #16a34a; margin-bottom: 12px;">WINS</div>
-              ${narrative.wins.map(w => `<div style="padding: 10px 14px; background: #f0fdf4; border-radius: 8px; border-left: 3px solid #16a34a; margin-bottom: 8px; font-size: 13px; color: #334155; line-height: 1.6;">${esc(w)}</div>`).join('')}
+              <div style="${EYEBROW} color: ${LIME}; margin-bottom: 10px;">Wins</div>
+              ${narrative.wins.map(w => listCard(w, LIME, 'rgba(205,242,0,0.05)', 'rgba(205,242,0,0.2)')).join('')}
             </div>` : ''}
             ${narrative.challenges?.length > 0 ? `<div>
-              <div style="font-size: 14px; font-weight: 700; color: #d97706; margin-bottom: 12px;">AREAS TO WATCH</div>
-              ${narrative.challenges.map(c => `<div style="padding: 10px 14px; background: #fffbeb; border-radius: 8px; border-left: 3px solid #d97706; margin-bottom: 8px; font-size: 13px; color: #334155; line-height: 1.6;">${esc(c)}</div>`).join('')}
+              <div style="${EYEBROW} color: ${AMBER}; margin-bottom: 10px;">Areas to watch</div>
+              ${narrative.challenges.map(c => listCard(c, AMBER, 'rgba(245,158,11,0.05)', 'rgba(245,158,11,0.2)')).join('')}
             </div>` : ''}
           </div>
-          ${narrative.q2_recommendations?.length > 0 ? `
-            <div style="font-size: 14px; font-weight: 700; color: #2563eb; margin-bottom: 6px;">NEXT QUARTER RECOMMENDATIONS</div>
-            ${narrative.priority_rationale ? `<div style="font-size: 12px; color: #64748b; margin-bottom: 14px; font-style: italic;">${esc(narrative.priority_rationale)}</div>` : ''}
-            ${narrative.q2_recommendations.map((r, i) => {
-              // Handle both structured objects (new) and strings (legacy)
-              if (typeof r === 'string') {
-                return `<div style="padding: 10px 14px; background: #eff6ff; border-radius: 8px; border-left: 3px solid #2563eb; margin-bottom: 8px; font-size: 13px; color: #334155; line-height: 1.6;">${esc(r)}</div>`;
-              }
-              const rank = r.rank || (i + 1);
-              const title = r.title || r.claim || 'Recommendation';
-              const parts = [];
-              if (r.claim && r.claim !== title) parts.push(`<div style="font-size: 14px; color: #1e293b; font-weight: 600; line-height: 1.5; margin-bottom: 8px;">${esc(r.claim)}</div>`);
-              if (r.evidence) parts.push(`<div style="font-size: 13px; color: #475569; line-height: 1.65; margin-bottom: 8px;"><strong style="color: #1e40af;">Evidence:</strong> ${esc(r.evidence)}</div>`);
-              if (r.option_a || r.option_b) {
-                parts.push(`<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0;">
-                  ${r.option_a ? `<div style="background: #f1f5f9; padding: 10px 12px; border-radius: 6px; font-size: 12px; color: #334155; line-height: 1.55;"><strong style="color: #0f172a;">Option A:</strong> ${esc(r.option_a)}</div>` : ''}
-                  ${r.option_b ? `<div style="background: #f1f5f9; padding: 10px 12px; border-radius: 6px; font-size: 12px; color: #334155; line-height: 1.55;"><strong style="color: #0f172a;">Option B:</strong> ${esc(r.option_b)}</div>` : ''}
-                </div>`);
-              }
-              if (r.recommendation) parts.push(`<div style="font-size: 13px; color: #1e293b; line-height: 1.65; margin-bottom: 8px;"><strong style="color: #16a34a;">Pick:</strong> ${esc(r.recommendation)}</div>`);
-              if (r.assumption || r.invalidation) {
-                parts.push(`<div style="font-size: 12px; color: #64748b; line-height: 1.55; margin-bottom: 8px; padding: 8px 10px; background: #fafbfc; border-radius: 5px;">
-                  ${r.assumption ? `<div><strong>Assumes:</strong> ${esc(r.assumption)}</div>` : ''}
-                  ${r.invalidation ? `<div><strong>Disproved if:</strong> ${esc(r.invalidation)}</div>` : ''}
-                </div>`);
-              }
-              if (r.decision) parts.push(`<div style="font-size: 13px; color: #2563eb; font-weight: 600; line-height: 1.55;">→ ${esc(r.decision)}</div>`);
-              return `<div style="padding: 16px 18px; background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; border-left: 4px solid #2563eb; margin-bottom: 12px;">
-                <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px;">
-                  <span style="font-size: 18px; font-weight: 700; color: #2563eb; line-height: 1;">${rank}.</span>
-                  <span style="font-size: 15px; font-weight: 700; color: #0f172a; line-height: 1.4;">${esc(title)}</span>
-                </div>
-                ${parts.join('')}
-              </div>`;
-            }).join('')}
-          ` : ''}
-        </div>
-      ` : '';
+          ${recs ? `
+            <div style="${EYEBROW} color: ${BLUE}; margin-bottom: 6px;">Next quarter</div>
+            ${narrative.priority_rationale ? `<div style="font-size: 12px; color: ${FAINT}; margin-bottom: 14px; font-style: italic;">${esc(narrative.priority_rationale)}</div>` : ''}
+            ${recs}` : ''}`;
+      }
 
-      // Build the full PDF HTML
+      // Build the page
       const container = document.createElement('div');
       container.style.position = 'absolute';
       container.style.left = '-9999px';
       container.style.width = '1200px';
-      container.style.backgroundColor = '#ffffff';
-      container.style.padding = '50px 35px 35px 35px';
-      container.style.fontFamily = 'Arial, Helvetica, sans-serif';
+      container.style.backgroundColor = '#0a0e10';
+      container.style.padding = '56px 48px 40px';
+      container.style.fontFamily = "'Inter', 'Helvetica Neue', Arial, sans-serif";
       container.style.wordSpacing = 'normal';
       document.body.appendChild(container);
 
+      const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
       container.innerHTML = `
-        <div style="max-width: 1080px; margin: 0 auto;">
-          <!-- Header -->
-          <div data-pdf-section style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #2563eb;">
-            <div style="display: flex; align-items: center; gap: 22px;">
-              <div style="background: #1a1a1a; padding: 14px 18px; border-radius: 10px;">
-                <img src="/Full_View_Logo.png" alt="Full View Analytics" style="height: 72px; object-fit: contain; display: block;" crossorigin="anonymous" />
-              </div>
-              <div style="border-left: 2px solid #cbd5e1; padding-left: 22px;">
-                <div style="font-size: 20px; font-weight: 700; color: #2563eb; margin-bottom: 6px;">${esc(clientName)}</div>
-                <h1 style="margin: 0; font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1.3;">Quarterly Performance Report</h1>
-                <p style="margin: 10px 0 0 0; font-size: 16px; color: #64748b; font-weight: 500;">${cqd.label} vs ${pqd.label}</p>
-              </div>
+        <div style="max-width: 1104px; margin: 0 auto; color: ${TEXT};">
+          <!-- Masthead -->
+          <div data-pdf-section>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+              <div style="${EYEBROW} color: ${FAINT};">Full View Analytics &middot; Crux Media &middot; ${dateStr}</div>
+              <img src="/Full_View_Logo.png" alt="Full View Analytics" style="height: 44px; object-fit: contain;" crossorigin="anonymous" />
             </div>
-          </div>
-
-          <!-- Summary Bar -->
-          <div data-pdf-section style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 24px 28px; border-radius: 12px; margin-bottom: 28px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
-            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; text-align: center;">
-              <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">VIDEOS</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${m.totalVideos}</div>
-              </div>
-              <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">TOTAL VIEWS</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${f(m.totalViews)}</div>
-              </div>
-              <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">WATCH HOURS</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${f(m.totalWatchHours)}</div>
-              </div>
-              <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">SUBS GAINED</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${f(m.totalSubsGained)}</div>
-              </div>
-              <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px;">UPLOAD FREQ</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff;">${m.uploadFrequency.toFixed(1)}/wk</div>
-              </div>
+            <h1 style="${DISPLAY} margin: 18px 0 16px; font-size: 72px; font-weight: 800; color: ${INK}; line-height: 0.95; letter-spacing: 0.01em;">Quarterly Report</h1>
+            <div style="font-size: 17px; color: ${MUTED}; max-width: 72ch; line-height: 1.65;">
+              ${esc(clientName)} &mdash; how ${cqd.label} performed against ${pqd.label}: output, reach, engagement, and where the leverage sits going into next quarter.
             </div>
+            <div style="display: inline-flex; align-items: center; gap: 10px; margin-top: 22px; padding: 9px 20px; border: 1.5px solid ${LIME}; border-radius: 999px;">
+              <span style="width: 9px; height: 9px; border-radius: 50%; background: ${LIME}; display: inline-block;"></span>
+              <span style="${EYEBROW} color: ${LIME}; letter-spacing: 0.08em; font-size: 14px;">${cqd.label} &middot; ${m.totalVideos} uploads &middot; ${f(m.totalViews)} views</span>
+            </div>
+            ${reportData.channelCount > 1 ? `<div style="font-size: 13px; color: ${FAINT}; margin-top: 14px;">Aggregated across ${reportData.channelCount} channels.</div>` : ''}
+            ${!reportData.hasPreviousData ? `<div style="font-size: 13px; color: ${AMBER}; margin-top: 14px;">Limited comparison data &mdash; ${pqd.label} is only partially synced, so quarter-over-quarter deltas read low.</div>` : ''}
           </div>
 
-          <!-- KPI Grid -->
-          <div data-pdf-section style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px;">
-            ${metricBox('AVG VIEWS / VIDEO', f(m.avgViews), d.avgViews, '#f59e0b', pm.avgViews > 0 ? f(pm.avgViews) : null)}
-            ${metricBox('ENGAGEMENT RATE', (m.engagementRate * 100).toFixed(2) + '%', d.engagementRate, '#06b6d4', pm.engagementRate > 0 ? (pm.engagementRate * 100).toFixed(2) + '%' : null)}
-            ${metricBox('AVG RETENTION', m.avgRetention > 0 ? (m.avgRetention * 100).toFixed(1) + '%' : '—', d.avgRetention, '#14b8a6', pm.avgRetention > 0 ? (pm.avgRetention * 100).toFixed(1) + '%' : null)}
-            ${metricBox('AVG CTR', m.avgCTR > 0 ? (m.avgCTR * 100).toFixed(1) + '%' : '—', d.avgCTR, '#f97316', pm.avgCTR > 0 ? (pm.avgCTR * 100).toFixed(1) + '%' : null)}
+          <!-- Stat band -->
+          <div data-pdf-section style="display: grid; grid-template-columns: repeat(5, 1fr); background: ${CARD}; border: 1px solid ${LINE}; border-radius: 16px; overflow: hidden; margin-top: 32px;">
+            ${statCell('Videos', String(m.totalVideos), pm.totalVideos > 0 ? 'prev: ' + pm.totalVideos : '', 0)}
+            ${statCell('Total views', f(m.totalViews), pm.totalViews > 0 ? 'prev: ' + f(pm.totalViews) : '', 1)}
+            ${statCell('Watch hours', f(m.totalWatchHours), pm.totalWatchHours > 0 ? 'prev: ' + f(pm.totalWatchHours) : '', 2)}
+            ${statCell('Subs gained', f(m.totalSubsGained), pm.totalSubsGained > 0 ? 'prev: ' + f(pm.totalSubsGained) : '', 3)}
+            ${statCell('Upload freq', m.uploadFrequency.toFixed(1) + '/wk', pm.uploadFrequency > 0 ? 'prev: ' + pm.uploadFrequency.toFixed(1) + '/wk' : '', 4)}
           </div>
 
-          <!-- Format Performance -->
-          <div data-pdf-section style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;">
-            <div style="background: #fff7ed; padding: 22px; border-radius: 12px; border: 3px solid #f97316;">
-              <div style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">Shorts Performance</div>
+          <!-- Quarter over quarter -->
+          ${sectionHead('PERFORMANCE', 'Quarter over quarter', 'Rate metrics compared against ' + pqd.label + ' &mdash; green means the quarter improved on the one before it.')}
+          <div data-pdf-section style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+            ${kpiCard('Avg views / video', f(m.avgViews), d.avgViews, pm.avgViews > 0 ? f(pm.avgViews) : null)}
+            ${kpiCard('Engagement rate', (m.engagementRate * 100).toFixed(2) + '%', d.engagementRate, pm.engagementRate > 0 ? (pm.engagementRate * 100).toFixed(2) + '%' : null)}
+            ${kpiCard('Avg retention', m.avgRetention > 0 ? (m.avgRetention * 100).toFixed(1) + '%' : '&mdash;', d.avgRetention, pm.avgRetention > 0 ? (pm.avgRetention * 100).toFixed(1) + '%' : null)}
+            ${kpiCard('Avg CTR', m.avgCTR > 0 ? (m.avgCTR * 100).toFixed(1) + '%' : '&mdash;', d.avgCTR, pm.avgCTR > 0 ? (pm.avgCTR * 100).toFixed(1) + '%' : null)}
+          </div>
+
+          <!-- Format split -->
+          ${sectionHead('FORMAT', 'Long-form vs Shorts', 'The two formats travel different algorithm paths &mdash; read them separately.')}
+          <div data-pdf-section style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div style="background: ${CARD}; border: 1px solid ${LINE}; border-radius: 16px; padding: 22px;">
+              <div style="${EYEBROW} color: ${BLUE_SOFT}; margin-bottom: 16px;">Long-form &middot; ${m.longsCount} videos</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                 <div>
-                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Videos</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #f97316;">${m.shortsCount}</div>
+                  <div style="font-size: 12px; color: ${MUTED}; font-weight: 600; margin-bottom: 6px;">Avg views</div>
+                  <div style="${DISPLAY} font-size: 30px; font-weight: 700; color: ${BLUE_SOFT}; line-height: 1; margin-bottom: 8px;">${f(m.longsAvgViews)}</div>
+                  ${chip(d.longsAvgViews)}
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Avg Views</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #f97316;">${f(m.shortsAvgViews)}</div>
-                  ${dp(d.shortsAvgViews)}
-                </div>
-                <div>
-                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Avg Retention</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.shortsAvgRetention > 0 ? (m.shortsAvgRetention * 100).toFixed(1) + '%' : '—'}</div>
-                </div>
-                <div>
-                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Avg CTR</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.avgCTR > 0 ? (m.avgCTR * 100).toFixed(1) + '%' : '—'}</div>
+                  <div style="font-size: 12px; color: ${MUTED}; font-weight: 600; margin-bottom: 6px;">Avg retention</div>
+                  <div style="${DISPLAY} font-size: 30px; font-weight: 700; color: ${INK}; line-height: 1; margin-bottom: 8px;">${m.longsAvgRetention > 0 ? (m.longsAvgRetention * 100).toFixed(1) + '%' : '&mdash;'}</div>
+                  ${chip(d.longsAvgRetention)}
                 </div>
               </div>
             </div>
-            <div style="background: #eff6ff; padding: 22px; border-radius: 12px; border: 3px solid #0ea5e9;">
-              <div style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">Long-form Performance</div>
+            <div style="background: ${CARD}; border: 1px solid ${LINE}; border-radius: 16px; padding: 22px;">
+              <div style="${EYEBROW} color: ${LIME}; margin-bottom: 16px;">Shorts &middot; ${m.shortsCount} videos</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                 <div>
-                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Videos</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9;">${m.longsCount}</div>
+                  <div style="font-size: 12px; color: ${MUTED}; font-weight: 600; margin-bottom: 6px;">Avg views</div>
+                  <div style="${DISPLAY} font-size: 30px; font-weight: 700; color: ${LIME}; line-height: 1; margin-bottom: 8px;">${f(m.shortsAvgViews)}</div>
+                  ${chip(d.shortsAvgViews)}
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Avg Views</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9;">${f(m.longsAvgViews)}</div>
-                  ${dp(d.longsAvgViews)}
-                </div>
-                <div>
-                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Avg Retention</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.longsAvgRetention > 0 ? (m.longsAvgRetention * 100).toFixed(1) + '%' : '—'}</div>
-                </div>
-                <div>
-                  <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 6px;">Avg CTR</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b;">${m.avgCTR > 0 ? (m.avgCTR * 100).toFixed(1) + '%' : '—'}</div>
+                  <div style="font-size: 12px; color: ${MUTED}; font-weight: 600; margin-bottom: 6px;">Avg retention</div>
+                  <div style="${DISPLAY} font-size: 30px; font-weight: 700; color: ${INK}; line-height: 1; margin-bottom: 8px;">${m.shortsAvgRetention > 0 ? (m.shortsAvgRetention * 100).toFixed(1) + '%' : '&mdash;'}</div>
+                  ${chip(d.shortsAvgRetention)}
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Top Videos -->
-          <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; letter-spacing: 0.5px;">TOP PERFORMING VIDEOS</h2>
-            <div style="background: #f8fafc; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0;">
-              <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                  <tr style="background: #e2e8f0;">
-                    <th style="text-align: left; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TITLE</th>
-                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600;">VIEWS</th>
-                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600;">CTR</th>
-                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600;">RETENTION</th>
-                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600;">DATE</th>
-                  </tr>
-                </thead>
-                <tbody>${topVideosHtml}</tbody>
-              </table>
-            </div>
+          <!-- Top videos -->
+          ${sectionHead('CONTENT', 'Top videos this quarter', '')}
+          <div data-pdf-section style="background: ${CARD}; border: 1px solid ${LINE}; border-radius: 16px; overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="border-bottom: 1px solid ${LINE};">
+                  ${th('Title', 'left')}${th('Views', 'right')}${th('CTR', 'right')}${th('Retention', 'right')}${th('Date', 'right')}
+                </tr>
+              </thead>
+              <tbody>${topVideosHtml}</tbody>
+            </table>
           </div>
 
-          ${reportData.audienceData ? (() => {
-            const ad = reportData.audienceData;
-            const genderEntries = Object.entries(ad.gender || {}).sort(([,a],[,b]) => b - a);
-            const totalGender = genderEntries.reduce((s, [,v]) => s + v, 0);
-            const ageOrder = ['age13-17','age18-24','age25-34','age35-44','age45-54','age55-64','age65-'];
-            const ageLabels = {'age13-17':'13-17','age18-24':'18-24','age25-34':'25-34','age35-44':'35-44','age45-54':'45-54','age55-64':'55-64','age65-':'65+'};
-            const ageEntries = ageOrder.filter(k => ad.age?.[k] != null).map(k => [ageLabels[k], ad.age[k]]);
-            const maxAge = Math.max(...ageEntries.map(([,v]) => v), 1);
-            const trafficLabels = {YT_SEARCH:'YouTube Search',SUBSCRIBER:'Subscribers',SUGGESTED:'Suggested',BROWSE:'Browse',EXT_URL:'External',SHORTS:'Shorts Feed',NOTIFICATION:'Notifications',YT_CHANNEL:'Channel Page',END_SCREEN:'End Screens',NO_LINK_OTHER:'Direct',PLAYLIST:'Playlists'};
-            const totalTV = Object.values(ad.trafficSources || {}).reduce((s,t) => s + t.views, 0);
-            const trafficEntries = Object.entries(ad.trafficSources || {}).sort(([,a],[,b]) => b.views - a.views).filter(([,v]) => totalTV > 0 && (v.views/totalTV)*100 >= 1);
-            const maxTPct = trafficEntries.length > 0 && totalTV > 0 ? (trafficEntries[0][1].views / totalTV) * 100 : 1;
-
-            // Capture maps (already captured above if available)
-            let mapsHtml = '';
-            // We can't capture live maps here since we're in the quarterly report, not the performance page.
-            // Instead, show top states/countries as visual badges.
-            const topCountries = Object.entries(ad.country || {}).sort(([,a],[,b]) => b.views - a.views).slice(0, 8);
-            const totalCV = Object.values(ad.country || {}).reduce((s,c) => s + c.views, 0);
-            const topStates = Object.entries(ad.province || {}).sort(([,a],[,b]) => b.views - a.views).slice(0, 8);
-            const totalPV = Object.values(ad.province || {}).reduce((s,p) => s + p.views, 0);
-
-            return `
-          <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; letter-spacing: 0.5px;">AUDIENCE INTELLIGENCE</h2>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-              <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
-                <div style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">Demographics</div>
-                <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Gender</div>
-                ${genderEntries.map(([g, pct]) => {
-                  const label = g === 'user_specified' ? 'Other' : g.charAt(0).toUpperCase() + g.slice(1);
-                  const color = g === 'male' ? '#2563eb' : g === 'female' ? '#db2777' : '#7c3aed';
-                  const barW = totalGender > 0 ? (pct / totalGender) * 100 : 0;
-                  return `<div style="margin-bottom: 6px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-                      <span style="font-size: 13px; color: #374151; font-weight: 500;">${label}</span>
-                      <span style="font-size: 13px; color: #1e293b; font-weight: 700;">${pct.toFixed(1)}%</span>
-                    </div>
-                    <div style="height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
-                      <div style="width: ${barW}%; height: 100%; background: ${color}; border-radius: 4px;"></div>
-                    </div>
-                  </div>`;
-                }).join('')}
-                <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 16px; margin-bottom: 8px;">Age Distribution</div>
-                ${ageEntries.map(([label, val]) => {
-                  const barW = maxAge > 0 ? (val / maxAge) * 100 : 0;
-                  return `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
-                    <div style="min-width: 44px; width: 44px; flex-shrink: 0; font-size: 12px; color: #64748b; text-align: right; font-weight: 600;">${label}</div>
-                    <div style="flex: 1; height: 14px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
-                      <div style="width: ${Math.max(barW, 2)}%; height: 100%; background: linear-gradient(90deg, #f59e0b, #fbbf24); border-radius: 4px;"></div>
-                    </div>
-                    <div style="min-width: 42px; width: 42px; flex-shrink: 0; font-size: 12px; color: #1e293b; font-weight: 700; text-align: right;">${val.toFixed(1)}%</div>
-                  </div>`;
-                }).join('')}
-              </div>
-              <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
-                <div style="font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 16px;">Traffic Sources</div>
-                ${trafficEntries.map(([key, val]) => {
-                  const label = trafficLabels[key] || key.replace(/_/g, ' ');
-                  const pct = totalTV > 0 ? (val.views / totalTV) * 100 : 0;
-                  const barW = maxTPct > 0 ? (pct / maxTPct) * 100 : 0;
-                  return `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                    <span style="width: 100px; font-size: 12px; color: #374151; font-weight: 500;">${label}</span>
-                    <div style="flex: 1; height: 10px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
-                      <div style="width: ${Math.max(barW, 2)}%; height: 100%; background: linear-gradient(90deg, #2563eb, #60a5fa); border-radius: 3px;"></div>
-                    </div>
-                    <span style="width: 40px; font-size: 12px; color: #1e293b; font-weight: 700; text-align: right;">${pct.toFixed(1)}%</span>
-                  </div>`;
-                }).join('')}
-
-                ${topCountries.length > 0 ? `
-                <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 18px; margin-bottom: 8px;">Top Countries</div>
-                <div style="display: flex; flex-wrap: wrap; gap: 5px;">
-                  ${topCountries.map(([code, val], i) => `<span style="font-size: 10px; padding: 3px 8px; background: ${i === 0 ? '#dbeafe' : '#f1f5f9'}; border: 1px solid ${i === 0 ? '#93c5fd' : '#e2e8f0'}; border-radius: 5px; color: ${i === 0 ? '#1e40af' : '#475569'}; font-weight: ${i === 0 ? '700' : '600'};">${code} ${totalCV > 0 ? ((val.views/totalCV)*100).toFixed(1) : 0}%</span>`).join('')}
-                </div>` : ''}
-
-                ${topStates.length > 0 ? `
-                <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; margin-bottom: 8px;">Top US States</div>
-                <div style="display: flex; flex-wrap: wrap; gap: 5px;">
-                  ${topStates.map(([code, val], i) => `<span style="font-size: 10px; padding: 3px 8px; background: ${i === 0 ? '#dbeafe' : '#f1f5f9'}; border: 1px solid ${i === 0 ? '#93c5fd' : '#e2e8f0'}; border-radius: 5px; color: ${i === 0 ? '#1e40af' : '#475569'}; font-weight: ${i === 0 ? '700' : '600'};">${code.replace('US-','')} ${totalPV > 0 ? ((val.views/totalPV)*100).toFixed(1) : 0}%</span>`).join('')}
-                </div>` : ''}
-              </div>
-            </div>
-          </div>`;
-          })() : ''}
+          ${audienceHtml}
 
           ${narrativeHtml}
 
           <!-- Footer -->
-          <div data-pdf-footer style="padding-top: 18px; border-top: 1px solid #e2e8f0; text-align: center; margin-top: 40px;">
-            <div style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 10px;">
-              <span style="color: #64748b; font-size: 14px; font-weight: 500;">Generated by Full View Analytics</span>
-              <span style="color: #cbd5e1; font-size: 14px;">•</span>
-              <span style="color: #94a3b8; font-size: 14px; font-weight: 500;">Powered by</span>
-              <img src="/crux-logo.png" alt="CRUX" style="height: 32px; object-fit: contain; vertical-align: middle;" crossorigin="anonymous" />
+          <div data-pdf-footer style="margin-top: 48px; padding-top: 20px; border-top: 1px solid ${LINE};">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <div style="font-size: 12px; color: ${FAINT};">Generated by Full View Analytics &middot; Powered by CRUX</div>
+              <img src="/crux-logo.png" alt="CRUX" style="height: 26px; object-fit: contain;" crossorigin="anonymous" />
             </div>
-            <div style="color: #cbd5e1; font-size: 13px;">This report contains confidential information</div>
+            <div style="font-size: 11px; color: ${FAINT}; margin-top: 12px; line-height: 1.6; max-width: 90ch;">
+              Metrics cover the stated quarter. CTR and retention appear only where YouTube Studio access is connected &mdash; a blank cell means the data is unavailable, not zero. This report contains confidential information.
+            </div>
           </div>
         </div>
       `;
@@ -450,14 +447,15 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
       // Render to canvas
       const canvas = await html2canvas(container, {
         scale: 2,
-        backgroundColor: '#ffffff',
+        backgroundColor: '#0a0e10',
         logging: false,
         useCORS: true,
       });
 
       document.body.removeChild(container);
 
-      // Multi-page PDF
+      // Multi-page PDF — fill each page with the document ground first so
+      // the uncovered tail of the last page stays dark, not printer-white.
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgData = canvas.toDataURL('image/png');
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -468,12 +466,16 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
       let heightLeft = imgHeight;
       let position = 0;
 
+      pdf.setFillColor(10, 14, 16);
+      pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
       pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pdfHeight;
 
       while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
+        pdf.setFillColor(10, 14, 16);
+        pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
         pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
         heightLeft -= pdfHeight;
       }
@@ -489,7 +491,7 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
 
   if (loading) {
     return (
-      <div style={{ padding: '64px', textAlign: 'center', color: '#888' }}>
+      <div style={{ padding: '64px', textAlign: 'center', color: 'var(--muted)' }}>
         <Loader size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '12px' }} />
         <div style={{ fontSize: '15px' }}>Loading quarterly report...</div>
       </div>
@@ -498,7 +500,7 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
 
   if (!reportData) {
     return (
-      <div style={{ padding: '64px', textAlign: 'center', color: '#666' }}>
+      <div style={{ padding: '64px', textAlign: 'center', color: 'var(--muted)' }}>
         <BarChart3 size={48} style={{ marginBottom: '16px', opacity: 0.3 }} />
         <div style={{ fontSize: '16px', marginBottom: '8px' }}>No quarterly data available</div>
         <div style={{ fontSize: '13px' }}>Connect a YouTube channel to generate quarterly reports.</div>
@@ -526,14 +528,14 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
             width: '52px', height: '52px', borderRadius: '14px',
-            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+            background: 'rgba(0, 209, 255, 0.12)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <BarChart3 size={26} style={{ color: '#fff' }} />
+            <BarChart3 size={26} style={{ color: "#4cd6ff" }} />
           </div>
           <div>
-            <div style={{ fontSize: '22px', fontWeight: '700', color: '#fff' }}>Quarterly Report</div>
-            <div style={{ fontSize: '13px', color: '#888' }}>{subtitle}</div>
+            <div style={{ fontSize: '22px', fontWeight: '700', color: "var(--ink)" }}>Quarterly Report</div>
+            <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{subtitle}</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -545,8 +547,8 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
               setSelectedQuarter(parseInt(q));
             }}
             style={{
-              padding: '10px 14px', background: '#252525', border: '1px solid #444',
-              borderRadius: '8px', color: '#fff', fontSize: '13px',
+              padding: '10px 14px', background: "var(--input-bg)", border: '1px solid var(--outline-variant)',
+              borderRadius: '8px', color: "var(--ink)", fontSize: '13px',
             }}
           >
             {[2026, 2025].map(y => [4, 3, 2, 1].map(q => (
@@ -558,9 +560,9 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
             disabled={generatingNarrative}
             style={{
               display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '10px 16px', background: 'rgba(139,92,246,0.15)',
-              border: '1px solid #8b5cf6', borderRadius: '8px',
-              color: '#a78bfa', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+              padding: '10px 16px', background: 'rgba(205,242,0,0.10)',
+              border: '1px solid rgba(205,242,0,0.45)', borderRadius: '8px',
+              color: 'var(--pos-text)', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
               opacity: generatingNarrative ? 0.5 : 1,
             }}
           >
@@ -572,9 +574,9 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
             disabled={exporting}
             style={{
               display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '10px 16px', background: 'rgba(59,130,246,0.15)',
-              border: '1px solid #3b82f6', borderRadius: '8px',
-              color: '#60a5fa', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+              padding: '10px 16px', background: 'rgba(0,209,255,0.12)',
+              border: '1px solid var(--blue)', borderRadius: '8px',
+              color: 'var(--accent-text)', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
               opacity: exporting ? 0.5 : 1,
             }}
           >
@@ -588,13 +590,13 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
         {/* Quarter comparison header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px',
-          padding: '18px', marginBottom: '20px', background: '#1E1E1E', borderRadius: '10px', border: '1px solid #333',
+          padding: '18px', marginBottom: '20px', background: "var(--card)", borderRadius: "24px", border: '1px solid var(--border)',
         }}>
-          <span style={{ fontSize: '15px', color: '#888' }}>{pq.label}</span>
-          <ArrowRight size={18} style={{ color: '#555' }} />
-          <span style={{ fontSize: '17px', fontWeight: '700', color: '#3b82f6' }}>{cq.label}</span>
+          <span style={{ fontSize: '15px', color: 'var(--muted)' }}>{pq.label}</span>
+          <ArrowRight size={18} style={{ color: 'var(--outline)' }} />
+          <span style={{ fontSize: '17px', fontWeight: '700', color: 'var(--blue)' }}>{cq.label}</span>
           {!reportData.hasPreviousData && (
-            <span style={{ fontSize: '11px', color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '3px 10px', borderRadius: '4px' }}>
+            <span style={{ fontSize: '11px', color: "var(--warn)", background: 'rgba(245,158,11,0.1)', padding: '3px 10px', borderRadius: '4px' }}>
               Limited comparison data
             </span>
           )}
@@ -602,72 +604,72 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
 
         {/* KPI Grid - Row 1 */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '12px' }}>
-          <MetricCard label="Videos Published" value={String(cq.metrics.totalVideos)} prevValue={pq.metrics.totalVideos > 0 ? String(pq.metrics.totalVideos) : null} delta={deltas.totalVideos} color="#3b82f6" icon={Video} />
-          <MetricCard label="Total Views" value={fmt(cq.metrics.totalViews)} prevValue={pq.metrics.totalViews > 0 ? fmt(pq.metrics.totalViews) : null} delta={deltas.totalViews} color="#10b981" icon={Eye} />
-          <MetricCard label="Avg Views/Video" value={fmt(cq.metrics.avgViews)} prevValue={pq.metrics.avgViews > 0 ? fmt(pq.metrics.avgViews) : null} delta={deltas.avgViews} color="#f59e0b" icon={Play} />
-          <MetricCard label="Watch Hours" value={fmt(cq.metrics.totalWatchHours)} prevValue={pq.metrics.totalWatchHours > 0 ? fmt(pq.metrics.totalWatchHours) : null} delta={deltas.totalWatchHours} color="#8b5cf6" icon={Clock} />
-          <MetricCard label="Subs Gained" value={fmt(cq.metrics.totalSubsGained)} prevValue={pq.metrics.totalSubsGained > 0 ? fmt(pq.metrics.totalSubsGained) : null} delta={deltas.totalSubsGained} color="#ec4899" icon={Users} />
+          <MetricCard label="Videos Published" value={String(cq.metrics.totalVideos)} prevValue={pq.metrics.totalVideos > 0 ? String(pq.metrics.totalVideos) : null} delta={deltas.totalVideos} color="var(--blue)" icon={Video} />
+          <MetricCard label="Total Views" value={fmt(cq.metrics.totalViews)} prevValue={pq.metrics.totalViews > 0 ? fmt(pq.metrics.totalViews) : null} delta={deltas.totalViews} color="var(--pos)" icon={Eye} />
+          <MetricCard label="Avg Views/Video" value={fmt(cq.metrics.avgViews)} prevValue={pq.metrics.avgViews > 0 ? fmt(pq.metrics.avgViews) : null} delta={deltas.avgViews} color="var(--warn)" icon={Play} />
+          <MetricCard label="Watch Hours" value={fmt(cq.metrics.totalWatchHours)} prevValue={pq.metrics.totalWatchHours > 0 ? fmt(pq.metrics.totalWatchHours) : null} delta={deltas.totalWatchHours} color="#4cd6ff" icon={Clock} />
+          <MetricCard label="Subs Gained" value={fmt(cq.metrics.totalSubsGained)} prevValue={pq.metrics.totalSubsGained > 0 ? fmt(pq.metrics.totalSubsGained) : null} delta={deltas.totalSubsGained} color="var(--tert)" icon={Users} />
         </div>
 
         {/* KPI Grid - Row 2 (4 columns — retention lives in Format Performance section) */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
-          <MetricCard label="Engagement Rate" value={`${(cq.metrics.engagementRate * 100).toFixed(2)}%`} prevValue={pq.metrics.engagementRate > 0 ? `${(pq.metrics.engagementRate * 100).toFixed(2)}%` : null} delta={deltas.engagementRate} color="#06b6d4" icon={Target} />
-          <MetricCard label="Avg Retention" value={cq.metrics.avgRetention > 0 ? `${(cq.metrics.avgRetention * 100).toFixed(1)}%` : '—'} prevValue={pq.metrics.avgRetention > 0 ? `${(pq.metrics.avgRetention * 100).toFixed(1)}%` : null} delta={deltas.avgRetention} color="#14b8a6" icon={BarChart3} />
-          <MetricCard label="Avg CTR" value={cq.metrics.avgCTR > 0 ? `${(cq.metrics.avgCTR * 100).toFixed(1)}%` : '—'} prevValue={pq.metrics.avgCTR > 0 ? `${(pq.metrics.avgCTR * 100).toFixed(1)}%` : null} delta={deltas.avgCTR} color="#f97316" icon={MousePointerClick} />
-          <MetricCard label="Upload Freq" value={`${cq.metrics.uploadFrequency.toFixed(1)}/wk`} prevValue={pq.metrics.uploadFrequency > 0 ? `${pq.metrics.uploadFrequency.toFixed(1)}/wk` : null} delta={deltas.uploadFrequency} color="#a855f7" icon={Video} />
+          <MetricCard label="Engagement Rate" value={`${(cq.metrics.engagementRate * 100).toFixed(2)}%`} prevValue={pq.metrics.engagementRate > 0 ? `${(pq.metrics.engagementRate * 100).toFixed(2)}%` : null} delta={deltas.engagementRate} color="#4cd6ff" icon={Target} />
+          <MetricCard label="Avg Retention" value={cq.metrics.avgRetention > 0 ? `${(cq.metrics.avgRetention * 100).toFixed(1)}%` : '—'} prevValue={pq.metrics.avgRetention > 0 ? `${(pq.metrics.avgRetention * 100).toFixed(1)}%` : null} delta={deltas.avgRetention} color="var(--pos)" icon={BarChart3} />
+          <MetricCard label="Avg CTR" value={cq.metrics.avgCTR > 0 ? `${(cq.metrics.avgCTR * 100).toFixed(1)}%` : '—'} prevValue={pq.metrics.avgCTR > 0 ? `${(pq.metrics.avgCTR * 100).toFixed(1)}%` : null} delta={deltas.avgCTR} color="var(--tert)" icon={MousePointerClick} />
+          <MetricCard label="Upload Freq" value={`${cq.metrics.uploadFrequency.toFixed(1)}/wk`} prevValue={pq.metrics.uploadFrequency > 0 ? `${pq.metrics.uploadFrequency.toFixed(1)}/wk` : null} delta={deltas.uploadFrequency} color="var(--blue)" icon={Video} />
         </div>
 
         {/* Format Performance Comparison */}
         {(cq.metrics.longsCount > 0 || cq.metrics.shortsCount > 0) && (
-          <div style={{ background: '#1E1E1E', borderRadius: '10px', border: '1px solid #333', padding: '24px', marginBottom: '20px' }}>
-            <div style={{ fontSize: '15px', fontWeight: '700', color: '#fff', marginBottom: '16px' }}>Format Performance</div>
+          <div style={{ background: "var(--card)", borderRadius: "24px", border: '1px solid var(--border)', padding: '24px', marginBottom: '20px' }}>
+            <div style={{ fontSize: '15px', fontWeight: '700', color: "var(--ink)", marginBottom: '16px' }}>Format Performance</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               {/* Long-form */}
-              <div style={{ background: '#252525', borderRadius: '10px', padding: '22px', borderTop: '3px solid #3b82f6' }}>
-                <div style={{ fontSize: '15px', color: '#ccc', textTransform: 'uppercase', fontWeight: '700', marginBottom: '16px', letterSpacing: '0.5px' }}>Long-form</div>
+              <div style={{ background: "var(--input-bg)", borderRadius: "24px", padding: '22px' }}>
+                <div style={{ fontSize: '15px', color: 'var(--text)', textTransform: 'uppercase', fontWeight: '700', marginBottom: '16px', letterSpacing: '0.5px' }}>Long-form</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div>
-                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px', fontWeight: '600' }}>Avg Views</div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '4px', fontWeight: '600' }}>Avg Views</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '24px', fontWeight: '800', color: '#3b82f6', fontFamily: "'Barlow Condensed', sans-serif" }}>{fmt(cq.metrics.longsAvgViews)}</span>
+                      <span style={{ fontSize: '24px', fontWeight: '800', color: 'var(--blue)', fontFamily: "'Barlow Condensed', sans-serif" }}>{fmt(cq.metrics.longsAvgViews)}</span>
                       <DeltaBadge delta={deltas.longsAvgViews} />
                     </div>
-                    {pq.metrics.longsAvgViews > 0 && <div style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>prev: {fmt(pq.metrics.longsAvgViews)}</div>}
+                    {pq.metrics.longsAvgViews > 0 && <div style={{ fontSize: '11px', color: 'var(--outline)', marginTop: '2px' }}>prev: {fmt(pq.metrics.longsAvgViews)}</div>}
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px', fontWeight: '600' }}>Avg Retention</div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '4px', fontWeight: '600' }}>Avg Retention</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '22px', fontWeight: '700', color: '#14b8a6', fontFamily: "'Barlow Condensed', sans-serif" }}>
+                      <span style={{ fontSize: '22px', fontWeight: '700', color: 'var(--pos-text)', fontFamily: "'Barlow Condensed', sans-serif" }}>
                         {cq.metrics.longsAvgRetention > 0 ? `${(cq.metrics.longsAvgRetention * 100).toFixed(1)}%` : '—'}
                       </span>
                       <DeltaBadge delta={deltas.longsAvgRetention} />
                     </div>
                   </div>
-                  <div style={{ fontSize: '14px', color: '#888', fontWeight: '600' }}>{cq.metrics.longsCount} videos</div>
+                  <div style={{ fontSize: '14px', color: 'var(--muted)', fontWeight: '600' }}>{cq.metrics.longsCount} videos</div>
                 </div>
               </div>
               {/* Shorts */}
-              <div style={{ background: '#252525', borderRadius: '10px', padding: '22px', borderTop: '3px solid #f97316' }}>
-                <div style={{ fontSize: '15px', color: '#ccc', textTransform: 'uppercase', fontWeight: '700', marginBottom: '16px', letterSpacing: '0.5px' }}>Shorts</div>
+              <div style={{ background: "var(--input-bg)", borderRadius: '10px', padding: '22px' }}>
+                <div style={{ fontSize: '15px', color: 'var(--text)', textTransform: 'uppercase', fontWeight: '700', marginBottom: '16px', letterSpacing: '0.5px' }}>Shorts</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div>
-                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px', fontWeight: '600' }}>Avg Views</div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '4px', fontWeight: '600' }}>Avg Views</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '24px', fontWeight: '800', color: '#f97316', fontFamily: "'Barlow Condensed', sans-serif" }}>{fmt(cq.metrics.shortsAvgViews)}</span>
+                      <span style={{ fontSize: '24px', fontWeight: '800', color: "var(--fmt-shorts)", fontFamily: "'Barlow Condensed', sans-serif" }}>{fmt(cq.metrics.shortsAvgViews)}</span>
                       <DeltaBadge delta={deltas.shortsAvgViews} />
                     </div>
-                    {pq.metrics.shortsAvgViews > 0 && <div style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>prev: {fmt(pq.metrics.shortsAvgViews)}</div>}
+                    {pq.metrics.shortsAvgViews > 0 && <div style={{ fontSize: '11px', color: 'var(--outline)', marginTop: '2px' }}>prev: {fmt(pq.metrics.shortsAvgViews)}</div>}
                   </div>
                   <div>
-                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px', fontWeight: '600' }}>Avg Retention</div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '4px', fontWeight: '600' }}>Avg Retention</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '22px', fontWeight: '700', color: '#22d3ee', fontFamily: "'Barlow Condensed', sans-serif" }}>
+                      <span style={{ fontSize: '22px', fontWeight: '700', color: 'var(--pos-text)', fontFamily: "'Barlow Condensed', sans-serif" }}>
                         {cq.metrics.shortsAvgRetention > 0 ? `${(cq.metrics.shortsAvgRetention * 100).toFixed(1)}%` : '—'}
                       </span>
                       <DeltaBadge delta={deltas.shortsAvgRetention} />
                     </div>
                   </div>
-                  <div style={{ fontSize: '14px', color: '#888', fontWeight: '600' }}>{cq.metrics.shortsCount} videos</div>
+                  <div style={{ fontSize: '14px', color: 'var(--muted)', fontWeight: '600' }}>{cq.metrics.shortsCount} videos</div>
                 </div>
               </div>
             </div>
@@ -677,48 +679,48 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
         {/* Content Mix + Top Videos */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px', marginBottom: '20px' }}>
           {/* Content Mix */}
-          <div style={{ background: '#1E1E1E', borderRadius: '10px', border: '1px solid #333', padding: '24px' }}>
-            <div style={{ fontSize: '15px', fontWeight: '700', color: '#fff', marginBottom: '14px' }}>Content Mix</div>
+          <div style={{ background: "var(--card)", borderRadius: "24px", border: '1px solid var(--border)', padding: '24px' }}>
+            <div style={{ fontSize: '15px', fontWeight: '700', color: "var(--ink)", marginBottom: '14px' }}>Content Mix</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
-              <div style={{ background: '#252525', borderRadius: '8px', padding: '12px', borderTop: '3px solid #f97316' }}>
-                <div style={{ fontSize: '10px', color: '#888', fontWeight: '600' }}>SHORTS</div>
-                <div style={{ fontSize: '24px', fontWeight: '700', color: '#f97316', fontFamily: "'Barlow Condensed', sans-serif" }}>{cq.metrics.shortsCount}</div>
+              <div style={{ background: "var(--input-bg)", borderRadius: "24px", padding: '12px' }}>
+                <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: '600' }}>SHORTS</div>
+                <div style={{ fontSize: '24px', fontWeight: '700', color: "var(--fmt-shorts)", fontFamily: "'Barlow Condensed', sans-serif" }}>{cq.metrics.shortsCount}</div>
               </div>
-              <div style={{ background: '#252525', borderRadius: '8px', padding: '12px', borderTop: '3px solid #3b82f6' }}>
-                <div style={{ fontSize: '10px', color: '#888', fontWeight: '600' }}>LONG-FORM</div>
-                <div style={{ fontSize: '24px', fontWeight: '700', color: '#3b82f6', fontFamily: "'Barlow Condensed', sans-serif" }}>{cq.metrics.longsCount}</div>
+              <div style={{ background: "var(--input-bg)", borderRadius: '8px', padding: '12px' }}>
+                <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: '600' }}>LONG-FORM</div>
+                <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--blue)', fontFamily: "'Barlow Condensed', sans-serif" }}>{cq.metrics.longsCount}</div>
               </div>
             </div>
             {cq.metrics.totalVideos > 0 && (
-              <div style={{ display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', background: '#333', marginBottom: '16px' }}>
-                {cq.metrics.shortsCount > 0 && <div style={{ width: `${(cq.metrics.shortsCount / cq.metrics.totalVideos) * 100}%`, background: '#f97316' }} />}
-                {cq.metrics.longsCount > 0 && <div style={{ flex: 1, background: '#3b82f6' }} />}
+              <div style={{ display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', background: 'var(--surface-high)', marginBottom: '16px' }}>
+                {cq.metrics.shortsCount > 0 && <div style={{ width: `${(cq.metrics.shortsCount / cq.metrics.totalVideos) * 100}%`, background: "var(--fmt-shorts)" }} />}
+                {cq.metrics.longsCount > 0 && <div style={{ flex: 1, background: 'var(--blue)' }} />}
               </div>
             )}
             {/* Upload frequency — prominent display */}
-            <div style={{ background: '#252525', borderRadius: '8px', padding: '14px', marginBottom: '12px' }}>
-              <div style={{ fontSize: '10px', color: '#888', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Upload Cadence</div>
-              <div style={{ fontSize: '22px', fontWeight: '800', color: '#a855f7', fontFamily: "'Barlow Condensed', sans-serif" }}>
-                {cq.metrics.uploadFrequency.toFixed(1)}<span style={{ fontSize: '14px', color: '#888', fontWeight: '600' }}>/wk</span>
+            <div style={{ background: "var(--input-bg)", borderRadius: '8px', padding: '14px', marginBottom: '12px' }}>
+              <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Upload Cadence</div>
+              <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--ink)', fontFamily: "'Barlow Condensed', sans-serif" }}>
+                {cq.metrics.uploadFrequency.toFixed(1)}<span style={{ fontSize: '14px', color: 'var(--muted)', fontWeight: '600' }}>/wk</span>
               </div>
               {reportData.channelCount > 1 && (
-                <div style={{ fontSize: '13px', color: '#888', marginTop: '4px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
                   {cq.metrics.uploadsPerChannel.toFixed(1)}/wk per channel ({reportData.channelCount} channels)
                 </div>
               )}
             </div>
             {pq.metrics.totalVideos > 0 && (
-              <div style={{ fontSize: '11px', color: '#666' }}>
+              <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
                 {pq.label}: {pq.metrics.shortsCount} shorts / {pq.metrics.longsCount} long-form
               </div>
             )}
           </div>
 
           {/* Top Videos */}
-          <div style={{ background: '#1E1E1E', borderRadius: '10px', border: '1px solid #333', padding: '24px' }}>
-            <div style={{ fontSize: '15px', fontWeight: '700', color: '#fff', marginBottom: '14px' }}>Top Videos This Quarter</div>
+          <div style={{ background: "var(--card)", borderRadius: "24px", border: '1px solid var(--border)', padding: '24px' }}>
+            <div style={{ fontSize: '15px', fontWeight: '700', color: "var(--ink)", marginBottom: '14px' }}>Top Videos This Quarter</div>
             {cq.metrics.topByViews.length === 0 ? (
-              <div style={{ fontSize: '13px', color: '#555', fontStyle: 'italic' }}>No videos this quarter</div>
+              <div style={{ fontSize: '13px', color: 'var(--outline)', fontStyle: 'italic' }}>No videos this quarter</div>
             ) : (
               <>
                 {visibleVideos.map((v, i) => (
@@ -727,15 +729,15 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
                     target="_blank" rel="noopener noreferrer"
                     style={{
                       display: 'flex', gap: '12px', padding: '10px', marginBottom: '6px',
-                      background: '#252525', borderRadius: '8px', textDecoration: 'none',
-                      alignItems: 'center', borderLeft: `3px solid ${i === 0 ? '#f59e0b' : i === 1 ? '#e5e7eb' : '#555'}`,
+                      background: "var(--input-bg)", borderRadius: '8px', textDecoration: 'none',
+                      alignItems: 'center',
                     }}
                   >
-                    <span style={{ fontSize: '13px', fontWeight: '700', color: i === 0 ? '#f59e0b' : i === 1 ? '#e5e7eb' : '#555', minWidth: '24px' }}>#{i + 1}</span>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: i === 0 ? "var(--warn)" : i === 1 ? 'var(--text)' : 'var(--outline)', minWidth: '24px' }}>#{i + 1}</span>
                     {v.thumbnail_url && <img src={v.thumbnail_url} alt="" style={{ width: 80, height: 45, borderRadius: '6px', objectFit: 'cover', flexShrink: 0 }} />}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: '600', color: '#e0e0e0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.title}</div>
-                      <div style={{ fontSize: '12px', color: '#888', marginTop: '3px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: '600', color: "var(--text)", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.title}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '3px' }}>
                         {fmt(v.view_count)} views · {fmt(v.like_count)} likes
                         {v.published_at && ` · ${new Date(v.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
                       </div>
@@ -748,8 +750,8 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                       width: '100%', padding: '8px', marginTop: '6px',
-                      background: 'transparent', border: '1px solid #333', borderRadius: '6px',
-                      color: '#888', fontSize: '12px', cursor: 'pointer', fontWeight: '600',
+                      background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px',
+                      color: 'var(--muted)', fontSize: '12px', cursor: 'pointer', fontWeight: '600',
                     }}
                   >
                     {showAllVideos ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -762,53 +764,53 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
         </div>
 
         {/* Efficiency Metrics */}
-        <div style={{ background: '#1E1E1E', borderRadius: '10px', border: '1px solid #333', padding: '24px', marginBottom: '20px' }}>
-          <div style={{ fontSize: '15px', fontWeight: '700', color: '#fff', marginBottom: '16px' }}>Channel Efficiency</div>
+        <div style={{ background: "var(--card)", borderRadius: "24px", border: '1px solid var(--border)', padding: '24px', marginBottom: '20px' }}>
+          <div style={{ fontSize: '15px', fontWeight: '700', color: "var(--ink)", marginBottom: '16px' }}>Channel Efficiency</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
             {/* Sub Conversion Rate */}
-            <div style={{ background: '#252525', borderRadius: '10px', padding: '18px', borderTop: '3px solid #ec4899' }}>
+            <div style={{ background: "var(--input-bg)", borderRadius: "24px", padding: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                <UserPlus size={16} style={{ color: '#555' }} />
-                <span style={{ fontSize: '12px', color: '#888', textTransform: 'uppercase', fontWeight: '600' }}>Sub Conversion</span>
+                <UserPlus size={16} style={{ color: 'var(--outline)' }} />
+                <span style={{ fontSize: '12px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: '600' }}>Sub Conversion</span>
               </div>
-              <div style={{ fontSize: '28px', fontWeight: '800', color: '#ec4899', fontFamily: "'Barlow Condensed', sans-serif", marginBottom: '4px' }}>
+              <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--tert)', fontFamily: "'Barlow Condensed', sans-serif", marginBottom: '4px' }}>
                 {cq.metrics.subConversionRate > 0 ? `${(cq.metrics.subConversionRate * 100).toFixed(2)}%` : '—'}
               </div>
-              <div style={{ fontSize: '11px', color: '#666', marginBottom: '6px' }}>subscribers gained / total views</div>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>subscribers gained / total views</div>
               <DeltaBadge delta={deltas.subConversionRate} />
             </div>
 
             {/* Top by Engagement */}
-            <div style={{ background: '#252525', borderRadius: '10px', padding: '18px', borderTop: '3px solid #f59e0b' }}>
+            <div style={{ background: "var(--input-bg)", borderRadius: '10px', padding: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                <Target size={16} style={{ color: '#555' }} />
-                <span style={{ fontSize: '12px', color: '#888', textTransform: 'uppercase', fontWeight: '600' }}>Top by Engagement</span>
+                <Target size={16} style={{ color: 'var(--outline)' }} />
+                <span style={{ fontSize: '12px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: '600' }}>Top by Engagement</span>
               </div>
               {cq.metrics.topByEngagement.length > 0 ? (
                 <>
-                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#e0e0e0', marginBottom: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: "var(--text)", marginBottom: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {cq.metrics.topByEngagement[0].title}
                   </div>
-                  <div style={{ fontSize: '22px', fontWeight: '800', color: '#f59e0b', fontFamily: "'Barlow Condensed', sans-serif" }}>
+                  <div style={{ fontSize: '22px', fontWeight: '800', color: "var(--warn)", fontFamily: "'Barlow Condensed', sans-serif" }}>
                     {(cq.metrics.topByEngagement[0].engRate * 100).toFixed(1)}%
                   </div>
-                  <div style={{ fontSize: '11px', color: '#666' }}>engagement rate · {fmt(cq.metrics.topByEngagement[0].view_count)} views</div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)' }}>engagement rate · {fmt(cq.metrics.topByEngagement[0].view_count)} views</div>
                 </>
               ) : (
-                <div style={{ fontSize: '13px', color: '#555' }}>—</div>
+                <div style={{ fontSize: '13px', color: 'var(--outline)' }}>—</div>
               )}
             </div>
 
             {/* Views per Subscriber */}
-            <div style={{ background: '#252525', borderRadius: '10px', padding: '18px', borderTop: '3px solid #06b6d4' }}>
+            <div style={{ background: "var(--input-bg)", borderRadius: '10px', padding: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                <Users size={16} style={{ color: '#555' }} />
-                <span style={{ fontSize: '12px', color: '#888', textTransform: 'uppercase', fontWeight: '600' }}>Views per Sub</span>
+                <Users size={16} style={{ color: 'var(--outline)' }} />
+                <span style={{ fontSize: '12px', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: '600' }}>Views per Sub</span>
               </div>
-              <div style={{ fontSize: '28px', fontWeight: '800', color: '#06b6d4', fontFamily: "'Barlow Condensed', sans-serif", marginBottom: '4px' }}>
+              <div style={{ fontSize: '28px', fontWeight: '800', color: '#4cd6ff', fontFamily: "'Barlow Condensed', sans-serif", marginBottom: '4px' }}>
                 {viewsPerSub > 0 ? viewsPerSub.toFixed(1) : '—'}
               </div>
-              <div style={{ fontSize: '11px', color: '#666', marginBottom: '6px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>
                 {subCount > 0 ? `${fmt(cq.metrics.totalViews)} views / ${fmt(subCount)} subs` : 'subscriber count unavailable'}
               </div>
             </div>
@@ -817,13 +819,13 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
 
         {/* AI Narrative */}
         {narrative && (
-          <div style={{ background: '#1E1E1E', borderRadius: '10px', border: '1px solid #8b5cf633', padding: '28px', marginBottom: '20px' }}>
-            <div style={{ fontSize: '16px', fontWeight: '700', color: '#fff', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sparkles size={18} style={{ color: '#a78bfa' }} /> AI Analysis
+          <div style={{ background: "var(--card)", borderRadius: "24px", border: '1px solid var(--border)', padding: '28px', marginBottom: '20px' }}>
+            <div style={{ fontSize: '16px', fontWeight: '700', color: "var(--ink)", marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles size={18} style={{ color: '#4cd6ff' }} /> AI Analysis
             </div>
 
             {narrative.executive_summary && (
-              <div style={{ fontSize: '15px', color: '#ccc', lineHeight: '1.7', marginBottom: '24px', padding: '18px', background: '#252525', borderRadius: '10px' }}>
+              <div style={{ fontSize: '15px', color: 'var(--text)', lineHeight: '1.7', marginBottom: '24px', padding: '18px', background: "var(--input-bg)", borderRadius: "24px" }}>
                 {narrative.executive_summary}
               </div>
             )}
@@ -831,11 +833,11 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '18px' }}>
               {narrative.wins?.length > 0 && (
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#10b981', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: "var(--pos)", marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <CheckCircle size={16} /> Wins
                   </div>
                   {narrative.wins.map((w, i) => (
-                    <div key={i} style={{ fontSize: '13px', color: '#ccc', lineHeight: '1.6', padding: '10px 12px', background: 'rgba(16,185,129,0.05)', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #10b981' }}>
+                    <div key={i} style={{ fontSize: '13px', color: 'var(--text)', lineHeight: '1.6', padding: '10px 12px', background: 'rgba(205,242,0,0.05)', borderRadius: '8px', marginBottom: '6px' }}>
                       {w}
                     </div>
                   ))}
@@ -844,11 +846,11 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
 
               {narrative.challenges?.length > 0 && (
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#f59e0b', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: "var(--warn)", marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <AlertTriangle size={16} /> Areas to Watch
                   </div>
                   {narrative.challenges.map((c, i) => (
-                    <div key={i} style={{ fontSize: '13px', color: '#ccc', lineHeight: '1.6', padding: '10px 12px', background: 'rgba(245,158,11,0.05)', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #f59e0b' }}>
+                    <div key={i} style={{ fontSize: '13px', color: 'var(--text)', lineHeight: '1.6', padding: '10px 12px', background: 'rgba(245,158,11,0.05)', borderRadius: '8px', marginBottom: '6px' }}>
                       {c}
                     </div>
                   ))}
@@ -857,71 +859,71 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
             </div>
 
             {narrative.content_insights && (
-              <div style={{ fontSize: '13px', color: '#ccc', lineHeight: '1.6', marginBottom: '18px' }}>
-                <span style={{ fontWeight: '600', color: '#fff' }}>Content Insights: </span>{narrative.content_insights}
+              <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: '1.6', marginBottom: '18px' }}>
+                <span style={{ fontWeight: '600', color: "var(--ink)" }}>Content Insights: </span>{narrative.content_insights}
               </div>
             )}
 
             {narrative.q2_recommendations?.length > 0 && (
               <div>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: '#3b82f6', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--blue)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Target size={16} /> Next Quarter Recommendations
                 </div>
                 {narrative.priority_rationale && (
-                  <div style={{ fontSize: '11px', color: '#666', fontStyle: 'italic', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', fontStyle: 'italic', marginBottom: '12px' }}>
                     {narrative.priority_rationale}
                   </div>
                 )}
                 {narrative.q2_recommendations.map((r, i) => {
                   if (typeof r === 'string') {
                     return (
-                      <div key={i} style={{ fontSize: '13px', color: '#ccc', lineHeight: '1.6', padding: '10px 12px', background: 'rgba(59,130,246,0.05)', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #3b82f6' }}>
+                      <div key={i} style={{ fontSize: '13px', color: 'var(--text)', lineHeight: '1.6', padding: '10px 12px', background: 'rgba(0,209,255,0.05)', borderRadius: '8px', marginBottom: '6px' }}>
                         {r}
                       </div>
                     );
                   }
                   const rank = r.rank || (i + 1);
                   return (
-                    <div key={i} style={{ padding: '14px 16px', background: 'rgba(59,130,246,0.05)', borderRadius: '10px', marginBottom: '10px', borderLeft: '3px solid #3b82f6' }}>
+                    <div key={i} style={{ padding: '14px 16px', background: 'rgba(0,209,255,0.05)', borderRadius: '10px', marginBottom: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '16px', fontWeight: '700', color: '#3b82f6' }}>{rank}.</span>
-                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#fff', lineHeight: 1.4 }}>{r.title || r.claim}</span>
+                        <span style={{ fontSize: '16px', fontWeight: '700', color: 'var(--blue)' }}>{rank}.</span>
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: "var(--ink)", lineHeight: 1.4 }}>{r.title || r.claim}</span>
                       </div>
                       {r.claim && r.claim !== r.title && (
-                        <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: 1.55, marginBottom: '8px' }}>{r.claim}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.55, marginBottom: '8px' }}>{r.claim}</div>
                       )}
                       {r.evidence && (
-                        <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.55, marginBottom: '8px' }}>
-                          <strong style={{ color: '#60a5fa' }}>Evidence: </strong>{r.evidence}
+                        <div style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: 1.55, marginBottom: '8px' }}>
+                          <strong style={{ color: 'var(--accent-text)' }}>Evidence: </strong>{r.evidence}
                         </div>
                       )}
                       {(r.option_a || r.option_b) && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', margin: '8px 0' }}>
                           {r.option_a && (
-                            <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', fontSize: '12px', color: '#cbd5e1', lineHeight: 1.5 }}>
-                              <strong style={{ color: '#fff' }}>Option A:</strong> {r.option_a}
+                            <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', fontSize: '12px', color: 'var(--text)', lineHeight: 1.5 }}>
+                              <strong style={{ color: "var(--ink)" }}>Option A:</strong> {r.option_a}
                             </div>
                           )}
                           {r.option_b && (
-                            <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', fontSize: '12px', color: '#cbd5e1', lineHeight: 1.5 }}>
-                              <strong style={{ color: '#fff' }}>Option B:</strong> {r.option_b}
+                            <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', fontSize: '12px', color: 'var(--text)', lineHeight: 1.5 }}>
+                              <strong style={{ color: "var(--ink)" }}>Option B:</strong> {r.option_b}
                             </div>
                           )}
                         </div>
                       )}
                       {r.recommendation && (
-                        <div style={{ fontSize: '13px', color: '#e2e8f0', lineHeight: 1.55, marginBottom: '6px' }}>
-                          <strong style={{ color: '#4ade80' }}>Pick: </strong>{r.recommendation}
+                        <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.55, marginBottom: '6px' }}>
+                          <strong style={{ color: "var(--pos-text)" }}>Pick: </strong>{r.recommendation}
                         </div>
                       )}
                       {(r.assumption || r.invalidation) && (
-                        <div style={{ fontSize: '11px', color: '#888', lineHeight: 1.5, padding: '8px 10px', background: 'rgba(0,0,0,0.25)', borderRadius: '5px', marginBottom: '6px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', lineHeight: 1.5, padding: '8px 10px', background: 'rgba(0,0,0,0.25)', borderRadius: '5px', marginBottom: '6px' }}>
                           {r.assumption && <div><strong>Assumes:</strong> {r.assumption}</div>}
                           {r.invalidation && <div><strong>Disproved if:</strong> {r.invalidation}</div>}
                         </div>
                       )}
                       {r.decision && (
-                        <div style={{ fontSize: '12px', color: '#60a5fa', fontWeight: '600', lineHeight: 1.5 }}>
+                        <div style={{ fontSize: '12px', color: 'var(--accent-text)', fontWeight: '600', lineHeight: 1.5 }}>
                           → {r.decision}
                         </div>
                       )}
@@ -932,7 +934,7 @@ export default function QuarterlyReport({ activeClient, selectedChannel }) {
             )}
 
             {narrative.trend_narrative && (
-              <div style={{ fontSize: '13px', color: '#888', lineHeight: '1.6', marginTop: '18px', fontStyle: 'italic' }}>
+              <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: '1.6', marginTop: '18px', fontStyle: 'italic' }}>
                 {narrative.trend_narrative}
               </div>
             )}

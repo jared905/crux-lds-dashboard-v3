@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { Layers, TrendingUp, TrendingDown, Zap, AlertCircle, Lightbulb, Minus, Sparkles, Loader2, CheckCircle2 } from "lucide-react";
+import {useEffect, useMemo, useState, useCallback} from "react";
 import { runPatternDetection, runSemanticDetection, estimateAICost } from "../../services/seriesDetectionAdapter";
 import claudeAPI from "../../services/claudeAPI";
+import { AlertCircle, CheckCircle2, Layers, Lightbulb, Loader2, Minus, Sparkles, TrendingDown, TrendingUp, Zap } from 'lucide-react';
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -16,7 +16,7 @@ function hashTitles(rows) {
   return 'series_ai_' + Math.abs(h).toString(36);
 }
 
-export default function ContentSeriesAnalysis({ rows, activeClient }) {
+export default function ContentSeriesAnalysis({ rows, _activeClient }) {
   const [viewMode, setViewMode] = useState("all"); // 'all' | 'winners' | 'opportunities'
   const [aiSeries, setAiSeries] = useState(null); // null = not run, [] = run but empty
   const [aiLoading, setAiLoading] = useState(false);
@@ -123,10 +123,14 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
       const bestVideo = sortedByViews[0];
       const worstVideo = sortedByViews[sortedByViews.length - 1];
 
-      // Performance vs channel average
-      const viewLift = (seriesAvgViews - avgViews) / avgViews;
-      const ctrLift = (seriesAvgCtr - avgCtr) / avgCtr;
-      const retLift = (seriesAvgRet - avgRet) / avgRet;
+      // Performance vs channel average. Zero-guarded: channels without
+      // CTR/retention data (non-OAuth syncs) have zero averages, and
+      // dividing by them made every performance score NaN — the page
+      // rendered broken exactly on those channels (the "sometimes
+      // doesn't work" report, 2026-08-20). Missing data = no lift claim.
+      const viewLift = avgViews > 0 ? (seriesAvgViews - avgViews) / avgViews : 0;
+      const ctrLift = avgCtr > 0 ? (seriesAvgCtr - avgCtr) / avgCtr : 0;
+      const retLift = avgRet > 0 ? (seriesAvgRet - avgRet) / avgRet : 0;
       const subsLift = avgSubs > 0 ? (seriesAvgSubs - avgSubs) / avgSubs : 0;
       const subsConversionLift = avgSubsPerKViews > 0 ? (subsPerKViews - avgSubsPerKViews) / avgSubsPerKViews : 0;
 
@@ -285,13 +289,13 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
   if (!rows || rows.length === 0) {
     return (
       <div style={{
-        background: "#1E1E1E",
-        border: "1px solid #333",
-        borderRadius: "8px",
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: "24px",
         padding: "40px",
         marginBottom: "20px",
         textAlign: "center",
-        color: "#9E9E9E"
+        color: "var(--muted)"
       }}>
         <div style={{ fontSize: "16px", fontWeight: "600" }}>No data available</div>
         <div style={{ fontSize: "13px", marginTop: "8px" }}>Upload client data to see series analysis</div>
@@ -305,7 +309,7 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
 
   const s = {
     section: {
-      background: "linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(236, 72, 153, 0.03))",
+      background: "linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(255, 131, 117, 0.03))",
       border: "1px solid rgba(245, 158, 11, 0.12)",
       borderRadius: "8px",
       padding: "24px",
@@ -320,11 +324,11 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
       flexWrap: "wrap",
       gap: "12px"
     },
-    title: { fontSize: "26px", fontWeight: "700", color: "#fff" },
+    title: { fontSize: "26px", fontWeight: "700", color: "var(--ink)" },
     subtitle: {
       fontSize: "12px",
-      color: "#9E9E9E",
-      background: "#252525",
+      color: "var(--muted)",
+      background: "var(--surface-high)",
       padding: "4px 10px",
       borderRadius: "6px"
     },
@@ -336,10 +340,10 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
       fontWeight: "600",
       cursor: "pointer",
       border: "1px solid",
-      borderColor: active ? "#2962FF" : "#333",
-      backgroundColor: active ? "rgba(41, 98, 255, 0.15)" : "transparent",
-      color: active ? "#60a5fa" : "#9E9E9E",
-      transition: "all 0.2s"
+      borderColor: active ? "var(--blue)" : "var(--outline-variant)",
+      backgroundColor: active ? "rgba(0, 209, 255, 0.15)" : "transparent",
+      color: active ? "var(--accent-text)" : "var(--muted)",
+      transition: "background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s"
     }),
     aiButton: {
       padding: "8px 16px",
@@ -348,14 +352,14 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
       fontWeight: "600",
       cursor: (!hasApiKey || !budgetOk || aiLoading) ? "not-allowed" : "pointer",
       border: "1px solid",
-      borderColor: aiDone ? "#10b981" : "#8b5cf6",
-      backgroundColor: aiDone ? "rgba(16, 185, 129, 0.15)" : "rgba(139, 92, 246, 0.15)",
-      color: aiDone ? "#10b981" : (!hasApiKey || !budgetOk) ? "#666" : "#c4b5fd",
+      borderColor: aiDone ? "var(--pos)" : "var(--blue-deep)",
+      backgroundColor: aiDone ? "rgba(205, 242, 0, 0.15)" : "rgba(0, 209, 255, 0.15)",
+      color: aiDone ? "var(--pos)" : (!hasApiKey || !budgetOk) ? "var(--faint)" : "var(--blue-pale)",
       opacity: (!hasApiKey || !budgetOk) && !aiDone ? 0.5 : 1,
       display: "inline-flex",
       alignItems: "center",
       gap: "6px",
-      transition: "all 0.2s",
+      transition: "background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s",
       marginLeft: "4px",
     },
     aiBadge: {
@@ -363,15 +367,15 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
       fontWeight: "700",
       padding: "2px 6px",
       borderRadius: "4px",
-      background: "rgba(139, 92, 246, 0.2)",
-      border: "1px solid #8b5cf6",
-      color: "#c4b5fd",
+      background: "rgba(0, 209, 255, 0.2)",
+      border: "1px solid #0090c8",
+      color: "var(--blue-pale)",
       marginLeft: "8px",
       textTransform: "uppercase",
     },
     seriesCard: {
-      background: "#252525",
-      border: "1px solid #333",
+      background: "var(--surface-high)",
+      border: "1px solid var(--border)",
       borderRadius: "8px",
       padding: "16px",
       marginBottom: "12px"
@@ -385,24 +389,24 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
     seriesName: {
       fontSize: "16px",
       fontWeight: "700",
-      color: "#fff",
+      color: "var(--ink)",
       marginBottom: "4px",
       display: "flex",
       alignItems: "center",
     },
     episodeCount: {
       fontSize: "12px",
-      color: "#9E9E9E",
+      color: "var(--muted)",
       display: "flex",
       alignItems: "center",
       gap: "4px"
     },
     recommendationBadge: (rec) => {
       const colors = {
-        scale: { bg: "rgba(34, 197, 94, 0.15)", border: "#10b981", text: "#10b981" },
-        optimize: { bg: "rgba(59, 130, 246, 0.15)", border: "#3b82f6", text: "#3b82f6" },
-        maintain: { bg: "rgba(107, 114, 128, 0.15)", border: "#6b7280", text: "#9E9E9E" },
-        sunset: { bg: "rgba(239, 68, 68, 0.15)", border: "#ef4444", text: "#ef4444" }
+        scale: { bg: "rgba(205, 242, 0, 0.15)", border: "var(--pos)", text: "var(--pos)" },
+        optimize: { bg: "rgba(0, 209, 255, 0.15)", border: "var(--blue)", text: "var(--blue)" },
+        maintain: { bg: "rgba(107, 114, 128, 0.15)", border: "var(--faint)", text: "var(--muted)" },
+        sunset: { bg: "rgba(255, 85, 64, 0.15)", border: "var(--neg)", text: "var(--neg)" }
       };
       const c = colors[rec] || colors.maintain;
       return {
@@ -433,18 +437,18 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
     statValue: (good) => ({
       fontSize: "15px",
       fontWeight: "700",
-      color: good ? "#10b981" : "#E0E0E0"
+      color: good ? "var(--pos)" : "var(--text)"
     }),
     statLabel: {
       fontSize: "11px",
-      color: "#9E9E9E",
+      color: "var(--muted)",
       textTransform: "uppercase"
     },
     trendIndicator: (trend) => {
       const colors = {
-        growing: "#10b981",
-        declining: "#ef4444",
-        stable: "#9E9E9E"
+        growing: "var(--pos)",
+        declining: "var(--neg)",
+        stable: "var(--muted)"
       };
       return {
         display: "flex",
@@ -457,15 +461,14 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
     },
     insightRow: {
       fontSize: "12px",
-      color: "#9E9E9E",
+      color: "var(--muted)",
       lineHeight: "1.5",
       paddingTop: "12px",
-      borderTop: "1px solid #333"
+      borderTop: "1px solid var(--border)"
     },
     opportunityCard: {
-      background: "rgba(59, 130, 246, 0.1)",
-      border: "1px solid #3b82f6",
-      borderLeft: "4px solid #3b82f6",
+      background: "rgba(0, 209, 255, 0.1)",
+      border: "1px solid #00D1FF",
       borderRadius: "8px",
       padding: "16px",
       marginBottom: "12px"
@@ -473,7 +476,7 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
     opportunityTitle: {
       fontSize: "14px",
       fontWeight: "700",
-      color: "#fff",
+      color: "var(--ink)",
       marginBottom: "8px"
     }
   };
@@ -488,8 +491,8 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
     <div className="section-card" style={s.section}>
       <div style={s.header}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #f59e0b, #ec4899)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px rgba(245, 158, 11, 0.3)", flexShrink: 0 }}>
-            <Layers size={22} style={{ color: "#fff" }} />
+          <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "var(--warn-bg)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Layers size={22} style={{ color: "var(--warn)" }} />
           </div>
           <div>
             <div style={s.title}>Content Series Analysis</div>
@@ -540,13 +543,13 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
       {/* AI Error */}
       {aiError && (
         <div style={{
-          fontSize: "12px", color: "#ef4444", marginBottom: "12px", padding: "8px 12px",
-          background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)", borderRadius: "6px"
+          fontSize: "12px", color: "var(--neg)", marginBottom: "12px", padding: "8px 12px",
+          background: "rgba(255, 85, 64, 0.1)", border: "1px solid rgba(255, 85, 64, 0.3)", borderRadius: "6px"
         }}>
           AI analysis failed: {aiError}
           <button
             onClick={handleAIEnhance}
-            style={{ marginLeft: "12px", color: "#60a5fa", background: "none", border: "none", cursor: "pointer", fontSize: "12px", textDecoration: "underline" }}
+            style={{ marginLeft: "12px", color: "var(--accent-text)", background: "none", border: "none", cursor: "pointer", fontSize: "12px", textDecoration: "underline" }}
           >
             Retry
           </button>
@@ -560,7 +563,7 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
 
       {/* SERIES CARDS */}
       {filteredSeries.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "40px", color: "#666" }}>
+        <div style={{ textAlign: "center", padding: "40px", color: "var(--faint)" }}>
           {viewMode === "winners" ? "No high-performing series detected yet." :
            viewMode === "opportunities" ? "No optimization opportunities or abandoned series." :
            "No distinct series detected. Try using AI enhancement or use more consistent title formatting."}
@@ -580,7 +583,7 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
                   <Layers size={12} />
                   {series.count} episodes
                   {series.isAbandoned && (
-                    <span style={{ color: "#ef4444", marginLeft: "8px" }}>
+                    <span style={{ color: "var(--neg)", marginLeft: "8px" }}>
                       • Abandoned {Math.round(series.daysSinceLastEpisode)} days ago
                     </span>
                   )}
@@ -626,7 +629,7 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
               <div style={s.stat}>
                 <span style={s.statValue(series.subsConversionLift > 0.1)}>
                   {series.subsPerKViews.toFixed(1)}
-                  {series.isAudienceBuilder && <span style={{ marginLeft: "4px", fontSize: "16px" }}>🔥</span>}
+                  {series.isAudienceBuilder && <span style={{ marginLeft: "4px", fontSize: "16px" }}></span>}
                 </span>
                 <span style={s.statLabel}>
                   Subs/1K Views ({series.subsConversionLift > 0 ? '+' : ''}{Math.round(series.subsConversionLift * 100)}%)
@@ -634,7 +637,7 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
               </div>
             </div>
 
-            <div style={{ ...s.statsGrid, marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #333" }}>
+            <div style={{ ...s.statsGrid, marginTop: "12px", paddingTop: "12px", borderTop: "1px solid var(--border)" }}>
               <div style={s.stat}>
                 <div style={s.trendIndicator(series.trend)}>
                   {series.trend === "growing" && <TrendingUp size={14} />}
@@ -657,16 +660,16 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
             </div>
 
             <div style={s.insightRow}>
-              <div style={{ marginBottom: "8px", color: "#E0E0E0" }}>
+              <div style={{ marginBottom: "8px", color: "var(--text)" }}>
                 <strong>{series.recommendationText}</strong>
               </div>
               {series.bestVideo && (
-                <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px" }}>
+                <div style={{ fontSize: "11px", color: "var(--faint)", marginBottom: "4px" }}>
                   Best: "{series.bestVideo.title}" ({fmtInt(series.bestVideo.views)} views)
                 </div>
               )}
               {series.isAbandoned && series.viewLift > 0 && (
-                <div style={{ fontSize: "11px", color: "#f59e0b", marginTop: "8px" }}>
+                <div style={{ fontSize: "11px", color: "var(--warn)", marginTop: "8px" }}>
                   This series was performing well but hasn't been updated in {Math.round(series.daysSinceLastEpisode)} days - consider reviving it
                 </div>
               )}
@@ -678,17 +681,17 @@ export default function ContentSeriesAnalysis({ rows, activeClient }) {
       {/* ONE-HIT WONDERS (Opportunities Section) */}
       {viewMode === "opportunities" && analysis.oneHitWonders.length > 0 && (
         <div style={{ marginTop: "32px" }}>
-          <div style={{ fontSize: "16px", fontWeight: "700", color: "#3b82f6", marginBottom: "16px" }}>
+          <div style={{ fontSize: "16px", fontWeight: "700", color: "var(--blue)", marginBottom: "16px" }}>
             One-Hit Wonders (Consider Making Into Series)
           </div>
           {analysis.oneHitWonders.map((video, i) => (
             <div key={i} style={s.opportunityCard}>
               <div style={s.opportunityTitle}>"{video.title}"</div>
-              <div style={{ fontSize: "12px", color: "#9E9E9E" }}>
+              <div style={{ fontSize: "12px", color: "var(--muted)" }}>
                 {fmtInt(video.views)} views ({Math.round(video.viewLift * 100)}% above average) •
                 {fmtPct(video.ctr)} CTR • {fmtPct(video.retention)} retention
               </div>
-              <div style={{ fontSize: "12px", color: "#60a5fa", marginTop: "8px" }}>
+              <div style={{ fontSize: "12px", color: "var(--accent-text)", marginTop: "8px" }}>
                 This video significantly outperformed your average - consider creating more content in this style/topic
               </div>
             </div>

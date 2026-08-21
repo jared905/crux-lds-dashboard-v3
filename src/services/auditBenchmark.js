@@ -4,7 +4,6 @@
  */
 
 import { supabase } from './supabaseClient';
-import { classifySizeTier } from './auditIngestion';
 import { updateAuditProgress, updateAuditSection } from './auditDatabase';
 
 export const TIER_BOUNDARIES = {

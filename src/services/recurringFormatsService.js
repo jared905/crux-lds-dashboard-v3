@@ -24,7 +24,6 @@ import claudeAPI from './claudeAPI';
 import { getCohortComposition } from './cohortRolesService';
 
 export const FORMATS_PROMPT_VERSION = 'v1-recurring-formats';
-const DEFAULT_MODEL = 'claude-sonnet-4-5';
 
 // ──────────────────────────────────────────────────
 // Public entry

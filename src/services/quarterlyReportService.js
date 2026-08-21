@@ -76,37 +76,90 @@ async function fetchVideoDataForPeriod(channelId, startDate, endDate) {
 /**
  * Fetch aggregate snapshots for a period (daily analytics)
  */
+const SNAPSHOT_COLUMNS =
+  'video_id, snapshot_date, view_count, watch_hours, avg_view_percentage, subscribers_gained, impressions, ctr';
+
+/**
+ * Page through a video_snapshots query in 1000-row chunks.
+ *
+ * PostgREST caps a response at 1000 rows by default and gives no indication
+ * that it truncated. A quarter of daily snapshots is one row per video per
+ * day — 500 videos over 90 days is ~45,000 rows — so an unpaged query was
+ * returning roughly 2% of the period and the quarterly totals were computed
+ * from that slice. The report looked complete and was wrong by orders of
+ * magnitude.
+ *
+ * Same fix `patternsService.js` already applies for the videos table.
+ */
+async function fetchSnapshotPages(buildQuery) {
+  const PAGE = 1000;
+  const MAX_ROWS = 500_000; // guard against an unbounded loop
+  const out = [];
+  for (let offset = 0; offset < MAX_ROWS; offset += PAGE) {
+    const { data, error } = await buildQuery().range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`video_snapshots page at ${offset} failed: ${error.message}`);
+    const rows = data || [];
+    out.push(...rows);
+    if (rows.length < PAGE) return out; // short page = last page
+  }
+  console.warn(`[quarterlyReport] snapshot fetch hit the ${MAX_ROWS}-row ceiling; totals may be incomplete.`);
+  return out;
+}
+
+/**
+ * Fetch aggregate snapshots for a period (daily analytics)
+ */
 async function fetchSnapshotsForPeriod(channelId, startDate, endDate) {
   if (!supabase) throw new Error('Supabase not configured');
 
-  const { data: snapshots, error } = await supabase
-    .from('video_snapshots')
-    .select('video_id, snapshot_date, view_count, watch_hours, avg_view_percentage, subscribers_gained, impressions, ctr')
-    .eq('channel_id', channelId)
-    .gte('snapshot_date', startDate)
-    .lte('snapshot_date', endDate);
-
-  // Snapshots may not have channel_id — get via video join
-  if (error || !snapshots?.length) {
-    // Try joining through videos table
-    const { data: videoIds } = await supabase
-      .from('videos')
-      .select('id')
-      .eq('channel_id', channelId);
-
-    if (videoIds?.length) {
-      const ids = videoIds.map(v => v.id);
-      const { data: snaps2 } = await supabase
-        .from('video_snapshots')
-        .select('video_id, snapshot_date, view_count, watch_hours, avg_view_percentage, subscribers_gained, impressions, ctr')
-        .in('video_id', ids)
-        .gte('snapshot_date', startDate)
-        .lte('snapshot_date', endDate);
-      return snaps2 || [];
-    }
+  let snapshots = [];
+  let byChannelFailed = false;
+  try {
+    snapshots = await fetchSnapshotPages(() => supabase
+      .from('video_snapshots')
+      .select(SNAPSHOT_COLUMNS)
+      .eq('channel_id', channelId)
+      .gte('snapshot_date', startDate)
+      .lte('snapshot_date', endDate));
+  } catch {
+    // channel_id may not be populated on older snapshot rows — fall through
+    // to the video-join path below rather than failing the report.
+    byChannelFailed = true;
   }
 
-  return snapshots || [];
+  if (!byChannelFailed && snapshots.length) return snapshots;
+
+  // Snapshots may not have channel_id — get via video join.
+  // The videos list needs paging too: a channel past 1000 videos was
+  // silently dropping the tail here as well.
+  const videoIds = [];
+  for (let offset = 0; offset < 100_000; offset += 1000) {
+    const { data, error } = await supabase
+      .from('videos')
+      .select('id')
+      .eq('channel_id', channelId)
+      .range(offset, offset + 999);
+    if (error) throw new Error(`videos page at ${offset} failed: ${error.message}`);
+    const rows = data || [];
+    videoIds.push(...rows.map(v => v.id));
+    if (rows.length < 1000) break;
+  }
+
+  if (!videoIds.length) return snapshots;
+
+  // `.in()` on a very large id list makes an oversized URL — chunk it.
+  const ID_CHUNK = 300;
+  const joined = [];
+  for (let i = 0; i < videoIds.length; i += ID_CHUNK) {
+    const chunk = videoIds.slice(i, i + ID_CHUNK);
+    joined.push(...await fetchSnapshotPages(() => supabase
+      .from('video_snapshots')
+      .select(SNAPSHOT_COLUMNS)
+      .in('video_id', chunk)
+      .gte('snapshot_date', startDate)
+      .lte('snapshot_date', endDate)));
+  }
+  return joined;
 }
 
 /**
@@ -765,7 +818,7 @@ Return 3-5 recommendations. Vary their length based on how much context each nee
  * Validate generated narrative for the things the prompt asked for.
  * Logs flags but does not retry — this is a review signal, not a gate.
  */
-function validateNarrative(narrative, { honorifics = [], channelNames = [] } = {}) {
+function validateNarrative(narrative, { honorifics = [], _channelNames = [] } = {}) {
   const flags = [];
   if (!narrative || typeof narrative !== 'object') {
     return { flags: ['narrative missing or not an object'] };

@@ -7,12 +7,14 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --port 5173",
-    "gen:mechanics": "node scripts/generate-platform-mechanics-md.mjs"
+    "gen:mechanics": "node scripts/generate-platform-mechanics-md.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.93.2",
+    "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",
-    "jszip": "^3.10.1",
     "lucide-react": "^0.469.0",
     "papaparse": "^5.5.3",
     "pdfjs-dist": "^4.10.38",
@@ -22,8 +24,13 @@
     "recharts": "^2.15.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.17.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.23",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.14.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "vite": "^7.3.0"

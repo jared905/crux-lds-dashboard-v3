@@ -1,26 +1,22 @@
-import React, { useMemo, useEffect, useState } from "react";
-import { TrendingUp, TrendingDown, Minus, AlertCircle, CheckCircle, Zap, Clock } from "lucide-react";
+import {useMemo, useEffect, useState} from "react";
+import {AlertCircle, CheckCircle} from "lucide-react";
 import { useMediaQuery } from "../../hooks/useMediaQuery.js";
 
 // 2026 YouTube Retention Benchmarks by video duration
 // Source: YouTube Retention Benchmark Report 2026
-const getExpectedRetention = (durationSeconds) => {
-  const mins = durationSeconds / 60;
-  if (mins < 1) return 0.70;      // Shorts: 70% average
-  if (mins < 3) return 0.50;      // 1-3 min: 50% average
-  if (mins < 5) return 0.45;      // 3-5 min: 45% average
-  if (mins < 10) return 0.375;    // 5-10 min: 37.5% average
-  if (mins < 20) return 0.325;    // 10-20 min: 32.5% average
-  if (mins < 30) return 0.275;    // 20-30 min: 27.5% average
-  if (mins < 60) return 0.225;    // 30-60 min: 22.5% average
-  return 0.175;                   // 60+ min: 17.5% average
-};
+import { getExpectedRetention } from "../../lib/retentionBenchmarks.js";
+import { Clock, Target } from 'lucide-react';
 
 // Engagement threshold: viewers who watched above this % are considered "engaged"
-// Research shows 50%+ retention indicates genuine interest vs casual scrolling
-const ENGAGEMENT_THRESHOLD = 0.50;
+// Format-aware engagement bars (2026-08-20: a Shorts-heavy channel was
+// reading ~100% engaged because Shorts naturally run 80-97% retention —
+// finishing a 30-second clip is not devotion). Long-form: 50%+ average
+// retention indicates genuine interest. Shorts: the bar is 85%+ —
+// roughly "watched to the end".
+const engagementThresholdFor = (r) =>
+  ((r.duration || r.durationSeconds || 300) <= 180) ? 0.85 : 0.50;
 
-export default function BrandFunnel({ rows, dateRange }) {
+export default function BrandFunnel({ rows, dateRange, coverageNote = null }) {
   const { isMobile } = useMediaQuery();
   const [particles, setParticles] = useState([]);
 
@@ -29,8 +25,15 @@ export default function BrandFunnel({ rows, dateRange }) {
 
     // Calculate totals
     const totalImpressions = rows.reduce((sum, r) => sum + (r.impressions || 0), 0);
-    const hasRealImpressions = totalImpressions > 0;
     const totalViews = rows.reduce((sum, r) => sum + (r.views || 0), 0);
+    // Impressions must exceed views for the funnel's premise to hold.
+    // When sync coverage mixes lifetime views with partial-period
+    // impressions the ratio inverts (7.8M views "from" 111K impressions)
+    // — treat impressions as untrustworthy, not as data.
+    const hasRealImpressions = totalImpressions > 0 && totalImpressions >= totalViews;
+    // Retention coverage: engagement modelling needs real retention rows.
+    const retentionRows = rows.filter(r => (r.avgViewPct || 0) > 0).length;
+    const retentionCoverage = rows.length > 0 ? retentionRows / rows.length : 0;
 
     // Keep watch hours for secondary display
     const totalWatchHours = rows.reduce((sum, r) => sum + (r.watchHours || 0), 0);
@@ -38,23 +41,24 @@ export default function BrandFunnel({ rows, dateRange }) {
     // ENGAGED VIEWERS: Estimate viewers who watched 50%+ of the video
     // Using retention data to estimate the proportion of engaged viewers per video
     // If a video has 40% avg retention, we estimate ~60% of viewers are "engaged" (watched meaningfully)
-    // Formula: For each video, engaged = views × (retention / ENGAGEMENT_THRESHOLD) capped at 1.0
+    // Formula: engaged = views × (retention / format-aware bar) capped at 1.0
     const engagedViewers = rows.reduce((sum, r) => {
       const views = r.views || 0;
       const retention = r.avgViewPct || 0;
-      // Engagement ratio: what portion of viewers likely hit 50%+ watch time
-      // If avg retention is 60%, most viewers are engaged. If 30%, fewer are.
-      // Use retention as a proxy - higher retention = more engaged viewers
-      const engagementRatio = Math.min(retention / ENGAGEMENT_THRESHOLD, 1.0);
+      // Retention as engagement proxy, against a format-aware bar:
+      // 50% of a long-form video or 85% of a Short.
+      const engagementRatio = Math.min(retention / engagementThresholdFor(r), 1.0);
       return sum + (views * engagementRatio);
     }, 0);
 
     // Calculate expected engaged viewers based on industry benchmarks
     const expectedEngagedViewers = rows.reduce((sum, r) => {
-      const duration = r.durationSeconds || 300;
+      const duration = r.duration || r.durationSeconds || 300;
       const views = r.views || 0;
       const expectedRet = getExpectedRetention(duration);
-      const expectedEngagementRatio = Math.min(expectedRet / ENGAGEMENT_THRESHOLD, 1.0);
+      // Same format-aware bar as the actuals, so the benchmark ratio
+      // compares like with like.
+      const expectedEngagementRatio = Math.min(expectedRet / engagementThresholdFor(r), 1.0);
       return sum + (views * expectedEngagementRatio);
     }, 0);
 
@@ -144,7 +148,7 @@ export default function BrandFunnel({ rows, dateRange }) {
       const engaged = data.reduce((sum, r) => {
         const v = r.views || 0;
         const ret = r.avgViewPct || 0;
-        const ratio = Math.min(ret / ENGAGEMENT_THRESHOLD, 1.0);
+        const ratio = Math.min(ret / engagementThresholdFor(r), 1.0);
         return sum + (v * ratio);
       }, 0);
       const periodCTR = imps > 0 ? data.reduce((sum, r) => sum + ((r.ctr || 0) * (r.impressions || 0)), 0) / imps : 0;
@@ -172,7 +176,7 @@ export default function BrandFunnel({ rows, dateRange }) {
       message: "Building toward industry benchmarks. Focus on consistent improvement.",
       action: "Analyze top-performing videos and replicate successful patterns",
       icon: AlertCircle,
-      color: "#3b82f6"
+      color: "var(--blue)"
     };
 
     // Top-Heavy: Low CTR (unchanged from original)
@@ -194,7 +198,7 @@ export default function BrandFunnel({ rows, dateRange }) {
         message: "Great click-through but content isn't converting viewers to engaged audience.",
         action: "Tighten intros, deliver value faster, align content with thumbnail promises",
         icon: AlertCircle,
-        color: "#ef4444"
+        color: "var(--neg)"
       };
     }
     // Cylinder: High CTR + exceeds engagement benchmarks
@@ -205,7 +209,7 @@ export default function BrandFunnel({ rows, dateRange }) {
         message: "Outperforming industry benchmarks at every stage. Loyal, deeply-engaged community.",
         action: "Perfect audience for product launches, memberships, or premium content",
         icon: CheckCircle,
-        color: "#10b981"
+        color: "var(--pos)"
       };
     }
     // Healthy: Solid across the board
@@ -216,15 +220,37 @@ export default function BrandFunnel({ rows, dateRange }) {
         message: "Meeting or exceeding industry benchmarks. Solid performance with room to grow.",
         action: "Continue current strategy while testing incremental improvements",
         icon: CheckCircle,
-        color: "#10b981"
+        color: "var(--pos)"
+      };
+    }
+
+    // Not enough coverage to model engagement at all → the component
+    // renders an honest placeholder instead of a fabricated diagnosis
+    // ("0 engaged · Leaky Bucket" on a channel whose retention simply
+    // hasn't synced).
+    if (retentionCoverage < 0.2 || engagedViewers <= 0) {
+      return {
+        insufficient: true,
+        missing: [
+          !hasRealImpressions && 'impressions',
+          retentionCoverage < 0.2 && 'retention',
+        ].filter(Boolean),
+        totalViews,
       };
     }
 
     // Calculate widths for funnel visualization
     const maxWidth = 100;
-    const viewsWidth = totalImpressions > 0 ? Math.max((totalViews / totalImpressions) * maxWidth, 50) : 65;
+    // Clamp [48, 82]: wide enough to read, always visibly narrower than
+    // the stage above — an unclamped ratio once rendered stage 2 at 70x
+    // the canvas (user-reported 2026-08-20, "so distorted and so big").
+    const viewsWidth = hasRealImpressions
+      ? Math.min(Math.max((totalViews / totalImpressions) * maxWidth, 48), 82)
+      : 65;
     // Scale engaged viewers width based on engagement rate (higher = wider bottom)
-    const engagedWidth = Math.max(Math.min(engagementQualityRatio * 45, 50), 35);
+    // Floor raised 35 → 42 so the stage-3 box never gets too narrow for
+    // its own labels ("Engaged Viewers" was clipping at the old minimum).
+    const engagedWidth = Math.max(Math.min(engagementQualityRatio * 45, 50), 42);
 
     return {
       stages: [
@@ -233,7 +259,7 @@ export default function BrandFunnel({ rows, dateRange }) {
           subtitle: "Impressions",
           value: totalImpressions,
           trend: trends.impressions,
-          color: "#6366f1",
+          color: "#00D1FF",
           width: maxWidth
         },
         {
@@ -241,7 +267,7 @@ export default function BrandFunnel({ rows, dateRange }) {
           subtitle: "Views",
           value: totalViews,
           trend: trends.views,
-          color: "#8b5cf6",
+          color: "#0090c8",
           conversion: ctr,
           width: viewsWidth
         },
@@ -250,7 +276,7 @@ export default function BrandFunnel({ rows, dateRange }) {
           subtitle: "50%+ Watch Time",
           value: engagedViewers,
           trend: trends.engagedViewers,
-          color: "#ec4899",
+          color: "#CDF200",
           conversion: engagementRate,
           isEngagedViewers: true,
           width: engagedWidth
@@ -275,13 +301,24 @@ export default function BrandFunnel({ rows, dateRange }) {
 
   // Particle animation
   useEffect(() => {
-    if (!funnelData) return;
+    if (!funnelData || funnelData.insufficient) return;
     
+    // Dot density carries the story: every dot starts as an impression,
+    // and at each stage boundary it survives with (roughly) the real
+    // conversion rate — clamped so even weak funnels stay visibly alive.
+    // So impressions hold the most dots, then views, then engaged.
+    const viewSurvival = Math.min(Math.max(funnelData.ctr * 6, 0.3), 0.75);
+    const engagedSurvival = Math.min(Math.max(funnelData.engagementRate * 1.2, 0.3), 0.7);
+    const stageAt = (progress) => {
+      const y = (progress / 100) * 510 + 30;
+      return y < 190 ? 0 : y < 385 ? 1 : 2;
+    };
+
     const interval = setInterval(() => {
       setParticles(prev => {
         const active = prev.filter(p => p.progress < 100);
-        
-        if (Math.random() < 0.25) {
+
+        if (Math.random() < 0.35) {
           active.push({
             id: Date.now() + Math.random(),
             progress: 0,
@@ -289,11 +326,18 @@ export default function BrandFunnel({ rows, dateRange }) {
             speed: 0.4 + Math.random() * 0.4
           });
         }
-        
-        return active.map(p => ({
-          ...p,
-          progress: p.progress + p.speed
-        }));
+
+        return active
+          .map(p => {
+            const next = { ...p, progress: p.progress + p.speed };
+            const crossedInto = stageAt(next.progress);
+            if (crossedInto > stageAt(p.progress)) {
+              const survival = crossedInto === 1 ? viewSurvival : engagedSurvival;
+              if (Math.random() > survival) return null;
+            }
+            return next;
+          })
+          .filter(Boolean);
       });
     }, 60);
     
@@ -302,9 +346,29 @@ export default function BrandFunnel({ rows, dateRange }) {
 
   if (!funnelData) {
     return (
-      <div style={{ background: "#1E1E1E", border: "1px solid #333", borderRadius: "8px", padding: "40px", marginBottom: "20px" }}>
-        <div style={{ textAlign: "center", color: "#9E9E9E" }}>
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "24px", padding: "40px", marginBottom: "20px" }}>
+        <div style={{ textAlign: "center", color: "var(--muted)" }}>
           No data available for funnel analysis
+        </div>
+      </div>
+    );
+  }
+
+  if (funnelData.insufficient) {
+    return (
+      <div className="section-card" style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "24px", padding: "28px", marginBottom: "20px" }}>
+        <div style={{ fontFamily: "var(--font-label)", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 6 }}>
+          Impact Funnel
+        </div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: "var(--ink)", marginBottom: 8 }}>
+          Not enough analytics coverage yet
+        </div>
+        <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.7, maxWidth: "72ch" }}>
+          The funnel models impressions → views → engaged viewers, and this channel's sync
+          hasn't delivered {funnelData.missing.join(" or ") || "the underlying analytics"} yet —
+          the views are real ({Math.round(funnelData.totalViews).toLocaleString()} in this window), but modelling
+          engagement on top of missing data would produce a made-up verdict. This section fills
+          in on its own once the channel's YouTube analytics sync has run.
         </div>
       </div>
     );
@@ -344,57 +408,39 @@ export default function BrandFunnel({ rows, dateRange }) {
 
   return (
     <div className="section-card target-section" style={{
-      background: "#1E1E1E",
-      border: "1px solid #2A2A2A",
-      borderRadius: "8px",
-      "--glow-color": "rgba(139, 92, 246, 0.2)",
+      background: "var(--card)",
+      border: "1px solid var(--border)",
+      borderRadius: "24px",
+      "--glow-color": "rgba(0, 209, 255, 0.15)",
       padding: isMobile ? "16px" : "28px",
       marginBottom: "20px",
     }}>
       {/* Header */}
       <div style={{ marginBottom: isMobile ? "16px" : "28px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "8px" : "12px", marginBottom: "8px", flexWrap: "wrap" }}>
-          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #ec4899, #ec4899cc)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px #ec48994d", flexShrink: 0, overflow: "hidden" }}>
-            <svg width="34" height="34" viewBox="0 0 48 48" fill="none" style={{ overflow: "visible" }}>
-              {/* Target board + support — shakes on arrow impact */}
-              <g className="target-board">
-                {/* Support leg behind target */}
-                <line x1="26" y1="38" x2="36" y2="46" stroke="white" strokeWidth="2.5" strokeLinecap="round" opacity="0.6" />
-                <line x1="18" y1="38" x2="8" y2="46" stroke="white" strokeWidth="2.5" strokeLinecap="round" opacity="0.6" />
-                {/* Target — 3D perspective ellipses */}
-                <ellipse cx="22" cy="24" rx="18" ry="20" stroke="white" strokeWidth="3" fill="none" opacity="0.9" />
-                <ellipse cx="22" cy="24" rx="12" ry="14" stroke="white" strokeWidth="2" fill="none" opacity="0.8" />
-                <ellipse cx="22" cy="24" rx="6" ry="7" stroke="white" strokeWidth="2" fill="none" opacity="0.7" />
-                {/* Bullseye dot */}
-                <circle cx="22" cy="24" r="2" fill="white" opacity="0.9" />
-              </g>
-              {/* Arrow that flies in on hover */}
-              <g className="target-arrow" style={{ opacity: 0 }}>
-                {/* Arrow shaft */}
-                <line x1="22" y1="24" x2="42" y2="8" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
-                {/* Arrow head */}
-                <path d="M22 24 L26 21 L24 26 Z" fill="white" opacity="0.9" />
-                {/* Arrow fletching */}
-                <line x1="40" y1="10" x2="44" y2="6" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
-                <line x1="42" y1="12" x2="46" y2="8" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
-              </g>
-            </svg>
+          <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "rgba(0, 209, 255, 0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+            <Target size={20} style={{ color: "#4cd6ff" }} />
           </div>
-          <div style={{ fontSize: isMobile ? "22px" : "28px", fontWeight: "700", color: "#fff" }}>Impact Funnel</div>
+          <div style={{ fontSize: isMobile ? "22px" : "28px", fontWeight: "700", color: "var(--ink)" }}>Impact Funnel</div>
           <span className="stat-chip purple">{dateRangeLabel}</span>
           {funnelData.hasRealImpressions ? (
-            <span style={{ fontSize: "10px", fontWeight: "700", color: "#10b981", background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.3)", padding: "2px 8px", borderRadius: "4px" }}>
+            <span style={{ fontSize: "10px", fontWeight: "700", color: "var(--pos)", background: "rgba(205, 242, 0, 0.1)", border: "1px solid rgba(205, 242, 0, 0.3)", padding: "2px 8px", borderRadius: "4px" }}>
               Real Impressions
             </span>
           ) : (
-            <span style={{ fontSize: "10px", fontWeight: "700", color: "#f59e0b", background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", padding: "2px 8px", borderRadius: "4px" }}>
+            <span style={{ fontSize: "10px", fontWeight: "700", color: "var(--warn)", background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", padding: "2px 8px", borderRadius: "4px" }}>
               Estimated Data
             </span>
           )}
         </div>
         {!isMobile && (
-          <div style={{ fontSize: "14px", color: "#9E9E9E", marginLeft: "34px" }}>
+          <div style={{ fontSize: "14px", color: "var(--muted)", marginLeft: "34px" }}>
             How your content converts passive viewers into engaged brand advocates
+          </div>
+        )}
+        {coverageNote && (
+          <div style={{ fontSize: "12px", color: "#859399", marginLeft: isMobile ? 0 : "34px", marginTop: "6px", maxWidth: "80ch", lineHeight: 1.5 }}>
+            {coverageNote}
           </div>
         )}
       </div>
@@ -403,8 +449,8 @@ export default function BrandFunnel({ rows, dateRange }) {
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.4fr 400px", gap: isMobile ? "20px" : "40px", alignItems: "start" }}>
 
         {/* Left: SVG Funnel */}
-        <div style={{ position: "relative", minHeight: isMobile ? "320px" : "560px" }}>
-          <svg width="100%" height={isMobile ? "320" : "560"} viewBox="0 0 700 560" preserveAspectRatio="xMidYMid meet" style={{ display: "block" }}>
+        <div style={{ position: "relative", minHeight: isMobile ? "330px" : "576px" }}>
+          <svg width="100%" height={isMobile ? "330" : "576"} viewBox="0 0 700 576" preserveAspectRatio="xMidYMid meet" style={{ display: "block" }}>
             <defs>
               {/* Gradients */}
               {stages.map((stage, idx) => (
@@ -435,7 +481,7 @@ export default function BrandFunnel({ rows, dateRange }) {
             <text x="350" y="85" textAnchor="middle" fill="#fff" fontSize="20" fontWeight="700">
               {stages[0].name}
             </text>
-            <text x="350" y="110" textAnchor="middle" fill="#cbd5e1" fontSize="14">
+            <text x="350" y="110" textAnchor="middle" fill="#bbc9cf" fontSize="14">
               {stages[0].subtitle}
             </text>
             <text x="350" y="150" textAnchor="middle" fill={stages[0].color} fontSize="36" fontWeight="700">
@@ -444,16 +490,16 @@ export default function BrandFunnel({ rows, dateRange }) {
             {/* Trend indicator */}
             {stages[0].trend !== undefined && (
               <text x="350" y="175" textAnchor="middle" fontSize="13" fontWeight="600"
-                fill={stages[0].trend === 0 ? "#9E9E9E" : stages[0].trend > 0 ? "#10b981" : "#ef4444"}>
+                fill={stages[0].trend === 0 ? "#9E9E9E" : stages[0].trend > 0 ? "#CDF200" : "var(--neg)"}>
                 {stages[0].trend === 0 ? "—" : `${stages[0].trend > 0 ? "↑ +" : "↓ "}${stages[0].trend.toFixed(1)}% recent vs older`}
               </text>
             )}
 
             {/* Connector 1 */}
-            <line x1="350" y1="190" x2="350" y2="225" stroke="#666" strokeWidth="2.5" strokeDasharray="6,6" />
-            <polygon points="350,225 344,218 356,218" fill="#666" />
+            <line x1="350" y1="190" x2="350" y2="225" stroke="#67747b" strokeWidth="2.5" strokeDasharray="6,6" />
+            <polygon points="350,225 344,218 356,218" fill="#67747b" />
             {stages[1].conversion && (
-              <text x="390" y="212" fill="#cbd5e1" fontSize="14" fontWeight="600">
+              <text x="390" y="212" fill="#ffab9d" fontSize="14" fontWeight="600">
                 {fmtPct(stages[1].conversion)} Avg CTR
               </text>
             )}
@@ -469,7 +515,7 @@ export default function BrandFunnel({ rows, dateRange }) {
             <text x="350" y="280" textAnchor="middle" fill="#fff" fontSize="20" fontWeight="700">
               {stages[1].name}
             </text>
-            <text x="350" y="305" textAnchor="middle" fill="#cbd5e1" fontSize="14">
+            <text x="350" y="305" textAnchor="middle" fill="#bbc9cf" fontSize="14">
               {stages[1].subtitle}
             </text>
             <text x="350" y="345" textAnchor="middle" fill={stages[1].color} fontSize="36" fontWeight="700">
@@ -478,51 +524,65 @@ export default function BrandFunnel({ rows, dateRange }) {
             {/* Trend indicator */}
             {stages[1].trend !== undefined && (
               <text x="350" y="370" textAnchor="middle" fontSize="13" fontWeight="600"
-                fill={stages[1].trend === 0 ? "#9E9E9E" : stages[1].trend > 0 ? "#10b981" : "#ef4444"}>
+                fill={stages[1].trend === 0 ? "#9E9E9E" : stages[1].trend > 0 ? "#CDF200" : "var(--neg)"}>
                 {stages[1].trend === 0 ? "—" : `${stages[1].trend > 0 ? "↑ +" : "↓ "}${stages[1].trend.toFixed(1)}% recent vs older`}
               </text>
             )}
 
             {/* Connector 2 */}
-            <line x1="350" y1="385" x2="350" y2="420" stroke="#666" strokeWidth="2.5" strokeDasharray="6,6" />
-            <polygon points="350,420 344,413 356,413" fill="#666" />
+            <line x1="350" y1="385" x2="350" y2="420" stroke="#67747b" strokeWidth="2.5" strokeDasharray="6,6" />
+            <polygon points="350,420 344,413 356,413" fill="#67747b" />
             {funnelData.engagementQualityRatio !== undefined && (
-              <text x="390" y="407" fill="#cbd5e1" fontSize="14" fontWeight="600">
+              <text x="390" y="407" fill="#bbc9cf" fontSize="14" fontWeight="600">
                 {fmtRatio(funnelData.engagementQualityRatio)} vs Benchmark
               </text>
             )}
 
             {/* Stage 3 Trapezoid - Expanded for readability */}
             <path
-              d={`M ${350 - (stages[2].width * 2.2)} 420 L ${350 + (stages[2].width * 2.2)} 420 L ${350 + (stages[2].width * 1.9)} 530 L ${350 - (stages[2].width * 1.9)} 530 Z`}
+              d={`M ${350 - (stages[2].width * 2.2)} 420 L ${350 + (stages[2].width * 2.2)} 420 L ${350 + (stages[2].width * 1.9)} 546 L ${350 - (stages[2].width * 1.9)} 546 Z`}
               fill="url(#grad2)"
               stroke={stages[2].color}
               strokeWidth="3"
               filter="url(#glow)"
             />
-            <text x="350" y="450" textAnchor="middle" fill="#fff" fontSize="18" fontWeight="700">
+            <text x="350" y="448" textAnchor="middle" fill="#fff" fontSize="16" fontWeight="700">
               {stages[2].name}
             </text>
-            <text x="350" y="480" textAnchor="middle" fill={stages[2].color} fontSize="32" fontWeight="700">
+            <text x="350" y="478" textAnchor="middle" fill={stages[2].color} fontSize="28" fontWeight="700">
               {fmtEngaged(stages[2].value)}
             </text>
-            <text x="350" y="500" textAnchor="middle" fill="#cbd5e1" fontSize="14">
-              people deeply engaged
+            <text x="350" y="496" textAnchor="middle" fill="#bbc9cf" fontSize="11">
+              est. watched 50%+ of a video
             </text>
-            <text x="350" y="520" textAnchor="middle" fill="#9E9E9E" fontSize="12">
+            <text x="350" y="510" textAnchor="middle" fill="#bbc9cf" fontSize="11">
+              (85%+ of a Short)
+            </text>
+            <text x="350" y="530" textAnchor="middle" fill="#a9b8be" fontSize="11">
               {funnelData.avgWatchMinutesPerView.toFixed(1)} min avg watch time
             </text>
 
-            {/* Animated particles */}
+            {/* Animated particles, squeezed to the funnel's width at
+                their current depth so none float outside the walls */}
             {particles.map(particle => {
               const y = (particle.progress / 100) * 510 + 30;
               const stage = y < 190 ? 0 : y < 385 ? 1 : 2;
               const opacity = Math.sin((particle.progress / 100) * Math.PI);
-              
+              const w1 = stages[1].width * 2.2;
+              const w2 = stages[2].width * 2.2;
+              const w2b = stages[2].width * 1.9;
+              let halfW;
+              if (y < 190) halfW = 320 + (w1 - 320) * ((y - 30) / 160);
+              else if (y < 225) halfW = w1;
+              else if (y < 385) halfW = w1 + (w2 - w1) * ((y - 225) / 160);
+              else if (y < 420) halfW = w2;
+              else halfW = w2 + (w2b - w2) * ((y - 420) / 110);
+              const cx = 350 + ((particle.x - 50) / 17.5) * (halfW * 0.8);
+
               return (
                 <circle
                   key={particle.id}
-                  cx={`${particle.x}%`}
+                  cx={cx}
                   cy={y}
                   r="4"
                   fill={stages[stage].color}
@@ -537,24 +597,24 @@ export default function BrandFunnel({ rows, dateRange }) {
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           {/* Diagnosis Card */}
           <div style={{
-            background: "#252525",
+            background: "var(--input-bg)",
             border: `2px solid ${funnelData.diagnosis.color}`,
             borderRadius: "8px",
             padding: "28px"
           }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: "18px", marginBottom: "20px" }}>
               <div style={{
-                background: `${funnelData.diagnosis.color}22`,
-                borderRadius: "10px",
-                padding: "14px"
+                width: "44px", height: "44px", borderRadius: "12px",
+                background: `${funnelData.diagnosis.color}1F`,
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
               }}>
-                <DiagnosisIcon size={36} style={{ color: funnelData.diagnosis.color }} />
+                <DiagnosisIcon size={22} style={{ color: funnelData.diagnosis.color }} />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: "20px", fontWeight: "700", color: funnelData.diagnosis.color, marginBottom: "10px", fontFamily: "'Barlow Condensed', sans-serif" }}>
                   {funnelData.diagnosis.title}
                 </div>
-                <div style={{ fontSize: "14px", color: "#E0E0E0", lineHeight: "1.6" }}>
+                <div style={{ fontSize: "14px", color: "var(--text)", lineHeight: "1.6" }}>
                   {funnelData.diagnosis.message}
                 </div>
               </div>
@@ -567,16 +627,17 @@ export default function BrandFunnel({ rows, dateRange }) {
               gap: "12px",
               marginBottom: "16px",
               padding: "16px",
-              background: "#1E1E1E",
-              borderRadius: "8px"
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "16px"
             }}>
               <div>
-                <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Avg CTR</div>
-                <div style={{ fontSize: "18px", fontWeight: "700", color: "#8b5cf6" }}>{fmtPct(funnelData.ctr)}</div>
+                <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>Avg CTR</div>
+                <div style={{ fontSize: "18px", fontWeight: "700", color: "var(--tert)" }}>{fmtPct(funnelData.ctr)}</div>
               </div>
               <div>
-                <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "4px" }}>Engagement Rate</div>
-                <div style={{ fontSize: "18px", fontWeight: "700", color: funnelData.engagementRate >= 0.7 ? "#10b981" : funnelData.engagementRate >= 0.5 ? "#f59e0b" : "#ef4444" }}>
+                <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>Engagement Rate</div>
+                <div style={{ fontSize: "18px", fontWeight: "700", color: funnelData.engagementRate >= 0.7 ? "var(--pos)" : funnelData.engagementRate >= 0.5 ? "var(--warn)" : "var(--neg)" }}>
                   {fmtPct(funnelData.engagementRate)}
                 </div>
               </div>
@@ -589,33 +650,33 @@ export default function BrandFunnel({ rows, dateRange }) {
                 gridTemplateColumns: "1fr 1fr",
                 gap: "12px",
                 marginBottom: "16px",
-                padding: "14px",
-                background: "#1a1a1a",
-                borderRadius: "8px",
-                border: "1px solid #333"
+                padding: "16px",
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: "16px"
               }}>
                 {funnelData.shortsMetrics.count > 0 && (
                   <div>
-                    <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "6px", fontWeight: "600" }}>
+                    <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "6px", fontWeight: "600" }}>
                       Shorts ({funnelData.shortsMetrics.count})
                     </div>
-                    <div style={{ fontSize: "13px", color: "#E0E0E0" }}>
+                    <div style={{ fontSize: "13px", color: "var(--text)" }}>
                       {fmtHours(funnelData.shortsMetrics.totalWatchHours)}
                     </div>
-                    <div style={{ fontSize: "11px", color: "#888", marginTop: "2px" }}>
+                    <div style={{ fontSize: "11px", color: "#859399", marginTop: "2px" }}>
                       {fmtPct(funnelData.shortsMetrics.avgRetention)} ret
                     </div>
                   </div>
                 )}
                 {funnelData.longsMetrics.count > 0 && (
                   <div>
-                    <div style={{ fontSize: "11px", color: "#9E9E9E", marginBottom: "6px", fontWeight: "600" }}>
+                    <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "6px", fontWeight: "600" }}>
                       Long-form ({funnelData.longsMetrics.count})
                     </div>
-                    <div style={{ fontSize: "13px", color: "#E0E0E0" }}>
+                    <div style={{ fontSize: "13px", color: "var(--text)" }}>
                       {fmtHours(funnelData.longsMetrics.totalWatchHours)}
                     </div>
-                    <div style={{ fontSize: "11px", color: "#888", marginTop: "2px" }}>
+                    <div style={{ fontSize: "11px", color: "#859399", marginTop: "2px" }}>
                       {fmtPct(funnelData.longsMetrics.avgRetention)} ret
                     </div>
                   </div>
@@ -627,10 +688,10 @@ export default function BrandFunnel({ rows, dateRange }) {
             {funnelData.shortsHeavy && (
               <div style={{
                 fontSize: "11px",
-                color: "#f59e0b",
+                color: "var(--warn)",
                 background: "#f59e0b15",
                 padding: "8px 12px",
-                borderRadius: "6px",
+                borderRadius: "8px",
                 marginBottom: "16px"
               }}>
                 High retention % driven by Shorts format - watch hours is a better quality signal
@@ -639,15 +700,15 @@ export default function BrandFunnel({ rows, dateRange }) {
 
             {funnelData.diagnosis.action && (
               <div style={{
-                background: "#1E1E1E",
-                borderLeft: `4px solid ${funnelData.diagnosis.color}`,
+                background: "var(--card)",
+                border: "1px solid var(--border)",
                 padding: "18px",
-                borderRadius: "8px"
+                borderRadius: "16px"
               }}>
-                <div style={{ fontSize: "11px", color: "#9E9E9E", fontWeight: "700", textTransform: "uppercase", marginBottom: "8px" }}>
+                <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: "700", textTransform: "uppercase", marginBottom: "8px" }}>
                   Recommended Action
                 </div>
-                <div style={{ fontSize: "14px", color: "#E0E0E0", fontWeight: "600", lineHeight: "1.5" }}>
+                <div style={{ fontSize: "14px", color: "var(--text)", fontWeight: "600", lineHeight: "1.5" }}>
                   → {funnelData.diagnosis.action}
                 </div>
               </div>
@@ -665,8 +726,8 @@ export default function BrandFunnel({ rows, dateRange }) {
                 border: "1px solid #f59e0b40",
                 borderRadius: "8px"
               }}>
-                <Clock size={18} style={{ color: "#f59e0b", flexShrink: 0 }} />
-                <div style={{ fontSize: "12px", color: "#f59e0b", lineHeight: "1.4" }}>
+                <Clock size={18} style={{ color: "var(--warn)", flexShrink: 0 }} />
+                <div style={{ fontSize: "12px", color: "var(--warn)", lineHeight: "1.4" }}>
                   <strong>No uploads in {funnelData.daysSinceLastUpload} days</strong> — metrics may not reflect current audience engagement
                 </div>
               </div>
@@ -675,33 +736,33 @@ export default function BrandFunnel({ rows, dateRange }) {
 
           {/* Engagement Quality vs Industry Benchmark */}
           <div style={{
-            background: "#252525",
-            border: "1px solid #333",
+            background: "var(--input-bg)",
+            border: "1px solid var(--border)",
             borderRadius: "8px",
             padding: "24px"
           }}>
-            <div style={{ fontSize: "12px", color: "#9E9E9E", fontWeight: "700", textTransform: "uppercase", marginBottom: "8px" }}>
+            <div style={{ fontSize: "12px", color: "var(--muted)", fontWeight: "700", textTransform: "uppercase", marginBottom: "8px" }}>
               Engagement vs Benchmark
             </div>
-            <div style={{ fontSize: "14px", color: "#cbd5e1", marginBottom: "10px" }}>
+            <div style={{ fontSize: "14px", color: "#bbc9cf", marginBottom: "10px" }}>
               Engaged viewers compared to 2026 industry standards
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "6px" }}>
               <div style={{
                 fontSize: isMobile ? "28px" : "38px",
                 fontWeight: "700",
-                color: funnelData.engagementQualityRatio >= 1.3 ? "#10b981"
-                  : funnelData.engagementQualityRatio >= 1.0 ? "#8b5cf6"
-                  : funnelData.engagementQualityRatio >= 0.7 ? "#f59e0b"
-                  : "#ef4444"
+                color: funnelData.engagementQualityRatio >= 1.3 ? "var(--pos)"
+                  : funnelData.engagementQualityRatio >= 1.0 ? "#0090c8"
+                  : funnelData.engagementQualityRatio >= 0.7 ? "var(--warn)"
+                  : "var(--neg)"
               }}>
                 {fmtRatio(funnelData.engagementQualityRatio)}
               </div>
-              <div style={{ fontSize: "14px", color: "#9E9E9E" }}>
+              <div style={{ fontSize: "14px", color: "var(--muted)" }}>
                 {fmtEngaged(funnelData.engagedViewers)} engaged
               </div>
             </div>
-            <div style={{ fontSize: "13px", color: "#9E9E9E", marginBottom: "16px" }}>
+            <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "16px" }}>
               {funnelData.engagementQualityRatio >= 1.3
                 ? "Excellent — Content deeply resonates, significantly outperforming benchmarks"
                 : funnelData.engagementQualityRatio >= 1.0
@@ -719,9 +780,9 @@ export default function BrandFunnel({ rows, dateRange }) {
               <div style={{
                 position: "relative",
                 height: "12px",
-                background: "#1a1a1a",
+                background: "var(--input-bg)",
                 borderRadius: "6px",
-                border: "1px solid #333",
+                border: "1px solid var(--border)",
                 overflow: "visible"
               }}>
                 {/* Progress fill - map 0.5-1.5 to 0-100% */}
@@ -732,20 +793,20 @@ export default function BrandFunnel({ rows, dateRange }) {
                   bottom: 0,
                   width: `${Math.min(Math.max((funnelData.engagementQualityRatio - 0.5) / 1.0 * 100, 0), 100)}%`,
                   background: funnelData.engagementQualityRatio >= 1.3
-                    ? "linear-gradient(90deg, #10b981, #059669)"
+                    ? "linear-gradient(90deg, var(--pos), var(--pos-deep))"
                     : funnelData.engagementQualityRatio >= 1.0
-                    ? "linear-gradient(90deg, #8b5cf6, #7c3aed)"
+                    ? "linear-gradient(90deg, #0090c8, #0077a8)"
                     : funnelData.engagementQualityRatio >= 0.7
-                    ? "linear-gradient(90deg, #f59e0b, #d97706)"
-                    : "linear-gradient(90deg, #ef4444, #dc2626)",
+                    ? "linear-gradient(90deg, var(--warn), var(--warn-deep))"
+                    : "linear-gradient(90deg, var(--neg), var(--neg-deep))",
                   borderRadius: "6px",
                   transition: "width 0.5s ease"
                 }} />
 
                 {/* Tier dividers at 0.7x, 1.0x, 1.3x */}
-                <div style={{ position: "absolute", left: "20%", top: 0, bottom: 0, width: "1px", background: "#444" }} />
-                <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: "2px", background: "#666" }} />
-                <div style={{ position: "absolute", left: "80%", top: 0, bottom: 0, width: "1px", background: "#444" }} />
+                <div style={{ position: "absolute", left: "20%", top: 0, bottom: 0, width: "1px", background: "#454f55" }} />
+                <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: "2px", background: "#67747b" }} />
+                <div style={{ position: "absolute", left: "80%", top: 0, bottom: 0, width: "1px", background: "#454f55" }} />
 
                 {/* Current position marker */}
                 <div style={{
@@ -763,20 +824,20 @@ export default function BrandFunnel({ rows, dateRange }) {
               </div>
 
               {/* Ratio scale */}
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px", fontSize: "11px", color: "#666", fontWeight: "600" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px", fontSize: "11px", color: "#67747b", fontWeight: "600" }}>
                 <span>0.5x</span>
                 <span>0.7x</span>
-                <span style={{ color: "#888", fontWeight: "700" }}>1.0x</span>
+                <span style={{ color: "#859399", fontWeight: "700" }}>1.0x</span>
                 <span>1.3x</span>
                 <span>1.5x+</span>
               </div>
 
               {/* Tier labels below */}
-              <div style={{ display: "flex", marginTop: "8px", fontSize: "11px", color: "#888" }}>
-                <div style={{ flex: 1, textAlign: "center", borderLeft: "2px solid #ef4444", paddingLeft: "4px" }}>Below</div>
-                <div style={{ flex: 1.5, textAlign: "center", borderLeft: "2px solid #f59e0b", paddingLeft: "4px" }}>Average</div>
-                <div style={{ flex: 1.5, textAlign: "center", borderLeft: "2px solid #8b5cf6", paddingLeft: "4px" }}>Good</div>
-                <div style={{ flex: 1, textAlign: "center", borderLeft: "2px solid #10b981", paddingLeft: "4px" }}>Excellent</div>
+              <div style={{ display: "flex", marginTop: "8px", fontSize: "11px", color: "#859399" }}>
+                <div style={{ flex: 1, textAlign: "center", borderLeft: "2px solid var(--neg)", paddingLeft: "4px" }}>Below</div>
+                <div style={{ flex: 1.5, textAlign: "center", borderLeft: "2px solid var(--warn)", paddingLeft: "4px" }}>Average</div>
+                <div style={{ flex: 1.5, textAlign: "center", borderLeft: "2px solid #0090c8", paddingLeft: "4px" }}>Good</div>
+                <div style={{ flex: 1, textAlign: "center", borderLeft: "2px solid var(--pos)", paddingLeft: "4px" }}>Excellent</div>
               </div>
             </div>
           </div>

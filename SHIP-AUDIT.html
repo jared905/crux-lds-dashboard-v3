@@ -1,0 +1,200 @@
+<title>Full View Ship Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+  /* Single-theme by design: the report wears the product's own dark
+     Azure Kinetic system, so every colour is painted explicitly. */
+  :root{
+    --bg:#0e1417; --card:#161d1f; --card-hi:#1a2123;
+    --border:rgba(255,255,255,.08);
+    --ink:#f4f8fa; --text:#dde3e7; --muted:#a9b8be; --dim:#67747b;
+    --blue:#00D1FF; --blue-soft:#4cd6ff; --lime:#CDF200; --red:#FF5540; --amber:#FFAB00;
+    --label:'Space Grotesk',Inter,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;
+    margin:0;padding:48px 24px 80px;line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto}
+  .eyebrow{font-family:var(--label);font-size:11px;font-weight:600;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted)}
+  h1{font-family:'Barlow Condensed',Inter,sans-serif;font-weight:800;font-size:52px;
+    line-height:1;letter-spacing:.01em;color:var(--ink);margin:6px 0 10px;text-wrap:balance;text-transform:uppercase}
+  .standfirst{font-size:16px;color:var(--muted);max-width:62ch;margin:0 0 8px}
+  .verdict{display:inline-flex;align-items:center;gap:9px;margin:18px 0 0;
+    border:1px solid var(--lime);border-radius:999px;padding:7px 18px;
+    font-family:var(--label);font-size:13px;font-weight:700;letter-spacing:.06em;color:var(--lime)}
+  .verdict .dot{width:8px;height:8px;border-radius:50%;background:var(--lime)}
+  .meta{font-size:12px;color:var(--dim);margin-top:14px}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    background:var(--card);border:1px solid var(--border);border-radius:24px;
+    overflow:hidden;margin:34px 0 0}
+  .kpi{padding:18px 20px;border-left:1px solid var(--border)}
+  .kpi:first-child{border-left:none}
+  .kpi .l{font-family:var(--label);font-size:10px;font-weight:600;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+  .kpi .v{font-size:26px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1}
+  .kpi .s{font-size:11px;color:var(--dim);margin-top:6px}
+
+  section{margin-top:52px}
+  .kick{font-family:var(--label);font-size:11px;font-weight:600;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--blue);margin-bottom:4px}
+  h2{font-size:24px;font-weight:700;color:var(--ink);margin:0 0 6px;text-wrap:balance}
+  .sub{font-size:14px;color:var(--muted);max-width:66ch;margin:0 0 18px}
+  p{max-width:70ch}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:24px;padding:24px}
+  .rows>div{display:flex;gap:16px;align-items:baseline;padding:12px 0;border-top:1px solid var(--border)}
+  .rows>div:first-child{border-top:none;padding-top:0}
+  .rows>div:last-child{padding-bottom:0}
+  .rows b{color:var(--ink);font-weight:600}
+  .chip{font-family:var(--label);font-size:10px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;border-radius:999px;padding:2px 10px;white-space:nowrap;flex-shrink:0}
+  .chip.pass{color:var(--lime);background:rgba(205,242,0,.1);border:1px solid rgba(205,242,0,.35)}
+  .chip.watch{color:var(--amber);background:rgba(255,171,0,.1);border:1px solid rgba(255,171,0,.35)}
+  .chip.act{color:var(--red);background:rgba(255,85,64,.1);border:1px solid rgba(255,85,64,.35)}
+  .chip.info{color:var(--blue-soft);background:rgba(0,209,255,.1);border:1px solid rgba(0,209,255,.35)}
+
+  .tablewrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px}
+  th{font-family:var(--label);font-size:10px;font-weight:600;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--dim);text-align:left;padding:8px 14px 8px 0;
+    border-bottom:1px solid var(--border)}
+  th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
+  td{padding:9px 14px 9px 0;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text)}
+  tr:last-child td{border-bottom:none}
+  td b{color:var(--ink);font-weight:600}
+  .bar{height:6px;border-radius:3px;background:var(--card-hi);overflow:hidden;min-width:90px}
+  .bar i{display:block;height:100%;border-radius:3px;background:var(--blue)}
+
+  ol.check{margin:0;padding:0;list-style:none;counter-reset:step}
+  ol.check li{counter-increment:step;display:flex;gap:14px;padding:13px 0;border-top:1px solid var(--border)}
+  ol.check li:first-child{border-top:none;padding-top:0}
+  ol.check li::before{content:counter(step);font-family:var(--label);font-weight:700;
+    font-size:12px;color:var(--blue);border:1px solid rgba(0,209,255,.4);border-radius:999px;
+    width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+  ol.check b{color:var(--ink)}
+  ul{margin:0;padding-left:18px}
+  li{margin:5px 0}
+  .note{font-size:12px;color:var(--dim);border-top:1px solid var(--border);
+    margin-top:56px;padding-top:16px;max-width:76ch}
+  footer{display:flex;justify-content:space-between;align-items:center;gap:16px;
+    margin-top:40px;padding-top:20px;border-top:1px solid var(--border);
+    font-size:12px;color:var(--dim);flex-wrap:wrap}
+  footer .brand{font-family:var(--label);font-weight:700;letter-spacing:.08em;color:var(--muted)}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Full View Analytics · Crux Media · August 21, 2026</div>
+    <h1>Ship Audit</h1>
+    <p class="standfirst">End-of-renovation readiness review: what shipped, what the bundle
+      weighs, what the code health looks like, and the short list standing between this
+      build and production.</p>
+    <span class="verdict"><span class="dot"></span>Ship-ready · pending migration batch</span>
+    <div class="meta">Build passing in 3.1s · 0 lint errors · 0 unused dependencies · all findings verified in the running app</div>
+  </header>
+
+  <div class="kpis">
+    <div class="kpi"><div class="l">First-load payload</div><div class="v">147&hairsp;KB</div><div class="s">gzipped, entire critical path</div></div>
+    <div class="kpi"><div class="l">Entry bundle</div><div class="v">45&hairsp;KB</div><div class="s">gzipped app code</div></div>
+    <div class="kpi"><div class="l">Lazy chunks</div><div class="v">76</div><div class="s">features load on open</div></div>
+    <div class="kpi"><div class="l">Lint errors</div><div class="v">0</div><div class="s">across 210 source files</div></div>
+    <div class="kpi"><div class="l">Dead code</div><div class="v">0&hairsp;files</div><div class="s">import-graph verified</div></div>
+  </div>
+
+  <section>
+    <div class="kick">Performance</div>
+    <h2>The payload story</h2>
+    <p class="sub">Where the renovation started, where it landed, and what carries the remaining weight.</p>
+    <div class="card">
+      <div class="rows">
+        <div><span class="chip pass">Fixed</span><span><b>3.2&nbsp;MB → 147&nbsp;KB first load.</b> The original build shipped every feature up front. Today the critical path is four cached files (app, React, icons, Supabase client); all 76 feature chunks load only when their page opens.</span></div>
+        <div><span class="chip pass">Fixed</span><span><b>~7&nbsp;MB of invisible weight removed per client load.</b> The dashboard's video query was downloading a 1,536-number AI embedding per video that nothing on screen reads.</span></div>
+        <div><span class="chip pass">Fixed</span><span><b>Nightly sync: ~4,000 database round trips → 49.</b> Batched writes; a full portfolio sync no longer risks timeouts as the client list grows.</span></div>
+        <div><span class="chip pass">Fixed</span><span><b>Production console silenced.</b> 49 debug log calls are stripped from shipping builds automatically; warnings and errors still surface for real incidents.</span></div>
+        <div><span class="chip info">By design</span><span><b>Heavy libraries stay out of the way.</b> PDF generation (385&nbsp;KB), charts (384&nbsp;KB) and screen capture (201&nbsp;KB) download only when someone exports or opens an audit — never on first load.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="kick">Bundle</div>
+    <h2>What the browser actually downloads</h2>
+    <p class="sub">Gzipped sizes. The first four rows are the entire first paint; everything else waits for a click.</p>
+    <div class="card tablewrap">
+      <table>
+        <thead><tr><th>Chunk</th><th>When it loads</th><th class="num">Size (gz)</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><b>App entry</b></td><td>first load</td><td class="num">45 KB</td><td><div class="bar"><i style="width:36%"></i></div></td></tr>
+          <tr><td><b>React vendor</b></td><td>first load, long-cached</td><td class="num">~45 KB</td><td><div class="bar"><i style="width:36%"></i></div></td></tr>
+          <tr><td><b>Supabase client</b></td><td>first load, long-cached</td><td class="num">~44 KB</td><td><div class="bar"><i style="width:35%"></i></div></td></tr>
+          <tr><td><b>Icon set</b></td><td>first load, long-cached</td><td class="num">~13 KB</td><td><div class="bar"><i style="width:10%"></i></div></td></tr>
+          <tr><td>PDF export engine</td><td>only on Export PDF</td><td class="num">126 KB</td><td><div class="bar"><i style="width:100%;background:var(--card-hi);outline:1px solid var(--border)"></i></div></td></tr>
+          <tr><td>Chart library</td><td>only on audit/simulator pages</td><td class="num">106 KB</td><td><div class="bar"><i style="width:84%;background:var(--card-hi);outline:1px solid var(--border)"></i></div></td></tr>
+          <tr><td>Screen capture</td><td>only inside PDF export</td><td class="num">47 KB</td><td><div class="bar"><i style="width:37%;background:var(--card-hi);outline:1px solid var(--border)"></i></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="kick">Code health</div>
+    <h2>Bloat, dead code, and leaks</h2>
+    <div class="card">
+      <div class="rows">
+        <div><span class="chip pass">Clean</span><span><b>Zero unreferenced files.</b> A full import-graph scan of all 210 source files found two orphans (both leftovers of removed features); deleted. 70+ dead files were removed across the renovation, including four entire retired features folded into better homes.</span></div>
+        <div><span class="chip pass">Clean</span><span><b>Zero unused dependencies.</b> All 10 runtime packages are imported and load lazily where heavy.</span></div>
+        <div><span class="chip pass">Clean</span><span><b>Stale browser storage purged.</b> The retired per-client theming system left cached palettes in every visitor's browser; the app now removes them on load.</span></div>
+        <div><span class="chip pass">Clean</span><span><b>Retired animation and icon systems fully deleted</b> — six keyframe sets, eight hover hooks, and all hand-drawn icon art replaced by the uniform tile system.</span></div>
+        <div><span class="chip pass">Clean</span><span><b>Mobile layout verified.</b> The full dashboard was walked at phone width — responsive stacking, two-column KPI grid, and charts all hold; the one collision found (crowded chart date labels) is fixed.</span></div>
+        <div><span class="chip pass">Fixed</span><span><b>Lint debt cleared to zero (2026&#8209;08&#8209;21).</b> The 5,425 advisory warnings are gone: ~2,600 hardcoded colours converted to design tokens, dead code and unused imports removed, debug logging stripped, hook dependencies fixed or documented, and the JSX false-positive class eliminated by configuring the linter to actually understand JSX. Every rule now runs at <b>error</b> severity, so new debt fails the build instead of accumulating.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="kick">Data integrity</div>
+    <h2>Numbers a client can be shown</h2>
+    <p class="sub">The audit's standard: no metric renders unless its inputs are coherent. Where data can't support a claim, the interface says so instead of guessing.</p>
+    <div class="card">
+      <div class="rows">
+        <div><span class="chip pass">Fixed</span><span><b>Duplicate videos across umbrella clients deduplicated</b> — the same video was counted twice with disagreeing totals (820K vs 91K) and inflating the portfolio view.</span></div>
+        <div><span class="chip pass">Fixed</span><span><b>Impossible funnels blocked.</b> Mixed data scopes once produced "585K impressions → 31.7M views" with a confident wrong diagnosis on top. The funnel now verifies its own inputs and shows an honest coverage notice instead.</span></div>
+        <div><span class="chip pass">Fixed</span><span><b>Engagement is format-aware.</b> Shorts naturally run 80–97% retention, which inflated "engaged viewers"; the bar is now 85% for Shorts vs 50% for long-form, and the definition is printed on the chart.</span></div>
+        <div><span class="chip pass">Fixed</span><span><b>Series Analysis intermittent breakage solved</b> — a divide-by-zero on channels without ad-platform analytics produced broken scores; missing data now means "no claim," not a broken page.</span></div>
+        <div><span class="chip info">New</span><span><b>Organic-only switch.</b> A heuristic flags likely media-buy videos (huge views, near-zero comments/likes/subs) and one toggle recomputes every dashboard number without them. Labeled as a heuristic, every flag carries its reason — and detection now reads the same engagement data on every load path, so flags can't silently vanish.</span></div>
+        <div><span class="chip info">New</span><span><b>Launch velocity curves.</b> Every recent upload's first 14 days as a cumulative curve against the channel's recent normal — "is this one starting faster?" answered from the daily snapshots the sync already writes.</span></div>
+        <div><span class="chip info">New</span><span><b>Timeline notes.</b> Strategists can mark events ("new thumbnail style", "went weekly") directly on the Momentum chart, so the line explains its own bends. Ships with migration 114.</span></div>
+        <div><span class="chip info">New</span><span><b>Thumbnail change detection.</b> The nightly sync now fingerprints every video's current thumbnail; a changed fingerprint dates a packaging swap — the raw material for CTR before/after analysis. Ships with migration 115.</span></div>
+        <div><span class="chip info">Disclosed</span><span><b>Studio-only metrics are named, not faked.</b> New-vs-returning viewers and shorts→long viewer journeys aren't in YouTube's public API; the Viewers page says exactly that.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="kick">Before launch</div>
+    <h2>The pre-ship checklist</h2>
+    <p class="sub">Everything on this list is outside the codebase — it needs your access, not more code.</p>
+    <div class="card">
+      <ol class="check">
+        <li><span><b>Run migrations 109–116 in staging</b> (one SQL-editor session; each self-verifies). 109/110 fix the public-access policies and the intermittent admin→viewer demotion; 111 turns on the Viewers page; 112 makes the Momentum chart's daily line real; 113 enables client networks; 114 timeline notes; 115 thumbnail change tracking; 116 lets the team correct the organic/promoted flag on individual videos. Until then those features show honest "not yet synced" states.</span></li>
+        <li><span><b>Verify environment variables on the deploy target</b> — Supabase keys, Google OAuth pair, token encryption key, cron secret, <b>YOUTUBE_API_KEY</b> (also powers the new Daily Outliers feed), and <b>ANTHROPIC_API_KEY</b> (one server-side key now serves the whole team — nobody needs to paste keys into their own browser). The nightly audience sync (registered, 9:00) fails closed without them.</span></li>
+        <li><span><b>Client-document restyle — done (approved 2026‑08‑21).</b> The PDF export and Quarterly report now ship in a print adaptation of the new brand: light paper ground, the brand type, azure/lime/peach accents tuned for white, and a footer note stating when CTR/retention data is unavailable rather than showing zero. This pass also fixed a real bug — the PDF's map capture was still keyed to the old map colors, so exported geography maps rendered dark; they now export correctly.</span></li>
+        <li><span><b>Sanity-pass real client numbers</b> against YouTube Studio for two or three channels after migrations land — especially watch-hours, which stay partial until analytics sync covers all channels.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <div class="note">
+    Scope note: this audit covers the application code and build. The client-facing PDF/Quarterly
+    documents joined the visual overhaul on 2026‑08‑21 after sign-off; the thumbnail archive and
+    per-video traffic split from the expert review remain on the data roadmap — they need new
+    collection, not refactoring.
+  </div>
+
+  <footer>
+    <span>Prepared from the working build, every finding verified live · Updated August 21, 2026</span>
+    <span class="brand">FULL VIEW ANALYTICS</span>
+  </footer>
+</div>

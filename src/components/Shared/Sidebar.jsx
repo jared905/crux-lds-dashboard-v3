@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import {useState, useEffect} from "react";
 import { useMediaQuery } from "../../hooks/useMediaQuery.js";
-import { X, Upload, LogOut, ChevronDown, ChevronRight } from "lucide-react";
 import { ALL_SECTIONS, sectionForTab } from "../../lib/navigation.js";
+import { ChevronDown, ChevronRight, LogOut, Upload, X } from 'lucide-react';
 
 const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, onSignOut, userEmail }) => {
   const { isMobile } = useMediaQuery();
@@ -20,6 +20,8 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
     if (activeSectionId && !expanded[activeSectionId]) {
       setExpanded((prev) => ({ ...prev, [activeSectionId]: true }));
     }
+  // Auto-expand follows navigation only; depending on `expanded` would force sections back open on manual collapse.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
   const toggleSection = (sectionId) => {
@@ -46,8 +48,8 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
           top: 0,
           width: isMobile ? "min(280px, 85vw)" : "280px",
           height: "100vh",
-          background: "#1E1E1E",
-          borderRight: "1px solid #2A2A2A",
+          background: "var(--card)",
+          borderRight: "1px solid var(--border)",
           transition: "left 0.3s",
           zIndex: 999,
           display: "flex",
@@ -58,7 +60,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
         <div
           style={{
             padding: "24px",
-            borderBottom: "1px solid #2A2A2A",
+            borderBottom: "1px solid var(--border)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -73,7 +75,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
             <div
               style={{
                 fontSize: "9px",
-                color: "#666",
+                color: "var(--faint)",
                 fontWeight: "600",
                 letterSpacing: "0.5px",
                 display: "flex",
@@ -91,7 +93,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
           </div>
           <button
             onClick={onClose}
-            style={{ background: "transparent", border: "none", color: "#9E9E9E", cursor: "pointer" }}
+            style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer" }}
           >
             <X size={20} />
           </button>
@@ -124,7 +126,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
                     border: "none",
                     cursor: "pointer",
                     fontSize: "10px",
-                    color: "#666",
+                    color: "var(--faint)",
                     fontWeight: "700",
                     letterSpacing: "0.5px",
                     textTransform: "uppercase",
@@ -161,7 +163,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
                           background: isActive ? "var(--accent-dim)" : "transparent",
                           border: "none",
                           borderRadius: "8px",
-                          color: isActive ? "var(--accent-text)" : "#9E9E9E",
+                          color: isActive ? "var(--accent-text)" : "var(--muted)",
                           cursor: "pointer",
                           fontWeight: "600",
                           fontSize: "14px",
@@ -191,10 +193,10 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
                 justifyContent: "center",
                 gap: "8px",
                 padding: "10px 16px",
-                background: "#1E1E1E",
-                border: "1px solid #2A2A2A",
-                borderRadius: "8px",
-                color: "#E0E0E0",
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: "24px",
+                color: "var(--text)",
                 cursor: "pointer",
                 fontWeight: "600",
                 marginTop: "24px",
@@ -207,11 +209,11 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
         </div>
 
         {/* User info and sign out */}
-        <div style={{ padding: "16px", borderTop: "1px solid #2A2A2A" }}>
+        <div style={{ padding: "16px", borderTop: "1px solid var(--border)" }}>
           <div
             style={{
               fontSize: "12px",
-              color: "#9E9E9E",
+              color: "var(--muted)",
               marginBottom: "8px",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -228,7 +230,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
                 fontSize: "10px",
                 fontWeight: "600",
                 background: isAdmin ? "var(--accent-dim)" : "rgba(158, 158, 158, 0.15)",
-                color: isAdmin ? "var(--accent-text)" : "#9E9E9E",
+                color: isAdmin ? "var(--accent-text)" : "var(--muted)",
               }}
             >
               {isAdmin ? "Admin" : "Viewer"}
@@ -246,7 +248,7 @@ const Sidebar = ({ open, onClose, tab, setTab, onUpload, canAccessTab, isAdmin, 
               background: "transparent",
               border: "1px solid #444",
               borderRadius: "8px",
-              color: "#9E9E9E",
+              color: "var(--muted)",
               cursor: "pointer",
               fontWeight: "500",
               fontSize: "13px",

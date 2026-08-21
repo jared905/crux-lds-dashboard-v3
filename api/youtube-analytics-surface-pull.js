@@ -126,7 +126,7 @@ async function runAnalyticsQuery({ channelId, accessToken, dimensions, filters, 
 
   if (!response.ok) {
     let errorBody = null;
-    try { errorBody = await response.json(); } catch {}
+    try { errorBody = await response.json(); } catch { /* response body isn't JSON — the null fallback above is the answer */ }
     return {
       ok: false,
       status: response.status,

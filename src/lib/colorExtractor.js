@@ -151,12 +151,12 @@ export function generateAccentPalette(hsl) {
  */
 export function getDefaultPalette() {
   return {
-    accent: '#2962FF',
-    accentDim: 'rgba(41, 98, 255, 0.15)',
-    accentGlow: 'rgba(41, 98, 255, 0.3)',
-    accentText: '#60a5fa',
-    accentBorder: 'rgba(41, 98, 255, 0.4)',
-    hsl: { h: 224, s: 100, l: 58 },
+    accent: 'var(--blue)',
+    accentDim: 'rgba(0, 209, 255, 0.14)',
+    accentGlow: 'rgba(0, 209, 255, 0.3)',
+    accentText: 'var(--accent-text)',
+    accentBorder: 'rgba(0, 209, 255, 0.4)',
+    hsl: { h: 191, s: 100, l: 50 },
   };
 }
 

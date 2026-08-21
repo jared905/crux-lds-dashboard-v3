@@ -48,19 +48,19 @@ export const brand = {
   // (#E8A82B) are reserved as occasional emphasis hits — they shouldn't
   // be loaded everywhere or the system stops feeling editorial.
   colors: {
-    ink:          '#060707',  // primary text — near-black for editorial contrast
-    inkSoft:      '#1a1c1c',  // headings + secondary ink (slight lift from full black)
-    muted:        '#5e6262',  // secondary text, labels, captions
-    background:   '#FFFAF1',  // page background — Crux warm cream
-    surface:      '#FFFAF1',  // section cards + callouts share the page cream
-    surfaceDeep:  '#DEE3D4',  // pale sage — used for elevated panels (one-liner, callouts)
-    accent:       '#015661',  // primary accent — deep teal (section numbers, anchors)
-    accentSoft:   '#e6eef0',  // very light accent tint — rationale callouts
-    accentBright: '#0A919B',  // mid teal — secondary accent when the deep teal is too heavy
-    accentWarm:   '#E8A82B',  // mustard amber — occasional warmth / kicker emphasis
-    accentVivid:  '#EA73AC',  // pink — reserved for rare emphasis (movement, highlights)
-    border:       '#e8e2d0',  // dividers + table borders (subtle warm hairline)
-    danger:       '#b91c1c',  // guardrails / disqualifier accents (kept distinct)
+    ink:          'var(--bg)',  // primary text — near-black for editorial contrast
+    inkSoft:      'var(--card)',  // headings + secondary ink (slight lift from full black)
+    muted:        'var(--faint)',  // secondary text, labels, captions
+    background:   'var(--ink)',  // page background — Crux warm cream
+    surface:      'var(--ink)',  // section cards + callouts share the page cream
+    surfaceDeep:  'var(--text)',  // pale sage — used for elevated panels (one-liner, callouts)
+    accent:       'var(--blue-deep)',  // primary accent — deep teal (section numbers, anchors)
+    accentSoft:   'var(--ink)',  // very light accent tint — rationale callouts
+    accentBright: 'var(--accent-text)',  // mid teal — secondary accent when the deep teal is too heavy
+    accentWarm:   'var(--warn)',  // mustard amber — occasional warmth / kicker emphasis
+    accentVivid:  'var(--tert)',  // pink — reserved for rare emphasis (movement, highlights)
+    border:       'var(--ink)',  // dividers + table borders (subtle warm hairline)
+    danger:       'var(--neg)',  // guardrails / disqualifier accents (kept distinct)
   },
 
   // Typography. CRUX uses Gotham Ultra for headers + Gotham Book for

@@ -1,9 +1,10 @@
-import React, { useState } from "react";
-import {
+import {useState} from "react";
+import { Megaphone,
   Smartphone, MonitorPlay, Eye,
-  Percent, MousePointerClick, UserPlus, Clock, ExternalLink, ChevronDown, ChevronUp, Users
+  Percent, MousePointerClick, UserPlus, Clock, ExternalLink, ChevronDown, ChevronUp, Users, Trophy
 } from "lucide-react";
 import { fmtInt, fmtPct } from "../../lib/utils";
+import { videoKey } from "../../lib/organicFilter.js";
 import { getYouTubeThumbnailUrl } from "../../lib/schema";
 import { useMediaQuery } from "../../hooks/useMediaQuery.js";
 
@@ -50,27 +51,32 @@ const getDurationString = (video) => {
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-export default function TopVideos({ rows, n = 10 }) {
+export default function TopVideos({ rows, n = 10, promotedFlags, organicOverrides, onOrganicOverride }) {
   const { isMobile } = useMediaQuery();
   const [expanded, setExpanded] = useState(false);
   const [sortMode, setSortMode] = useState('top'); // 'top' or 'recent'
   const safeRows = rows || [];
   const displayCount = expanded ? n * 2 : n;
 
+  // Converters: subs gained per 1K views — which videos turn viewers
+  // into audience (min 500 views so tiny samples can't top the list).
+  const subsPer1K = (r) => (r.views || 0) >= 500 ? ((r.subscribers || 0) / r.views) * 1000 : -1;
   const sorted = sortMode === 'top'
     ? [...safeRows].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, displayCount)
-    : [...safeRows].sort((a, b) => {
-        const dateA = a.publishDate ? new Date(a.publishDate).getTime() : 0;
-        const dateB = b.publishDate ? new Date(b.publishDate).getTime() : 0;
-        return dateB - dateA;
-      }).slice(0, displayCount);
+    : sortMode === 'converters'
+      ? [...safeRows].filter(r => subsPer1K(r) > 0).sort((a, b) => subsPer1K(b) - subsPer1K(a)).slice(0, displayCount)
+      : [...safeRows].sort((a, b) => {
+          const dateA = a.publishDate ? new Date(a.publishDate).getTime() : 0;
+          const dateB = b.publishDate ? new Date(b.publishDate).getTime() : 0;
+          return dateB - dateA;
+        }).slice(0, displayCount);
   const maxViews = sorted[0]?.views || 1;
   const canExpand = safeRows.length > n;
 
   const s = {
     card: {
-      background: "#1E1E1E",
-      border: "1px solid #2A2A2A",
+      background: "var(--card)",
+      border: "1px solid var(--border)",
       borderRadius: "8px",
       padding: "20px",
       marginBottom: "20px",
@@ -84,14 +90,14 @@ export default function TopVideos({ rows, n = 10 }) {
     title: {
       fontSize: "26px",
       fontWeight: "700",
-      color: "#fff",
+      color: "var(--ink)",
       margin: 0,
     },
     countBadge: {
       fontSize: "12px",
       fontWeight: "700",
-      color: "#f472b6",
-      backgroundColor: "rgba(236, 72, 153, 0.15)",
+      color: "var(--tert)",
+      backgroundColor: "rgba(255, 131, 117, 0.15)",
       padding: "4px 12px",
       borderRadius: "6px",
       fontFamily: "'Barlow Condensed', sans-serif",
@@ -106,14 +112,14 @@ export default function TopVideos({ rows, n = 10 }) {
       alignItems: "center",
       gap: "16px",
       padding: "16px 0",
-      borderBottom: "1px solid #333",
+      borderBottom: "1px solid var(--border)",
     },
     rank: (i) => ({
       fontSize: "16px",
       fontWeight: "700",
       width: "24px",
       textAlign: "center",
-      color: i === 0 ? "#fcd34d" : i === 1 ? "#e5e7eb" : i === 2 ? "#d6d3d1" : "#475569",
+      color: i === 0 ? "var(--warn-text)" : i === 1 ? "var(--text)" : i === 2 ? "var(--muted)" : "var(--outline-variant)",
       fontVariantNumeric: "tabular-nums",
     }),
     iconBox: (isShort) => ({
@@ -123,30 +129,33 @@ export default function TopVideos({ rows, n = 10 }) {
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: isShort ? "rgba(245, 158, 11, 0.1)" : "rgba(59, 130, 246, 0.1)",
-      color: isShort ? "#fbbf24" : "#60a5fa",
+      backgroundColor: isShort ? "rgba(205, 242, 0, 0.1)" : "rgba(0, 209, 255, 0.1)",
+      color: isShort ? "var(--fmt-shorts)" : "var(--accent-text)",
       flexShrink: 0,
     }),
     thumbnail: {
+      // Subtle outline keeps thumbnails from bleeding into the dark card.
+      outline: "1px solid rgba(255, 255, 255, 0.1)",
+      outlineOffset: "-1px",
       width: "80px",
       height: "45px",
       borderRadius: "6px",
       objectFit: "cover",
-      backgroundColor: "#252525",
+      backgroundColor: "var(--surface-high)",
       flexShrink: 0,
-      border: "1px solid #333",
+      border: "1px solid var(--border)",
     },
     thumbnailPlaceholder: {
       width: "80px",
       height: "45px",
       borderRadius: "6px",
-      backgroundColor: "#252525",
+      backgroundColor: "var(--surface-high)",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
-      border: "1px solid #333",
-      color: "#666",
+      border: "1px solid var(--border)",
+      color: "var(--faint)",
     },
     info: {
       flex: 1,
@@ -156,7 +165,7 @@ export default function TopVideos({ rows, n = 10 }) {
     videoTitle: {
       fontSize: "14px",
       fontWeight: "600",
-      color: "#E0E0E0",
+      color: "var(--text)",
       whiteSpace: "nowrap",
       overflow: "hidden",
       textOverflow: "ellipsis",
@@ -165,7 +174,7 @@ export default function TopVideos({ rows, n = 10 }) {
     videoTitleLink: {
       fontSize: "14px",
       fontWeight: "600",
-      color: "#E0E0E0",
+      color: "var(--text)",
       whiteSpace: "nowrap",
       overflow: "hidden",
       textOverflow: "ellipsis",
@@ -177,14 +186,14 @@ export default function TopVideos({ rows, n = 10 }) {
       transition: "color 0.15s ease",
     },
     linkIcon: {
-      color: "#666",
+      color: "var(--faint)",
       flexShrink: 0,
       transition: "color 0.15s ease",
     },
     meta: {
       fontSize: "12px",
       fontWeight: "500",
-      color: "#666",
+      color: "var(--faint)",
       display: "flex",
       alignItems: "center",
       gap: "10px",
@@ -193,15 +202,15 @@ export default function TopVideos({ rows, n = 10 }) {
       display: "flex",
       alignItems: "center",
       gap: "5px",
-      backgroundColor: "#252525",
+      backgroundColor: "var(--surface-high)",
       padding: "3px 8px",
       borderRadius: "4px",
-      color: "#9E9E9E",
+      color: "var(--muted)",
       fontSize: "11px",
       fontWeight: "600",
       fontVariantNumeric: "tabular-nums",
       letterSpacing: "0.02em",
-      border: "1px solid #333",
+      border: "1px solid var(--border)",
     },
     metricCol: (width = "75px") => ({
       display: "flex",
@@ -213,14 +222,14 @@ export default function TopVideos({ rows, n = 10 }) {
       fontSize: "10px",
       fontWeight: "700",
       textTransform: "uppercase",
-      color: "#9E9E9E",
+      color: "var(--muted)",
       marginBottom: "4px",
       display: "flex",
       alignItems: "center",
       gap: "4px",
       letterSpacing: "0.05em",
     },
-    metricValue: (color = "#E0E0E0") => ({
+    metricValue: (color = "var(--text)") => ({
       fontSize: "14px",
       fontWeight: "600",
       color: color,
@@ -229,7 +238,7 @@ export default function TopVideos({ rows, n = 10 }) {
     barContainer: {
       height: "4px",
       width: "100%",
-      backgroundColor: "#333",
+      backgroundColor: "var(--outline-variant)",
       borderRadius: "2px",
       marginTop: "6px",
       overflow: "hidden",
@@ -237,7 +246,7 @@ export default function TopVideos({ rows, n = 10 }) {
     barFill: (pct) => ({
       height: "100%",
       width: `${pct}%`,
-      backgroundColor: "#6366f1",
+      backgroundColor: "var(--blue)",
       borderRadius: "2px",
     }),
   };
@@ -246,69 +255,55 @@ export default function TopVideos({ rows, n = 10 }) {
     <div className="section-card podium-section" style={s.card}>
       <div style={s.header}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: "linear-gradient(135deg, #fbbf24, #fbbf24cc)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 16px #fbbf244d" }}>
-            <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
-              {/* Podium blocks */}
-              {/* 2nd place — left */}
-              <rect x="4" y="28" width="12" height="16" rx="1.5" fill="white" opacity="0.7" />
-              <text x="10" y="38" textAnchor="middle" fontFamily="'Barlow Condensed', sans-serif" fontSize="8" fontWeight="800" fill="#fbbf24" opacity="0.6">2</text>
-              {/* 1st place — center (tallest) */}
-              <rect x="18" y="20" width="12" height="24" rx="1.5" fill="white" opacity="0.9" />
-              <text x="24" y="32" textAnchor="middle" fontFamily="'Barlow Condensed', sans-serif" fontSize="9" fontWeight="800" fill="#fbbf24" opacity="0.7">1</text>
-              {/* 3rd place — right */}
-              <rect x="32" y="32" width="12" height="12" rx="1.5" fill="white" opacity="0.6" />
-              <text x="38" y="40" textAnchor="middle" fontFamily="'Barlow Condensed', sans-serif" fontSize="7" fontWeight="800" fill="#fbbf24" opacity="0.5">3</text>
-              {/* Winner figure on 1st place — jumps on hover */}
-              <g className="podium-winner">
-                {/* Head */}
-                <circle cx="24" cy="11" r="3" fill="white" opacity="0.9" />
-                {/* Torso */}
-                <rect x="22" y="14" width="4" height="5" rx="1" fill="white" opacity="0.9" />
-                {/* Arms up (celebrating) */}
-                <line x1="22" y1="15" x2="18" y2="11" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.85" />
-                <line x1="26" y1="15" x2="30" y2="11" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.85" />
-                {/* Legs */}
-                <line x1="23" y1="19" x2="21.5" y2="20" stroke="white" strokeWidth="1.8" strokeLinecap="round" opacity="0.85" />
-                <line x1="25" y1="19" x2="26.5" y2="20" stroke="white" strokeWidth="1.8" strokeLinecap="round" opacity="0.85" />
-              </g>
-              {/* 2nd place figure */}
-              <circle cx="10" cy="22" r="2.5" fill="white" opacity="0.6" />
-              <rect x="8.5" y="24.5" width="3" height="3.5" rx="0.8" fill="white" opacity="0.6" />
-              {/* 3rd place figure */}
-              <circle cx="38" cy="27" r="2.5" fill="white" opacity="0.5" />
-              <rect x="36.5" y="29.5" width="3" height="2.5" rx="0.8" fill="white" opacity="0.5" />
-            </svg>
+          <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "rgba(0, 209, 255, 0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Trophy size={20} style={{ color: "var(--accent-text)" }} />
           </div>
-          <h2 style={s.title}>{sortMode === 'top' ? 'Top Videos' : 'Recent Uploads'}</h2>
+          <div>
+            <div style={{ fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "var(--track-label)", fontFamily: "var(--font-label)", color: "var(--muted)", marginBottom: "2px" }}>Performance</div>
+            <h2 style={{ ...s.title, margin: 0 }}>{sortMode === 'top' ? 'Top Videos' : sortMode === 'converters' ? 'Conversion Engines' : 'Recent Uploads'}</h2>
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ display: 'flex', gap: '2px', background: '#252525', borderRadius: '6px', padding: '2px' }}>
+          <div style={{ display: 'flex', gap: '2px', background: "var(--input-bg)", borderRadius: '6px', padding: '2px' }}>
             <button
               onClick={() => { setSortMode('top'); setExpanded(false); }}
               style={{
                 padding: '4px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: '600',
                 border: 'none', cursor: 'pointer',
-                background: sortMode === 'top' ? '#3b82f6' : 'transparent',
-                color: sortMode === 'top' ? '#fff' : '#888',
-                transition: 'all 0.15s',
+                background: sortMode === 'top' ? 'var(--blue)' : 'transparent',
+                color: sortMode === 'top' ? 'var(--ink)' : 'var(--outline)',
+                transition: 'background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
               }}
             >
               Top
+            </button>
+            <button
+              onClick={() => { setSortMode('converters'); setExpanded(false); }}
+              title="Ranked by subscribers gained per 1,000 views — the videos that build the audience, not just rent traffic"
+              style={{
+                padding: '4px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: '600',
+                border: 'none', cursor: 'pointer',
+                background: sortMode === 'converters' ? 'var(--blue)' : 'transparent',
+                color: sortMode === 'converters' ? 'var(--on-accent)' : 'var(--outline)',
+                transition: 'background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
+              }}
+            >
+              Converters
             </button>
             <button
               onClick={() => { setSortMode('recent'); setExpanded(false); }}
               style={{
                 padding: '4px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: '600',
                 border: 'none', cursor: 'pointer',
-                background: sortMode === 'recent' ? '#3b82f6' : 'transparent',
-                color: sortMode === 'recent' ? '#fff' : '#888',
-                transition: 'all 0.15s',
+                background: sortMode === 'recent' ? 'var(--blue)' : 'transparent',
+                color: sortMode === 'recent' ? 'var(--ink)' : 'var(--outline)',
+                transition: 'background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
               }}
             >
               Recent
             </button>
           </div>
-          <span style={s.countBadge}>{sortMode === 'top' ? 'Top' : 'Latest'} {sorted.length} of {safeRows.length}</span>
+          <span style={s.countBadge}>{sortMode === 'top' ? 'Top' : sortMode === 'converters' ? 'Best' : 'Latest'} {sorted.length} of {safeRows.length}</span>
         </div>
       </div>
 
@@ -317,8 +312,8 @@ export default function TopVideos({ rows, n = 10 }) {
           const isShort = video.type === "short";
           const viewPct = Math.max(2, ((video.views || 0) / maxViews) * 100);
 
-          const retColor = !video.avgViewPct ? "#555" : video.avgViewPct > 1.0 && isShort ? "#FFD700" : video.avgViewPct > 0.6 ? "#00C853" : "#E0E0E0";
-          const ctrColor = !video.ctr ? "#555" : video.ctr > 0.055 ? "#00C853" : "#E0E0E0";
+          const retColor = !video.avgViewPct ? "var(--faint)" : video.avgViewPct > 1.0 && isShort ? "var(--pos-text)" : video.avgViewPct > 0.6 ? "var(--pos)" : "var(--text)";
+          const ctrColor = !video.ctr ? "var(--faint)" : video.ctr > 0.055 ? "var(--pos)" : "var(--text)";
 
           return (
             <div key={idx} className="comparison-row" style={{
@@ -369,12 +364,12 @@ export default function TopVideos({ rows, n = 10 }) {
                       style={s.videoTitleLink}
                       title={video.title}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.color = '#60a5fa';
-                        e.currentTarget.querySelector('svg').style.color = '#60a5fa';
+                        e.currentTarget.style.color = 'var(--accent-text)';
+                        e.currentTarget.querySelector('svg').style.color = 'var(--accent-text)';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.color = '#E0E0E0';
-                        e.currentTarget.querySelector('svg').style.color = '#666';
+                        e.currentTarget.style.color = "var(--text)";
+                        e.currentTarget.querySelector('svg').style.color = 'var(--faint)';
                       }}
                     >
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -392,15 +387,15 @@ export default function TopVideos({ rows, n = 10 }) {
                       display: "flex",
                       alignItems: "center",
                       gap: "4px",
-                      backgroundColor: isShort ? "rgba(245, 158, 11, 0.15)" : "rgba(59, 130, 246, 0.15)",
+                      backgroundColor: isShort ? "rgba(205, 242, 0, 0.12)" : "rgba(0, 209, 255, 0.15)",
                       padding: "3px 8px",
                       borderRadius: "4px",
-                      color: isShort ? "#fbbf24" : "#60a5fa",
+                      color: isShort ? "var(--pos-text)" : "var(--accent-text)",
                       fontSize: "10px",
                       fontWeight: "700",
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
-                      border: isShort ? "1px solid rgba(245, 158, 11, 0.3)" : "1px solid rgba(59, 130, 246, 0.3)",
+                      border: isShort ? "1px solid rgba(205, 242, 0, 0.3)" : "1px solid rgba(0, 209, 255, 0.3)",
                     }}>
                       {isShort ? <Smartphone size={11} /> : <MonitorPlay size={11} />}
                       {isShort ? "Short" : "Long"}
@@ -414,20 +409,20 @@ export default function TopVideos({ rows, n = 10 }) {
                         : '';
                       return (
                         <>
-                          <span style={{color: "#666"}}>•</span>
+                          <span style={{color: "var(--faint)"}}>•</span>
                           <div style={{
                             display: "flex",
                             alignItems: "center",
                             gap: "4px",
-                            backgroundColor: isHost ? "rgba(34, 197, 94, 0.15)" : "rgba(168, 85, 247, 0.15)",
+                            backgroundColor: isHost ? "rgba(205, 242, 0, 0.15)" : "var(--tert-bg)",
                             padding: "3px 8px",
                             borderRadius: "4px",
-                            color: isHost ? "#4ade80" : "#c084fc",
+                            color: isHost ? "var(--pos-text)" : "var(--tert)",
                             fontSize: "10px",
                             fontWeight: "700",
                             textTransform: "uppercase",
                             letterSpacing: "0.05em",
-                            border: isHost ? "1px solid rgba(34, 197, 94, 0.3)" : "1px solid rgba(168, 85, 247, 0.3)",
+                            border: isHost ? "1px solid rgba(205, 242, 0, 0.3)" : "1px solid var(--tert-border)",
                           }}
                             title={video.collabChannel
                               ? `${roleLabel} collaboration ${isHost ? 'with' : 'on'} ${video.collabChannel}`
@@ -440,7 +435,48 @@ export default function TopVideos({ rows, n = 10 }) {
                       );
                     })()}
 
-                    <span style={{color: "#666"}}>•</span>
+                    {/* Organic/promoted correction — the heuristic flags
+                        likely media buys, a human can overrule it either
+                        way (stored via migration 116; Organic-only and
+                        every KPI/export respect the corrected verdict). */}
+                    {onOrganicOverride && promotedFlags && (() => {
+                      const key = videoKey(video);
+                      const flagged = promotedFlags.has(key);
+                      const isManual = organicOverrides ? key in organicOverrides : false;
+                      return (
+                        <>
+                          <span style={{color: "var(--faint)"}}>•</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onOrganicOverride(video); }}
+                            title={flagged
+                              ? `Likely promoted (${isManual ? 'set by your team' : promotedFlags.get(key)}). Click if you know this video was organic.`
+                              : "Counts as organic. Click if you know this video was promoted, so Organic-only excludes it."}
+                            style={flagged ? {
+                              display: "flex", alignItems: "center", gap: "4px",
+                              backgroundColor: "rgba(245, 158, 11, 0.15)",
+                              padding: "3px 8px", borderRadius: "4px",
+                              color: "var(--warn-text)", fontSize: "10px", fontWeight: "700",
+                              textTransform: "uppercase", letterSpacing: "0.05em",
+                              border: "1px solid rgba(245, 158, 11, 0.3)",
+                              cursor: "pointer", fontFamily: "inherit",
+                            } : {
+                              display: "flex", alignItems: "center", gap: "4px",
+                              backgroundColor: "transparent",
+                              padding: "3px 8px", borderRadius: "4px",
+                              color: "var(--faint)", fontSize: "10px", fontWeight: "600",
+                              textTransform: "uppercase", letterSpacing: "0.05em",
+                              border: "1px dashed var(--outline-variant)",
+                              cursor: "pointer", fontFamily: "inherit",
+                            }}
+                          >
+                            <Megaphone size={11} />
+                            {flagged ? (isManual ? "Promoted · manual" : "Promoted?") : "organic"}
+                          </button>
+                        </>
+                      );
+                    })()}
+
+                    <span style={{color: "var(--faint)"}}>•</span>
 
                     {/* Robust Duration Badge */}
                     <div style={s.durationBadge}>
@@ -448,9 +484,9 @@ export default function TopVideos({ rows, n = 10 }) {
                       {getDurationString(video)}
                     </div>
 
-                    {!isMobile && <span style={{color: "#666"}}>•</span>}
-                    {!isMobile && <span style={{color: "#9E9E9E"}}>{video.channel || "Unknown"}</span>}
-                    {!isMobile && <span style={{color: "#666"}}>•</span>}
+                    {!isMobile && <span style={{color: "var(--faint)"}}>•</span>}
+                    {!isMobile && <span style={{color: "var(--muted)"}}>{video.channel || "Unknown"}</span>}
+                    {!isMobile && <span style={{color: "var(--faint)"}}>•</span>}
                     {!isMobile && <span>{video.publishDate ? new Date(video.publishDate).toLocaleDateString() : "No Date"}</span>}
                   </div>
                 </div>
@@ -463,7 +499,7 @@ export default function TopVideos({ rows, n = 10 }) {
               }>
                 <div style={s.metricCol("auto")}>
                   <div style={s.metricLabel}><Eye size={12} /> Views</div>
-                  <div style={s.metricValue("#fff")}>{fmtInt(video.views || 0)}</div>
+                  <div style={s.metricValue("var(--ink)")}>{fmtInt(video.views || 0)}</div>
                   {!isMobile && (
                     <div style={s.barContainer}>
                       <div style={s.barFill(viewPct)}></div>
@@ -474,27 +510,27 @@ export default function TopVideos({ rows, n = 10 }) {
                 {video.impressions > 0 && (
                   <div style={s.metricCol("auto")}>
                     <div style={s.metricLabel}><Eye size={12} /> Impr</div>
-                    <div style={s.metricValue("#a78bfa")}>{fmtInt(video.impressions)}</div>
+                    <div style={s.metricValue("var(--accent-text)")}>{fmtInt(video.impressions)}</div>
                   </div>
                 )}
 
                 <div style={s.metricCol("auto")}>
                   <div style={s.metricLabel}><Percent size={12} /> Ret</div>
-                  <div style={s.metricValue(video.avgViewPct ? retColor : "#555")}>
+                  <div style={s.metricValue(video.avgViewPct ? retColor : "var(--faint)")}>
                     {video.avgViewPct ? fmtPct(video.avgViewPct, 0) : "—"}
                   </div>
                 </div>
 
                 <div style={s.metricCol("auto")}>
                   <div style={s.metricLabel}><MousePointerClick size={12} /> CTR</div>
-                  <div style={s.metricValue(video.ctr ? ctrColor : "#555")}>
+                  <div style={s.metricValue(video.ctr ? ctrColor : "var(--faint)")}>
                     {video.ctr ? fmtPct(video.ctr, 1) : "—"}
                   </div>
                 </div>
 
                 <div style={s.metricCol("auto")}>
                   <div style={s.metricLabel}><UserPlus size={12} /> Subs</div>
-                  <div style={s.metricValue(video.subscribers ? undefined : "#555")}>
+                  <div style={s.metricValue(video.subscribers ? undefined : "var(--faint)")}>
                     {video.subscribers ? fmtInt(video.subscribers) : "—"}
                   </div>
                 </div>
@@ -516,24 +552,24 @@ export default function TopVideos({ rows, n = 10 }) {
             width: "100%",
             padding: "12px",
             marginTop: "16px",
-            background: "#252525",
-            border: "1px solid #333",
+            background: "var(--input-bg)",
+            border: "1px solid var(--border)",
             borderRadius: "8px",
-            color: "#9E9E9E",
+            color: "var(--muted)",
             fontSize: "13px",
             fontWeight: "600",
             cursor: "pointer",
-            transition: "all 0.15s ease",
+            transition: "background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#2a2a2a";
-            e.currentTarget.style.borderColor = "#555";
-            e.currentTarget.style.color = "#E0E0E0";
+            e.currentTarget.style.background = "var(--border)";
+            e.currentTarget.style.borderColor = "var(--faint)";
+            e.currentTarget.style.color = "var(--text)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "#252525";
-            e.currentTarget.style.borderColor = "#333";
-            e.currentTarget.style.color = "#9E9E9E";
+            e.currentTarget.style.background = "var(--input-bg)";
+            e.currentTarget.style.borderColor = "var(--outline-variant)";
+            e.currentTarget.style.color = "var(--muted)";
           }}
         >
           {expanded ? (

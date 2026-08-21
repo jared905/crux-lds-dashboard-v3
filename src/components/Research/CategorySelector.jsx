@@ -6,9 +6,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Check, Folder, FolderOpen } from 'lucide-react';
 import { getCategoryTree } from '../../services/categoryService';
 import { supabase } from '../../services/supabaseClient';
+import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 
 const s = {
   container: {
@@ -19,10 +19,10 @@ const s = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '10px 12px',
-    backgroundColor: '#1E1E1E',
-    border: '1px solid #333',
+    backgroundColor: 'var(--card)',
+    border: '1px solid var(--border)',
     borderRadius: '6px',
-    color: '#E0E0E0',
+    color: 'var(--text)',
     fontSize: '13px',
     cursor: 'pointer',
     minWidth: '200px',
@@ -32,7 +32,7 @@ const s = {
     cursor: 'not-allowed',
   },
   placeholder: {
-    color: '#666',
+    color: 'var(--faint)',
   },
   selectedTags: {
     display: 'flex',
@@ -54,8 +54,8 @@ const s = {
     left: 0,
     right: 0,
     marginTop: '4px',
-    backgroundColor: '#252525',
-    border: '1px solid #333',
+    backgroundColor: 'var(--surface-high)',
+    border: '1px solid var(--border)',
     borderRadius: '8px',
     maxHeight: '300px',
     overflowY: 'auto',
@@ -70,11 +70,11 @@ const s = {
     transition: 'background-color 0.15s',
   },
   categoryItemHover: {
-    backgroundColor: '#333',
+    backgroundColor: 'var(--outline-variant)',
   },
   expandIcon: {
     marginRight: '8px',
-    color: '#666',
+    color: 'var(--faint)',
     cursor: 'pointer',
   },
   checkbox: {
@@ -89,17 +89,17 @@ const s = {
     flexShrink: 0,
   },
   checkboxChecked: {
-    backgroundColor: '#2962FF',
-    borderColor: '#2962FF',
+    backgroundColor: 'var(--blue)',
+    borderColor: 'var(--blue)',
   },
   categoryName: {
     flex: 1,
     fontSize: '13px',
-    color: '#E0E0E0',
+    color: 'var(--text)',
   },
   categoryCount: {
     fontSize: '11px',
-    color: '#666',
+    color: 'var(--faint)',
     marginLeft: '8px',
   },
   colorDot: {
@@ -112,13 +112,13 @@ const s = {
   noCategories: {
     padding: '16px',
     textAlign: 'center',
-    color: '#666',
+    color: 'var(--faint)',
     fontSize: '13px',
   },
   loading: {
     padding: '16px',
     textAlign: 'center',
-    color: '#666',
+    color: 'var(--faint)',
     fontSize: '13px',
   },
 };
@@ -280,7 +280,7 @@ export default function CategorySelector({
                 key={cat.id}
                 style={{
                   ...s.tag,
-                  backgroundColor: `${cat.color}20`,
+                  backgroundColor: `color-mix(in srgb, ${cat.color} 13%, transparent)`,
                   color: cat.color,
                 }}
               >
@@ -288,13 +288,13 @@ export default function CategorySelector({
               </span>
             ))}
             {selectedCategories.length > 3 && (
-              <span style={{ ...s.tag, backgroundColor: '#333', color: '#999' }}>
+              <span style={{ ...s.tag, backgroundColor: 'var(--outline-variant)', color: 'var(--muted)' }}>
                 +{selectedCategories.length - 3}
               </span>
             )}
           </div>
         )}
-        <ChevronDown size={16} color="#666" />
+        <ChevronDown size={16} color="#67747b" />
       </div>
 
       {isOpen && (

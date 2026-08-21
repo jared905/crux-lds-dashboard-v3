@@ -35,7 +35,7 @@ const TITLE_PATTERNS = [
   { name: 'question', regex: /\?/ },
   { name: 'number', regex: /\d+/ },
   { name: 'caps_emphasis', regex: /\b[A-Z]{3,}\b/ },
-  { name: 'brackets', regex: /[\(\[\{]/ },
+  { name: 'brackets', regex: /[([{]/ },
   { name: 'first_person', regex: /\b(I|My|We|Our)\b/i },
   { name: 'negative', regex: /\b(never|stop|avoid|worst|fail|bad|terrible|don't)\b/i },
   { name: 'power_word', regex: /\b(secret|ultimate|best|perfect|complete|easy|simple|amazing)\b/i },

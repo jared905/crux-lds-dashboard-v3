@@ -1,5 +1,8 @@
-import React, { useMemo } from "react";
-import { Download, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
+import {useMemo} from "react";
+import {
+  Download, TrendingUp, TrendingDown, AlertCircle, AlertTriangle, Users, UserPlus,
+  Target, Clock, Activity, Award, Image as ImageIcon, Film, CheckCircle,
+} from "lucide-react";
 import jsPDF from "jspdf";
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
@@ -43,9 +46,30 @@ export default function ExecutiveSummary({ rows, patterns }) {
     const current = calcTotals(currentMonth);
     const previous = calcTotals(previousMonth);
 
-    // Calculate changes (% change)
+    // Can we honestly make a month-over-month claim at all?
+    //
+    // `rows` arrives already date-filtered (28 days by default), so the
+    // 30-60 day bucket is usually empty because the DATA doesn't reach back
+    // that far - not because nothing was published. Combined with the old
+    // `prev === 0 -> return 100` rule below, that rendered "+100.0%" on every
+    // metric on the default view, plus a win card reading "Views increased
+    // 100.0% (0 -> 40,000)", and exported both into the client PDF.
+    //
+    // "No prior data" and "prior period was zero" are different statements.
+    // Only claim a change when the window is actually covered.
+    // The test is simply whether the 30-60 day bucket contains anything.
+    // If the data was truncated at 28 days, it is empty and we say so; if it
+    // holds videos, we have a real prior period regardless of how far back
+    // the full range happens to reach.
+    const comparable = previousMonth.length > 0;
+
+    // Percent change, or null when it can't be stated.
+    // null is deliberate: every downstream `changes.x > 10` / `< -10` test
+    // is false for null, so no win or problem card fires on a number we
+    // cannot support. Matches quarterlyReportService's handling.
     const calcChange = (curr, prev) => {
-      if (prev === 0) return curr > 0 ? 100 : 0;
+      if (!comparable) return null;
+      if (prev === 0) return null;
       return ((curr - prev) / prev) * 100;
     };
 
@@ -63,7 +87,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
     // Win: View growth
     if (changes.views > 10) {
       wins.push({
-        icon: "📈",
+        icon: TrendingUp,
         title: "Strong View Growth",
         description: `Views increased ${fmtPct(changes.views / 100)} month-over-month (${fmtInt(previous.views)} → ${fmtInt(current.views)})`,
         impact: "high"
@@ -73,7 +97,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
     // Win: Subscriber growth
     if (changes.subscribers > 15) {
       wins.push({
-        icon: "👥",
+        icon: Users,
         title: "Subscriber Acceleration",
         description: `Gained ${fmtInt(current.subscribers)} new subscribers, up ${fmtPct(changes.subscribers / 100)} from last month`,
         impact: "high"
@@ -83,7 +107,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
     // Win: CTR improvement
     if (changes.ctr > 5) {
       wins.push({
-        icon: "🎯",
+        icon: Target,
         title: "Improved Click-Through Rate",
         description: `CTR improved ${fmtPct(changes.ctr / 100)} (${fmtPct(previous.ctr)} → ${fmtPct(current.ctr)}), indicating better packaging`,
         impact: "medium"
@@ -93,7 +117,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
     // Win: Retention improvement
     if (changes.retention > 5) {
       wins.push({
-        icon: "⏱️",
+        icon: Clock,
         title: "Better Audience Retention",
         description: `Retention up ${fmtPct(changes.retention / 100)} (${fmtPct(previous.retention)} → ${fmtPct(current.retention)}), viewers watching longer`,
         impact: "medium"
@@ -103,7 +127,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
     // Win: Upload consistency
     if (changes.uploads > 20) {
       wins.push({
-        icon: "🚀",
+        icon: Activity,
         title: "Increased Upload Velocity",
         description: `Published ${current.uploads} videos vs ${previous.uploads} last month (+${Math.round(changes.uploads)}%)`,
         impact: "medium"
@@ -115,7 +139,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
       const topVideo = [...currentMonth].sort((a, b) => b.views - a.views)[0];
       if (topVideo.views > (previous.views / Math.max(previous.uploads, 1)) * 1.5) {
         wins.push({
-          icon: "🏆",
+          icon: Award,
           title: "Breakout Video Performance",
           description: `"${topVideo.title}" hit ${fmtInt(topVideo.views)} views (${fmtPct(topVideo.ctr)} CTR, ${fmtPct(topVideo.retention)} retention)`,
           impact: "high",
@@ -130,7 +154,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
     // Problem: View decline
     if (changes.views < -10) {
       problems.push({
-        icon: "📉",
+        icon: TrendingDown,
         title: "Declining Views",
         description: `Views dropped ${fmtPct(Math.abs(changes.views) / 100)} month-over-month (${fmtInt(previous.views)} → ${fmtInt(current.views)})`,
         severity: "critical"
@@ -140,7 +164,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
     // Problem: Upload frequency drop
     if (changes.uploads < -20) {
       problems.push({
-        icon: "⚠️",
+        icon: AlertTriangle,
         title: "Upload Frequency Dropped",
         description: `Only ${current.uploads} uploads vs ${previous.uploads} last month. Consistency is key for algorithm.`,
         severity: "warning"
@@ -150,7 +174,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
     // Problem: CTR decline
     if (changes.ctr < -10) {
       problems.push({
-        icon: "🎨",
+        icon: ImageIcon,
         title: "CTR Decline",
         description: `CTR fell ${fmtPct(Math.abs(changes.ctr) / 100)} (${fmtPct(previous.ctr)} → ${fmtPct(current.ctr)}). Thumbnails/titles need work.`,
         severity: "warning"
@@ -160,7 +184,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
     // Problem: Retention decline
     if (changes.retention < -10) {
       problems.push({
-        icon: "🎬",
+        icon: Film,
         title: "Retention Drop",
         description: `Retention down ${fmtPct(Math.abs(changes.retention) / 100)} (${fmtPct(previous.retention)} → ${fmtPct(current.retention)}). Content quality/pacing issue.`,
         severity: "warning"
@@ -170,7 +194,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
     // Problem: Low subscriber conversion
     if (current.subscribers > 0 && current.views > 0 && (current.subscribers / current.views) < 0.003) {
       problems.push({
-        icon: "👤",
+        icon: UserPlus,
         title: "Low Subscriber Conversion",
         description: `Only ${((current.subscribers / current.views) * 100).toFixed(2)}% of viewers subscribe. Add stronger CTAs.`,
         severity: "warning"
@@ -183,7 +207,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
       const underperformers = currentMonth.filter(v => v.views < avgViews * 0.5);
       if (underperformers.length >= currentMonth.length * 0.4) {
         problems.push({
-          icon: "🚨",
+          icon: AlertCircle,
           title: "High Underperformer Rate",
           description: `${underperformers.length} of ${currentMonth.length} videos (${Math.round(underperformers.length / currentMonth.length * 100)}%) performing below 50% of average`,
           severity: "critical"
@@ -191,12 +215,19 @@ export default function ExecutiveSummary({ rows, patterns }) {
       }
     }
 
-    // If no problems found, add a positive message
+    // If no problems found, add a positive message.
+    // Only claim "stable or improving" when there is actually a prior period
+    // to compare against - otherwise this asserts a trend from no trend data.
     if (problems.length === 0) {
-      problems.push({
-        icon: "✅",
+      problems.push(comparable ? {
+        icon: CheckCircle,
         title: "No Critical Issues",
         description: "Channel metrics are stable or improving across all key areas.",
+        severity: "monitor"
+      } : {
+        icon: Clock,
+        title: "Not Enough History Yet",
+        description: "This view covers a single period, so there is nothing to compare it against. Switch the date range to \"All time\" for a month-over-month read.",
         severity: "monitor"
       });
     }
@@ -215,11 +246,14 @@ export default function ExecutiveSummary({ rows, patterns }) {
       current,
       previous,
       changes,
+      comparable,
       wins: wins.slice(0, 3),
       problems: problems.slice(0, 3),
       period: {
         current: `Last 30 days (${currentMonth.length} videos)`,
-        previous: `Previous 30 days (${previousMonth.length} videos)`
+        previous: comparable
+          ? `Previous 30 days (${previousMonth.length} videos)`
+          : `No prior period in range`
       }
     };
   }, [rows]);
@@ -344,16 +378,25 @@ export default function ExecutiveSummary({ rows, patterns }) {
     ];
 
     metrics.forEach(metric => {
-      const changeColor = metric.change >= 0 ? [34, 197, 94] : [239, 68, 68];
-      const changeSymbol = metric.change >= 0 ? "↑" : "↓";
+      // A null change means no comparable prior period. This used to fall
+      // through `metric.change >= 0` (true for null) and print a green
+      // "up 0.0%" into the client PDF.
+      const hasChange = typeof metric.change === "number" && Number.isFinite(metric.change);
       const currentVal = metric.isPct ? fmtPct(metric.current) : fmtInt(metric.current);
-      const previousVal = metric.isPct ? fmtPct(metric.previous) : fmtInt(metric.previous);
 
       doc.text(`${metric.label}:`, margin, yPos);
-      doc.text(`${previousVal} → ${currentVal}`, margin + 40, yPos);
-      doc.setTextColor(...changeColor);
-      doc.text(`${changeSymbol} ${Math.abs(metric.change).toFixed(1)}%`, margin + 100, yPos);
-      doc.setTextColor(0, 0, 0);
+      if (hasChange) {
+        const previousVal = metric.isPct ? fmtPct(metric.previous) : fmtInt(metric.previous);
+        doc.text(`${previousVal} → ${currentVal}`, margin + 40, yPos);
+        doc.setTextColor(...(metric.change >= 0 ? [34, 197, 94] : [239, 68, 68]));
+        doc.text(`${metric.change >= 0 ? "↑" : "↓"} ${Math.abs(metric.change).toFixed(1)}%`, margin + 100, yPos);
+        doc.setTextColor(0, 0, 0);
+      } else {
+        doc.text(currentVal, margin + 40, yPos);
+        doc.setTextColor(120, 120, 120);
+        doc.text("no prior period", margin + 100, yPos);
+        doc.setTextColor(0, 0, 0);
+      }
       yPos += 6;
     });
 
@@ -448,7 +491,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
   if (!analysis) {
     return (
       <div style={{
-        background: "#1E1E1E",
+        background: "var(--card)",
         border: "1px solid #333",
         borderRadius: "8px",
         padding: "24px",
@@ -472,7 +515,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
         <div>
-          <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff", marginBottom: "6px" }}>
+          <div style={{ fontSize: "22px", fontWeight: "700", color: "var(--ink)", marginBottom: "6px" }}>
             Executive Summary
           </div>
           <div style={{ fontSize: "12px", color: "#888" }}>
@@ -482,21 +525,21 @@ export default function ExecutiveSummary({ rows, patterns }) {
         <button
           onClick={exportToPDF}
           style={{
-            background: "#10b981",
+            background: "var(--pos)",
             border: "none",
             borderRadius: "8px",
             padding: "10px 16px",
-            color: "#fff",
+            color: "var(--ink)",
             fontSize: "13px",
             fontWeight: "600",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             gap: "8px",
-            transition: "all 0.2s ease"
+            transition: "background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s"
           }}
-          onMouseOver={(e) => e.currentTarget.style.background = "#059669"}
-          onMouseOut={(e) => e.currentTarget.style.background = "#10b981"}
+          onMouseOver={(e) => e.currentTarget.style.background = "var(--pos-deep)"}
+          onMouseOut={(e) => e.currentTarget.style.background = "var(--pos)"}
         >
           <Download size={16} />
           Export PDF
@@ -548,28 +591,28 @@ export default function ExecutiveSummary({ rows, patterns }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
         {/* Top 3 Wins */}
         <div style={{
-          background: "#1E1E1E",
+          background: "var(--card)",
           border: "1px solid #10b98140",
           borderRadius: "10px",
           padding: "20px"
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-            <TrendingUp size={20} style={{ color: "#10b981" }} />
-            <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>
+            <TrendingUp size={20} style={{ color: "var(--pos)" }} />
+            <div style={{ fontSize: "16px", fontWeight: "700", color: "var(--ink)" }}>
               Top 3 Wins
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {analysis.wins.map((win, idx) => (
               <div key={idx} style={{
-                background: "#252525",
+                background: "var(--input-bg)",
                 border: "1px solid #333",
                 borderRadius: "8px",
                 padding: "12px"
               }}>
                 <div style={{ display: "flex", gap: "8px", marginBottom: "6px" }}>
-                  <div style={{ fontSize: "18px" }}>{win.icon}</div>
-                  <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>
+                  {win.icon && <win.icon size={16} style={{ color: "var(--pos)", flexShrink: 0 }} />}
+                  <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--ink)" }}>
                     {win.title}
                   </div>
                 </div>
@@ -583,28 +626,28 @@ export default function ExecutiveSummary({ rows, patterns }) {
 
         {/* Top 3 Problems */}
         <div style={{
-          background: "#1E1E1E",
+          background: "var(--card)",
           border: "1px solid #ef444440",
           borderRadius: "10px",
           padding: "20px"
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-            <AlertCircle size={20} style={{ color: "#ef4444" }} />
-            <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff" }}>
+            <AlertCircle size={20} style={{ color: "var(--neg)" }} />
+            <div style={{ fontSize: "16px", fontWeight: "700", color: "var(--ink)" }}>
               Top 3 Areas for Improvement
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {analysis.problems.map((problem, idx) => (
               <div key={idx} style={{
-                background: "#252525",
+                background: "var(--input-bg)",
                 border: "1px solid #333",
                 borderRadius: "8px",
                 padding: "12px"
               }}>
                 <div style={{ display: "flex", gap: "8px", marginBottom: "6px" }}>
-                  <div style={{ fontSize: "18px" }}>{problem.icon}</div>
-                  <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>
+                  {problem.icon && <problem.icon size={16} style={{ color: problem.severity === "critical" ? "var(--neg)" : "var(--warn)", flexShrink: 0 }} />}
+                  <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--ink)" }}>
                     {problem.title}
                   </div>
                 </div>
@@ -620,12 +663,12 @@ export default function ExecutiveSummary({ rows, patterns }) {
       {/* Budget Allocation */}
       {budgetRecommendation && (
         <div style={{
-          background: "#1E1E1E",
+          background: "var(--card)",
           border: "1px solid #333",
           borderRadius: "10px",
           padding: "20px"
         }}>
-          <div style={{ fontSize: "16px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>
+          <div style={{ fontSize: "16px", fontWeight: "700", color: "var(--ink)", marginBottom: "16px" }}>
             Recommended Budget Allocation
           </div>
 
@@ -634,17 +677,17 @@ export default function ExecutiveSummary({ rows, patterns }) {
             {budgetRecommendation.allocation.map((item, idx) => (
               <div key={idx} style={{ marginBottom: "12px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                  <div style={{ fontSize: "12px", fontWeight: "600", color: "#fff" }}>
+                  <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--ink)" }}>
                     {item.category}
                   </div>
-                  <div style={{ fontSize: "12px", fontWeight: "700", color: "#10b981" }}>
+                  <div style={{ fontSize: "12px", fontWeight: "700", color: "var(--pos)" }}>
                     {item.allocation}%
                   </div>
                 </div>
                 <div style={{
                   width: "100%",
                   height: "8px",
-                  background: "#252525",
+                  background: "var(--input-bg)",
                   borderRadius: "4px",
                   overflow: "hidden",
                   marginBottom: "4px"
@@ -652,7 +695,7 @@ export default function ExecutiveSummary({ rows, patterns }) {
                   <div style={{
                     width: `${item.allocation}%`,
                     height: "100%",
-                    background: idx === 0 ? "#10b981" : idx === 1 ? "#f59e0b" : "#3b82f6",
+                    background: idx === 0 ? "var(--pos)" : idx === 1 ? "var(--warn)" : "#3b82f6",
                     transition: "width 0.3s ease"
                   }} />
                 </div>
@@ -664,12 +707,12 @@ export default function ExecutiveSummary({ rows, patterns }) {
           </div>
 
           <div style={{
-            background: "#252525",
+            background: "var(--input-bg)",
             border: "1px solid #333",
             borderRadius: "6px",
             padding: "12px"
           }}>
-            <div style={{ fontSize: "11px", fontWeight: "600", color: "#10b981", marginBottom: "4px" }}>
+            <div style={{ fontSize: "11px", fontWeight: "600", color: "var(--pos)", marginBottom: "4px" }}>
               KEY FOCUS:
             </div>
             <div style={{ fontSize: "12px", color: "#b0b0b0" }}>
@@ -684,8 +727,12 @@ export default function ExecutiveSummary({ rows, patterns }) {
 
 // Metric Card Component
 function MetricCard({ label, current, previous, change, isPercentage = false }) {
-  const isPositive = change >= 0;
-  const changeColor = isPositive ? "#10b981" : "#ef4444";
+  // `change` is null when there is no prior period to compare against.
+  // Guard explicitly: `null >= 0` is true in JS, so the old code painted a
+  // green up-arrow reading "0.0%" for "we have no idea".
+  const hasChange = typeof change === "number" && Number.isFinite(change);
+  const isPositive = hasChange && change >= 0;
+  const changeColor = !hasChange ? "#666" : (isPositive ? "#10b981" : "#ef4444");
   const Icon = isPositive ? TrendingUp : TrendingDown;
 
   const formatValue = (val) => {
@@ -695,7 +742,7 @@ function MetricCard({ label, current, previous, change, isPercentage = false }) 
 
   return (
     <div style={{
-      background: "#1E1E1E",
+      background: "var(--card)",
       border: "1px solid #333",
       borderRadius: "8px",
       padding: "14px"
@@ -703,17 +750,25 @@ function MetricCard({ label, current, previous, change, isPercentage = false }) 
       <div style={{ fontSize: "10px", color: "#888", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
         {label}
       </div>
-      <div style={{ fontSize: "22px", fontWeight: "700", color: "#fff", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
+      <div style={{ fontSize: "22px", fontWeight: "700", color: "var(--ink)", marginBottom: "4px", fontFamily: "'Barlow Condensed', sans-serif" }}>
         {formatValue(current)}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-        <Icon size={14} style={{ color: changeColor }} />
-        <div style={{ fontSize: "11px", color: changeColor, fontWeight: "600" }}>
-          {Math.abs(change).toFixed(1)}%
-        </div>
-        <div style={{ fontSize: "10px", color: "#666", marginLeft: "4px" }}>
-          vs {formatValue(previous)}
-        </div>
+        {hasChange ? (
+          <>
+            <Icon size={14} style={{ color: changeColor }} />
+            <div style={{ fontSize: "11px", color: changeColor, fontWeight: "600" }}>
+              {Math.abs(change).toFixed(1)}%
+            </div>
+            <div style={{ fontSize: "10px", color: "#666", marginLeft: "4px" }}>
+              vs {formatValue(previous)}
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: "10px", color: "#666" }}>
+            No prior period to compare
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import {useState, useEffect, useCallback} from "react";
 import { createPortal } from "react-dom";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
-import { FileDown, X, Check, RotateCcw, Plus, Trash2, Save } from "lucide-react";
+import { Check, FileDown, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
 
 /**
  * PDF Export Component
@@ -103,6 +103,9 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
     } finally {
       setSavingDraft(false);
     }
+  // getDateRangeLabel is a pure function of dateRange/customDateRange, both
+  // already dependencies; its identity changes every render by construction.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeClient?.id, currentDraftId, draftName, clientName, dateRange, customDateRange, selectedChannel, pendingOpportunities, pendingComments, pendingPublishedHtml, onDraftSaved]);
 
   // Load a draft into the modal
@@ -221,52 +224,52 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
           const lm = calcMetrics(pubLongs);
 
           const videoRows = publishedVideos.map(video => {
-            const typeBg = video.type === 'short' ? '#fff7ed' : '#eff6ff';
-            const typeColor = video.type === 'short' ? '#f97316' : '#0ea5e9';
+            const typeBg = video.type === 'short' ? '#f7fadf' : '#e8f8fd';
+            const typeColor = video.type === 'short' ? '#5f7300' : '#0083ad';
             const typeLabel = video.type === 'short' ? 'SHORT' : 'LONG';
             const pubDate = video.publishDate ? new Date(video.publishDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
-            const channelLine = video.channel ? '<div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">' + video.channel + '</div>' : '';
-            return '<tr style="border-bottom: 1px solid #e2e8f0;">'
-              + '<td style="padding: 8px 14px; font-size: 13px; color: #1e293b; max-width: 400px; font-weight: 500;">'
+            const channelLine = video.channel ? '<div style="font-size: 11px; color: #8698a0; margin-top: 2px;">' + video.channel + '</div>' : '';
+            return '<tr style="border-bottom: 1px solid #d9e3e8;">'
+              + '<td style="padding: 8px 14px; font-size: 13px; color: #12222a; max-width: 400px; font-weight: 500;">'
               + '<div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + (video.title || 'Untitled') + '</div>'
               + channelLine
               + '</td>'
               + '<td style="padding: 8px 14px; text-align: center;"><span style="display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; background: ' + typeBg + '; color: ' + typeColor + ';">' + typeLabel + '</span></td>'
-              + '<td style="padding: 8px 14px; text-align: center; font-size: 12px; color: #64748b; white-space: nowrap;">' + pubDate + '</td>'
-              + '<td style="padding: 8px 14px; text-align: right; font-size: 14px; font-weight: 600; color: #1e293b;">' + (video.views || 0).toLocaleString() + '</td>'
-              + '<td style="padding: 8px 14px; text-align: right; font-size: 13px; color: #64748b;">' + ((video.ctr || 0) * 100).toFixed(1) + '%</td>'
-              + '<td style="padding: 8px 14px; text-align: right; font-size: 13px; color: #64748b;">' + ((video.retention || 0) * 100).toFixed(1) + '%</td>'
+              + '<td style="padding: 8px 14px; text-align: center; font-size: 12px; color: #5a6b73; white-space: nowrap;">' + pubDate + '</td>'
+              + '<td style="padding: 8px 14px; text-align: right; font-size: 14px; font-weight: 600; color: #12222a;">' + (video.views || 0).toLocaleString() + '</td>'
+              + '<td style="padding: 8px 14px; text-align: right; font-size: 13px; color: #5a6b73;">' + ((video.ctr || 0) * 100).toFixed(1) + '%</td>'
+              + '<td style="padding: 8px 14px; text-align: right; font-size: 13px; color: #5a6b73;">' + ((video.retention || 0) * 100).toFixed(1) + '%</td>'
               + '</tr>';
           }).join('');
 
           publishedSectionHtml = '<div data-pdf-section style="margin-bottom: 28px;">'
-            + '<h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3; letter-spacing: 0.5px;">CONTENT PUBLISHED THIS PERIOD</h2>'
+            + '<h2 style="font-family: \'Barlow Condensed\', \'Inter\', sans-serif; font-size: 30px; font-weight: 700; color: #12222a; margin-bottom: 20px; line-height: 1.3; letter-spacing: 0.5px;">CONTENT PUBLISHED THIS PERIOD</h2>'
             + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px;">'
-            + '<div style="background: #fff7ed; padding: 18px; border-radius: 12px; border: 2px solid #fed7aa;">'
-            + '<div style="font-size: 18px; font-weight: 700; color: #ea580c; margin-bottom: 12px; line-height: 1.3;">📱 Shorts Published</div>'
+            + '<div style="background: #f7fadf; padding: 18px; border-radius: 12px; border: 2px solid #dbe795;">'
+            + "<div style=\"font-size: 18px; font-weight: 700; color: #5f7300; margin-bottom: 12px; line-height: 1.3;\"> Shorts Published</div>"
             + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Count</div><div style="font-size: 26px; font-weight: 700; color: #f97316; line-height: 1.25;">' + sm.count + '</div></div>'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #f97316; line-height: 1.25;">' + sm.views.toLocaleString() + '</div></div>'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (sm.avgCtr * 100).toFixed(1) + '%</div></div>'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (sm.avgRet * 100).toFixed(1) + '%</div></div>'
+            + '<div><div style="font-size: 12px; color: #5a6b73; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Count</div><div style="font-size: 26px; font-weight: 700; color: #5f7300; line-height: 1.25;">' + sm.count + '</div></div>'
+            + '<div><div style="font-size: 12px; color: #5a6b73; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #5f7300; line-height: 1.25;">' + sm.views.toLocaleString() + '</div></div>'
+            + '<div><div style="font-size: 12px; color: #5a6b73; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #12222a; line-height: 1.25;">' + (sm.avgCtr * 100).toFixed(1) + '%</div></div>'
+            + '<div><div style="font-size: 12px; color: #5a6b73; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #12222a; line-height: 1.25;">' + (sm.avgRet * 100).toFixed(1) + '%</div></div>'
             + '</div></div>'
-            + '<div style="background: #eff6ff; padding: 18px; border-radius: 12px; border: 2px solid #bfdbfe;">'
-            + '<div style="font-size: 18px; font-weight: 700; color: #0284c7; margin-bottom: 12px; line-height: 1.3;">🎥 Long-form Published</div>'
+            + '<div style="background: #e8f8fd; padding: 18px; border-radius: 12px; border: 2px solid #b5e8f8;">'
+            + "<div style=\"font-size: 18px; font-weight: 700; color: #0083ad; margin-bottom: 12px; line-height: 1.3;\"> Long-form Published</div>"
             + '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Count</div><div style="font-size: 26px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">' + lm.count + '</div></div>'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">' + lm.views.toLocaleString() + '</div></div>'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (lm.avgCtr * 100).toFixed(1) + '%</div></div>'
-            + '<div><div style="font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #1e293b; line-height: 1.25;">' + (lm.avgRet * 100).toFixed(1) + '%</div></div>'
+            + '<div><div style="font-size: 12px; color: #5a6b73; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Count</div><div style="font-size: 26px; font-weight: 700; color: #0083ad; line-height: 1.25;">' + lm.count + '</div></div>'
+            + '<div><div style="font-size: 12px; color: #5a6b73; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Total Views</div><div style="font-size: 26px; font-weight: 700; color: #0083ad; line-height: 1.25;">' + lm.views.toLocaleString() + '</div></div>'
+            + '<div><div style="font-size: 12px; color: #5a6b73; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg CTR</div><div style="font-size: 20px; font-weight: 600; color: #12222a; line-height: 1.25;">' + (lm.avgCtr * 100).toFixed(1) + '%</div></div>'
+            + '<div><div style="font-size: 12px; color: #5a6b73; font-weight: 600; margin-bottom: 6px; line-height: 1.3;">Avg Retention</div><div style="font-size: 20px; font-weight: 600; color: #12222a; line-height: 1.25;">' + (lm.avgRet * 100).toFixed(1) + '%</div></div>'
             + '</div></div>'
             + '</div>'
-            + '<div style="background: #f8fafc; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0;">'
-            + '<table style="width: 100%; border-collapse: collapse;"><thead><tr style="background: #e2e8f0;">'
-            + '<th style="text-align: left; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TITLE</th>'
-            + '<th style="text-align: center; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TYPE</th>'
-            + '<th style="text-align: center; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">PUBLISHED</th>'
-            + '<th style="text-align: right; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">VIEWS</th>'
-            + '<th style="text-align: right; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">CTR</th>'
-            + '<th style="text-align: right; padding: 10px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">RETENTION</th>'
+            + '<div style="background: #f2f7f9; border-radius: 12px; overflow: hidden; border: 2px solid #d9e3e8;">'
+            + '<table style="width: 100%; border-collapse: collapse;"><thead><tr style="background: #d9e3e8;">'
+            + '<th style="text-align: left; padding: 10px 14px; font-size: 13px; color: #5a6b73; font-weight: 600; letter-spacing: 0.5px;">TITLE</th>'
+            + '<th style="text-align: center; padding: 10px 14px; font-size: 13px; color: #5a6b73; font-weight: 600; letter-spacing: 0.5px;">TYPE</th>'
+            + '<th style="text-align: center; padding: 10px 14px; font-size: 13px; color: #5a6b73; font-weight: 600; letter-spacing: 0.5px;">PUBLISHED</th>'
+            + '<th style="text-align: right; padding: 10px 14px; font-size: 13px; color: #5a6b73; font-weight: 600; letter-spacing: 0.5px;">VIEWS</th>'
+            + '<th style="text-align: right; padding: 10px 14px; font-size: 13px; color: #5a6b73; font-weight: 600; letter-spacing: 0.5px;">CTR</th>'
+            + '<th style="text-align: right; padding: 10px 14px; font-size: 13px; color: #5a6b73; font-weight: 600; letter-spacing: 0.5px;">RETENTION</th>'
             + '</tr></thead><tbody>' + videoRows + '</tbody></table></div>'
             + '</div>';
         }
@@ -364,13 +367,13 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
       try {
         // Dark-to-light color mapping for SVG fills
         const DARK_TO_LIGHT = {
-          '#151d2e': '#e2e8f0', '#1e2330': '#e2e8f0', // no-data → light gray
-          '#1a2d50': '#bfdbfe', '#1e3d6e': '#bfdbfe', // low density
-          '#1d4ed8': '#93c5fd', '#2563eb': '#60a5fa',  // medium density
-          '#3b82f6': '#3b82f6', '#60a5fa': '#2563eb',  // high density (keep/darken)
-          '#93c5fd': '#1d4ed8', '#dbeafe': '#1e40af',  // very high (darken for contrast on white)
-          '#0f172a': '#cbd5e1', '#1a2744': '#cbd5e1',  // strokes → light gray
-          '#0c1222': '#f1f5f9',                         // background
+          '#151d2e': '#e3ebee',                         // no-data → light gray
+          '#1a2d50': '#d4f2fc',                         // low density
+          '#0090c8': '#a5e4f8', '#00b0d8': '#6ed3f1',   // building density
+          '#00d1ff': '#2bbde7', '#4cd6ff': '#0083ad',   // mid/high
+          '#b7eaff': '#00688a', '#dbeafe': '#075a78',   // very high (darken for contrast on white)
+          '#0f172a': '#c3d0d6',                         // strokes → light gray
+          '#0c1222': '#eef4f6',                         // background
         };
 
         const captureMap = async (selector) => {
@@ -394,7 +397,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
 
           // Swap background
           const origBg = el.style.background;
-          el.style.background = '#f1f5f9';
+          el.style.background = '#eef4f6';
 
           // Hide dark overlays
           const overlays = el.querySelectorAll('div');
@@ -410,7 +413,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
           await new Promise(r => setTimeout(r, 100));
 
           const canvas = await html2canvas(el, {
-            backgroundColor: '#f1f5f9', scale: 2, logging: false, useCORS: true, allowTaint: true,
+            backgroundColor: '#eef4f6', scale: 2, logging: false, useCORS: true, allowTaint: true,
           });
           const img = canvas.toDataURL('image/png');
 
@@ -439,16 +442,11 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
       container.style.width = '1200px';
       container.style.backgroundColor = '#ffffff';
       container.style.padding = '50px 35px 35px 35px';
-      container.style.fontFamily = 'Arial, Helvetica, sans-serif';
+      container.style.fontFamily = "'Inter', 'Helvetica Neue', Arial, sans-serif";
       container.style.wordSpacing = 'normal';
       document.body.appendChild(container);
 
       const dateLabel = getDateRangeLabel();
-      const dateStr = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
 
       // Get AI content
       const aiContent = getAIContent();
@@ -493,163 +491,163 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
       container.innerHTML = `
         <div style="max-width: 1080px; margin: 0 auto;">
           <!-- Header -->
-          <div data-pdf-section style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #2563eb;">
+          <div data-pdf-section style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #00a9dc;">
             <div style="display: flex; align-items: center; gap: 22px;">
-              <div style="background: #1a1a1a; padding: 14px 18px; border-radius: 10px;">
+              <div style="background: #0e1417; padding: 14px 18px; border-radius: 10px;">
                 <img src="/Full_View_Logo.png" alt="Full View Analytics" style="height: 72px; object-fit: contain; display: block;" />
               </div>
-              <div style="border-left: 2px solid #cbd5e1; padding-left: 22px;">
-                ${displayName ? `<div style="font-size: 20px; font-weight: 700; color: #2563eb; margin-bottom: 6px;">${displayName}</div>` : ''}
-                <h1 style="margin: 0; font-size: 34px; font-weight: 700; color: #1e293b; line-height: 1.3;">Strategic YouTube Insights</h1>
-                <p style="margin: 10px 0 0 0; font-size: 16px; color: #64748b; font-weight: 500;">${dateLabel}</p>
+              <div style="border-left: 2px solid #aebbc2; padding-left: 22px;">
+                ${displayName ? `<div style="font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #0083ad; margin-bottom: 6px;">${displayName}</div>` : ''}
+                <h1 style="margin: 0; font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 42px; font-weight: 700; color: #12222a; line-height: 1.05; text-transform: uppercase;">Strategic YouTube Insights</h1>
+                <p style="margin: 10px 0 0 0; font-size: 16px; color: #5a6b73; font-weight: 500;">${dateLabel}</p>
               </div>
             </div>
           </div>
 
           <!-- Key Metrics Grid -->
           <div data-pdf-section style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px;">
-            <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #818cf8;">
-              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">VIEWS</div>
-              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1.25;">${(kpis.views || 0).toLocaleString()}</div>
-              ${kpis.viewsChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.viewsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 8px; font-weight: 600; line-height: 1.4;">${kpis.viewsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.viewsChange).toFixed(1)}% vs previous period</div>` : ''}
-              <div style="border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 8px;">
-                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Lifetime: <span style="color: #64748b; font-weight: 600;">${channelStats?.viewCount ? Number(channelStats.viewCount).toLocaleString() : allTimeKpis ? allTimeKpis.views.toLocaleString() : '—'}</span></div>
+            <div style="background: #f2f7f9; padding: 18px; border-radius: 12px; border-left: 5px solid #00a9dc;">
+              <div style="font-size: 13px; color: #5a6b73; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">VIEWS</div>
+              <div style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 34px; font-weight: 700; color: #12222a; line-height: 1.1;">${(kpis.views || 0).toLocaleString()}</div>
+              ${kpis.viewsChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.viewsChange >= 0 ? '#556b00' : '#d63a28'}; margin-top: 8px; font-weight: 600; line-height: 1.4;">${kpis.viewsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.viewsChange).toFixed(1)}% vs previous period</div>` : ''}
+              <div style="border-top: 1px solid #d9e3e8; margin-top: 10px; padding-top: 8px;">
+                <div style="font-size: 11px; color: #8698a0; font-weight: 500;">Lifetime: <span style="color: #5a6b73; font-weight: 600;">${channelStats?.viewCount ? Number(channelStats.viewCount).toLocaleString() : allTimeKpis ? allTimeKpis.views.toLocaleString() : '—'}</span></div>
               </div>
             </div>
 
-            <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #16a34a;">
-              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">WATCH HOURS</div>
-              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1.25;">${Number(kpis.watchHours.toFixed(1)).toLocaleString()}</div>
-              ${kpis.watchHoursChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.watchHoursChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 8px; font-weight: 600; line-height: 1.4;">${kpis.watchHoursChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.watchHoursChange).toFixed(1)}% vs previous period</div>` : ''}
-              ${allTimeKpis ? `<div style="border-top: 1px solid #e2e8f0; margin-top: 10px; padding-top: 8px;">
-                <div style="font-size: 11px; color: #94a3b8; font-weight: 500;">Lifetime: <span style="color: #64748b; font-weight: 600;">${Number(allTimeKpis.watchHours.toFixed(1)).toLocaleString()}</span></div>
+            <div style="background: #f2f7f9; padding: 18px; border-radius: 12px; border-left: 5px solid #bcd400;">
+              <div style="font-size: 13px; color: #5a6b73; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">WATCH HOURS</div>
+              <div style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 34px; font-weight: 700; color: #12222a; line-height: 1.1;">${Number(kpis.watchHours.toFixed(1)).toLocaleString()}</div>
+              ${kpis.watchHoursChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.watchHoursChange >= 0 ? '#556b00' : '#d63a28'}; margin-top: 8px; font-weight: 600; line-height: 1.4;">${kpis.watchHoursChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.watchHoursChange).toFixed(1)}% vs previous period</div>` : ''}
+              ${allTimeKpis ? `<div style="border-top: 1px solid #d9e3e8; margin-top: 10px; padding-top: 8px;">
+                <div style="font-size: 11px; color: #8698a0; font-weight: 500;">Lifetime: <span style="color: #5a6b73; font-weight: 600;">${Number(allTimeKpis.watchHours.toFixed(1)).toLocaleString()}</span></div>
               </div>` : ''}
             </div>
 
-            <div style="background: #f8fafc; padding: 18px; border-radius: 12px; border-left: 5px solid #f59e0b;">
-              <div style="font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">SUBSCRIBERS</div>
-              <div style="font-size: 30px; font-weight: 700; color: #1e293b; line-height: 1.25;">${channelStats?.subscriberCount ? Number(channelStats.subscriberCount).toLocaleString() : allTimeKpis ? allTimeKpis.subs.toLocaleString() : '—'}</div>
-              <div style="font-size: 13px; color: #64748b; margin-top: 8px; font-weight: 500; line-height: 1.4;">Subscribers Gained: <span style="color: ${kpis.subs >= 0 ? '#16a34a' : '#dc2626'}; font-weight: 600;">${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}</span></div>
-              ${kpis.subsChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.subsChange >= 0 ? '#16a34a' : '#dc2626'}; margin-top: 6px; font-weight: 600; line-height: 1.4;">${kpis.subsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.subsChange).toFixed(1)}% vs previous period</div>` : ''}
+            <div style="background: #f2f7f9; padding: 18px; border-radius: 12px; border-left: 5px solid #ff9a86;">
+              <div style="font-size: 13px; color: #5a6b73; font-weight: 600; margin-bottom: 8px; letter-spacing: 0.5px;">SUBSCRIBERS</div>
+              <div style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 34px; font-weight: 700; color: #12222a; line-height: 1.1;">${channelStats?.subscriberCount ? Number(channelStats.subscriberCount).toLocaleString() : allTimeKpis ? allTimeKpis.subs.toLocaleString() : '—'}</div>
+              <div style="font-size: 13px; color: #5a6b73; margin-top: 8px; font-weight: 500; line-height: 1.4;">Subscribers Gained: <span style="color: ${kpis.subs >= 0 ? '#556b00' : '#d63a28'}; font-weight: 600;">${kpis.subs >= 0 ? '+' : ''}${kpis.subs.toLocaleString()}</span></div>
+              ${kpis.subsChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.subsChange >= 0 ? '#556b00' : '#d63a28'}; margin-top: 6px; font-weight: 600; line-height: 1.4;">${kpis.subsChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.subsChange).toFixed(1)}% vs previous period</div>` : ''}
             </div>
           </div>
 
           <!-- Summary Stats -->
-          <div data-pdf-section style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); padding: 24px 28px; border-radius: 12px; margin-bottom: 28px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+          <div data-pdf-section style="background: linear-gradient(135deg, #0e1417 0%, #1d2a30 100%); padding: 24px 28px; border-radius: 16px; margin-bottom: 28px;">
             <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; text-align: center;">
               <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">VIDEOS PUBLISHED</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${periodPublished.length}</div>
+                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 13px; color: #7fd4ee; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">VIDEOS PUBLISHED</div>
+                <div style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 36px; font-weight: 700; color: #ffffff; line-height: 1.25;">${periodPublished.length}</div>
               </div>
               <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">AVG VIEWS/VIDEO</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${filtered.length > 0 ? Math.round(kpis.views / filtered.length).toLocaleString() : '0'}</div>
-                ${kpis.avgViewsPerVideoChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.avgViewsPerVideoChange >= 0 ? '#86efac' : '#fca5a5'}; margin-top: 8px; font-weight: 600; line-height: 1.4;">${kpis.avgViewsPerVideoChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.avgViewsPerVideoChange).toFixed(1)}%</div>` : ''}
+                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 13px; color: #7fd4ee; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">AVG VIEWS/VIDEO</div>
+                <div style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 36px; font-weight: 700; color: #ffffff; line-height: 1.25;">${filtered.length > 0 ? Math.round(kpis.views / filtered.length).toLocaleString() : '0'}</div>
+                ${kpis.avgViewsPerVideoChange !== undefined ? `<div style="font-size: 12px; color: ${kpis.avgViewsPerVideoChange >= 0 ? '#cdf200' : '#ff8a7a'}; margin-top: 8px; font-weight: 600; line-height: 1.4;">${kpis.avgViewsPerVideoChange >= 0 ? '↑' : '↓'} ${Math.abs(kpis.avgViewsPerVideoChange).toFixed(1)}%</div>` : ''}
               </div>
               <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">IMPRESSIONS</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${(kpis.impressions || 0).toLocaleString()}</div>
+                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 13px; color: #7fd4ee; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">IMPRESSIONS</div>
+                <div style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 36px; font-weight: 700; color: #ffffff; line-height: 1.25;">${(kpis.impressions || 0).toLocaleString()}</div>
               </div>
               <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">AVG CTR</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${(kpis.avgCtr * 100).toFixed(1)}%</div>
+                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 13px; color: #7fd4ee; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">AVG CTR</div>
+                <div style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 36px; font-weight: 700; color: #ffffff; line-height: 1.25;">${(kpis.avgCtr * 100).toFixed(1)}%</div>
               </div>
               <div>
-                <div style="font-size: 14px; color: #93c5fd; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">AVG RETENTION</div>
-                <div style="font-size: 32px; font-weight: 700; color: #ffffff; line-height: 1.25;">${(kpis.avgRet * 100).toFixed(1)}%</div>
-              </div>
-            </div>
-          </div>
+                <div style="font-family: 'Space Grotesk', sans-serif; font-size: 13px; color: #7fd4ee; margin-bottom: 10px; font-weight: 600; letter-spacing: 0.5px; line-height: 1.3;">AVG RETENTION</div>
+                <div style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 36px; font-weight: 700; color: #ffffff; line-height: 1.25;">${(kpis.avgRet * 100).toFixed(1)}%</div>
+</div>
+</div>
+</div>
 
-          <!-- Content Performance -->
-          <div data-pdf-section style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;">
-            <div style="background: #fff7ed; padding: 20px; border-radius: 12px; border: 3px solid #f97316;">
-              <div style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 14px; line-height: 1.3;">📱 Shorts Performance</div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Videos</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #f97316; line-height: 1.25;">${shorts.length}</div>
+<!-- Content Performance -->
+<div data-pdf-section style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;">
+<div style="background: #f7fadf; padding: 20px; border-radius: 12px; border: 3px solid #bcd400;">
+<div style="font-size: 20px; font-weight: 700; color: #12222a; margin-bottom: 14px; line-height: 1.3;"> Shorts Performance</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+<div>
+<div style="font-size: 13px; color: #5a6b73; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Videos</div>
+<div style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 30px; font-weight: 700; color: #5f7300; line-height: 1.25;">${shorts.length}</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Views</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #f97316; line-height: 1.25;">${(shortsViews / 1000).toFixed(1)}K</div>
+                  <div style="font-size: 13px; color: #5a6b73; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Views</div>
+                  <div style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 30px; font-weight: 700; color: #5f7300; line-height: 1.25;">${(shortsViews / 1000).toFixed(1)}K</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg CTR</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b; line-height: 1.25;">${(kpis.shortsMetrics.avgCtr * 100).toFixed(1)}%</div>
+                  <div style="font-size: 13px; color: #5a6b73; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg CTR</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #12222a; line-height: 1.25;">${(kpis.shortsMetrics.avgCtr * 100).toFixed(1)}%</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg Retention</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b; line-height: 1.25;">${(kpis.shortsMetrics.avgRet * 100).toFixed(1)}%</div>
-                </div>
-              </div>
-            </div>
+                  <div style="font-size: 13px; color: #5a6b73; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg Retention</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #12222a; line-height: 1.25;">${(kpis.shortsMetrics.avgRet * 100).toFixed(1)}%</div>
+</div>
+</div>
+</div>
 
-            <div style="background: #eff6ff; padding: 20px; border-radius: 12px; border: 3px solid #0ea5e9;">
-              <div style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 14px; line-height: 1.3;">🎥 Long-form Performance</div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Videos</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">${longs.length}</div>
+<div style="background: #e8f8fd; padding: 20px; border-radius: 12px; border: 3px solid #00a9dc;">
+<div style="font-size: 20px; font-weight: 700; color: #12222a; margin-bottom: 14px; line-height: 1.3;"> Long-form Performance</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+<div>
+<div style="font-size: 13px; color: #5a6b73; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Videos</div>
+<div style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 30px; font-weight: 700; color: #0083ad; line-height: 1.25;">${longs.length}</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Views</div>
-                  <div style="font-size: 28px; font-weight: 700; color: #0ea5e9; line-height: 1.25;">${(longsViews / 1000).toFixed(1)}K</div>
+                  <div style="font-size: 13px; color: #5a6b73; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Views</div>
+                  <div style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 30px; font-weight: 700; color: #0083ad; line-height: 1.25;">${(longsViews / 1000).toFixed(1)}K</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg CTR</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b; line-height: 1.25;">${(kpis.longsMetrics.avgCtr * 100).toFixed(1)}%</div>
+                  <div style="font-size: 13px; color: #5a6b73; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg CTR</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #12222a; line-height: 1.25;">${(kpis.longsMetrics.avgCtr * 100).toFixed(1)}%</div>
                 </div>
                 <div>
-                  <div style="font-size: 13px; color: #64748b; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg Retention</div>
-                  <div style="font-size: 24px; font-weight: 600; color: #1e293b; line-height: 1.25;">${(kpis.longsMetrics.avgRet * 100).toFixed(1)}%</div>
+                  <div style="font-size: 13px; color: #5a6b73; margin-bottom: 8px; font-weight: 600; line-height: 1.3;">Avg Retention</div>
+                  <div style="font-size: 24px; font-weight: 600; color: #12222a; line-height: 1.25;">${(kpis.longsMetrics.avgRet * 100).toFixed(1)}%</div>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Metric Definitions -->
-          <div data-pdf-section style="display: flex; gap: 22px; margin-bottom: 28px; padding: 16px 18px; background: #f1f5f9; border-radius: 10px; border-left: 4px solid #94a3b8;">
-            <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.6;"><strong style="color: #475569;">CTR (Click-Through Rate):</strong> The percentage of people who saw your thumbnail and clicked to watch.</p>
-            <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.6;"><strong style="color: #475569;">AVD (Avg View Duration):</strong> The average percentage of your video that viewers watched before leaving.</p>
+          <div data-pdf-section style="display: flex; gap: 22px; margin-bottom: 28px; padding: 16px 18px; background: #e9f1f4; border-radius: 10px; border-left: 4px solid #8698a0;">
+            <p style="margin: 0; font-size: 12px; color: #5a6b73; line-height: 1.6;"><strong style="color: #41525b;">CTR (Click-Through Rate):</strong> The percentage of people who saw your thumbnail and clicked to watch.</p>
+            <p style="margin: 0; font-size: 12px; color: #5a6b73; line-height: 1.6;"><strong style="color: #41525b;">AVD (Avg View Duration):</strong> The average percentage of your video that viewers watched before leaving.</p>
           </div>
 
           <!-- Top Performers -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 20px; line-height: 1.3; letter-spacing: 0.5px;">TOP PERFORMING VIDEOS</h2>
-            <div style="background: #f8fafc; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0;">
+            <h2 style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 30px; font-weight: 700; color: #12222a; margin-bottom: 20px; line-height: 1.3; letter-spacing: 0.5px;">TOP PERFORMING VIDEOS</h2>
+            <div style="background: #f2f7f9; border-radius: 12px; overflow: hidden; border: 2px solid #d9e3e8;">
               <table style="width: 100%; border-collapse: collapse;">
                 <thead>
-                  <tr style="background: #e2e8f0;">
-                    <th style="text-align: left; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TITLE</th>
-                    <th style="text-align: center; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">TYPE</th>
-                    <th style="text-align: center; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">UPLOADED</th>
-                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">VIEWS</th>
-                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">CTR</th>
-                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #64748b; font-weight: 600; letter-spacing: 0.5px;">RETENTION</th>
+                  <tr style="background: #d9e3e8;">
+                    <th style="text-align: left; padding: 12px 14px; font-size: 13px; color: #5a6b73; font-weight: 600; letter-spacing: 0.5px;">TITLE</th>
+                    <th style="text-align: center; padding: 12px 14px; font-size: 13px; color: #5a6b73; font-weight: 600; letter-spacing: 0.5px;">TYPE</th>
+                    <th style="text-align: center; padding: 12px 14px; font-size: 13px; color: #5a6b73; font-weight: 600; letter-spacing: 0.5px;">UPLOADED</th>
+                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #5a6b73; font-weight: 600; letter-spacing: 0.5px;">VIEWS</th>
+                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #5a6b73; font-weight: 600; letter-spacing: 0.5px;">CTR</th>
+                    <th style="text-align: right; padding: 12px 14px; font-size: 13px; color: #5a6b73; font-weight: 600; letter-spacing: 0.5px;">RETENTION</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${top.slice(0, 10).map((video, idx) => `
-                    <tr style="border-bottom: 1px solid #e2e8f0;">
-                      <td style="padding: 10px 14px; font-size: 14px; color: #1e293b; max-width: 420px; font-weight: 500;">
+                  ${top.slice(0, 10).map((video, _idx) => `
+                    <tr style="border-bottom: 1px solid #d9e3e8;">
+                      <td style="padding: 10px 14px; font-size: 14px; color: #12222a; max-width: 420px; font-weight: 500;">
                         <div style="display: flex; align-items: center; gap: 10px;">
                           ${video.thumbnailUrl || video.youtubeVideoId ? `<img src="${video.thumbnailUrl || `https://img.youtube.com/vi/${video.youtubeVideoId}/mqdefault.jpg`}" style="width: 64px; height: 36px; object-fit: cover; border-radius: 4px; flex-shrink: 0;" crossorigin="anonymous" />` : ''}
                           <div style="min-width: 0;">
                             <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4;">${video.title || 'Untitled'}</div>
-                            ${video.channel ? `<div style="font-size: 12px; color: #94a3b8; font-weight: 400; margin-top: 4px; line-height: 1.3;">${video.channel}</div>` : ''}
+                            ${video.channel ? `<div style="font-size: 12px; color: #8698a0; font-weight: 400; margin-top: 4px; line-height: 1.3;">${video.channel}</div>` : ''}
                           </div>
                         </div>
                       </td>
                       <td style="padding: 14px; text-align: center;">
-                        <span style="display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; background: ${video.type === 'short' ? '#fff7ed' : '#eff6ff'}; color: ${video.type === 'short' ? '#f97316' : '#0ea5e9'};">
+                        <span style="display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; background: ${video.type === 'short' ? '#f7fadf' : '#e8f8fd'}; color: ${video.type === 'short' ? '#5f7300' : '#0083ad'};">
                           ${video.type === 'short' ? 'SHORT' : 'LONG'}
                         </span>
                       </td>
-                      <td style="padding: 14px; text-align: center; font-size: 13px; color: #64748b; font-weight: 500; white-space: nowrap;">${video.publishDate ? new Date(video.publishDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
-                      <td style="padding: 14px; text-align: right; font-size: 15px; font-weight: 600; color: #1e293b;">${(video.views || 0).toLocaleString()}</td>
-                      <td style="padding: 14px; text-align: right; font-size: 14px; color: #64748b; font-weight: 500;">${((video.ctr || 0) * 100).toFixed(1)}%</td>
-                      <td style="padding: 14px; text-align: right; font-size: 14px; color: #64748b; font-weight: 500;">${((video.retention || 0) * 100).toFixed(1)}%</td>
+                      <td style="padding: 14px; text-align: center; font-size: 13px; color: #5a6b73; font-weight: 500; white-space: nowrap;">${video.publishDate ? new Date(video.publishDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
+                      <td style="padding: 14px; text-align: right; font-size: 15px; font-weight: 600; color: #12222a;">${(video.views || 0).toLocaleString()}</td>
+                      <td style="padding: 14px; text-align: right; font-size: 14px; color: #5a6b73; font-weight: 500;">${((video.ctr || 0) * 100).toFixed(1)}%</td>
+                      <td style="padding: 14px; text-align: right; font-size: 14px; color: #5a6b73; font-weight: 500;">${((video.retention || 0) * 100).toFixed(1)}%</td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -665,15 +663,15 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
           ${topComments.length > 0 ? `
           <!-- Top Comments -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; line-height: 1.3; letter-spacing: 0.5px;">TOP AUDIENCE COMMENTS</h2>
+            <h2 style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 30px; font-weight: 700; color: #12222a; margin-bottom: 22px; line-height: 1.3; letter-spacing: 0.5px;">TOP AUDIENCE COMMENTS</h2>
             ${topComments.map(c => `
-              <div style="background: #f8fafc; padding: 18px 22px; border-radius: 12px; margin-bottom: 14px; border-left: 4px solid #2563eb;">
-                <div style="font-size: 15px; color: #1e293b; line-height: 1.7; margin-bottom: 12px;">"${c.text}"</div>
+              <div style="background: #f2f7f9; padding: 18px 22px; border-radius: 12px; margin-bottom: 14px; border-left: 4px solid #00a9dc;">
+                <div style="font-size: 15px; color: #12222a; line-height: 1.7; margin-bottom: 12px;">"${c.text}"</div>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <span style="font-size: 13px; color: #64748b; font-weight: 500; line-height: 1.4;">— ${c.author}</span>
+                  <span style="font-size: 13px; color: #5a6b73; font-weight: 500; line-height: 1.4;">— ${c.author}</span>
                   <div style="display: flex; align-items: center; gap: 16px;">
-                    <span style="font-size: 12px; color: #94a3b8; max-width: 350px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4;">${c.channel ? c.channel + ' · ' : ''}${c.videoTitle}</span>
-                    <span style="font-size: 13px; color: #2563eb; font-weight: 600; line-height: 1.4;">👍 ${c.likes.toLocaleString()}</span>
+                    <span style="font-size: 12px; color: #8698a0; max-width: 350px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4;">${c.channel ? c.channel + ' · ' : ''}${c.videoTitle}</span>
+<span style="font-size: 13px; color: #0083ad; font-weight: 600; line-height: 1.4;">${c.likes.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -684,37 +682,37 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
           ${audienceData ? `
           <!-- Audience Intelligence -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 22px; line-height: 1.3; letter-spacing: 0.5px;">AUDIENCE INTELLIGENCE</h2>
+            <h2 style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 30px; font-weight: 700; color: #12222a; margin-bottom: 22px; line-height: 1.3; letter-spacing: 0.5px;">AUDIENCE INTELLIGENCE</h2>
 
             ${(usMapImage || worldMapImage) ? `
             <!-- Maps -->
             <div style="display: grid; grid-template-columns: ${usMapImage && worldMapImage ? '1fr 1fr' : '1fr'}; gap: 12px; margin-bottom: 20px;">
               ${usMapImage ? `
-              <div style="border-radius: 10px; overflow: hidden; border: 2px solid #e2e8f0;">
-                <div style="padding: 8px 14px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">
-                  <span style="font-size: 12px; font-weight: 600; color: #64748b;">United States</span>
+              <div style="border-radius: 10px; overflow: hidden; border: 2px solid #d9e3e8;">
+                <div style="padding: 8px 14px; background: #e9f1f4; border-bottom: 1px solid #d9e3e8;">
+                  <span style="font-size: 12px; font-weight: 600; color: #5a6b73;">United States</span>
                 </div>
                 <img src="${usMapImage}" style="width: 100%; display: block;" />
-                <div style="padding: 8px 12px; background: #f8fafc; display: flex; flex-wrap: wrap; gap: 5px; border-top: 1px solid #e2e8f0;">
+                <div style="padding: 8px 12px; background: #f2f7f9; display: flex; flex-wrap: wrap; gap: 5px; border-top: 1px solid #d9e3e8;">
                   ${Object.entries(audienceData?.province || {})
                     .sort(([,a],[,b]) => b.views - a.views)
                     .slice(0, 8)
-                    .map(([code, val], i) => `<span style="font-size: 10px; padding: 2px 8px; background: ${i === 0 ? '#dbeafe' : '#f1f5f9'}; border: 1px solid ${i === 0 ? '#93c5fd' : '#e2e8f0'}; border-radius: 4px; color: ${i === 0 ? '#1e40af' : '#475569'}; font-weight: ${i === 0 ? '700' : '600'};">${code.replace('US-','')} ${val.pct.toFixed(1)}%</span>`)
+                    .map(([code, val], i) => `<span style="font-size: 10px; padding: 2px 8px; background: ${i === 0 ? '#d4f2fc' : '#e9f1f4'}; border: 1px solid ${i === 0 ? '#8adcf7' : '#d9e3e8'}; border-radius: 4px; color: ${i === 0 ? '#075a78' : '#41525b'}; font-weight: ${i === 0 ? '700' : '600'};">${code.replace('US-','')} ${val.pct.toFixed(1)}%</span>`)
                     .join('')}
                 </div>
               </div>
               ` : ''}
               ${worldMapImage ? `
-              <div style="border-radius: 10px; overflow: hidden; border: 2px solid #e2e8f0;">
-                <div style="padding: 8px 14px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">
-                  <span style="font-size: 12px; font-weight: 600; color: #64748b;">Global</span>
+              <div style="border-radius: 10px; overflow: hidden; border: 2px solid #d9e3e8;">
+                <div style="padding: 8px 14px; background: #e9f1f4; border-bottom: 1px solid #d9e3e8;">
+                  <span style="font-size: 12px; font-weight: 600; color: #5a6b73;">Global</span>
                 </div>
                 <img src="${worldMapImage}" style="width: 100%; display: block;" />
-                <div style="padding: 8px 12px; background: #f8fafc; display: flex; flex-wrap: wrap; gap: 5px; border-top: 1px solid #e2e8f0;">
+                <div style="padding: 8px 12px; background: #f2f7f9; display: flex; flex-wrap: wrap; gap: 5px; border-top: 1px solid #d9e3e8;">
                   ${Object.entries(audienceData?.country || {})
                     .sort(([,a],[,b]) => b.views - a.views)
                     .slice(0, 8)
-                    .map(([code, val], i) => `<span style="font-size: 10px; padding: 2px 8px; background: ${i === 0 ? '#dbeafe' : '#f1f5f9'}; border: 1px solid ${i === 0 ? '#93c5fd' : '#e2e8f0'}; border-radius: 4px; color: ${i === 0 ? '#1e40af' : '#475569'}; font-weight: ${i === 0 ? '700' : '600'};">${code} ${val.pct.toFixed(1)}%</span>`)
+                    .map(([code, val], i) => `<span style="font-size: 10px; padding: 2px 8px; background: ${i === 0 ? '#d4f2fc' : '#e9f1f4'}; border: 1px solid ${i === 0 ? '#8adcf7' : '#d9e3e8'}; border-radius: 4px; color: ${i === 0 ? '#075a78' : '#41525b'}; font-weight: ${i === 0 ? '700' : '600'};">${code} ${val.pct.toFixed(1)}%</span>`)
                     .join('')}
                 </div>
               </div>
@@ -724,22 +722,22 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
               ${/* Demographics */ ''}
-              <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
-                <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 14px;">Demographics</div>
+              <div style="background: #f2f7f9; padding: 20px; border-radius: 12px; border: 2px solid #d9e3e8;">
+                <div style="font-size: 14px; font-weight: 700; color: #12222a; margin-bottom: 14px;">Demographics</div>
                 ${/* Gender */ ''}
                 <div style="margin-bottom: 14px;">
-                  <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Gender</div>
+                  <div style="font-size: 11px; color: #5a6b73; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Gender</div>
                   ${Object.entries(audienceData.gender || {}).sort(([,a],[,b]) => b - a).map(([g, pct]) => {
                     const label = g === 'user_specified' ? 'Other' : g.charAt(0).toUpperCase() + g.slice(1);
-                    const color = g === 'male' ? '#2563eb' : g === 'female' ? '#db2777' : '#7c3aed';
+                    const color = g === 'male' ? '#0083ad' : g === 'female' ? '#d96a52' : '#8698a0';
                     const totalG = Object.values(audienceData.gender).reduce((s,v) => s+v, 0);
                     const barW = totalG > 0 ? (pct / totalG) * 100 : 0;
                     return `<div style="margin-bottom: 6px;">
                       <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-                        <span style="font-size: 13px; color: #374151; font-weight: 500;">${label}</span>
-                        <span style="font-size: 13px; color: #1e293b; font-weight: 700;">${pct.toFixed(1)}%</span>
+                        <span style="font-size: 13px; color: #37474f; font-weight: 500;">${label}</span>
+                        <span style="font-size: 13px; color: #12222a; font-weight: 700;">${pct.toFixed(1)}%</span>
                       </div>
-                      <div style="height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                      <div style="height: 8px; background: #d9e3e8; border-radius: 4px; overflow: hidden;">
                         <div style="width: ${barW}%; height: 100%; background: ${color}; border-radius: 4px;"></div>
                       </div>
                     </div>`;
@@ -747,7 +745,7 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
                 </div>
                 ${/* Age */ ''}
                 <div>
-                  <div style="font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Age Distribution</div>
+                  <div style="font-size: 11px; color: #5a6b73; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Age Distribution</div>
                   ${['age13-17','age18-24','age25-34','age35-44','age45-54','age55-64','age65-']
                     .filter(k => audienceData.age?.[k] != null)
                     .map(k => {
@@ -756,19 +754,19 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
                       const maxAge = Math.max(...Object.values(audienceData.age));
                       const barW = maxAge > 0 ? (val / maxAge) * 100 : 0;
                       return `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
-                        <div style="min-width: 44px; width: 44px; flex-shrink: 0; font-size: 12px; color: #64748b; text-align: right; font-weight: 600;">${label}</div>
-                        <div style="flex: 1; height: 14px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
-                          <div style="width: ${Math.max(barW, 2)}%; height: 100%; background: linear-gradient(90deg, #f59e0b, #fbbf24); border-radius: 4px;"></div>
+                        <div style="min-width: 44px; width: 44px; flex-shrink: 0; font-size: 12px; color: #5a6b73; text-align: right; font-weight: 600;">${label}</div>
+                        <div style="flex: 1; height: 14px; background: #d9e3e8; border-radius: 4px; overflow: hidden;">
+                          <div style="width: ${Math.max(barW, 2)}%; height: 100%; background: linear-gradient(90deg, #d99000, #edb200); border-radius: 4px;"></div>
                         </div>
-                        <div style="min-width: 42px; width: 42px; flex-shrink: 0; font-size: 12px; color: #1e293b; font-weight: 700; text-align: right;">${val.toFixed(1)}%</div>
+                        <div style="min-width: 42px; width: 42px; flex-shrink: 0; font-size: 12px; color: #12222a; font-weight: 700; text-align: right;">${val.toFixed(1)}%</div>
                       </div>`;
                     }).join('')}
                 </div>
               </div>
 
               ${/* Traffic Sources + Geography */ ''}
-              <div style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 2px solid #e2e8f0;">
-                <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 14px;">Traffic Sources</div>
+              <div style="background: #f2f7f9; padding: 20px; border-radius: 12px; border: 2px solid #d9e3e8;">
+                <div style="font-size: 14px; font-weight: 700; color: #12222a; margin-bottom: 14px;">Traffic Sources</div>
                 ${Object.entries(audienceData.trafficSources || {})
                   .sort(([,a],[,b]) => b.views - a.views)
                   .filter(([,v]) => v.pct >= 1)
@@ -778,11 +776,11 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
                     const maxPct = Math.max(...Object.values(audienceData.trafficSources).map(t => t.pct));
                     const barW = maxPct > 0 ? (val.pct / maxPct) * 100 : 0;
                     return `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                      <span style="width: 100px; font-size: 12px; color: #374151; font-weight: 500;">${label}</span>
-                      <div style="flex: 1; height: 10px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
-                        <div style="width: ${Math.max(barW, 2)}%; height: 100%; background: linear-gradient(90deg, #2563eb, #60a5fa); border-radius: 3px;"></div>
+                      <span style="width: 100px; font-size: 12px; color: #37474f; font-weight: 500;">${label}</span>
+                      <div style="flex: 1; height: 10px; background: #d9e3e8; border-radius: 3px; overflow: hidden;">
+                        <div style="width: ${Math.max(barW, 2)}%; height: 100%; background: linear-gradient(90deg, #0083ad, #00a9dc); border-radius: 3px;"></div>
                       </div>
-                      <span style="width: 40px; font-size: 12px; color: #1e293b; font-weight: 700; text-align: right;">${val.pct.toFixed(1)}%</span>
+                      <span style="width: 40px; font-size: 12px; color: #12222a; font-weight: 700; text-align: right;">${val.pct.toFixed(1)}%</span>
                     </div>`;
                   }).join('')}
 
@@ -796,55 +794,55 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
           ${opportunities.length > 0 ? `
           <!-- Strategic Recommendations -->
           <div data-pdf-section style="margin-bottom: 32px;">
-            <h2 style="font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 3px solid #10b981; line-height: 1.3; letter-spacing: 0.5px;">STRATEGIC RECOMMENDATIONS</h2>
-            ${opportunities._opening ? `<p style="font-size: 15px; color: #374151; line-height: 1.75; margin-bottom: 22px;">${opportunities._opening}</p>` : ''}
+            <h2 style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 30px; font-weight: 700; color: #12222a; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 3px solid #bcd400; line-height: 1.3; letter-spacing: 0.5px;">STRATEGIC RECOMMENDATIONS</h2>
+            ${opportunities._opening ? `<p style="font-size: 15px; color: #37474f; line-height: 1.75; margin-bottom: 22px;">${opportunities._opening}</p>` : ''}
             ${opportunities.map((opp, idx) => `
-              <div style="display: flex; gap: 16px; margin-bottom: 18px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); padding: 22px; border-radius: 14px; border: 2px solid #86efac;">
-                <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #059669); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: white; flex-shrink: 0; box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);">
+              <div style="display: flex; gap: 16px; margin-bottom: 18px; background: #f7fadf; padding: 22px; border-radius: 16px; border: 2px solid #dbe795;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #87a000, #6d8400); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: white; flex-shrink: 0; box-shadow: 0 4px 8px rgba(135, 160, 0, 0.3);">
                   ${idx + 1}
                 </div>
                 <div style="flex: 1;">
-                  <div style="font-size: 18px; font-weight: 700; color: #065f46; margin-bottom: 10px; line-height: 1.35; word-spacing: normal; letter-spacing: normal;">${opp.title}</div>
-                  ${opp.insight ? `<div style="font-size: 14px; color: #1e293b; line-height: 1.65; margin-bottom: 8px; word-spacing: normal;"><strong style="color: #1d4ed8;">The Insight:</strong> ${opp.insight}</div>` : ''}
-                  ${opp.opportunity ? `<div style="font-size: 14px; color: #1e293b; line-height: 1.65; margin-bottom: 10px; word-spacing: normal;"><strong style="color: #b45309;">The Opportunity:</strong> ${opp.opportunity}</div>` : ''}
+                  <div style="font-size: 18px; font-weight: 700; color: #3f4d00; margin-bottom: 10px; line-height: 1.35; word-spacing: normal; letter-spacing: normal;">${opp.title}</div>
+                  ${opp.insight ? `<div style="font-size: 14px; color: #12222a; line-height: 1.65; margin-bottom: 8px; word-spacing: normal;"><strong style="color: #0083ad;">The Insight:</strong> ${opp.insight}</div>` : ''}
+                  ${opp.opportunity ? `<div style="font-size: 14px; color: #12222a; line-height: 1.65; margin-bottom: 10px; word-spacing: normal;"><strong style="color: #96660a;">The Opportunity:</strong> ${opp.opportunity}</div>` : ''}
                   ${opp.steps && opp.steps.length > 0 ? `
                     <div style="margin-top: 6px; padding-left: 2px;">
-                      ${opp.steps.map((step, si) => `<div style="font-size: 13px; color: #374151; line-height: 1.6; margin-bottom: 4px; padding-left: 16px; text-indent: -16px;">${si + 1}. ${step}</div>`).join('')}
+                      ${opp.steps.map((step, si) => `<div style="font-size: 13px; color: #37474f; line-height: 1.6; margin-bottom: 4px; padding-left: 16px; text-indent: -16px;">${si + 1}. ${step}</div>`).join('')}
                     </div>
                   ` : ''}
-                  ${opp.recommendation ? `<div style="font-size: 15px; color: #374151; line-height: 1.75;">${opp.recommendation}</div>` : ''}
+                  ${opp.recommendation ? `<div style="font-size: 15px; color: #37474f; line-height: 1.75;">${opp.recommendation}</div>` : ''}
                 </div>
               </div>
             `).join('')}
-            ${opportunities._closing ? `<p style="font-size: 15px; color: #374151; line-height: 1.75; margin-top: 16px; padding: 16px 20px; background: #f0fdf4; border-radius: 10px; border-left: 4px solid #10b981;">${opportunities._closing}</p>` : ''}
+            ${opportunities._closing ? `<p style="font-size: 15px; color: #37474f; line-height: 1.75; margin-top: 16px; padding: 16px 20px; background: #f7fadf; border-radius: 10px; border-left: 4px solid #a5c400;">${opportunities._closing}</p>` : ''}
           </div>
           ` : ''}
 
           ${aiContent.summary ? `
           <!-- AI Executive Summary -->
           <div data-pdf-section style="margin-top: 36px;">
-            <h2 style="font-size: 32px; font-weight: 700; color: #1e293b; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 3px solid #2563eb; background: linear-gradient(90deg, #2563eb, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+            <h2 style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 34px; font-weight: 700; color: #12222a; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 3px solid #00a9dc;">
               AI EXECUTIVE SUMMARY
             </h2>
-            <div style="background: linear-gradient(135deg, #f8fafc, #e0e7ff); padding: 28px; border-radius: 14px; border: 2px solid #818cf8;">
+            <div style="background: #f2f7f9; padding: 28px; border-radius: 16px; border: 2px solid #b5e8f8;">
               ${aiContent.summary.split('\n').map(line => {
                 if (line.startsWith('# ')) {
-                  return `<h3 style="font-size: 26px; font-weight: 700; color: #1e3a8a; margin: 22px 0 14px 0; line-height: 1.35;">${line.substring(2)}</h3>`;
+                  return `<h3 style="font-size: 26px; font-weight: 700; color: #075a78; margin: 22px 0 14px 0; line-height: 1.35;">${line.substring(2)}</h3>`;
                 }
                 if (line.startsWith('## ')) {
-                  return `<h4 style="font-size: 22px; font-weight: 600; color: #312e81; margin: 20px 0 12px 0; padding-left: 12px; border-left: 4px solid #6366f1; line-height: 1.35;">${line.substring(3)}</h4>`;
+                  return `<h4 style="font-size: 22px; font-weight: 600; color: #075a78; margin: 20px 0 12px 0; padding-left: 12px; border-left: 4px solid #00a9dc; line-height: 1.35;">${line.substring(3)}</h4>`;
                 }
                 if (line.startsWith('### ')) {
-                  return `<h5 style="font-size: 18px; font-weight: 600; color: #4338ca; margin: 16px 0 10px 0; line-height: 1.35;">${line.substring(4)}</h5>`;
+                  return `<h5 style="font-size: 18px; font-weight: 600; color: #0083ad; margin: 16px 0 10px 0; line-height: 1.35;">${line.substring(4)}</h5>`;
                 }
                 if (line.startsWith('- ') || line.startsWith('• ')) {
-                  return `<li style="margin-left: 24px; margin-bottom: 10px; color: #374151; font-size: 15px; line-height: 1.7;">${line.substring(2)}</li>`;
+                  return `<li style="margin-left: 24px; margin-bottom: 10px; color: #37474f; font-size: 15px; line-height: 1.7;">${line.substring(2)}</li>`;
                 }
                 if (line.trim() === '') {
                   return '<div style="height: 14px;"></div>';
                 }
-                const boldText = line.replace(/\*\*(.+?)\*\*/g, '<strong style="color: #1d4ed8; font-weight: 600;">$1</strong>');
-                return `<p style="color: #374151; font-size: 15px; line-height: 1.7; margin-bottom: 14px;">${boldText}</p>`;
+                const boldText = line.replace(/\*\*(.+?)\*\*/g, '<strong style="color: #0083ad; font-weight: 600;">$1</strong>');
+                return `<p style="color: #37474f; font-size: 15px; line-height: 1.7; margin-bottom: 14px;">${boldText}</p>`;
               }).join('')}
             </div>
           </div>
@@ -853,38 +851,38 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
           ${aiContent.ideas && aiContent.ideas.length > 0 ? `
           <!-- AI Video Ideas -->
           <div data-pdf-section style="margin-top: 36px;">
-            <h2 style="font-size: 32px; font-weight: 700; color: #1e293b; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 3px solid #7c3aed; background: linear-gradient(90deg, #7c3aed, #2563eb); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+            <h2 style="font-family: 'Barlow Condensed', 'Inter', sans-serif; font-size: 34px; font-weight: 700; color: #12222a; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 3px solid #00a9dc;">
               AI-GENERATED VIDEO IDEAS
             </h2>
             ${aiContent.ideas.map((idea, idx) => `
-              <div style="background: linear-gradient(135deg, #faf5ff, #ede9fe); padding: 24px; border-radius: 14px; margin-bottom: 20px; border: 2px solid #a78bfa;">
+              <div style="background: #f2f7f9; padding: 24px; border-radius: 16px; margin-bottom: 20px; border: 2px solid #c3d0d6;">
                 <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 18px;">
-                  <div style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #7c3aed, #2563eb); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; color: white; box-shadow: 0 4px 8px rgba(124, 58, 237, 0.3);">
+                  <div style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #0083ad, #00a9dc); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; color: white; box-shadow: 0 4px 8px rgba(0, 131, 173, 0.25);">
                     ${idx + 1}
                   </div>
                   <div>
-                    <div style="display: inline-block; padding: 6px 14px; border-radius: 8px; background: #e0e7ff; color: #4338ca; font-size: 13px; font-weight: 600; margin-right: 8px; line-height: 1.4;">
+                    <div style="display: inline-block; padding: 6px 14px; border-radius: 8px; background: #d4f2fc; color: #075a78; font-size: 13px; font-weight: 600; margin-right: 8px; line-height: 1.4;">
                       ${idea.topic}
                     </div>
-                    <div style="display: inline-block; padding: 6px 14px; border-radius: 8px; border: 2px solid #10b981; background: #d1fae5; color: #065f46; font-size: 13px; font-weight: 600; line-height: 1.4;">
+                    <div style="display: inline-block; padding: 6px 14px; border-radius: 8px; border: 2px solid #a5c400; background: #eff5c8; color: #3f4d00; font-size: 13px; font-weight: 600; line-height: 1.4;">
                       ${idea.confidence} confidence
                     </div>
                   </div>
                 </div>
-                <h3 style="font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 16px; line-height: 1.35;">
+                <h3 style="font-size: 20px; font-weight: 700; color: #12222a; margin-bottom: 16px; line-height: 1.35;">
                   ${idea.title}
                 </h3>
-                <div style="background: linear-gradient(135deg, #dbeafe, #bfdbfe); padding: 16px; border-radius: 10px; margin-bottom: 14px; border-left: 4px solid #2563eb;">
-                  <div style="font-size: 12px; font-weight: 700; color: #1e3a8a; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; line-height: 1.3;">Opening Hook</div>
-                  <div style="font-size: 14px; color: #1e40af; line-height: 1.7;">${idea.hook}</div>
+                <div style="background: #e0f5fc; padding: 16px; border-radius: 10px; margin-bottom: 14px; border-left: 4px solid #00a9dc;">
+                  <div style="font-size: 12px; font-weight: 700; color: #075a78; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; line-height: 1.3;">Opening Hook</div>
+                  <div style="font-size: 14px; color: #075a78; line-height: 1.7;">${idea.hook}</div>
                 </div>
-                <div style="background: linear-gradient(135deg, #f3e8ff, #e9d5ff); padding: 16px; border-radius: 10px; margin-bottom: 14px; border-left: 4px solid #7c3aed;">
-                  <div style="font-size: 12px; font-weight: 700; color: #5b21b6; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; line-height: 1.3;">Thumbnail Concept</div>
-                  <div style="font-size: 14px; color: #6b21a8; line-height: 1.7;">${idea.thumbnailConcept}</div>
+                <div style="background: #ffeee9; padding: 16px; border-radius: 10px; margin-bottom: 14px; border-left: 4px solid #d96a52;">
+                  <div style="font-size: 12px; font-weight: 700; color: #8f3a28; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; line-height: 1.3;">Thumbnail Concept</div>
+                  <div style="font-size: 14px; color: #a34432; line-height: 1.7;">${idea.thumbnailConcept}</div>
                 </div>
-                <div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); padding: 16px; border-radius: 10px; border-left: 4px solid #10b981;">
-                  <div style="font-size: 12px; font-weight: 700; color: #065f46; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; line-height: 1.3;">Why This Works</div>
-                  <div style="font-size: 14px; color: #047857; line-height: 1.7;">${idea.whyItWorks}</div>
+                <div style="background: #eff5c8; padding: 16px; border-radius: 10px; border-left: 4px solid #a5c400;">
+                  <div style="font-size: 12px; font-weight: 700; color: #3f4d00; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; line-height: 1.3;">Why This Works</div>
+                  <div style="font-size: 14px; color: #556b00; line-height: 1.7;">${idea.whyItWorks}</div>
                 </div>
               </div>
             `).join('')}
@@ -892,14 +890,14 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
           ` : ''}
 
           <!-- Footer -->
-          <div data-pdf-footer style="padding-top: 18px; border-top: 1px solid #e2e8f0; text-align: center;">
+          <div data-pdf-footer style="padding-top: 18px; border-top: 1px solid #d9e3e8; text-align: center;">
             <div style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 10px;">
-              <span style="color: #64748b; font-size: 14px; font-weight: 500; line-height: 1.4;">Generated by Full View Analytics</span>
-              <span style="color: #cbd5e1; font-size: 14px;">•</span>
-              <span style="color: #94a3b8; font-size: 14px; font-weight: 500; line-height: 1.4;">Powered by</span>
+              <span style="color: #5a6b73; font-size: 14px; font-weight: 500; line-height: 1.4;">Generated by Full View Analytics</span>
+              <span style="color: #aebbc2; font-size: 14px;">•</span>
+              <span style="color: #8698a0; font-size: 14px; font-weight: 500; line-height: 1.4;">Powered by</span>
               <img src="/crux-logo.png" alt="CRUX" style="height: 32px; object-fit: contain; vertical-align: middle;" />
             </div>
-            <div style="color: #cbd5e1; font-size: 13px;">This report contains confidential information</div>
+            <div style="color: #8698a0; font-size: 12px; margin-bottom: 4px;">Metrics cover the stated reporting period. CTR and retention appear only where YouTube Studio access is connected — a blank cell means the data is unavailable, not zero.</div><div style="color: #aebbc2; font-size: 13px;">This report contains confidential information</div>
           </div>
         </div>
       `;
@@ -946,7 +944,6 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
       if (footer) {
         const footerTop = footer.offsetTop;
         const footerHeight = footer.offsetHeight;
-        const footerBottom = footerTop + footerHeight;
         const lastPage = Math.floor(footerTop / pageHeightPx);
         const lastPageBottom = (lastPage + 1) * pageHeightPx;
         const padding = 35; // bottom padding from page edge
@@ -1035,10 +1032,6 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
     try {
       const { default: claudeAPI } = await import('../../services/claudeAPI');
       if (!claudeAPI.apiKey) claudeAPI.apiKey = claudeAPI.loadAPIKey();
-      if (!claudeAPI.apiKey) {
-        setRecError('No Claude API key configured. Go to Settings to add your API key.');
-        return;
-      }
       if (!filtered || filtered.length === 0) {
         setRecError('No video data available for the selected period.');
         return;
@@ -1099,7 +1092,6 @@ export default function PDFExport({ kpis, top, filtered, rows, dateRange, custom
       const longsByCtr = [...longs].sort((a, b) => (b.ctr || 0) - (a.ctr || 0));
       const longsByRet = [...longs].sort((a, b) => (b.retention || 0) - (a.retention || 0));
       const shortsByCtr = [...shorts].sort((a, b) => (b.ctr || 0) - (a.ctr || 0));
-      const shortsByRet = [...shorts].sort((a, b) => (b.retention || 0) - (a.retention || 0));
 
       let brandContextBlock = '';
       try {
@@ -1230,9 +1222,7 @@ MULTICHANNEL NETWORK:
 * When comparing performance across channels, note that differences may reflect intentional strategic choices (e.g. a clips channel will naturally have different metrics than a flagship long-form channel).
 * Cross-channel recommendations (e.g. cross-promotion, content repurposing between channels) are valuable when supported by the data.` : ''}`;
 
-      console.log('[PDFExport] Calling Claude for recommendations...');
       const result = await claudeAPI.call(dataPrompt, systemPrompt, 'pdf_opportunities', 32000);
-      console.log('[PDFExport] Claude response received, length:', result.text?.length);
       const { parseClaudeJSON } = await import('../../lib/parseClaudeJSON');
 
       let parsed;
@@ -1246,7 +1236,7 @@ MULTICHANNEL NETWORK:
         repaired = repaired.replace(/,\s*([\]}])/g, '$1');
         try {
           parsed = JSON.parse(repaired);
-        } catch (_) {
+        } catch {
           console.error('[PDFExport] JSON parse failed. Raw:', result.text.slice(0, 500));
           throw parseErr;
         }
@@ -1366,27 +1356,27 @@ MULTICHANNEL NETWORK:
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        backgroundColor: isDisabled ? '#94a3b8' : '#2563eb',
-        color: '#fff',
+        backgroundColor: isDisabled ? 'var(--surface-highest)' : 'var(--blue)',
+        color: isDisabled ? 'var(--muted)' : '#00232e',
         border: 'none',
         borderRadius: '8px',
         padding: '10px 18px',
         fontSize: '14px',
         fontWeight: '600',
         cursor: isDisabled ? 'not-allowed' : 'pointer',
-        transition: 'all 0.2s',
-        boxShadow: isDisabled ? 'none' : '0 2px 4px rgba(37, 99, 235, 0.2)',
+        transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s',
+        boxShadow: isDisabled ? 'none' : '0 2px 4px rgba(0, 209, 255, 0.25)',
       }}
       onMouseEnter={(e) => {
         if (!isDisabled) {
-          e.currentTarget.style.backgroundColor = '#1d4ed8';
-          e.currentTarget.style.boxShadow = '0 4px 8px rgba(37, 99, 235, 0.3)';
+          e.currentTarget.style.backgroundColor = '#00b8e6';
+          e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 209, 255, 0.35)';
         }
       }}
       onMouseLeave={(e) => {
         if (!isDisabled) {
-          e.currentTarget.style.backgroundColor = '#2563eb';
-          e.currentTarget.style.boxShadow = '0 2px 4px rgba(37, 99, 235, 0.2)';
+          e.currentTarget.style.backgroundColor = 'var(--blue)';
+          e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 209, 255, 0.25)';
         }
       }}
     >
@@ -1397,14 +1387,14 @@ MULTICHANNEL NETWORK:
     {showReviewModal && createPortal(
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-        <div style={{ backgroundColor: '#1E1E1E', border: '1px solid #333', borderRadius: '12px', width: '1100px', maxWidth: '95vw', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        <div style={{ backgroundColor: "var(--card)", border: '1px solid var(--border)', borderRadius: '12px', width: '1100px', maxWidth: '95vw', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
           {/* Header */}
-          <div style={{ padding: '20px 32px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '20px 32px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: '#fff' }}>Review PDF Content</div>
-              <div style={{ fontSize: '13px', color: '#888', marginTop: '4px' }}>Edit recommendations before exporting</div>
+              <div style={{ fontSize: '20px', fontWeight: '700', color: "var(--ink)" }}>Review PDF Content</div>
+              <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>Edit recommendations before exporting</div>
             </div>
-            <button onClick={handleCancelModal} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: '4px' }}>
+            <button onClick={handleCancelModal} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px' }}>
               <X size={20} />
             </button>
           </div>
@@ -1412,17 +1402,17 @@ MULTICHANNEL NETWORK:
           {/* Body */}
           <div style={{ padding: '24px 32px', flex: 1, overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <div style={{ fontSize: '14px', fontWeight: '600', color: '#93c5fd', letterSpacing: '0.5px' }}>STRATEGIC RECOMMENDATIONS</div>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--accent-text)', letterSpacing: '0.5px' }}>STRATEGIC RECOMMENDATIONS</div>
               <button
                 onClick={generateAIRecommendations}
                 disabled={generatingAI}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '8px',
-                  background: generatingAI ? '#1e3a5f' : 'linear-gradient(135deg, #2563eb, #7c3aed)',
+                  background: generatingAI ? 'var(--surface-high)' : 'linear-gradient(135deg, #00D1FF, #00a9dc)',
                   border: 'none', borderRadius: '8px', padding: '8px 16px',
-                  color: '#fff', fontSize: '13px', fontWeight: '600',
+                  color: generatingAI ? 'var(--muted)' : '#00232e', fontSize: '13px', fontWeight: '600',
                   cursor: generatingAI ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s', opacity: generatingAI ? 0.7 : 1,
+                  transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s', opacity: generatingAI ? 0.7 : 1,
                 }}
               >
                 {generatingAI ? (
@@ -1434,34 +1424,34 @@ MULTICHANNEL NETWORK:
             </div>
 
             {pendingOpportunities._opening !== undefined && (
-              <div style={{ padding: '16px 20px', background: '#1a2e1a', borderRadius: '8px', marginBottom: '20px', border: '1px solid #2d5a2d' }}>
-                <div style={{ fontSize: '12px', fontWeight: '600', color: '#10b981', marginBottom: '8px', letterSpacing: '0.5px' }}>OPENING</div>
+              <div style={{ padding: '16px 20px', background: 'rgba(205,242,0,0.05)', borderRadius: '8px', marginBottom: '20px', border: '1px solid rgba(205,242,0,0.25)' }}>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: "var(--pos)", marginBottom: '8px', letterSpacing: '0.5px' }}>OPENING</div>
                 <textarea
                   value={pendingOpportunities._opening || ''}
                   onChange={e => updateOpeningClosing('_opening', e.target.value)}
                   rows={4}
-                  style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '12px 14px', color: '#ccc', fontSize: '14px', lineHeight: '1.7', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', background: "var(--border)", border: '1px solid var(--outline-variant)', borderRadius: '6px', padding: '12px 14px', color: 'var(--text)', fontSize: '14px', lineHeight: '1.7', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
                 />
               </div>
             )}
 
             {recError && (
-              <div style={{ padding: '12px 16px', background: '#2a1a1a', borderRadius: '8px', color: '#f87171', fontSize: '13px', marginBottom: '16px', border: '1px solid #5a2d2d' }}>
+              <div style={{ padding: '12px 16px', background: 'rgba(255,85,64,0.08)', borderRadius: '8px', color: "var(--neg-text)", fontSize: '13px', marginBottom: '16px', border: '1px solid rgba(255,85,64,0.3)' }}>
                 {recError}
               </div>
             )}
             {pendingOpportunities.length === 0 && !recError && (
-              <div style={{ padding: '20px', background: '#2a2a2a', borderRadius: '8px', color: '#888', fontSize: '14px', textAlign: 'center', marginBottom: '16px' }}>
+              <div style={{ padding: '20px', background: "var(--border)", borderRadius: '8px', color: 'var(--muted)', fontSize: '14px', textAlign: 'center', marginBottom: '16px' }}>
                 Generate with AI or add your own recommendations below.
               </div>
             )}
             {pendingOpportunities.length > 0 && (
               pendingOpportunities.map((opp, idx) => (
-                <div key={idx} style={{ background: opp.included ? '#1a2e1a' : '#2a2a2a', border: `1px solid ${opp.included ? '#2d5a2d' : '#444'}`, borderRadius: '10px', padding: '20px 24px', marginBottom: '16px', transition: 'all 0.2s', opacity: opp.included ? 1 : 0.5 }}>
+                <div key={idx} style={{ background: opp.included ? 'rgba(205,242,0,0.05)' : "var(--border)", border: `1px solid ${opp.included ? 'rgba(205,242,0,0.25)' : 'var(--outline-variant)'}`, borderRadius: '10px', padding: '20px 24px', marginBottom: '16px', transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s', opacity: opp.included ? 1 : 0.5 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
                     <button
                       onClick={() => updateOpportunity(idx, 'included', !opp.included)}
-                      style={{ width: '30px', height: '30px', borderRadius: '6px', border: `2px solid ${opp.included ? '#10b981' : '#555'}`, background: opp.included ? '#10b981' : 'transparent', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}
+                      style={{ width: '30px', height: '30px', borderRadius: '6px', border: `2px solid ${opp.included ? "var(--pos)" : 'var(--outline)'}`, background: opp.included ? "var(--pos)" : 'transparent', color: "var(--ink)", cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s' }}
                     >
                       {opp.included && <Check size={16} />}
                     </button>
@@ -1471,13 +1461,13 @@ MULTICHANNEL NETWORK:
                       onChange={e => updateOpportunity(idx, 'title', e.target.value)}
                       disabled={!opp.included}
                       placeholder="Recommendation title..."
-                      style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '10px 14px', color: '#fff', fontSize: '16px', fontWeight: '600', outline: 'none' }}
+                      style={{ flex: 1, background: "var(--border)", border: '1px solid var(--outline-variant)', borderRadius: '6px', padding: '10px 14px', color: "var(--ink)", fontSize: '16px', fontWeight: '600', outline: 'none' }}
                     />
                     <button
                       onClick={() => removeRecommendation(idx)}
-                      style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: '6px', flexShrink: 0, transition: 'color 0.2s' }}
-                      onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
-                      onMouseLeave={e => e.currentTarget.style.color = '#666'}
+                      style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '6px', flexShrink: 0, transition: 'color 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.color = "var(--neg-text)"}
+                      onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}
                       title="Delete recommendation"
                     >
                       <Trash2 size={16} />
@@ -1485,44 +1475,44 @@ MULTICHANNEL NETWORK:
                   </div>
                   {(opp.title || opp.insight || opp.opportunity || (opp.steps && opp.steps.some(s => s))) ? (<>
                   <div style={{ marginBottom: '14px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '600', color: '#10b981', letterSpacing: '0.3px', marginBottom: '6px' }}>INSIGHT</div>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: "var(--pos)", letterSpacing: '0.3px', marginBottom: '6px' }}>INSIGHT</div>
                     <textarea
                       value={opp.insight || ''}
                       onChange={e => updateOpportunity(idx, 'insight', e.target.value)}
                       disabled={!opp.included}
                       rows={3}
-                      style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '12px 14px', color: '#ccc', fontSize: '14px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                      style={{ width: '100%', background: "var(--border)", border: '1px solid var(--outline-variant)', borderRadius: '6px', padding: '12px 14px', color: 'var(--text)', fontSize: '14px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
                     />
                   </div>
                   <div style={{ marginBottom: '14px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '600', color: '#f59e0b', letterSpacing: '0.3px', marginBottom: '6px' }}>OPPORTUNITY</div>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: "var(--warn)", letterSpacing: '0.3px', marginBottom: '6px' }}>OPPORTUNITY</div>
                     <textarea
                       value={opp.opportunity || ''}
                       onChange={e => updateOpportunity(idx, 'opportunity', e.target.value)}
                       disabled={!opp.included}
                       rows={3}
-                      style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '12px 14px', color: '#ccc', fontSize: '14px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                      style={{ width: '100%', background: "var(--border)", border: '1px solid var(--outline-variant)', borderRadius: '6px', padding: '12px 14px', color: 'var(--text)', fontSize: '14px', lineHeight: '1.6', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
                     />
                   </div>
                   <div style={{ marginTop: '12px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '600', color: '#93c5fd', marginBottom: '8px', letterSpacing: '0.3px' }}>ACTION STEPS</div>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--accent-text)', marginBottom: '8px', letterSpacing: '0.3px' }}>ACTION STEPS</div>
                     {(opp.steps || []).map((step, si) => (
                       <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '6px' }}>
-                        <span style={{ fontSize: '14px', color: '#93c5fd', fontWeight: '600', minWidth: '18px', paddingTop: '9px' }}>{si + 1}.</span>
+                        <span style={{ fontSize: '14px', color: 'var(--accent-text)', fontWeight: '600', minWidth: '18px', paddingTop: '9px' }}>{si + 1}.</span>
                         <textarea
                           value={step}
                           onChange={e => updateStep(idx, si, e.target.value)}
                           disabled={!opp.included}
                           placeholder="Action step..."
                           rows={4}
-                          style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#ccc', fontSize: '14px', outline: 'none', resize: 'vertical', lineHeight: '1.5', fontFamily: 'inherit' }}
+                          style={{ flex: 1, background: "var(--border)", border: '1px solid var(--outline-variant)', borderRadius: '6px', padding: '8px 12px', color: 'var(--text)', fontSize: '14px', outline: 'none', resize: 'vertical', lineHeight: '1.5', fontFamily: 'inherit' }}
                         />
                         <button
                           onClick={() => removeStep(idx, si)}
                           disabled={!opp.included}
-                          style={{ background: 'none', border: 'none', color: '#555', cursor: opp.included ? 'pointer' : 'default', padding: '8px 4px', flexShrink: 0 }}
-                          onMouseEnter={e => { if (opp.included) e.currentTarget.style.color = '#f87171'; }}
-                          onMouseLeave={e => { if (opp.included) e.currentTarget.style.color = '#555'; }}
+                          style={{ background: 'none', border: 'none', color: 'var(--outline)', cursor: opp.included ? 'pointer' : 'default', padding: '8px 4px', flexShrink: 0 }}
+                          onMouseEnter={e => { if (opp.included) e.currentTarget.style.color = "var(--neg-text)"; }}
+                          onMouseLeave={e => { if (opp.included) e.currentTarget.style.color = 'var(--outline)'; }}
                           title="Remove step"
                         >
                           <X size={14} />
@@ -1532,16 +1522,16 @@ MULTICHANNEL NETWORK:
                     {opp.included && (
                       <button
                         onClick={() => addStep(idx)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: '1px dashed #444', borderRadius: '6px', padding: '6px 12px', color: '#93c5fd', fontSize: '13px', cursor: 'pointer', marginTop: '6px', transition: 'all 0.2s' }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#93c5fd'; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#444'; }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: '1px dashed var(--outline-variant)', borderRadius: '6px', padding: '6px 12px', color: 'var(--accent-text)', fontSize: '13px', cursor: 'pointer', marginTop: '6px', transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-text)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--outline-variant)'; }}
                       >
                         <Plus size={14} /> Add Step
                       </button>
                     )}
                   </div>
                   </>) : (
-                    <div style={{ fontSize: '13px', color: '#666', marginTop: '-8px' }}>Type a title to expand fields...</div>
+                    <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '-8px' }}>Type a title to expand fields...</div>
                   )}
                 </div>
               ))
@@ -1549,47 +1539,47 @@ MULTICHANNEL NETWORK:
 
             <button
               onClick={addRecommendation}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', background: 'none', border: '2px dashed #444', borderRadius: '10px', padding: '14px', color: '#93c5fd', fontSize: '14px', fontWeight: '600', cursor: 'pointer', marginBottom: '16px', transition: 'all 0.2s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#93c5fd'; e.currentTarget.style.background = 'rgba(147, 197, 253, 0.05)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#444'; e.currentTarget.style.background = 'none'; }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: '100%', background: 'none', border: '2px dashed var(--outline-variant)', borderRadius: '10px', padding: '14px', color: 'var(--accent-text)', fontSize: '14px', fontWeight: '600', cursor: 'pointer', marginBottom: '16px', transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-text)'; e.currentTarget.style.background = 'rgba(0, 209, 255, 0.06)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--outline-variant)'; e.currentTarget.style.background = 'none'; }}
             >
               <Plus size={18} /> Add Recommendation
             </button>
 
             {pendingOpportunities._closing !== undefined && (
-              <div style={{ padding: '16px 20px', background: '#1a2e1a', borderRadius: '8px', marginTop: '12px', border: '1px solid #2d5a2d' }}>
-                <div style={{ fontSize: '12px', fontWeight: '600', color: '#10b981', marginBottom: '8px', letterSpacing: '0.5px' }}>CLOSING</div>
+              <div style={{ padding: '16px 20px', background: 'rgba(205,242,0,0.05)', borderRadius: '8px', marginTop: '12px', border: '1px solid rgba(205,242,0,0.25)' }}>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: "var(--pos)", marginBottom: '8px', letterSpacing: '0.5px' }}>CLOSING</div>
                 <textarea
                   value={pendingOpportunities._closing || ''}
                   onChange={e => updateOpeningClosing('_closing', e.target.value)}
                   rows={4}
-                  style={{ width: '100%', background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '12px 14px', color: '#ccc', fontSize: '14px', lineHeight: '1.7', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', background: "var(--border)", border: '1px solid var(--outline-variant)', borderRadius: '6px', padding: '12px 14px', color: 'var(--text)', fontSize: '14px', lineHeight: '1.7', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
                 />
               </div>
             )}
           </div>
 
           {/* Footer */}
-          <div style={{ padding: '18px 32px', borderTop: '1px solid #333', display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ padding: '18px 32px', borderTop: '1px solid var(--border)', display: 'flex', gap: '12px', alignItems: 'center' }}>
             <input
               type="text"
               value={draftName}
               onChange={e => setDraftName(e.target.value)}
               placeholder="Draft name..."
-              style={{ flex: 1, background: '#2a2a2a', border: '1px solid #444', borderRadius: '6px', padding: '8px 12px', color: '#ccc', fontSize: '13px', outline: 'none', minWidth: 0 }}
+              style={{ flex: 1, background: "var(--border)", border: '1px solid var(--outline-variant)', borderRadius: '6px', padding: '8px 12px', color: 'var(--text)', fontSize: '13px', outline: 'none', minWidth: 0 }}
             />
             <button
               onClick={() => saveDraftNow(false)}
               disabled={savingDraft}
-              style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #444', background: 'transparent', color: draftSavedFlash ? '#10b981' : '#93c5fd', fontSize: '14px', fontWeight: '500', cursor: savingDraft ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'color 0.3s', whiteSpace: 'nowrap' }}
+              style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--outline-variant)', background: 'transparent', color: draftSavedFlash ? "var(--pos)" : 'var(--accent-text)', fontSize: '14px', fontWeight: '500', cursor: savingDraft ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'color 0.3s', whiteSpace: 'nowrap' }}
             >
               {draftSavedFlash ? <Check size={16} /> : <Save size={16} />}
               {savingDraft ? 'Saving...' : draftSavedFlash ? 'Saved' : 'Save Draft'}
             </button>
-            <button onClick={handleCancelModal} style={{ padding: '10px 24px', borderRadius: '8px', border: '1px solid #444', background: 'transparent', color: '#888', fontSize: '14px', fontWeight: '500', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <button onClick={handleCancelModal} style={{ padding: '10px 24px', borderRadius: '8px', border: '1px solid var(--outline-variant)', background: 'transparent', color: 'var(--muted)', fontSize: '14px', fontWeight: '500', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               Cancel
             </button>
-            <button onClick={confirmAndExport} style={{ padding: '10px 28px', borderRadius: '8px', border: 'none', background: '#2563eb', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+            <button onClick={confirmAndExport} style={{ padding: '10px 28px', borderRadius: '8px', border: 'none', background: 'var(--blue)', color: '#00232e', fontSize: '14px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
               <FileDown size={16} />
               Export PDF
             </button>

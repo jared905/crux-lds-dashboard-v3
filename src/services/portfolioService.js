@@ -14,10 +14,10 @@
 import { supabase } from './supabaseClient';
 
 export const LIFECYCLE_STAGES = [
-  { id: 'prospect',      label: 'Prospect',           color: '#a78bfa', sort: 0 },
-  { id: 'non_oauth',     label: 'Non-OAuth client',   color: '#60a5fa', sort: 1 },
-  { id: 'oauth_active',  label: 'OAuth — active',     color: '#10b981', sort: 2 },
-  { id: 'oauth_renewal', label: 'OAuth — renewal',    color: '#f59e0b', sort: 3 },
+  { id: 'prospect',      label: 'Prospect',           color: 'var(--outline)', sort: 0 },
+  { id: 'non_oauth',     label: 'Non-OAuth client',   color: 'var(--blue)', sort: 1 },
+  { id: 'oauth_active',  label: 'OAuth — active',     color: 'var(--pos)', sort: 2 },
+  { id: 'oauth_renewal', label: 'OAuth — renewal',    color: 'var(--warn)', sort: 3 },
 ];
 
 const STAGE_LABEL = Object.fromEntries(LIFECYCLE_STAGES.map(s => [s.id, s.label]));
@@ -25,37 +25,42 @@ const STAGE_LABEL = Object.fromEntries(LIFECYCLE_STAGES.map(s => [s.id, s.label]
 // ──────────────────────────────────────────────────
 // List all client channels with derived flags
 // ──────────────────────────────────────────────────
-export async function listPortfolio({ includeHidden = false } = {}) {
-  if (!supabase) return { clients: [], hiddenCount: 0 };
+// 2026-08-21: the sub-channel hide feature is retired — networks are
+// the grouping mechanism now, and every client always shows. The old
+// is_portfolio_root flags remain in the DB unread (harmless).
+export async function listPortfolio() {
+  if (!supabase) return { clients: [] };
 
-  // 1. Pull every client channel
-  let query = supabase
-    .from('channels')
-    .select(`
+  // 1. Pull every client channel. network_tag arrives with migration
+  // 113 — until it runs, retry the select without it so the whole
+  // portfolio doesn't break on a missing column.
+  const baseColumns = `
       id, name, youtube_channel_id, custom_url, thumbnail_url,
       subscriber_count, video_count,
-      is_client, sync_enabled,
-      lifecycle_stage, primary_strategist_id, is_portfolio_root,
+      is_client, sync_enabled, is_prelaunch,
+      lifecycle_stage, primary_strategist_id,
       last_synced_at, last_sync_attempt_at, last_sync_error,
       classification_locked, last_classified_at,
-      tracked_since
-    `)
+      tracked_since`;
+  let { data: allClientRows, error: cErr } = await supabase
+    .from('channels')
+    .select(baseColumns + ', network_tag')
     .eq('is_client', true)
     .order('name', { ascending: true });
-
-  const { data: allClientRows, error: cErr } = await query;
-  // Apply portfolio-root filter in JS so we can also count hidden rows
-  // for the "Show hidden" affordance.
-  const hiddenCount = (allClientRows || []).filter(r => r.is_portfolio_root === false).length;
-  const clients = includeHidden
-    ? (allClientRows || [])
-    : (allClientRows || []).filter(r => r.is_portfolio_root !== false);
+  if (cErr && /network_tag/.test(cErr.message || '')) {
+    ({ data: allClientRows, error: cErr } = await supabase
+      .from('channels')
+      .select(baseColumns)
+      .eq('is_client', true)
+      .order('name', { ascending: true }));
+  }
+  const clients = allClientRows || [];
 
   if (cErr) {
     console.warn('[portfolio] list failed:', cErr);
-    return { clients: [], hiddenCount: 0 };
+    return { clients: [] };
   }
-  if (!clients.length) return { clients: [], hiddenCount };
+  if (!clients.length) return { clients: [] };
 
   // 2. Pinned competitor counts via client_channels junction
   const clientIds = clients.map(c => c.id);
@@ -114,7 +119,9 @@ export async function listPortfolio({ includeHidden = false } = {}) {
       customUrl: c.custom_url,
       youtubeChannelId: c.youtube_channel_id,
       isStub,
-      isPortfolioRoot: c.is_portfolio_root,
+      isPrelaunch: !!c.is_prelaunch,
+      subscriberCount: c.subscriber_count || 0,
+      networkTag: c.network_tag || null,
       stage: c.lifecycle_stage,
       stageLabel: STAGE_LABEL[c.lifecycle_stage] || 'Unset',
       primaryStrategistId: c.primary_strategist_id,
@@ -135,12 +142,12 @@ export async function listPortfolio({ includeHidden = false } = {}) {
     };
   });
 
-  return { clients: rows, hiddenCount };
+  return { clients: rows };
 }
 
 // Stage-appropriate next-action heuristic. Keep it short and
 // imperative — the operator should be able to skim 13 rows fast.
-function deriveNextAction({ stage, isStub, pinnedCount, coverage, erroringCount }) {
+function deriveNextAction({ stage, _isStub, pinnedCount, coverage, erroringCount }) {
   if (!stage) return { label: 'Set lifecycle stage', urgency: 'attention' };
   if (pinnedCount === 0 && stage !== 'oauth_renewal') {
     return { label: 'Pin competitors', urgency: 'attention' };
@@ -174,27 +181,9 @@ export async function updateClientStage(clientId, stage) {
   return { ok: !error, error: error?.message };
 }
 
-export async function setPortfolioRoot(clientId, isRoot) {
-  if (!clientId) return { ok: false, error: 'missing' };
-  const { error } = await supabase
-    .from('channels')
-    .update({ is_portfolio_root: isRoot })
-    .eq('id', clientId);
-  return { ok: !error, error: error?.message };
-}
-
 // Bulk hide many clients in one shot. Used by the "hide all likely
 // sub-channels" header action so the operator doesn't have to click
 // through 14 rows after backfill leaves them NULL.
-export async function bulkSetPortfolioRoot(clientIds, isRoot) {
-  if (!clientIds?.length) return { ok: true, count: 0 };
-  const { error } = await supabase
-    .from('channels')
-    .update({ is_portfolio_root: isRoot })
-    .in('id', clientIds);
-  return { ok: !error, count: clientIds.length, error: error?.message };
-}
-
 export async function assignStrategist(clientId, strategistId) {
   if (!clientId) return { ok: false, error: 'missing' };
   const { error } = await supabase
@@ -218,4 +207,31 @@ export async function listStrategists() {
   return data || [];
 }
 
-export default { listPortfolio, updateClientStage, assignStrategist, listStrategists, setPortfolioRoot, bulkSetPortfolioRoot };
+/** Assign (or clear, with null) a client's network tag. */
+export async function setClientNetwork(clientId, tag) {
+  const { error } = await supabase
+    .from('channels')
+    .update({ network_tag: tag || null })
+    .eq('id', clientId);
+  if (error) throw error;
+}
+
+/** Rename a network everywhere it's assigned. */
+export async function renameNetwork(oldTag, newTag) {
+  const { error } = await supabase
+    .from('channels')
+    .update({ network_tag: newTag })
+    .eq('network_tag', oldTag);
+  if (error) throw error;
+}
+
+/** Delete a network: every client carrying it goes back to "no network". */
+export async function deleteNetwork(tag) {
+  const { error } = await supabase
+    .from('channels')
+    .update({ network_tag: null })
+    .eq('network_tag', tag);
+  if (error) throw error;
+}
+
+export default { listPortfolio, updateClientStage, assignStrategist, listStrategists, setClientNetwork, renameNetwork, deleteNetwork };

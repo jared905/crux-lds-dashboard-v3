@@ -135,7 +135,7 @@ export default async function handler(req, res) {
 
       if (!openaiResp.ok) {
         let body = null;
-        try { body = await openaiResp.json(); } catch {}
+        try { body = await openaiResp.json(); } catch { /* response body isn't JSON — the null fallback above is the answer */ }
         errors.push({
           stage: 'openai',
           batchIdx,

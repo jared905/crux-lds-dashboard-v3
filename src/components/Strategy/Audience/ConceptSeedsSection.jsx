@@ -8,7 +8,7 @@
  * those formats but do not propose narrative continuity themselves.
  */
 
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import {
   Sparkles, Loader, Trash2, ChevronDown, ChevronRight, Crosshair,
 } from 'lucide-react';
@@ -22,9 +22,9 @@ const FORMAT_LABELS = {
   either:    'Either',
 };
 const FORMAT_COLORS = {
-  shorts:    '#E8A82B',
-  long_form: '#0A919B',
-  either:    '#888',
+  shorts:    'var(--warn)',
+  long_form: 'var(--accent-text)',
+  either:    'var(--outline)',
 };
 
 export default function ConceptSeedsSection({ clientId, hasPersona, onNavigate }) {
@@ -88,7 +88,7 @@ export default function ConceptSeedsSection({ clientId, hasPersona, onNavigate }
         length_seconds: seed.estimated_length_minutes ? seed.estimated_length_minutes * 60 : null,
         notes:          `Generated from audience persona seed. Addresses: ${seed.addresses_persona_claim || 'audience signal'}.\nHook: ${seed.hook || '(none)'}`,
       }));
-    } catch (err) { /* silent */ }
+    } catch { /* silent */ }
     handleMarkScored(seed.id, null);
     if (typeof onNavigate === 'function') onNavigate('pre-flight');
   };
@@ -96,8 +96,8 @@ export default function ConceptSeedsSection({ clientId, hasPersona, onNavigate }
   if (!hasPersona) {
     return (
       <div style={lockedShellStyle}>
-        <Sparkles size={14} style={{ color: '#666' }} />
-        <span style={{ fontSize: 12, color: '#888' }}>
+        <Sparkles size={14} style={{ color: 'var(--faint)' }} />
+        <span style={{ fontSize: 12, color: 'var(--outline)' }}>
           Synthesize the persona first — concept seeds derive from it.
         </span>
       </div>
@@ -143,11 +143,11 @@ export default function ConceptSeedsSection({ clientId, hasPersona, onNavigate }
 
       {!loading && seeds.length === 0 && !error && (
         <div style={emptyStateStyle}>
-          <Sparkles size={26} style={{ color: '#0A919B', marginBottom: 10 }} />
-          <div style={{ fontSize: 13, color: '#cde4d6', fontWeight: 600, marginBottom: 4 }}>
+          <Sparkles size={26} style={{ color: 'var(--accent-text)', marginBottom: 10 }} />
+          <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600, marginBottom: 4 }}>
             No seeds yet
           </div>
-          <div style={{ fontSize: 12, color: '#888', maxWidth: 480, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: 'var(--outline)', maxWidth: 480, lineHeight: 1.5 }}>
             Generate a batch of concept ideas from the persona. Each one pulls verbatim from a persona
             claim — questions in the audience's own words become title candidates.
           </div>
@@ -212,7 +212,7 @@ function SeedsByFormat({ seeds, expandedSeed, setExpandedSeed, onScore, onArchiv
         <SeedGroup
           headerLabel="Standalone concepts"
           headerSubtitle={`Not tied to a recurring format · ${standalone.length} seed${standalone.length === 1 ? '' : 's'}`}
-          accent="#888"
+          accent="#859399"
         >
           {standalone.map(seed => (
             <SeedCard
@@ -236,13 +236,13 @@ function SeedGroup({ headerLabel, headerSubtitle, accent, children }) {
       <div style={{
         display: 'flex', alignItems: 'baseline', gap: 10,
         padding: '6px 10px',
-        borderLeft: `2px solid ${accent}`,
+        borderLeft: '2px solid var(--border)',
         marginBottom: 6,
       }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: accent, letterSpacing: 0.3 }}>
           {headerLabel}
         </div>
-        <div style={{ fontSize: 11, color: '#666' }}>
+        <div style={{ fontSize: 11, color: 'var(--faint)' }}>
           {headerSubtitle}
         </div>
       </div>
@@ -258,27 +258,27 @@ function SeedGroup({ headerLabel, headerSubtitle, accent, children }) {
 // ──────────────────────────────────────────────────
 
 function SeedCard({ seed, expanded, onToggle, onScore, onArchive }) {
-  const formatColor = FORMAT_COLORS[seed.format_hint] || '#888';
+  const formatColor = FORMAT_COLORS[seed.format_hint] || 'var(--outline)';
   return (
     <div style={seedCardStyle(seed.status)}>
       <div style={seedHeaderStyle} onClick={onToggle}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
             <span style={formatChipStyle(formatColor)}>{FORMAT_LABELS[seed.format_hint] || 'Either'}</span>
-            {seed.status === 'scored' && <span style={statusChipStyle('#3fa66a')}>Scored</span>}
-            {seed.status === 'filmed' && <span style={statusChipStyle('#0A919B')}>Filmed</span>}
+            {seed.status === 'scored' && <span style={statusChipStyle("var(--pos-deep)")}>Scored</span>}
+            {seed.status === 'filmed' && <span style={statusChipStyle('var(--accent-text)')}>Filmed</span>}
           </div>
           <div style={seedTitleStyle}>{seed.title}</div>
           {seed.addresses_persona_claim && (
             <div style={addressesStyle}>
-              <strong style={{ color: '#0A919B', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+              <strong style={{ color: 'var(--accent-text)', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.4 }}>
                 Addresses
               </strong>{' '}
               {seed.addresses_persona_claim}
             </div>
           )}
         </div>
-        {expanded ? <ChevronDown size={14} style={{ color: '#666', flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: '#666', flexShrink: 0 }} />}
+        {expanded ? <ChevronDown size={14} style={{ color: 'var(--faint)', flexShrink: 0 }} /> : <ChevronRight size={14} style={{ color: 'var(--faint)', flexShrink: 0 }} />}
       </div>
 
       {expanded && (
@@ -317,10 +317,10 @@ function SeedCard({ seed, expanded, onToggle, onScore, onArchive }) {
 
 function Note({ tone, children }) {
   const palette = {
-    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: '#0A919B' },
-    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: '#E8A82B' },
-    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: '#ef6b6b' },
-  }[tone] || { bg: '#1a1a1f', border: '#333', fg: '#aaa' };
+    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: 'var(--accent-text)' },
+    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: 'var(--warn)' },
+    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: 'var(--neg-text)' },
+  }[tone] || { bg: 'var(--input-bg)', border: 'var(--outline-variant)', fg: 'var(--muted)' };
   return (
     <div style={{
       padding: '10px 14px', borderRadius: 6,
@@ -340,23 +340,23 @@ const sectionHeaderStyle = {
   marginBottom: 12, flexWrap: 'wrap',
 };
 const kickerStyle = {
-  fontSize: 12, color: '#0A919B', fontWeight: 700,
+  fontSize: 12, color: 'var(--accent-text)', fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4,
 };
-const subtitleStyle = { fontSize: 12, color: '#888', maxWidth: 600, lineHeight: 1.5 };
+const subtitleStyle = { fontSize: 12, color: 'var(--outline)', maxWidth: 600, lineHeight: 1.5 };
 
 const generateBarStyle = {
   display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0,
 };
 const selectStyle = {
-  background: '#1a1a1f', color: '#cde4d6',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'var(--input-bg)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '7px 10px', fontSize: 12, cursor: 'pointer',
 };
 const generateBtnStyle = (busy) => ({
-  background: busy ? '#1a1a1f' : '#0A919B',
-  color: busy ? '#666' : '#0a0a0e',
-  border: busy ? '1px solid #2a2a30' : 'none',
+  background: busy ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: busy ? 'var(--faint)' : 'var(--bg)',
+  border: busy ? '1px solid var(--border)' : 'none',
   borderRadius: 5,
   padding: '8px 16px',
   fontSize: 12, fontWeight: 700, letterSpacing: 0.3,
@@ -366,7 +366,7 @@ const generateBtnStyle = (busy) => ({
 
 const lockedShellStyle = {
   marginTop: 18,
-  background: '#0e0e11', border: '1px dashed #2a2a30',
+  background: 'var(--card)', border: '1px dashed #2a2a30',
   borderRadius: 6, padding: 14,
   display: 'inline-flex', alignItems: 'center', gap: 8,
 };
@@ -374,17 +374,16 @@ const lockedShellStyle = {
 const emptyStateStyle = {
   display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
   padding: 32,
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
   marginTop: 10,
 };
 
-const seedsListStyle = { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 };
-const seedCardStyle = (status) => ({
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
-  borderLeft: `2px solid ${status === 'scored' ? '#3fa66a' : status === 'filmed' ? '#0A919B' : '#2a2a30'}`,
+const seedCardStyle = (_status) => ({
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
+  borderLeft: '2px solid var(--border)',
   borderRadius: 6,
 });
 const seedHeaderStyle = {
@@ -393,20 +392,20 @@ const seedHeaderStyle = {
   cursor: 'pointer',
 };
 const seedTitleStyle = {
-  fontSize: 13, fontWeight: 600, color: '#e8e2d0',
+  fontSize: 13, fontWeight: 600, color: 'var(--ink)',
   lineHeight: 1.4,
 };
 const addressesStyle = {
-  fontSize: 11, color: '#888', marginTop: 4, lineHeight: 1.4,
+  fontSize: 11, color: 'var(--outline)', marginTop: 4, lineHeight: 1.4,
 };
 const formatChipStyle = (color) => ({
-  background: `${color}22`, color, border: `1px solid ${color}55`,
+  background: `color-mix(in srgb, ${color} 13%, transparent)`, color, border: `1px solid color-mix(in srgb, ${color} 33%, transparent)`,
   borderRadius: 3, padding: '1px 7px',
   fontSize: 9, fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: 0.4,
 });
 const statusChipStyle = (color) => ({
-  background: `${color}22`, color, border: `1px solid ${color}55`,
+  background: `color-mix(in srgb, ${color} 13%, transparent)`, color, border: `1px solid color-mix(in srgb, ${color} 33%, transparent)`,
   borderRadius: 3, padding: '1px 7px',
   fontSize: 9, fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: 0.4,
@@ -418,12 +417,12 @@ const seedBodyStyle = {
 };
 const blockStyle = { marginTop: 10 };
 const blockLabelStyle = {
-  fontSize: 10, color: '#666',
+  fontSize: 10, color: 'var(--faint)',
   textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600,
   marginBottom: 4,
 };
 const blockBodyStyle = {
-  fontSize: 13, color: '#cde4d6', lineHeight: 1.55,
+  fontSize: 13, color: 'var(--text)', lineHeight: 1.55,
 };
 
 const actionsRowStyle = {
@@ -431,15 +430,15 @@ const actionsRowStyle = {
   marginTop: 8, paddingTop: 8, borderTop: '1px dashed #2a2a30',
 };
 const scoreBtnStyle = {
-  background: '#0A919B', color: '#0a0a0e',
+  background: 'var(--accent-text)', color: 'var(--bg)',
   border: 'none', borderRadius: 4,
   padding: '5px 12px', fontSize: 11, fontWeight: 700,
   cursor: 'pointer', letterSpacing: 0.3,
   display: 'inline-flex', alignItems: 'center', gap: 4,
 };
 const archiveBtnStyle = {
-  background: 'transparent', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 4,
+  background: 'transparent', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: '5px 12px', fontSize: 11, fontWeight: 600,
   cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4,

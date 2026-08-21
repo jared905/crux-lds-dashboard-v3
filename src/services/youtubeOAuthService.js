@@ -49,7 +49,6 @@ class YouTubeOAuthService {
 
     if (expiresIn < 300) {
       // Token expires soon, try to refresh
-      console.log('[YouTubeOAuth] Session expiring soon, refreshing...');
       const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
 
       if (refreshError) {
@@ -251,7 +250,6 @@ class YouTubeOAuthService {
     // Refresh 1 minute before expiry, minimum 5 seconds from now to prevent tight loops
     const refreshIn = Math.max(5000, (soonestExpiry - 60) * 1000);
 
-    console.log(`[YouTubeOAuth] Scheduling auto-refresh in ${Math.round(refreshIn/1000)}s`);
     this.refreshTimer = setTimeout(() => this.checkAndRefreshExpiring(), refreshIn);
   }
 
@@ -267,13 +265,11 @@ class YouTubeOAuthService {
     for (const conn of connections) {
       // Skip if already refreshing or recently attempted
       if (this.refreshingIds.has(conn.id)) {
-        console.log(`[YouTubeOAuth] Skipping ${conn.youtube_channel_title} - refresh in progress`);
         continue;
       }
 
       const lastAttempt = this.lastRefreshAttempt[conn.id] || 0;
       if (now - lastAttempt < MIN_REFRESH_INTERVAL) {
-        console.log(`[YouTubeOAuth] Skipping ${conn.youtube_channel_title} - recently attempted`);
         continue;
       }
 
@@ -282,7 +278,6 @@ class YouTubeOAuthService {
         try {
           this.refreshingIds.add(conn.id);
           this.lastRefreshAttempt[conn.id] = now;
-          console.log(`[YouTubeOAuth] Auto-refreshing token for ${conn.youtube_channel_title}`);
           await this.refreshToken(conn.id);
         } catch (error) {
           console.warn(`[YouTubeOAuth] Auto-refresh failed for ${conn.youtube_channel_title}:`, error.message);

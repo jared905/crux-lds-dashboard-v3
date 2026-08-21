@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { MessageSquare, Send, Lightbulb, TrendingUp, BarChart3 } from "lucide-react";
+import {useState} from "react";
+import { BarChart3, Lightbulb, MessageSquare, Send } from 'lucide-react';
 
 const fmtInt = (n) => (!n || isNaN(n)) ? "0" : Math.round(n).toLocaleString();
 const fmtPct = (n) => (!n || isNaN(n)) ? "0%" : `${(n * 100).toFixed(1)}%`;
@@ -140,8 +140,8 @@ export default function ContentIntelligence({ rows }) {
 
     return {
       answer: `**"${winner.toUpperCase()}" performs ${difference.toFixed(0)}% better than "${loser.toUpperCase()}"**\n\n` +
-        `📊 **${keyword1.toUpperCase()}**: ${videos1.length} videos, ${fmtInt(stats1.avgViews)} avg views, ${fmtPct(stats1.avgCTR)} CTR, ${fmtPct(stats1.avgRetention)} retention\n` +
-        `📊 **${keyword2.toUpperCase()}**: ${videos2.length} videos, ${fmtInt(stats2.avgViews)} avg views, ${fmtPct(stats2.avgCTR)} CTR, ${fmtPct(stats2.avgRetention)} retention`,
+        `**${keyword1.toUpperCase()}**: ${videos1.length} videos, ${fmtInt(stats1.avgViews)} avg views, ${fmtPct(stats1.avgCTR)} CTR, ${fmtPct(stats1.avgRetention)} retention\n` +
+        `**${keyword2.toUpperCase()}**: ${videos2.length} videos, ${fmtInt(stats2.avgViews)} avg views, ${fmtPct(stats2.avgCTR)} CTR, ${fmtPct(stats2.avgRetention)} retention`,
       data: {
         keyword1: { name: keyword1, stats: stats1, videos: topVideos1 },
         keyword2: { name: keyword2, stats: stats2, videos: topVideos2 }
@@ -163,8 +163,8 @@ export default function ContentIntelligence({ rows }) {
 
     return {
       answer: `**${winner} perform ${difference.toFixed(0)}% better**\n\n` +
-        `❓ **Question Titles**: ${questions.length} videos, ${fmtInt(statsQuestions.avgViews)} avg views, ${fmtPct(statsQuestions.avgCTR)} CTR\n` +
-        `💬 **Statement Titles**: ${statements.length} videos, ${fmtInt(statsStatements.avgViews)} avg views, ${fmtPct(statsStatements.avgCTR)} CTR`,
+        `**Question Titles**:${questions.length} videos, ${fmtInt(statsQuestions.avgViews)} avg views, ${fmtPct(statsQuestions.avgCTR)} CTR\n` +
+        `**Statement Titles**:${statements.length} videos, ${fmtInt(statsStatements.avgViews)} avg views, ${fmtPct(statsStatements.avgCTR)} CTR`,
       data: {
         questions: { stats: statsQuestions, count: questions.length },
         statements: { stats: statsStatements, count: statements.length }
@@ -187,8 +187,8 @@ export default function ContentIntelligence({ rows }) {
 
       return {
         answer: `**Titles ${winner} perform ${Math.abs(difference).toFixed(0)}% better**\n\n` +
-          `🔢 **With Numbers**: ${withNumbers.length} videos, ${fmtInt(statsWithNumbers.avgViews)} avg views, ${fmtPct(statsWithNumbers.avgCTR)} CTR\n` +
-          `📝 **Without Numbers**: ${withoutNumbers.length} videos, ${fmtInt(statsWithoutNumbers.avgViews)} avg views, ${fmtPct(statsWithoutNumbers.avgCTR)} CTR`,
+          `**With Numbers**:${withNumbers.length} videos, ${fmtInt(statsWithNumbers.avgViews)} avg views, ${fmtPct(statsWithNumbers.avgCTR)} CTR\n` +
+          `**Without Numbers**:${withoutNumbers.length} videos, ${fmtInt(statsWithoutNumbers.avgViews)} avg views, ${fmtPct(statsWithoutNumbers.avgCTR)} CTR`,
         data: {
           withNumbers: { stats: statsWithNumbers, count: withNumbers.length },
           withoutNumbers: { stats: statsWithoutNumbers, count: withoutNumbers.length }
@@ -215,9 +215,9 @@ export default function ContentIntelligence({ rows }) {
 
     return {
       answer: `**${roiWinner} have ${roiDifference.toFixed(0)}% better ROI** (views per production hour)\n\n` +
-        `📹 **Shorts**: ${shorts.length} videos, ${fmtInt(statsShorts.avgViews)} avg views, ${fmtInt(shortsROI)} views/hour ROI\n` +
-        `🎬 **Long-form**: ${longs.length} videos, ${fmtInt(statsLongs.avgViews)} avg views, ${fmtInt(longsROI)} views/hour ROI\n\n` +
-        `💡 **Insight**: ${shortsROI > longsROI ? "Shorts deliver better ROI per production hour." : "Long-form delivers better ROI despite longer production time."}`,
+        `**Shorts**:${shorts.length} videos, ${fmtInt(statsShorts.avgViews)} avg views, ${fmtInt(shortsROI)} views/hour ROI\n` +
+        `**Long-form**:${longs.length} videos, ${fmtInt(statsLongs.avgViews)} avg views, ${fmtInt(longsROI)} views/hour ROI\n\n` +
+        `**Insight**:${shortsROI > longsROI ? "Shorts deliver better ROI per production hour." : "Long-form delivers better ROI despite longer production time."}`,
       data: {
         shorts: { stats: statsShorts, roi: shortsROI },
         longs: { stats: statsLongs, roi: longsROI }
@@ -251,7 +251,7 @@ export default function ContentIntelligence({ rows }) {
     });
 
     const topics = Object.entries(titleWords)
-      .filter(([word, videos]) => videos.length >= 3)
+      .filter(([_word, videos]) => videos.length >= 3)
       .map(([word, videos]) => {
         const stats = calculateStats(videos);
         return { word, videos, stats };
@@ -271,8 +271,8 @@ export default function ContentIntelligence({ rows }) {
 
     return {
       answer: `**"${best.word.toUpperCase()}" is your best performing topic**\n\n` +
-        `📈 ${best.videos.length} videos, ${fmtInt(best.stats.avgViews)} avg views\n` +
-        `🎯 ${fmtPct(best.stats.avgCTR)} CTR, ${fmtPct(best.stats.avgRetention)} retention\n\n` +
+        `${best.videos.length} videos, ${fmtInt(best.stats.avgViews)} avg views\n` +
+        `${fmtPct(best.stats.avgCTR)} CTR, ${fmtPct(best.stats.avgRetention)} retention\n\n` +
         `**Top performing videos:**\n` +
         topVideos.map((v, i) => `${i + 1}. ${v.title} (${fmtInt(v.views)} views)`).join('\n'),
       data: {
@@ -318,7 +318,7 @@ export default function ContentIntelligence({ rows }) {
     return {
       answer: `**Best month: ${formatMonth(best.month)}** (${fmtInt(best.stats.avgViews)} avg views)\n` +
         `**Worst month: ${formatMonth(worst.month)}** (${fmtInt(worst.stats.avgViews)} avg views)\n\n` +
-        `📊 Top 3 months:\n` +
+        `Top 3 months:\n` +
         monthStats.slice(0, 3).map((m, i) =>
           `${i + 1}. ${formatMonth(m.month)}: ${fmtInt(m.stats.avgViews)} avg views (${m.count} videos)`
         ).join('\n'),
@@ -349,9 +349,9 @@ export default function ContentIntelligence({ rows }) {
 
     return {
       answer: `**High CTR Pattern Identified: ${pattern}**\n\n` +
-        `📈 Top 20% CTR: ${fmtPct(statsTop.avgCTR)} avg (${fmtInt(statsTop.avgViews)} avg views)\n` +
-        `📉 Bottom 20% CTR: ${fmtPct(statsBottom.avgCTR)} avg (${fmtInt(statsBottom.avgViews)} avg views)\n\n` +
-        `💡 **Recommendation**: ${pattern === "numbers in titles" ? "Use specific numbers/stats in titles" : pattern === "question titles" ? "Frame titles as questions" : "Study your top performers for common patterns"}`,
+        `Top 20% CTR:${fmtPct(statsTop.avgCTR)} avg (${fmtInt(statsTop.avgViews)} avg views)\n` +
+        `Bottom 20% CTR:${fmtPct(statsBottom.avgCTR)} avg (${fmtInt(statsBottom.avgViews)} avg views)\n\n` +
+        `**Recommendation**:${pattern === "numbers in titles" ? "Use specific numbers/stats in titles" : pattern === "question titles" ? "Frame titles as questions" : "Study your top performers for common patterns"}`,
       data: { top20, bottom20, pattern },
       confidence: "high"
     };
@@ -371,9 +371,9 @@ export default function ContentIntelligence({ rows }) {
 
     return {
       answer: `**Retention Analysis**\n\n` +
-        `⭐ Top 20%: ${fmtPct(statsTop.avgRetention)} retention, ${Math.round(avgDurationTop)}s avg duration\n` +
-        `📉 Bottom 20%: ${fmtPct(statsBottom.avgRetention)} retention, ${Math.round(avgDurationBottom)}s avg duration\n\n` +
-        `💡 **Insight**: ${avgDurationTop < avgDurationBottom ? "Shorter content tends to retain better" : "Longer, quality content retains better"}`,
+        `Top 20%:${fmtPct(statsTop.avgRetention)} retention, ${Math.round(avgDurationTop)}s avg duration\n` +
+        `Bottom 20%:${fmtPct(statsBottom.avgRetention)} retention, ${Math.round(avgDurationBottom)}s avg duration\n\n` +
+        `**Insight**:${avgDurationTop < avgDurationBottom ? "Shorter content tends to retain better" : "Longer, quality content retains better"}`,
       data: { top20, bottom20 },
       confidence: "high"
     };
@@ -441,31 +441,31 @@ export default function ContentIntelligence({ rows }) {
       {/* Header */}
       <div style={{
         background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
-        border: "1px solid #333",
+        border: "1px solid var(--border)",
         borderRadius: "8px",
         padding: "24px",
         marginBottom: "24px"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
-          <Lightbulb size={24} style={{ color: "#f59e0b" }} />
-          <div style={{ fontSize: "24px", fontWeight: "700", color: "#fff" }}>
+          <Lightbulb size={24} style={{ color: "var(--warn)" }} />
+          <div style={{ fontSize: "24px", fontWeight: "700", color: "var(--ink)" }}>
             Content Intelligence
           </div>
         </div>
-        <div style={{ fontSize: "14px", color: "#9E9E9E" }}>
+        <div style={{ fontSize: "14px", color: "var(--muted)" }}>
           Ask strategic questions about your content performance and get data-driven answers
         </div>
       </div>
 
       {/* Question Input */}
       <div style={{
-        background: "#1E1E1E",
-        border: "1px solid #333",
-        borderRadius: "8px",
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: "24px",
         padding: "24px",
         marginBottom: "24px"
       }}>
-        <div style={{ fontSize: "16px", fontWeight: "600", color: "#fff", marginBottom: "16px" }}>
+        <div style={{ fontSize: "16px", fontWeight: "600", color: "var(--ink)", marginBottom: "16px" }}>
           Ask a Question
         </div>
 
@@ -479,11 +479,11 @@ export default function ContentIntelligence({ rows }) {
             disabled={isAnalyzing}
             style={{
               flex: 1,
-              background: "#252525",
-              border: "1px solid #333",
+              background: "var(--input-bg)",
+              border: "1px solid var(--border)",
               borderRadius: "8px",
               padding: "14px 16px",
-              color: "#fff",
+              color: "var(--ink)",
               fontSize: "14px",
               outline: "none"
             }}
@@ -492,11 +492,11 @@ export default function ContentIntelligence({ rows }) {
             onClick={handleAskQuestion}
             disabled={!question.trim() || isAnalyzing}
             style={{
-              background: question.trim() && !isAnalyzing ? "#3b82f6" : "#333",
+              background: question.trim() && !isAnalyzing ? "var(--blue)" : "var(--outline-variant)",
               border: "none",
               borderRadius: "8px",
               padding: "14px 24px",
-              color: "#fff",
+              color: "var(--ink)",
               fontSize: "14px",
               fontWeight: "600",
               cursor: question.trim() && !isAnalyzing ? "pointer" : "not-allowed",
@@ -512,7 +512,7 @@ export default function ContentIntelligence({ rows }) {
 
         {/* Example Questions */}
         <div style={{ marginTop: "20px" }}>
-          <div style={{ fontSize: "12px", color: "#888", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          <div style={{ fontSize: "12px", color: "var(--outline)", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Example Questions
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -521,24 +521,24 @@ export default function ContentIntelligence({ rows }) {
                 key={idx}
                 onClick={() => handleExampleClick(exampleQ)}
                 style={{
-                  background: "#252525",
-                  border: "1px solid #333",
+                  background: "var(--input-bg)",
+                  border: "1px solid var(--border)",
                   borderRadius: "6px",
                   padding: "8px 12px",
-                  color: "#b0b0b0",
+                  color: "var(--muted)",
                   fontSize: "12px",
                   cursor: "pointer",
-                  transition: "all 0.2s"
+                  transition: "background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s"
                 }}
                 onMouseOver={(e) => {
-                  e.target.style.background = "#2a2a2a";
-                  e.target.style.borderColor = "#3b82f6";
-                  e.target.style.color = "#fff";
+                  e.target.style.background = "var(--border)";
+                  e.target.style.borderColor = "var(--blue)";
+                  e.target.style.color = "var(--ink)";
                 }}
                 onMouseOut={(e) => {
-                  e.target.style.background = "#252525";
-                  e.target.style.borderColor = "#333";
-                  e.target.style.color = "#b0b0b0";
+                  e.target.style.background = "var(--input-bg)";
+                  e.target.style.borderColor = "var(--outline-variant)";
+                  e.target.style.color = "var(--muted)";
                 }}
               >
                 {exampleQ}
@@ -551,12 +551,12 @@ export default function ContentIntelligence({ rows }) {
       {/* Conversation */}
       {conversation.length > 0 && (
         <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "8px",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: "24px",
           padding: "24px"
         }}>
-          <div style={{ fontSize: "16px", fontWeight: "600", color: "#fff", marginBottom: "20px" }}>
+          <div style={{ fontSize: "16px", fontWeight: "600", color: "var(--ink)", marginBottom: "20px" }}>
             Analysis Results
           </div>
 
@@ -565,31 +565,31 @@ export default function ContentIntelligence({ rows }) {
               <div
                 key={idx}
                 style={{
-                  background: msg.type === 'question' ? "#252525" : "#1a1a2e",
-                  border: msg.type === 'question' ? "1px solid #333" : "1px solid #3b82f640",
+                  background: msg.type === 'question' ? "var(--input-bg)" : "var(--card)",
+                  border: msg.type === 'question' ? "1px solid var(--border)" : "1px solid #00D1FF40",
                   borderRadius: "10px",
                   padding: "16px"
                 }}
               >
                 {msg.type === 'question' ? (
                   <div style={{ display: "flex", gap: "12px" }}>
-                    <MessageSquare size={20} style={{ color: "#3b82f6", marginTop: "2px", flexShrink: 0 }} />
-                    <div style={{ color: "#fff", fontSize: "14px", lineHeight: "1.6" }}>
+                    <MessageSquare size={20} style={{ color: "var(--blue)", marginTop: "2px", flexShrink: 0 }} />
+                    <div style={{ color: "var(--ink)", fontSize: "14px", lineHeight: "1.6" }}>
                       {msg.text}
                     </div>
                   </div>
                 ) : (
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                      <BarChart3 size={20} style={{ color: "#10b981" }} />
-                      <div style={{ fontSize: "12px", fontWeight: "600", color: "#10b981", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      <BarChart3 size={20} style={{ color: "var(--pos)" }} />
+                      <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--pos)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                         Analysis
                       </div>
                       {msg.confidence && (
                         <div style={{
                           fontSize: "10px",
-                          color: msg.confidence === "high" ? "#10b981" : msg.confidence === "medium" ? "#f59e0b" : "#ef4444",
-                          background: msg.confidence === "high" ? "#10b98120" : msg.confidence === "medium" ? "#f59e0b20" : "#ef444420",
+                          color: msg.confidence === "high" ? "var(--pos)" : msg.confidence === "medium" ? "var(--warn)" : "var(--neg)",
+                          background: msg.confidence === "high" ? "rgba(205, 242, 0, 0.13)" : msg.confidence === "medium" ? "rgba(245, 158, 11, 0.13)" : "rgba(255, 85, 64, 0.13)",
                           padding: "3px 8px",
                           borderRadius: "4px",
                           fontWeight: "600",
@@ -600,7 +600,7 @@ export default function ContentIntelligence({ rows }) {
                       )}
                     </div>
                     <div style={{
-                      color: "#e0e0e0",
+                      color: "var(--text)",
                       fontSize: "14px",
                       lineHeight: "1.8",
                       whiteSpace: "pre-line"
@@ -621,17 +621,17 @@ export default function ContentIntelligence({ rows }) {
       {/* Empty state */}
       {conversation.length === 0 && (
         <div style={{
-          background: "#1E1E1E",
-          border: "1px solid #333",
-          borderRadius: "8px",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: "24px",
           padding: "60px 24px",
           textAlign: "center"
         }}>
-          <Lightbulb size={48} style={{ color: "#3b82f6", marginBottom: "16px" }} />
-          <div style={{ fontSize: "18px", fontWeight: "600", color: "#fff", marginBottom: "8px" }}>
+          <Lightbulb size={48} style={{ color: "var(--blue)", marginBottom: "16px" }} />
+          <div style={{ fontSize: "18px", fontWeight: "600", color: "var(--ink)", marginBottom: "8px" }}>
             Ask your first question
           </div>
-          <div style={{ fontSize: "14px", color: "#888", maxWidth: "500px", margin: "0 auto" }}>
+          <div style={{ fontSize: "14px", color: "var(--outline)", maxWidth: "500px", margin: "0 auto" }}>
             Get instant insights about your content performance. Compare topics, analyze patterns, and make data-driven decisions.
           </div>
         </div>
@@ -642,51 +642,50 @@ export default function ContentIntelligence({ rows }) {
   function renderDataVisualization(data) {
     // Render comparison bars for keyword comparisons
     if (data.keyword1 && data.keyword2) {
-      const max = Math.max(data.keyword1.stats.avgViews, data.keyword2.stats.avgViews);
 
       return (
         <div style={{ marginTop: "16px" }}>
-          <div style={{ fontSize: "11px", color: "#888", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600" }}>
+          <div style={{ fontSize: "11px", color: "var(--outline)", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600" }}>
             Top Performing Videos
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
             {/* Keyword 1 */}
             <div>
-              <div style={{ fontSize: "12px", color: "#3b82f6", fontWeight: "600", marginBottom: "8px" }}>
+              <div style={{ fontSize: "12px", color: "var(--blue)", fontWeight: "600", marginBottom: "8px" }}>
                 {data.keyword1.name.toUpperCase()}
               </div>
               {data.keyword1.videos.map((video, i) => (
                 <div key={i} style={{
-                  background: "#0d0d0d",
-                  border: "1px solid #222",
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
                   borderRadius: "4px",
                   padding: "8px",
                   marginBottom: "6px",
                   fontSize: "11px"
                 }}>
-                  <div style={{ color: "#e0e0e0", marginBottom: "4px" }}>{video.title}</div>
-                  <div style={{ color: "#666" }}>{fmtInt(video.views)} views</div>
+                  <div style={{ color: "var(--text)", marginBottom: "4px" }}>{video.title}</div>
+                  <div style={{ color: "var(--faint)" }}>{fmtInt(video.views)} views</div>
                 </div>
               ))}
             </div>
 
             {/* Keyword 2 */}
             <div>
-              <div style={{ fontSize: "12px", color: "#10b981", fontWeight: "600", marginBottom: "8px" }}>
+              <div style={{ fontSize: "12px", color: "var(--pos)", fontWeight: "600", marginBottom: "8px" }}>
                 {data.keyword2.name.toUpperCase()}
               </div>
               {data.keyword2.videos.map((video, i) => (
                 <div key={i} style={{
-                  background: "#0d0d0d",
-                  border: "1px solid #222",
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
                   borderRadius: "4px",
                   padding: "8px",
                   marginBottom: "6px",
                   fontSize: "11px"
                 }}>
-                  <div style={{ color: "#e0e0e0", marginBottom: "4px" }}>{video.title}</div>
-                  <div style={{ color: "#666" }}>{fmtInt(video.views)} views</div>
+                  <div style={{ color: "var(--text)", marginBottom: "4px" }}>{video.title}</div>
+                  <div style={{ color: "var(--faint)" }}>{fmtInt(video.views)} views</div>
                 </div>
               ))}
             </div>

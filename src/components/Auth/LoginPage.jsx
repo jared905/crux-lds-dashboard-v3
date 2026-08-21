@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import {useState} from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff, LogIn } from 'lucide-react';
 
 const LoginPage = ({ onSwitchToSignup }) => {
   const { signIn } = useAuth();
@@ -27,7 +27,10 @@ const LoginPage = ({ onSwitchToSignup }) => {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#181817',
+      /* Transparent on purpose: body::before is the Earth-at-night photo,
+         and this page used to paint an opaque box over it — the most
+         atmospheric brand asset, invisible on the most brandable screen. */
+      background: 'transparent',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -41,13 +44,18 @@ const LoginPage = ({ onSwitchToSignup }) => {
         textAlign: 'center',
         marginBottom: '24px',
       }}>
-        <img
-          src="/Full_View_Logo.png"
-          alt="Full View Studio"
-          style={{ height: '80px', objectFit: 'contain', marginBottom: '16px' }}
-        />
+        {/* The key art. One use in the whole product — this lockup. */}
+        <div className="keyart" style={{ '--grain': 0.5, marginBottom: '18px' }}>
+          <div className="inner" style={{ padding: '42px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img
+              src="/Full_View_Logo.png"
+              alt="Full View Studio"
+              style={{ height: '64px', objectFit: 'contain' }}
+            />
+          </div>
+        </div>
         <h1 style={{
-          color: '#E0E0E0',
+          color: "var(--text)",
           fontSize: '28px',
           fontWeight: '700',
           marginBottom: '8px',
@@ -55,26 +63,28 @@ const LoginPage = ({ onSwitchToSignup }) => {
           Full View Studio
         </h1>
         <p style={{
-          color: '#9E9E9E',
+          color: "var(--muted)",
           fontSize: '14px',
           lineHeight: '1.6',
           marginBottom: '0',
         }}>
-          YouTube analytics, competitive benchmarking, and AI-powered content strategy — built for creators and agencies by Crux Media.
+          See why videos win in your category, and what to make next. Built for creators and agencies by Crux Media.
         </p>
       </div>
 
       <div style={{
         width: '100%',
         maxWidth: '400px',
-        background: '#1E1E1E',
+        background: 'rgba(24, 24, 23, 0.86)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
         borderRadius: '8px',
         padding: '40px',
         boxShadow: '0 4px 24px rgba(0, 0, 0, 0.4)'
       }}>
         {/* Title */}
         <h2 style={{
-          color: '#E0E0E0',
+          color: "var(--text)",
           fontSize: '20px',
           fontWeight: '700',
           textAlign: 'center',
@@ -83,7 +93,7 @@ const LoginPage = ({ onSwitchToSignup }) => {
           Sign In
         </h2>
         <p style={{
-          color: '#9E9E9E',
+          color: "var(--muted)",
           fontSize: '14px',
           textAlign: 'center',
           marginBottom: '32px'
@@ -103,8 +113,8 @@ const LoginPage = ({ onSwitchToSignup }) => {
             borderRadius: '8px',
             marginBottom: '24px'
           }}>
-            <AlertCircle size={18} color="#CF6679" />
-            <span style={{ color: '#CF6679', fontSize: '14px' }}>{error}</span>
+            <AlertCircle size={18} color="#ff8375" />
+            <span style={{ color: "var(--neg)", fontSize: '14px' }}>{error}</span>
           </div>
         )}
 
@@ -114,7 +124,7 @@ const LoginPage = ({ onSwitchToSignup }) => {
           <div style={{ marginBottom: '20px' }}>
             <label style={{
               display: 'block',
-              color: '#9E9E9E',
+              color: "var(--muted)",
               fontSize: '14px',
               fontWeight: '500',
               marginBottom: '8px'
@@ -130,17 +140,17 @@ const LoginPage = ({ onSwitchToSignup }) => {
               style={{
                 width: '100%',
                 padding: '12px 16px',
-                background: '#181817',
-                border: '1px solid #2A2A2A',
+                background: "var(--bg)",
+                border: "1px solid var(--border)",
                 borderRadius: '8px',
-                color: '#E0E0E0',
+                color: "var(--text)",
                 fontSize: '14px',
                 outline: 'none',
                 transition: 'border-color 0.2s',
                 boxSizing: 'border-box'
               }}
-              onFocus={(e) => e.target.style.borderColor = '#2962FF'}
-              onBlur={(e) => e.target.style.borderColor = '#2A2A2A'}
+              onFocus={(e) => e.target.style.borderColor = "var(--blue)"}
+              onBlur={(e) => e.target.style.borderColor = "var(--border)"}
             />
           </div>
 
@@ -148,7 +158,7 @@ const LoginPage = ({ onSwitchToSignup }) => {
           <div style={{ marginBottom: '24px' }}>
             <label style={{
               display: 'block',
-              color: '#9E9E9E',
+              color: "var(--muted)",
               fontSize: '14px',
               fontWeight: '500',
               marginBottom: '8px'
@@ -165,17 +175,17 @@ const LoginPage = ({ onSwitchToSignup }) => {
                 style={{
                   width: '100%',
                   padding: '12px 48px 12px 16px',
-                  background: '#181817',
-                  border: '1px solid #333',
+                  background: "var(--bg)",
+                  border: '1px solid var(--border)',
                   borderRadius: '8px',
-                  color: '#E0E0E0',
+                  color: "var(--text)",
                   fontSize: '14px',
                   outline: 'none',
                   transition: 'border-color 0.2s',
                   boxSizing: 'border-box'
                 }}
-                onFocus={(e) => e.target.style.borderColor = '#2962FF'}
-                onBlur={(e) => e.target.style.borderColor = '#2A2A2A'}
+                onFocus={(e) => e.target.style.borderColor = "var(--blue)"}
+                onBlur={(e) => e.target.style.borderColor = "var(--border)"}
               />
               <button
                 type="button"
@@ -187,7 +197,7 @@ const LoginPage = ({ onSwitchToSignup }) => {
                   transform: 'translateY(-50%)',
                   background: 'transparent',
                   border: 'none',
-                  color: '#9E9E9E',
+                  color: "var(--muted)",
                   cursor: 'pointer',
                   padding: '4px',
                   display: 'flex',
@@ -207,10 +217,10 @@ const LoginPage = ({ onSwitchToSignup }) => {
             style={{
               width: '100%',
               padding: '14px',
-              background: loading ? '#1a4bb8' : '#2962FF',
+              background: loading ? 'var(--blue)' : "var(--blue)",
               border: 'none',
-              borderRadius: '8px',
-              color: '#FFFFFF',
+              borderRadius: '16px',
+              color: 'var(--on-accent)',
               fontSize: '16px',
               fontWeight: '600',
               cursor: loading ? 'not-allowed' : 'pointer',
@@ -220,8 +230,8 @@ const LoginPage = ({ onSwitchToSignup }) => {
               gap: '8px',
               transition: 'background 0.2s'
             }}
-            onMouseEnter={(e) => !loading && (e.target.style.background = '#1a4bb8')}
-            onMouseLeave={(e) => !loading && (e.target.style.background = '#2962FF')}
+            onMouseEnter={(e) => !loading && (e.target.style.background = 'var(--blue)')}
+            onMouseLeave={(e) => !loading && (e.target.style.background = "var(--blue)")}
           >
             {loading ? (
               <span>Signing in...</span>
@@ -236,7 +246,7 @@ const LoginPage = ({ onSwitchToSignup }) => {
 
         {/* Sign Up Link */}
         <p style={{
-          color: '#9E9E9E',
+          color: "var(--muted)",
           fontSize: '14px',
           textAlign: 'center',
           marginTop: '24px'
@@ -247,7 +257,7 @@ const LoginPage = ({ onSwitchToSignup }) => {
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#2962FF',
+              color: "var(--blue)",
               fontSize: '14px',
               fontWeight: '600',
               cursor: 'pointer',
@@ -268,9 +278,9 @@ const LoginPage = ({ onSwitchToSignup }) => {
           gap: '6px',
           marginTop: '32px',
           paddingTop: '24px',
-          borderTop: '1px solid #2A2A2A'
+          borderTop: "1px solid var(--border)"
         }}>
-          <span style={{ fontSize: '10px', color: '#666', fontWeight: '600', letterSpacing: '0.5px' }}>
+          <span style={{ fontSize: '10px', color: 'var(--faint)', fontWeight: '600', letterSpacing: '0.5px' }}>
             POWERED BY
           </span>
           <img
@@ -289,16 +299,16 @@ const LoginPage = ({ onSwitchToSignup }) => {
         gap: '16px',
         fontSize: '12px',
       }}>
-        <a href="/privacy" style={{ color: '#9E9E9E', textDecoration: 'none' }}
-          onMouseEnter={(e) => e.target.style.color = '#60a5fa'}
-          onMouseLeave={(e) => e.target.style.color = '#9E9E9E'}
+        <a href="/privacy" style={{ color: "var(--muted)", textDecoration: 'none' }}
+          onMouseEnter={(e) => e.target.style.color = 'var(--accent-text)'}
+          onMouseLeave={(e) => e.target.style.color = "var(--muted)"}
         >
           Privacy Policy
         </a>
-        <span style={{ color: '#444' }}>|</span>
-        <a href="/terms" style={{ color: '#9E9E9E', textDecoration: 'none' }}
-          onMouseEnter={(e) => e.target.style.color = '#60a5fa'}
-          onMouseLeave={(e) => e.target.style.color = '#9E9E9E'}
+        <span style={{ color: 'var(--outline-variant)' }}>|</span>
+        <a href="/terms" style={{ color: "var(--muted)", textDecoration: 'none' }}
+          onMouseEnter={(e) => e.target.style.color = 'var(--accent-text)'}
+          onMouseLeave={(e) => e.target.style.color = "var(--muted)"}
         >
           Terms of Service
         </a>

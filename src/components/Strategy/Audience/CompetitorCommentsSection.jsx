@@ -25,7 +25,7 @@
  * promoting anything to Spine inputs.
  */
 
-import React, { useEffect, useState } from 'react';
+import {useEffect, useState} from 'react';
 import {
   MessageCircle, Loader, ChevronDown, ChevronRight, Sparkles,
   HelpCircle, Megaphone, Star, Check, X as XIcon, ExternalLink,
@@ -44,11 +44,6 @@ const ROLE_LABELS = {
   peer:         'Peer',
   aspirational: 'Aspirational',
   reference:    'Reference',
-};
-const ROLE_COLORS = {
-  peer:         '#3fa66a',
-  aspirational: '#E8A82B',
-  reference:    '#0A919B',
 };
 
 export default function CompetitorCommentsSection({ clientId }) {
@@ -133,7 +128,7 @@ export default function CompetitorCommentsSection({ clientId }) {
           <div style={kickerStyle}>Competitor comment sweep</div>
           <div style={subtitleStyle}>
             On-demand sweep of a competitor channel's recent comments. Heuristic-classified into
-            questions and explicit content requests. Surfaced as <strong style={{ color: '#cde4d6' }}>Strategy Spine input candidates</strong> —
+            questions and explicit content requests. Surfaced as <strong style={{ color: 'var(--text)' }}>Strategy Spine input candidates</strong> —
             the strategist judges what's worth merging into persona / pillars / concept seeds. Not
             auto-merged: participation inequality makes comments unreliable as audience-wide signal.
           </div>
@@ -208,11 +203,11 @@ export default function CompetitorCommentsSection({ clientId }) {
         <SweepResults sweep={activeSweep} onStatus={handleStatus} />
       ) : !history.length && candidates.length > 0 && (
         <div style={emptyStyle}>
-          <MessageCircle size={26} style={{ color: '#0A919B', marginBottom: 10 }} />
-          <div style={{ fontSize: 13, color: '#cde4d6', fontWeight: 600, marginBottom: 4 }}>
+          <MessageCircle size={26} style={{ color: 'var(--accent-text)', marginBottom: 10 }} />
+          <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600, marginBottom: 4 }}>
             No sweeps yet
           </div>
-          <div style={{ fontSize: 12, color: '#888', maxWidth: 480, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: 'var(--outline)', maxWidth: 480, lineHeight: 1.5 }}>
             Pick a competitor channel and run a sweep. A typical sweep (10 videos × 50 comments)
             uses ~12 YouTube API quota units against a daily 10,000-unit budget.
           </div>
@@ -229,12 +224,12 @@ export default function CompetitorCommentsSection({ clientId }) {
 function SweepHistory({ history, activeId, onSelect }) {
   return (
     <div style={historyBarStyle}>
-      <div style={{ fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+      <div style={{ fontSize: 10, color: 'var(--faint)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
         Recent sweeps
       </div>
       <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
         {history.map(s => {
-          const tone = s.status === 'complete' ? '#3fa66a' : s.status === 'error' ? '#ef6b6b' : '#E8A82B';
+          const tone = s.status === 'complete' ? 'var(--pos-text)' : s.status === 'error' ? 'var(--neg-text)' : 'var(--warn)';
           const isActive = s.id === activeId;
           return (
             <button
@@ -243,14 +238,14 @@ function SweepHistory({ history, activeId, onSelect }) {
               style={historyChipStyle(isActive, tone)}
               title={s.status_message || s.status}
             >
-              <div style={{ fontWeight: 600, color: isActive ? '#cde4d6' : '#aaa' }}>
+              <div style={{ fontWeight: 600, color: isActive ? 'var(--text)' : 'var(--muted)' }}>
                 {s.competitor_name || s.competitor_youtube_id?.slice(0, 8)}
               </div>
-              <div style={{ fontSize: 9, color: '#666', marginTop: 2 }}>
+              <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 2 }}>
                 {s.status === 'complete' && (
                   <>{s.signals_extracted || 0} signals · {new Date(s.created_at).toLocaleDateString()}</>
                 )}
-                {s.status === 'error' && <span style={{ color: '#ef6b6b' }}>error</span>}
+                {s.status === 'error' && <span style={{ color: "var(--neg-text)" }}>error</span>}
                 {s.status !== 'complete' && s.status !== 'error' && s.status}
               </div>
             </button>
@@ -278,12 +273,12 @@ function SweepResults({ sweep, onStatus }) {
     <div style={resultsShellStyle}>
       <div style={resultsHeaderStyle}>
         <div>
-          <strong style={{ color: '#cde4d6', fontSize: 13 }}>{sweep.competitor_name || 'Competitor'}</strong>
-          <span style={{ fontSize: 11, color: '#666', marginLeft: 8 }}>
+          <strong style={{ color: 'var(--text)', fontSize: 13 }}>{sweep.competitor_name || 'Competitor'}</strong>
+          <span style={{ fontSize: 11, color: 'var(--faint)', marginLeft: 8 }}>
             · {sweep.videos_sampled} videos · {sweep.comments_fetched} comments · {sweep.signals_extracted} actionable signals
           </span>
         </div>
-        <div style={{ fontSize: 11, color: '#666' }}>
+        <div style={{ fontSize: 11, color: 'var(--faint)' }}>
           {new Date(sweep.created_at).toLocaleString()}
         </div>
       </div>
@@ -299,7 +294,7 @@ function SweepResults({ sweep, onStatus }) {
           title="Content requests"
           subtitle={`${requests.length} explicit "make a video about X" / "would love to see Y" patterns. Highest-leverage signal type — even one is a content gap worth scoring.`}
           icon={Megaphone}
-          color="#a78bfa"
+          color="#4cd6ff"
           signals={requests}
           onStatus={onStatus}
         />
@@ -336,13 +331,13 @@ function SignalGroup({ title, subtitle, icon: Icon, color, signals, onStatus }) 
         <span style={{ fontSize: 12, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: 0.5 }}>
           {title}
         </span>
-        <span style={{ fontSize: 11, color: '#888', flex: 1, textAlign: 'left', marginLeft: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--outline)', flex: 1, textAlign: 'left', marginLeft: 4 }}>
           · {signals.length}
         </span>
       </button>
       {expanded && (
         <>
-          <div style={{ fontSize: 11, color: '#888', padding: '0 14px 8px', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 11, color: 'var(--outline)', padding: '0 14px 8px', lineHeight: 1.5 }}>
             {subtitle}
           </div>
           <div style={signalListStyle}>
@@ -366,16 +361,16 @@ function SignalCard({ signal, onStatus, accent }) {
     <div style={signalCardStyle(reviewed, accent)}>
       <div style={signalTextStyle(dismissed)}>"{signal.comment_text}"</div>
       <div style={signalMetaStyle}>
-        <span style={{ color: '#888' }}>{signal.author || 'anonymous'}</span>
+        <span style={{ color: 'var(--outline)' }}>{signal.author || 'anonymous'}</span>
         {signal.like_count > 0 && (
-          <span style={{ color: '#666' }}>· {signal.like_count} like{signal.like_count === 1 ? '' : 's'}</span>
+          <span style={{ color: 'var(--faint)' }}>· {signal.like_count} like{signal.like_count === 1 ? '' : 's'}</span>
         )}
-        <span style={{ color: '#666' }}>· on{' '}
+        <span style={{ color: 'var(--faint)' }}>· on{' '}
           <a
             href={`https://youtube.com/watch?v=${signal.source_video_youtube_id}`}
             target="_blank"
             rel="noreferrer"
-            style={{ color: '#0A919B', textDecoration: 'none' }}
+            style={{ color: 'var(--accent-text)', textDecoration: 'none' }}
             title={signal.source_video_title || 'View source video'}
           >
             {(signal.source_video_title || signal.source_video_youtube_id).slice(0, 60)}
@@ -393,10 +388,10 @@ function SignalCard({ signal, onStatus, accent }) {
       </div>
       {!reviewed && (
         <div style={signalActionsStyle}>
-          <button onClick={() => onStatus(signal.id, 'merged_to_spine')} style={actionBtnStyle('#3fa66a')}>
+          <button onClick={() => onStatus(signal.id, 'merged_to_spine')} style={actionBtnStyle("var(--pos-deep)")}>
             <Check size={11} /> Use as Spine input
           </button>
-          <button onClick={() => onStatus(signal.id, 'starred')} style={actionBtnStyle('#E8A82B')}>
+          <button onClick={() => onStatus(signal.id, 'starred')} style={actionBtnStyle("var(--warn)")}>
             <Star size={11} /> Star
           </button>
           <button onClick={() => onStatus(signal.id, 'dismissed')} style={actionBtnGhostStyle}>
@@ -414,10 +409,10 @@ function SignalCard({ signal, onStatus, accent }) {
 
 function Note({ tone, children }) {
   const palette = {
-    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: '#0A919B' },
-    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: '#E8A82B' },
-    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: '#ef6b6b' },
-  }[tone] || { bg: '#1a1a1f', border: '#333', fg: '#aaa' };
+    info:  { bg: 'rgba(10,145,155,0.08)',  border: 'rgba(10,145,155,0.25)',  fg: 'var(--accent-text)' },
+    warn:  { bg: 'rgba(232,168,43,0.08)',  border: 'rgba(232,168,43,0.30)',  fg: 'var(--warn)' },
+    error: { bg: 'rgba(239,107,107,0.08)', border: 'rgba(239,107,107,0.30)', fg: 'var(--neg-text)' },
+  }[tone] || { bg: 'var(--input-bg)', border: 'var(--outline-variant)', fg: 'var(--muted)' };
   return (
     <div style={{
       padding: '10px 14px', borderRadius: 6,
@@ -437,31 +432,31 @@ const sectionHeaderStyle = {
   marginBottom: 12, flexWrap: 'wrap',
 };
 const kickerStyle = {
-  fontSize: 12, color: '#0A919B', fontWeight: 700,
+  fontSize: 12, color: 'var(--accent-text)', fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4,
 };
-const subtitleStyle = { fontSize: 12, color: '#888', maxWidth: 720, lineHeight: 1.5 };
+const subtitleStyle = { fontSize: 12, color: 'var(--outline)', maxWidth: 720, lineHeight: 1.5 };
 
 const runBarStyle = {
   display: 'flex', gap: 6, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap',
 };
 const selectStyle = {
-  background: '#1a1a1f', color: '#cde4d6',
-  border: '1px solid #2a2a30', borderRadius: 5,
+  background: 'var(--input-bg)', color: 'var(--text)',
+  border: '1px solid var(--border)', borderRadius: 5,
   padding: '7px 10px', fontSize: 12, cursor: 'pointer',
   minWidth: 220,
 };
 const selectSmallStyle = {
   ...({
-    background: '#1a1a1f', color: '#cde4d6',
-    border: '1px solid #2a2a30', borderRadius: 5,
+    background: 'var(--input-bg)', color: 'var(--text)',
+    border: '1px solid var(--border)', borderRadius: 5,
     padding: '7px 10px', fontSize: 12, cursor: 'pointer',
   }),
 };
 const runBtnStyle = (busy) => ({
-  background: busy ? '#1a1a1f' : '#0A919B',
-  color: busy ? '#666' : '#0a0a0e',
-  border: busy ? '1px solid #2a2a30' : 'none',
+  background: busy ? 'var(--input-bg)' : 'var(--accent-text)',
+  color: busy ? 'var(--faint)' : 'var(--bg)',
+  border: busy ? '1px solid var(--border)' : 'none',
   borderRadius: 5,
   padding: '8px 16px',
   fontSize: 12, fontWeight: 700, letterSpacing: 0.3,
@@ -471,13 +466,13 @@ const runBtnStyle = (busy) => ({
 
 const historyBarStyle = {
   marginBottom: 12, padding: 10,
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
 };
 const historyChipStyle = (active, tone) => ({
-  background: active ? `${tone}22` : 'transparent',
-  border: `1px solid ${active ? tone : '#2a2a30'}`,
+  background: active ? `color-mix(in srgb, ${tone} 13%, transparent)` : 'transparent',
+  border: `1px solid ${active ? tone : 'var(--outline-variant)'}`,
   borderRadius: 5,
   padding: '6px 10px',
   cursor: 'pointer',
@@ -488,8 +483,8 @@ const historyChipStyle = (active, tone) => ({
 });
 
 const resultsShellStyle = {
-  background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 6, padding: 12,
 };
 const resultsHeaderStyle = {
@@ -498,19 +493,19 @@ const resultsHeaderStyle = {
 };
 
 const groupShellStyle = {
-  background: '#0a0a0e',
-  border: '1px solid #2a2a30',
+  background: 'var(--bg)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
   marginBottom: 10,
 };
-const groupHeaderBtnStyle = (color) => ({
+const groupHeaderBtnStyle = (_color) => ({
   background: 'transparent',
   border: 'none',
   width: '100%',
   padding: '10px 14px',
   display: 'flex', alignItems: 'center', gap: 8,
   cursor: 'pointer',
-  borderLeft: `2px solid ${color}`,
+  borderLeft: '2px solid var(--border)',
   borderRadius: '6px 6px 0 0',
 });
 
@@ -519,18 +514,18 @@ const signalListStyle = {
   padding: '4px 14px 14px',
 };
 const signalCardStyle = (reviewed, accent) => ({
-  background: reviewed ? '#0e0e11' : '#1a1a1f',
-  border: '1px solid #2a2a30',
-  borderLeft: `2px solid ${reviewed ? '#2a2a30' : `${accent}88`}`,
+  background: reviewed ? 'var(--bg)' : 'var(--input-bg)',
+  border: '1px solid var(--border)',
+  borderLeft: `2px solid ${reviewed ? 'var(--outline-variant)' : `color-mix(in srgb, ${accent} 53%, transparent)`}`,
   borderRadius: 4, padding: 10,
   opacity: reviewed ? 0.7 : 1,
 });
 const signalTextStyle = (dismissed) => ({
-  fontSize: 13, color: '#e8e2d0', lineHeight: 1.55, marginBottom: 6,
+  fontSize: 13, color: 'var(--ink)', lineHeight: 1.55, marginBottom: 6,
   textDecoration: dismissed ? 'line-through' : 'none',
 });
 const signalMetaStyle = {
-  fontSize: 11, color: '#888',
+  fontSize: 11, color: 'var(--outline)',
   display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center',
 };
 const signalActionsStyle = {
@@ -538,15 +533,15 @@ const signalActionsStyle = {
   marginTop: 8, paddingTop: 8, borderTop: '1px dashed #2a2a30',
 };
 const actionBtnStyle = (color) => ({
-  background: `${color}22`,
-  color, border: `1px solid ${color}55`,
+  background: `color-mix(in srgb, ${color} 13%, transparent)`,
+  color, border: `1px solid color-mix(in srgb, ${color} 33%, transparent)`,
   borderRadius: 4, padding: '4px 10px',
   fontSize: 11, fontWeight: 700, cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4,
 });
 const actionBtnGhostStyle = {
-  background: 'transparent', color: '#888',
-  border: '1px solid #2a2a30', borderRadius: 4,
+  background: 'transparent', color: 'var(--outline)',
+  border: '1px solid var(--border)', borderRadius: 4,
   padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
   display: 'inline-flex', alignItems: 'center', gap: 4,
 };
@@ -555,12 +550,12 @@ const statusBadgeStyle = (status) => ({
   background: status === 'merged_to_spine' ? 'rgba(63,166,106,0.15)'
             : status === 'starred'         ? 'rgba(232,168,43,0.15)'
             : 'rgba(128,128,128,0.10)',
-  color: status === 'merged_to_spine' ? '#3fa66a'
-       : status === 'starred'         ? '#E8A82B'
-       : '#888',
+  color: status === 'merged_to_spine' ? 'var(--pos-text)'
+       : status === 'starred'         ? 'var(--warn)'
+       : 'var(--outline)',
   border: status === 'merged_to_spine' ? '1px solid rgba(63,166,106,0.40)'
         : status === 'starred'         ? '1px solid rgba(232,168,43,0.40)'
-        : '1px solid #2a2a30',
+        : '1px solid var(--border)',
   borderRadius: 3, padding: '1px 7px',
   fontSize: 9, fontWeight: 700, letterSpacing: 0.4,
   display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -568,7 +563,7 @@ const statusBadgeStyle = (status) => ({
 
 const emptyStyle = {
   display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
-  padding: 28, background: '#0e0e11',
-  border: '1px solid #2a2a30',
+  padding: 28, background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
 };

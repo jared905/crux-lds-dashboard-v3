@@ -2,18 +2,19 @@
  * Landscape lens — the master channel table.
  * Inline category norms, sortable columns, click-row → drawer.
  */
-import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronUp, ChevronDown, Loader, Sparkles, Wand2, AlertTriangle, Plus } from 'lucide-react';
+import {useEffect, useMemo, useState} from 'react';
 import {
   fetchLandscapeChannels,
   computeCategoryNorms,
   computeNormDelta,
 } from '../../services/researchV2Service.js';
 import { supabase } from '../../services/supabaseClient';
-import ChannelDrawer from './ChannelDrawer.jsx';
-import LandscapeBulkSheet from './LandscapeBulkSheet.jsx';
+import { apiFetch } from '../../services/apiFetch';
+import { AlertTriangle, ChevronDown, ChevronUp, Loader, Plus, Sparkles, Wand2 } from 'lucide-react';
 import AddChannelsModal from './AddChannelsModal.jsx';
+import ChannelDrawer from './ChannelDrawer.jsx';
 import ChannelIssuesModal from './ChannelIssuesModal.jsx';
+import LandscapeBulkSheet from './LandscapeBulkSheet.jsx';
 
 const SORTS = {
   name:        { label: 'Channel',       get: c => (c.name || '').toLowerCase() },
@@ -46,6 +47,9 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
   const [resolveStatus, setResolveStatus] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
+  // The scope object's identity churns per render; this serialized key covers
+  // every scope field the fetch reads, so it stands in as the dependency.
+  const scopeKey = [scope.categoryIds?.join(','), scope.tags?.join(','), scope.tiers?.join(','), scope.clientId, scope.search, scope.windowDays].join('|');
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -53,15 +57,8 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
       .then(data => { if (!cancelled) { setChannels(data); setLoading(false); } })
       .catch(err => { console.error('[Landscape] fetch failed:', err); if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [
-    scope.categoryIds?.join(','),
-    scope.tags?.join(','),
-    scope.tiers?.join(','),
-    scope.clientId,
-    scope.search,
-    scope.windowDays,
-    refreshKey,
-  ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey, refreshKey]);
 
   const norms = useMemo(() => computeCategoryNorms(channels), [channels]);
 
@@ -157,7 +154,7 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
     setResolving(true);
     setResolveStatus({ ok: true, message: 'Resolving handles…' });
     try {
-      const resp = await fetch('/api/resolve-handles?manual=true', { method: 'POST' });
+      const resp = await apiFetch('/api/resolve-handles', { method: 'POST' });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
       setResolveStatus({
@@ -235,7 +232,7 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
 
   if (loading) {
     return (
-      <div style={{ padding: '60px', textAlign: 'center', color: '#666' }}>
+      <div style={{ padding: '60px', textAlign: 'center', color: 'var(--faint)' }}>
         <Loader size={20} style={{ animation: 'spin 1s linear infinite' }} />
         <div style={{ marginTop: '8px', fontSize: '12px' }}>Loading channels…</div>
       </div>
@@ -264,19 +261,19 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         marginBottom: 10, gap: 10, flexWrap: 'wrap',
       }}>
-        <div style={{ fontSize: 12, color: '#888', display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 12, color: 'var(--outline)', display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span>{channels.length} channel{channels.length === 1 ? '' : 's'}</span>
           {uncategorizedCount > 0 && (
-            <span>· <span style={{ color: '#f59e0b', fontWeight: 600 }}>{uncategorizedCount}</span> uncategorized</span>
+            <span>· <span style={{ color: "var(--warn)", fontWeight: 600 }}>{uncategorizedCount}</span> uncategorized</span>
           )}
           {healthCounts.handles > 0 && (
             <span title="Channels imported by @handle but never resolved to a YouTube channel ID. They're skipped on every sync.">
-              · <span style={{ color: '#fbbf24', fontWeight: 600 }}>{healthCounts.handles}</span> unresolved handle{healthCounts.handles === 1 ? '' : 's'}
+              · <span style={{ color: "var(--warn-text)", fontWeight: 600 }}>{healthCounts.handles}</span> unresolved handle{healthCounts.handles === 1 ? '' : 's'}
             </span>
           )}
           {healthCounts.errors > 0 && (
             <span title="Channels failing to sync. Query channels.last_sync_error in Supabase to see what's wrong (deleted, renamed, bad ID, etc.).">
-              · <span style={{ color: '#f87171', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              · <span style={{ color: "var(--neg-text)", fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                 <AlertTriangle size={11} />{healthCounts.errors}
               </span> failing sync
             </span>
@@ -284,12 +281,12 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {classifyStatus && (
-            <span style={{ fontSize: 12, fontWeight: 500, color: classifyStatus.ok ? '#34d399' : '#f87171' }}>
+            <span style={{ fontSize: 12, fontWeight: 500, color: classifyStatus.ok ? "var(--pos-text)" : "var(--neg-text)" }}>
               {classifyStatus.ok ? '✓ ' : '✕ '}{classifyStatus.message}
             </span>
           )}
           {resolveStatus && (
-            <span style={{ fontSize: 12, fontWeight: 500, color: resolveStatus.ok ? '#34d399' : '#f87171' }}>
+            <span style={{ fontSize: 12, fontWeight: 500, color: resolveStatus.ok ? "var(--pos-text)" : "var(--neg-text)" }}>
               {resolveStatus.ok ? '✓ ' : '✕ '}{resolveStatus.message}
             </span>
           )}
@@ -300,8 +297,8 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
               title="Look up each @handle on YouTube and replace the placeholder with the real channel ID"
               style={{
                 padding: '6px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-                background: resolving ? '#1c1c20' : '#18181c',
-                color: resolving ? '#666' : '#d4d4d8',
+                background: resolving ? 'var(--card)' : 'var(--card)',
+                color: resolving ? 'var(--faint)' : 'var(--text)',
                 border: '1px solid #232328', borderRadius: 6,
                 cursor: resolving ? 'wait' : 'pointer',
                 display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -317,7 +314,7 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
             title="Add competitor channels or a non-OAuth client by URL/@handle/ID"
             style={{
               padding: '6px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-              background: '#18181c', color: '#d4d4d8',
+              background: 'var(--card)', color: 'var(--text)',
               border: '1px solid #232328', borderRadius: 6, cursor: 'pointer',
               display: 'inline-flex', alignItems: 'center', gap: 6,
             }}
@@ -331,8 +328,8 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
               title="Use Claude to assign categories + tags to channels that don't have any"
               style={{
                 padding: '6px 12px', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-                background: classifying ? '#1c1c20' : '#18181c',
-                color: classifying ? '#666' : '#d4d4d8',
+                background: classifying ? 'var(--card)' : 'var(--card)',
+                color: classifying ? 'var(--faint)' : 'var(--text)',
                 border: '1px solid #232328', borderRadius: 6,
                 cursor: classifying ? 'wait' : 'pointer',
                 display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -349,7 +346,7 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
           that anchors position:sticky on the thead cells. Sticky inside a
           dedicated scroll container is bulletproof in every modern browser. */}
       <div style={{
-        background: '#131316',
+        background: 'var(--bg)',
         border: '1px solid #1f1f24',
         borderRadius: '10px',
         overflow: 'hidden',
@@ -396,9 +393,9 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
         <div style={{
           display: 'flex', alignItems: 'center', gap: '10px',
           padding: '12px 16px', marginTop: '14px',
-          background: '#1e3a5f', border: '1px solid #3b82f6', borderRadius: '8px',
+          background: 'var(--surface-high)', border: '1px solid #00D1FF', borderRadius: '8px',
         }}>
-          <span style={{ color: '#fff', fontWeight: 600, fontSize: '13px' }}>
+          <span style={{ color: "var(--ink)", fontWeight: 600, fontSize: '13px' }}>
             {selected.size} selected
           </span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
@@ -411,7 +408,7 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
         </div>
       )}
 
-      <div style={{ padding: '14px 4px', color: '#888', fontSize: '12px' }}>
+      <div style={{ padding: '14px 4px', color: 'var(--outline)', fontSize: '12px' }}>
         Showing {sorted.length} channel{sorted.length !== 1 ? 's' : ''} in scope
       </div>
 
@@ -472,10 +469,10 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
       onClick={onOpen}
       style={{
         cursor: 'pointer',
-        background: selected ? 'rgba(59,130,246,0.05)' : 'transparent',
+        background: selected ? 'rgba(0,209,255,0.05)' : 'transparent',
       }}
-      onMouseEnter={e => e.currentTarget.style.background = selected ? 'rgba(59,130,246,0.08)' : '#16161a'}
-      onMouseLeave={e => e.currentTarget.style.background = selected ? 'rgba(59,130,246,0.05)' : 'transparent'}
+      onMouseEnter={e => e.currentTarget.style.background = selected ? 'rgba(0,209,255,0.08)' : 'var(--card)'}
+      onMouseLeave={e => e.currentTarget.style.background = selected ? 'rgba(0,209,255,0.05)' : 'transparent'}
     >
       <Td>
         <input
@@ -489,15 +486,15 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Avatar name={channel.name} thumbnail={channel.thumbnail} />
           <div>
-            <div style={{ fontWeight: 600, color: '#fff' }}>{channel.name}</div>
-            {channel.handle && <div style={{ fontSize: '11px', color: '#666' }}>{channel.handle}</div>}
+            <div style={{ fontWeight: 600, color: "var(--ink)" }}>{channel.name}</div>
+            {channel.handle && <div style={{ fontSize: '11px', color: 'var(--faint)' }}>{channel.handle}</div>}
           </div>
         </div>
       </Td>
       <Td>
         {channel.categories.length === 0 ? (
           <span style={{
-            fontSize: '11px', color: '#555', fontStyle: 'italic',
+            fontSize: '11px', color: 'var(--faint)', fontStyle: 'italic',
           }}>Uncategorized</span>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
@@ -512,11 +509,11 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
         {channel.deltaSubs != null
           ? <span
               title={channel.deltaSubsBasisDate ? `Since snapshot on ${channel.deltaSubsBasisDate}` : ''}
-              style={{ color: channel.deltaSubs > 0 ? '#34d399' : channel.deltaSubs < 0 ? '#f87171' : '#888', fontWeight: 600 }}
+              style={{ color: channel.deltaSubs > 0 ? "var(--pos-text)" : channel.deltaSubs < 0 ? "var(--neg-text)" : 'var(--outline)', fontWeight: 600 }}
             >
               {channel.deltaSubs > 0 ? '+' : ''}{formatNumber(channel.deltaSubs)}
             </span>
-          : <span style={{ color: '#555' }} title="Need at least one channel_snapshot in window">—</span>
+          : <span style={{ color: 'var(--faint)' }} title="Need at least one channel_snapshot in window">—</span>
         }
       </Td>
       <Td align="right">
@@ -537,7 +534,7 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
       </Td>
       <Td>
         <span
-          style={{ color: '#888' }}
+          style={{ color: 'var(--outline)' }}
           title={
             channel.uploadsPerWeekLong != null || channel.uploadsPerWeekShort != null
               ? `${(channel.uploadsPerWeekLong ?? 0).toFixed(1)} long-form/wk · ${(channel.uploadsPerWeekShort ?? 0).toFixed(1)} Shorts/wk${
@@ -556,11 +553,11 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
         </span>
       </Td>
       <Td>
-        <span style={{ color: '#888', fontSize: '12px' }}>
+        <span style={{ color: 'var(--outline)', fontSize: '12px' }}>
           {formatLastUpload(channel.lastUpload)}
         </span>
       </Td>
-      <Td><span style={{ color: '#555' }}>›</span></Td>
+      <Td><span style={{ color: 'var(--faint)' }}>›</span></Td>
     </tr>
   );
 }
@@ -572,7 +569,7 @@ function PipelineHealth({ counts, freshnessPct, expanded, onToggle, onOpenIssues
   const { total, fresh24h, latestSync, oldestSync, handles, errors } = counts;
   if (total === 0) return null;
 
-  const pctColor = freshnessPct >= 90 ? '#10b981' : freshnessPct >= 70 ? '#f59e0b' : '#ef4444';
+  const pctColor = freshnessPct >= 90 ? 'var(--pos)' : freshnessPct >= 70 ? 'var(--warn)' : 'var(--neg)';
   const overallOk = freshnessPct >= 90 && errors === 0 && handles === 0;
   const linkBtn = (color) => ({
     background: 'transparent', border: 'none', padding: 0,
@@ -584,31 +581,31 @@ function PipelineHealth({ counts, freshnessPct, expanded, onToggle, onOpenIssues
   return (
     <div style={{
       padding: '11px 16px', marginBottom: 12,
-      background: overallOk ? 'rgba(16,185,129,0.06)' : '#15151a',
-      border: `1px solid ${overallOk ? 'rgba(16,185,129,0.25)' : '#232328'}`,
+      background: overallOk ? 'rgba(205,242,0,0.06)' : 'var(--bg)',
+      border: `1px solid ${overallOk ? 'rgba(205,242,0,0.25)' : 'var(--surface-high)'}`,
       borderRadius: 10,
     }}>
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        fontFamily: 'inherit', color: '#d4d4d8',
+        fontFamily: 'inherit', color: 'var(--text)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: 700, color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontWeight: 700, color: "var(--ink)", display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             Pipeline health
           </span>
           <Bar pct={freshnessPct} color={pctColor} />
           <span><strong style={{ color: pctColor }}>{freshnessPct}%</strong> synced &lt; 24h ({fresh24h}/{total})</span>
-          {latestSync && <span style={{ color: '#888' }}>· Last sync {formatRelative(latestSync)}</span>}
+          {latestSync && <span style={{ color: 'var(--outline)' }}>· Last sync {formatRelative(latestSync)}</span>}
           {errors > 0 && (
-            <span>· <button onClick={() => onOpenIssues('failing')} style={linkBtn('#f87171')} title="See which channels are failing and why">{errors} failing</button></span>
+            <span>· <button onClick={() => onOpenIssues('failing')} style={linkBtn("var(--neg-text)")} title="See which channels are failing and why">{errors} failing</button></span>
           )}
           {handles > 0 && (
-            <span>· <button onClick={() => onOpenIssues('handles')} style={linkBtn('#fbbf24')} title="See which @handles couldn't be resolved to a YouTube channel ID">{handles} unresolved handle{handles === 1 ? '' : 's'}</button></span>
+            <span>· <button onClick={() => onOpenIssues('handles')} style={linkBtn("var(--warn-text)")} title="See which @handles couldn't be resolved to a YouTube channel ID">{handles} unresolved handle{handles === 1 ? '' : 's'}</button></span>
           )}
         </div>
         <button onClick={onToggle} style={{
           background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-          color: '#666', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4,
+          color: 'var(--faint)', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4,
         }}>
           {expanded ? 'Hide details' : 'Show details'}
           <ChevronDown size={11} style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
@@ -620,16 +617,16 @@ function PipelineHealth({ counts, freshnessPct, expanded, onToggle, onOpenIssues
           <DetailStat label="Tracked channels"    value={total.toLocaleString()} />
           <DetailStat label="Synced under 24h"    value={`${fresh24h.toLocaleString()} (${freshnessPct}%)`} valueColor={pctColor} />
           <DetailStat label="Most recent sync"    value={latestSync ? formatRelative(latestSync) : '—'} />
-          <DetailStat label="Oldest channel sync" value={oldestSync ? formatRelative(oldestSync) : '—'} valueColor={oldestSync && (Date.now() - new Date(oldestSync).getTime()) > 7 * 86400000 ? '#fbbf24' : undefined} />
+          <DetailStat label="Oldest channel sync" value={oldestSync ? formatRelative(oldestSync) : '—'} valueColor={oldestSync && (Date.now() - new Date(oldestSync).getTime()) > 7 * 86400000 ? 'var(--warn-text)' : undefined} />
           <DetailStat
             label="Failing sync"
-            value={errors > 0 ? <button onClick={() => onOpenIssues('failing')} style={linkBtn('#f87171')}>{errors} — view</button> : '0'}
-            valueColor={errors > 0 ? '#f87171' : undefined}
+            value={errors > 0 ? <button onClick={() => onOpenIssues('failing')} style={linkBtn("var(--neg-text)")}>{errors} — view</button> : '0'}
+            valueColor={errors > 0 ? 'var(--neg-text)' : undefined}
           />
           <DetailStat
             label="Unresolved handles"
-            value={handles > 0 ? <button onClick={() => onOpenIssues('handles')} style={linkBtn('#fbbf24')}>{handles} — view</button> : '0'}
-            valueColor={handles > 0 ? '#fbbf24' : undefined}
+            value={handles > 0 ? <button onClick={() => onOpenIssues('handles')} style={linkBtn("var(--warn-text)")}>{handles} — view</button> : '0'}
+            valueColor={handles > 0 ? 'var(--warn-text)' : undefined}
           />
         </div>
       )}
@@ -639,7 +636,7 @@ function PipelineHealth({ counts, freshnessPct, expanded, onToggle, onOpenIssues
 
 function Bar({ pct, color }) {
   return (
-    <div style={{ width: 70, height: 6, borderRadius: 3, background: '#232328', overflow: 'hidden' }}>
+    <div style={{ width: 70, height: 6, borderRadius: 3, background: 'var(--surface-high)', overflow: 'hidden' }}>
       <div style={{ width: `${Math.min(100, Math.max(0, pct))}%`, height: '100%', background: color, transition: 'width 200ms' }} />
     </div>
   );
@@ -648,8 +645,8 @@ function Bar({ pct, color }) {
 function DetailStat({ label, value, valueColor }) {
   return (
     <div>
-      <div style={{ fontSize: 10, color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: valueColor || '#f4f4f5' }}>{value}</div>
+      <div style={{ fontSize: 10, color: 'var(--faint)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: valueColor || 'var(--ink)' }}>{value}</div>
     </div>
   );
 }
@@ -677,11 +674,11 @@ function Th({ children, width, align = 'left', sortKey, current, dir, onSort }) 
       style={{
         width, textAlign: align,
         padding: '11px 14px',
-        fontSize: '10px', fontWeight: 700, color: isActive ? '#fff' : '#707070',
+        fontSize: '10px', fontWeight: 700, color: isActive ? 'var(--ink)' : 'var(--faint)',
         letterSpacing: '0.7px', textTransform: 'uppercase',
         // sticky on each th (more reliable than sticky <thead> in some browsers)
         position: 'sticky', top: 0, zIndex: 5,
-        background: '#16161a',
+        background: 'var(--card)',
         // bottom border replaces the row's borderBottom so the stuck cells
         // keep their divider as content scrolls underneath
         boxShadow: 'inset 0 -1px 0 #1f1f24',
@@ -704,7 +701,7 @@ function Td({ children, align = 'left' }) {
       padding: '13px 14px',
       textAlign: align,
       verticalAlign: 'middle',
-      color: '#d4d4d4',
+      color: 'var(--text)',
       fontVariantNumeric: 'tabular-nums',
       // border-collapse: separate means we put the row divider on cells
       borderBottom: '1px solid #1c1c20',
@@ -713,19 +710,19 @@ function Td({ children, align = 'left' }) {
 }
 
 function MetricCell({ value, norm, normName, suffix = '', format = 'number' }) {
-  if (value == null) return <span style={{ color: '#555' }}>—</span>;
+  if (value == null) return <span style={{ color: 'var(--faint)' }}>—</span>;
   const delta = norm != null ? computeNormDelta(value, norm) : null;
   const display = format === 'percent'
     ? `${(value * 100).toFixed(1)}%`
     : `${formatNumber(value)}${suffix}`;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1px' }}>
-      <span style={{ color: '#fff', fontWeight: 600 }}>{display}</span>
+      <span style={{ color: "var(--ink)", fontWeight: 600 }}>{display}</span>
       {delta && (
         <span style={{
           fontSize: '10px',
           fontWeight: delta.direction === 'flat' ? 400 : 600,
-          color: delta.direction === 'pos' ? '#34d399' : delta.direction === 'neg' ? '#f87171' : '#707070',
+          color: delta.direction === 'pos' ? "var(--pos-text)" : delta.direction === 'neg' ? "var(--neg-text)" : 'var(--faint)',
         }}>
           {delta.direction === 'pos' && '▲ '}
           {delta.direction === 'neg' && '▼ '}
@@ -739,11 +736,11 @@ function MetricCell({ value, norm, normName, suffix = '', format = 'number' }) {
 function FormatBar({ mix }) {
   return (
     <div>
-      <div style={{ display: 'flex', gap: '1px', width: '60px', height: '8px', borderRadius: '2px', overflow: 'hidden', background: '#1c1c20', marginRight: '6px' }}>
-        <div style={{ width: `${mix.long * 100}%`, background: '#0ea5e9' }} />
-        <div style={{ width: `${mix.short * 100}%`, background: '#f97316' }} />
+      <div style={{ display: 'flex', gap: '1px', width: '60px', height: '8px', borderRadius: '2px', overflow: 'hidden', background: 'var(--card)', marginRight: '6px' }}>
+        <div style={{ width: `${mix.long * 100}%`, background: 'var(--blue)' }} />
+        <div style={{ width: `${mix.short * 100}%`, background: "var(--warn-deep)" }} />
       </div>
-      <span style={{ fontSize: '10px', color: '#888' }}>
+      <span style={{ fontSize: '10px', color: 'var(--outline)' }}>
         {Math.round(mix.long * 100)}% / {Math.round(mix.short * 100)}%
       </span>
     </div>
@@ -757,7 +754,7 @@ function Avatar({ name, thumbnail, size = 28 }) {
     width: size, height: size, borderRadius: '50%',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     fontSize: Math.max(10, Math.floor(size * 0.4)),
-    fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden',
+    fontWeight: 700, color: 'var(--ink)', flexShrink: 0, overflow: 'hidden',
     background: `linear-gradient(135deg, hsl(${hue},65%,45%), hsl(${(hue + 40) % 360},65%,55%))`,
   };
   if (thumbnail) {
@@ -795,9 +792,9 @@ function TinyBtn({ children, primary, onClick }) {
       onClick={onClick}
       style={{
         padding: '5px 11px', borderRadius: '5px', fontSize: '12px', fontWeight: 600,
-        background: primary ? '#2563eb' : 'transparent',
-        color: primary ? '#fff' : '#d4d4d8',
-        border: primary ? 'none' : '1px solid #3b82f6',
+        background: primary ? 'var(--blue)' : 'transparent',
+        color: primary ? 'var(--ink)' : 'var(--text)',
+        border: primary ? 'none' : '1px solid #00D1FF',
         cursor: 'pointer',
         fontFamily: 'inherit',
       }}
@@ -808,11 +805,11 @@ function TinyBtn({ children, primary, onClick }) {
 function EmptyState({ scope }) {
   const hasFilters = scope.categoryIds?.length || scope.tags?.length;
   return (
-    <div style={{ padding: '80px 20px', textAlign: 'center', color: '#888', background: '#131316', border: '1px solid #1f1f24', borderRadius: '10px' }}>
-      <div style={{ fontSize: '16px', color: '#fff', marginBottom: '8px' }}>
+    <div style={{ padding: '80px 20px', textAlign: 'center', color: 'var(--outline)', background: 'var(--bg)', border: '1px solid #1f1f24', borderRadius: '10px' }}>
+      <div style={{ fontSize: '16px', color: "var(--ink)", marginBottom: '8px' }}>
         {hasFilters ? 'No channels match this scope' : 'No competitor channels yet'}
       </div>
-      <div style={{ fontSize: '13px', color: '#666', maxWidth: '360px', margin: '0 auto', lineHeight: 1.6 }}>
+      <div style={{ fontSize: '13px', color: 'var(--faint)', maxWidth: '360px', margin: '0 auto', lineHeight: 1.6 }}>
         {hasFilters
           ? 'Try removing a filter, expanding the window, or including more tiers.'
           : 'Add competitor channels via the Manage page to start populating Research.'}

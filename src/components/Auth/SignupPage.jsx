@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import {useState} from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Eye, EyeOff, UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Eye, EyeOff, UserPlus } from 'lucide-react';
 
 const SignupPage = ({ onSwitchToLogin }) => {
   const { signUp } = useAuth();
@@ -45,7 +45,7 @@ const SignupPage = ({ onSwitchToLogin }) => {
     return (
       <div style={{
         minHeight: '100vh',
-        background: '#181817',
+        background: "var(--bg)",
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -54,8 +54,8 @@ const SignupPage = ({ onSwitchToLogin }) => {
         <div style={{
           width: '100%',
           maxWidth: '400px',
-          background: '#1E1E1E',
-          borderRadius: '8px',
+          background: "var(--card)",
+          borderRadius: "24px",
           padding: '40px',
           boxShadow: '0 4px 24px rgba(0, 0, 0, 0.4)',
           textAlign: 'center'
@@ -70,12 +70,12 @@ const SignupPage = ({ onSwitchToLogin }) => {
             justifyContent: 'center',
             margin: '0 auto 24px'
           }}>
-            <CheckCircle size={32} color="#00C853" />
+            <CheckCircle size={32} color="#CDF200" />
           </div>
-          <h2 style={{ color: '#E0E0E0', fontSize: '20px', marginBottom: '12px' }}>
+          <h2 style={{ color: "var(--text)", fontSize: '20px', marginBottom: '12px' }}>
             Account Created!
           </h2>
-          <p style={{ color: '#9E9E9E', fontSize: '14px', marginBottom: '24px' }}>
+          <p style={{ color: "var(--muted)", fontSize: '14px', marginBottom: '24px' }}>
             Your account is ready. You can now sign in.
           </p>
           <button
@@ -83,10 +83,10 @@ const SignupPage = ({ onSwitchToLogin }) => {
             style={{
               width: '100%',
               padding: '14px',
-              background: '#2962FF',
+              background: "var(--blue)",
               border: 'none',
               borderRadius: '8px',
-              color: '#FFFFFF',
+              color: "var(--ink)",
               fontSize: '16px',
               fontWeight: '600',
               cursor: 'pointer'
@@ -102,7 +102,7 @@ const SignupPage = ({ onSwitchToLogin }) => {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#181817',
+      background: "var(--bg)",
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -111,8 +111,8 @@ const SignupPage = ({ onSwitchToLogin }) => {
       <div style={{
         width: '100%',
         maxWidth: '400px',
-        background: '#1E1E1E',
-        borderRadius: '8px',
+        background: "var(--card)",
+        borderRadius: "24px",
         padding: '40px',
         boxShadow: '0 4px 24px rgba(0, 0, 0, 0.4)'
       }}>
@@ -134,7 +134,7 @@ const SignupPage = ({ onSwitchToLogin }) => {
 
         {/* Title */}
         <h1 style={{
-          color: '#E0E0E0',
+          color: "var(--text)",
           fontSize: '28px',
           fontWeight: '700',
           textAlign: 'center',
@@ -143,7 +143,7 @@ const SignupPage = ({ onSwitchToLogin }) => {
           Create Account
         </h1>
         <p style={{
-          color: '#9E9E9E',
+          color: "var(--muted)",
           fontSize: '14px',
           textAlign: 'center',
           marginBottom: '32px'
@@ -163,8 +163,8 @@ const SignupPage = ({ onSwitchToLogin }) => {
             borderRadius: '8px',
             marginBottom: '24px'
           }}>
-            <AlertCircle size={18} color="#CF6679" />
-            <span style={{ color: '#CF6679', fontSize: '14px' }}>{error}</span>
+            <AlertCircle size={18} color="#ff8375" />
+            <span style={{ color: "var(--neg)", fontSize: '14px' }}>{error}</span>
           </div>
         )}
 
@@ -174,7 +174,7 @@ const SignupPage = ({ onSwitchToLogin }) => {
           <div style={{ marginBottom: '20px' }}>
             <label style={{
               display: 'block',
-              color: '#9E9E9E',
+              color: "var(--muted)",
               fontSize: '14px',
               fontWeight: '500',
               marginBottom: '8px'
@@ -190,17 +190,17 @@ const SignupPage = ({ onSwitchToLogin }) => {
               style={{
                 width: '100%',
                 padding: '12px 16px',
-                background: '#181817',
-                border: '1px solid #2A2A2A',
+                background: "var(--bg)",
+                border: "1px solid var(--border)",
                 borderRadius: '8px',
-                color: '#E0E0E0',
+                color: "var(--text)",
                 fontSize: '14px',
                 outline: 'none',
                 transition: 'border-color 0.2s',
                 boxSizing: 'border-box'
               }}
-              onFocus={(e) => e.target.style.borderColor = '#2962FF'}
-              onBlur={(e) => e.target.style.borderColor = '#2A2A2A'}
+              onFocus={(e) => e.target.style.borderColor = "var(--blue)"}
+              onBlur={(e) => e.target.style.borderColor = "var(--border)"}
             />
           </div>
 
@@ -208,7 +208,7 @@ const SignupPage = ({ onSwitchToLogin }) => {
           <div style={{ marginBottom: '20px' }}>
             <label style={{
               display: 'block',
-              color: '#9E9E9E',
+              color: "var(--muted)",
               fontSize: '14px',
               fontWeight: '500',
               marginBottom: '8px'
@@ -225,17 +225,17 @@ const SignupPage = ({ onSwitchToLogin }) => {
                 style={{
                   width: '100%',
                   padding: '12px 48px 12px 16px',
-                  background: '#181817',
-                  border: '1px solid #2A2A2A',
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
                   borderRadius: '8px',
-                  color: '#E0E0E0',
+                  color: "var(--text)",
                   fontSize: '14px',
                   outline: 'none',
                   transition: 'border-color 0.2s',
                   boxSizing: 'border-box'
                 }}
-                onFocus={(e) => e.target.style.borderColor = '#2962FF'}
-                onBlur={(e) => e.target.style.borderColor = '#2A2A2A'}
+                onFocus={(e) => e.target.style.borderColor = "var(--blue)"}
+                onBlur={(e) => e.target.style.borderColor = "var(--border)"}
               />
               <button
                 type="button"
@@ -247,7 +247,7 @@ const SignupPage = ({ onSwitchToLogin }) => {
                   transform: 'translateY(-50%)',
                   background: 'transparent',
                   border: 'none',
-                  color: '#9E9E9E',
+                  color: "var(--muted)",
                   cursor: 'pointer',
                   padding: '4px',
                   display: 'flex',
@@ -264,7 +264,7 @@ const SignupPage = ({ onSwitchToLogin }) => {
           <div style={{ marginBottom: '24px' }}>
             <label style={{
               display: 'block',
-              color: '#9E9E9E',
+              color: "var(--muted)",
               fontSize: '14px',
               fontWeight: '500',
               marginBottom: '8px'
@@ -280,19 +280,55 @@ const SignupPage = ({ onSwitchToLogin }) => {
               style={{
                 width: '100%',
                 padding: '12px 16px',
-                background: '#181817',
-                border: '1px solid #2A2A2A',
+                background: "var(--bg)",
+                border: "1px solid var(--border)",
                 borderRadius: '8px',
-                color: '#E0E0E0',
+                color: "var(--text)",
                 fontSize: '14px',
                 outline: 'none',
                 transition: 'border-color 0.2s',
                 boxSizing: 'border-box'
               }}
-              onFocus={(e) => e.target.style.borderColor = '#2962FF'}
-              onBlur={(e) => e.target.style.borderColor = '#2A2A2A'}
+              onFocus={(e) => e.target.style.borderColor = "var(--blue)"}
+              onBlur={(e) => e.target.style.borderColor = "var(--border)"}
             />
           </div>
+
+          {/*
+            Terms + Privacy assent. Signup previously created an account with
+            no reference to either document anywhere on this page, leaving the
+            ToS's "by using this you agree" clause as the only basis — a
+            browsewrap theory, which is far weaker than showing the terms at
+            the point of assent. This sits directly above the button so the
+            act of creating the account is the act of accepting.
+          */}
+          <p style={{
+            color: "var(--muted)",
+            fontSize: '13px',
+            lineHeight: 1.5,
+            marginBottom: '16px',
+            textAlign: 'center',
+          }}>
+            By creating an account you agree to our{' '}
+            <a
+              href="/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--blue)", textDecoration: 'underline' }}
+            >
+              Terms of Service
+            </a>{' '}
+            and{' '}
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--blue)", textDecoration: 'underline' }}
+            >
+              Privacy Policy
+            </a>
+            .
+          </p>
 
           {/* Submit Button */}
           <button
@@ -301,10 +337,10 @@ const SignupPage = ({ onSwitchToLogin }) => {
             style={{
               width: '100%',
               padding: '14px',
-              background: loading ? '#1a4bb8' : '#2962FF',
+              background: loading ? 'var(--blue)' : "var(--blue)",
               border: 'none',
-              borderRadius: '8px',
-              color: '#FFFFFF',
+              borderRadius: '16px',
+              color: 'var(--on-accent)',
               fontSize: '16px',
               fontWeight: '600',
               cursor: loading ? 'not-allowed' : 'pointer',
@@ -314,8 +350,8 @@ const SignupPage = ({ onSwitchToLogin }) => {
               gap: '8px',
               transition: 'background 0.2s'
             }}
-            onMouseEnter={(e) => !loading && (e.target.style.background = '#1a4bb8')}
-            onMouseLeave={(e) => !loading && (e.target.style.background = '#2962FF')}
+            onMouseEnter={(e) => !loading && (e.target.style.background = 'var(--blue)')}
+            onMouseLeave={(e) => !loading && (e.target.style.background = "var(--blue)")}
           >
             {loading ? (
               <span>Creating account...</span>
@@ -330,7 +366,7 @@ const SignupPage = ({ onSwitchToLogin }) => {
 
         {/* Sign In Link */}
         <p style={{
-          color: '#9E9E9E',
+          color: "var(--muted)",
           fontSize: '14px',
           textAlign: 'center',
           marginTop: '24px'
@@ -341,7 +377,7 @@ const SignupPage = ({ onSwitchToLogin }) => {
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#2962FF',
+              color: "var(--blue)",
               fontSize: '14px',
               fontWeight: '600',
               cursor: 'pointer',
@@ -362,9 +398,9 @@ const SignupPage = ({ onSwitchToLogin }) => {
           gap: '6px',
           marginTop: '32px',
           paddingTop: '24px',
-          borderTop: '1px solid #333'
+          borderTop: '1px solid var(--border)'
         }}>
-          <span style={{ fontSize: '10px', color: '#666', fontWeight: '600', letterSpacing: '0.5px' }}>
+          <span style={{ fontSize: '10px', color: 'var(--faint)', fontWeight: '600', letterSpacing: '0.5px' }}>
             POWERED BY
           </span>
           <img
