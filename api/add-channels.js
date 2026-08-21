@@ -24,13 +24,6 @@ const supabase = createClient(
 
 const YT_API = 'https://www.googleapis.com/youtube/v3';
 
-function parseDuration(d) {
-  if (!d) return 0;
-  const m = d.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!m) return 0;
-  return (parseInt(m[1]) || 0) * 3600 + (parseInt(m[2]) || 0) * 60 + (parseInt(m[3]) || 0);
-}
-
 // Decide how to query YouTube for a given input string.
 function parseInput(raw) {
   const s = (raw || '').trim();

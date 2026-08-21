@@ -15,7 +15,6 @@ import {
   Map,
 } from "lucide-react";
 import { youtubeAPI } from "../../services/youtubeAPI";
-import { claudeAPI } from "../../services/claudeAPI";
 import { classifySizeTier, getTierConfig } from "../../services/auditIngestion";
 import { runAudit } from "../../services/auditOrchestrator";
 import {

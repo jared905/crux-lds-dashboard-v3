@@ -755,7 +755,6 @@ async function syncConnection(connection) {
   try {
     const accessToken = await getAccessToken(connection);
     const channelId = connection.youtube_channel_id;
-    const today = new Date().toISOString().split('T')[0];
 
     // Find the client channel in our database
     const { data: dbChannel } = await supabase

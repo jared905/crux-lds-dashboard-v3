@@ -103,7 +103,7 @@ async function fetchReport(accessToken, channelId, startDate, endDate, dimension
 
   const response = await fetch(url.toString(), { headers });
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
+    await response.json().catch(() => ({}));
     return null; // Gracefully return null for unsupported queries
   }
   return await response.json();
@@ -315,7 +315,7 @@ async function handleFetch(req, res) {
   const { data: { user }, error: authError } = await supabase.auth.getUser(token);
   if (authError || !user) return res.status(401).json({ error: 'Invalid session' });
 
-  const { channelId, startDate, endDate } = req.body;
+  const { channelId } = req.body;
   if (!channelId) return res.status(400).json({ error: 'channelId required' });
 
   // Get the most recent audience snapshot for this channel
