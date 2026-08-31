@@ -107,6 +107,18 @@ export default function PortfolioView({ onNavigate } = {}) {
     setRefreshTick(t => t + 1);
   };
 
+  // Every branch below is wrapped so the pre-launch modal can live
+  // OUTSIDE them, at a stable position in the tree.
+  //
+  // It used to be rendered separately inside the empty and populated
+  // branches, and not at all in the loading branch. Creating a client
+  // fired onCreated -> setRefreshTick -> the effect set loading=true ->
+  // this component returned the loading branch -> the modal unmounted
+  // mid-flow and lost all its state. The client WAS written to the
+  // database; the strategist just saw the form reappear blank, with no
+  // success panel and no error. Keeping one instance outside the
+  // branches means a refresh can never tear it down.
+  const renderContent = () => {
   if (openSpineClient) {
     return (
       <StrategySpine
@@ -144,12 +156,6 @@ export default function PortfolioView({ onNavigate } = {}) {
             </div>
           </div>
         </div>
-        <AddPrelaunchClientModal
-          open={prelaunchOpen}
-          onClose={() => setPrelaunchOpen(false)}
-          onCreated={() => setRefreshTick(t => t + 1)}
-          onNavigate={onNavigate}
-        />
       </div>
     );
   }
@@ -192,13 +198,20 @@ export default function PortfolioView({ onNavigate } = {}) {
           onChanged={() => setRefreshTick(t => t + 1)}
         />
       )}
+    </div>
+  );
+  };
 
+  return (
+    <>
+      {renderContent()}
       <AddPrelaunchClientModal
         open={prelaunchOpen}
         onClose={() => setPrelaunchOpen(false)}
         onCreated={() => setRefreshTick(t => t + 1)}
+        onNavigate={onNavigate}
       />
-    </div>
+    </>
   );
 }
 

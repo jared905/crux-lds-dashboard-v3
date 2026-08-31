@@ -85,9 +85,14 @@ export async function createPrelaunchClient({
   // 2) Seed business context if a market description was provided.
   // Drafted directly into the 'active' status so it's immediately
   // available to the brief generator — strategist can refine later.
+  let warning = null;
   if (marketDescription?.trim()) {
-    try {
-      await supabase
+    // supabase-js RESOLVES with { data, error } — it does not throw on a
+    // database error. This used to sit in a try/catch that could never
+    // fire, so an RLS denial or constraint violation here discarded the
+    // strategist's market description with no error, no warning, and a
+    // success screen. Read the error instead, and report it upward.
+    const { error: ctxErr } = await supabase
         .from('client_business_context')
         .insert({
           client_id:        channel.id,
@@ -97,12 +102,13 @@ export async function createPrelaunchClient({
           confirmed_at:     new Date().toISOString(),
           notes:            'Auto-seeded from pre-launch client creation. Refine in Strategy Spine → Business context.',
         });
-    } catch (err) {
-      console.warn('[prelaunch] business context seed failed (non-fatal):', err?.message);
+    if (ctxErr) {
+      console.warn('[prelaunch] business context seed failed (non-fatal):', ctxErr.message);
+      warning = `Client created, but the intended-market text did not save: ${ctxErr.message}`;
     }
   }
 
-  return { ok: true, client: channel };
+  return { ok: true, client: channel, warning };
 }
 
 /**

@@ -56,6 +56,9 @@ export default function AddPrelaunchClientModal({ open, onClose, onCreated, onNa
       // appears in the picker — but stay on the success view so the
       // strategist sees "what's next" before closing.
       onCreated?.(r.client);
+      // A saved client whose market description silently vanished is
+      // worse than a visible failure — surface it on the success view.
+      if (r.warning) setError(r.warning);
       setCreatedClient(r.client);
     } catch (err) {
       setError(err?.message || 'unknown error');
@@ -95,6 +98,9 @@ export default function AddPrelaunchClientModal({ open, onClose, onCreated, onNa
           </div>
 
           <div style={bodyStyle}>
+            {error && (
+              <div style={{ ...errorBoxStyle, marginBottom: 14 }}>{error}</div>
+            )}
             <p style={subtitleStyle}>
               The client is in your portfolio. Pick the next step — strategist work falls into a
               natural sequence; the canonical order is below.
