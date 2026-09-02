@@ -28,6 +28,10 @@ export default function PortfolioView({ onNavigate } = {}) {
   const [clients, setClients] = useState(null);
 
   const [loading, setLoading] = useState(true);
+  // listPortfolio() throws on any query error. Without a rejection
+  // handler the .then() never ran, so loading stayed true forever and
+  // the page sat on a spinner with no reason given.
+  const [loadError, setLoadError] = useState(null);
   const [refreshTick, setRefreshTick] = useState(0);
   // Drilldown into one client's failing competitor cohort. Opened from
   // the "Resolve N sync errors" next-action chip.
@@ -42,11 +46,18 @@ export default function PortfolioView({ onNavigate } = {}) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadError(null);
     listPortfolio().then(({ clients: rows }) => {
       if (!cancelled) {
         setClients(rows);
         setLoading(false);
       }
+    }).catch((err) => {
+      if (cancelled) return;
+      console.error('[portfolio] list failed:', err);
+      setLoadError(err?.message || String(err));
+      setClients([]);
+      setLoading(false);
     });
     return () => { cancelled = true; };
   }, [refreshTick]);
@@ -126,6 +137,15 @@ export default function PortfolioView({ onNavigate } = {}) {
         onBack={() => setOpenSpineClient(null)}
         onNavigate={onNavigate}
       />
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ padding: 40, margin: '24px 28px', background: 'var(--neg-bg)', border: '1px solid var(--neg-border)', borderRadius: 24, color: 'var(--neg-text)', fontSize: 13 }}>
+        <strong>Couldn&apos;t load the portfolio.</strong>
+        <div style={{ marginTop: 6, color: 'var(--muted)' }}>{loadError}</div>
+      </div>
     );
   }
 
