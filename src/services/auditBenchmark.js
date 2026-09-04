@@ -41,12 +41,31 @@ export async function findPeerChannels(channelId, sizeTier, { category, category
   const boundaries = TIER_BOUNDARIES[sizeTier];
   if (!boundaries) return [];
 
-  // Also include adjacent tiers for broader matching
+  // Also include adjacent tiers for broader matching.
+  //
+  // getAdjacentTiers returns [self, below, above] — deliberately NOT sorted.
+  // This used to read the floor off the LAST element and the ceiling off the
+  // FIRST, which for most tiers produced a range that no channel can satisfy:
+  //
+  //   emerging    -> subs >= 10,000  AND <= 10,000
+  //   growing     -> subs >= 100,000 AND <= 100,000
+  //   established -> subs >= 500,000 AND <= 500,000
+  //   major       -> subs >= 1,000,000 (excludes its own 500K-1M tier)
+  //
+  // Only 'elite' came out usable, so peer discovery returned zero for almost
+  // every audit, benchmark_data was written as { hasBenchmarks: false }, and
+  // the benchmarks page silently vanished from the report.
+  //
+  // Take the true floor and ceiling across the adjacent set instead, so the
+  // range always spans the channel's own tier plus its neighbours.
   const adjacentTiers = getAdjacentTiers(sizeTier);
-  const minSub = TIER_BOUNDARIES[adjacentTiers[adjacentTiers.length - 1]]?.min || 0;
-  const maxSub = adjacentTiers.includes('elite')
-    ? 100000000  // 100M upper bound for elite
-    : TIER_BOUNDARIES[adjacentTiers[0]]?.max || 10000000;
+  const minSub = Math.min(...adjacentTiers.map(t => TIER_BOUNDARIES[t]?.min ?? 0));
+  const maxRaw = Math.max(...adjacentTiers.map(t => TIER_BOUNDARIES[t]?.max ?? Infinity));
+  // elite's max is Infinity; substitute a finite ceiling above any real
+  // channel (the largest on YouTube is ~400M) while staying inside a
+  // 32-bit int column. The previous 100M stand-in would have excluded
+  // the very biggest channels from an elite audit's peer set.
+  const maxSub = Number.isFinite(maxRaw) ? maxRaw : 1000000000;
 
   // If categoryIds are specified, query through the channel_categories join table
   if (categoryIds && categoryIds.length > 0) {
