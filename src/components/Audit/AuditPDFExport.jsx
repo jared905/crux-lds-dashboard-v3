@@ -8,7 +8,15 @@ import { Download, Loader } from 'lucide-react';
  * Generates a multi-page PDF from a completed audit record.
  * Includes new Video Insights section with categorization data.
  */
-export default function AuditPDFExport({ audit, videoAnalysis }) {
+/**
+ * `internal` — this export is the full diagnostic dump: quadrant counts,
+ * "Videos to Investigate", and the italic conversation prompts that exist
+ * to prep a sales call. Fine for our own reading, wrong in front of the
+ * channel's owner. On prospect audits the caller sets this so the button
+ * reads as the secondary, internal-only action and the client-facing
+ * "Edit Report" is the obvious one.
+ */
+export default function AuditPDFExport({ audit, videoAnalysis, internal = false }) {
   const [exporting, setExporting] = useState(false);
 
   const snapshot = audit.channel_snapshot || {};
@@ -374,22 +382,25 @@ export default function AuditPDFExport({ audit, videoAnalysis }) {
         alignItems: "center",
         gap: "6px",
         padding: "8px 16px",
-        background: "rgba(0, 209, 255, 0.15)",
-        border: "1px solid var(--blue)",
+        background: internal ? "transparent" : "rgba(0, 209, 255, 0.15)",
+        border: internal ? "1px solid var(--border)" : "1px solid var(--blue)",
         borderRadius: "8px",
-        color: "var(--accent-text)",
+        color: internal ? "var(--muted)" : "var(--accent-text)",
         cursor: "pointer",
         fontWeight: "600",
         fontSize: "13px",
         opacity: exporting ? 0.6 : 1,
       }}
+      title={internal
+        ? "Full internal diagnostic — includes quadrant analysis and prep-call prompts. Use \u201cEdit Report\u201d for anything the prospect sees."
+        : "Export this audit as a PDF"}
     >
       {exporting ? (
         <Loader size={14} style={{ animation: "spin 1s linear infinite" }} />
       ) : (
         <Download size={14} />
       )}
-      {exporting ? "Exporting..." : "Export PDF"}
+      {exporting ? "Exporting..." : internal ? "Export (Internal)" : "Export PDF"}
     </button>
   );
 }

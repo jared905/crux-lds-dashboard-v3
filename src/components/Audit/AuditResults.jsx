@@ -196,15 +196,21 @@ export default function AuditResults({ audit, onBack }) {
               onClick={() => setShowReportBuilder(true)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '8px 14px', background: 'rgba(0,209,255,0.15)',
-                border: '1px solid #00D1FF', borderRadius: '8px',
-                color: 'var(--accent-text)', fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+                padding: '8px 14px', background: 'var(--accent-text)',
+                border: '1px solid var(--accent-text)', borderRadius: '8px',
+                color: 'var(--bg)', fontSize: '12px', fontWeight: '700', cursor: 'pointer',
               }}
             >
               <FileText size={14} /> Edit Report
             </button>
           )}
-          <AuditPDFExport audit={audit} videoAnalysis={videoAnalysis} />
+          {/* On a prospect audit the client-facing document is "Edit Report".
+              This one is the raw diagnostic and is styled to say so. */}
+          <AuditPDFExport
+            audit={audit}
+            videoAnalysis={videoAnalysis}
+            internal={audit.audit_type === 'prospect'}
+          />
         </div>
       </div>
 
