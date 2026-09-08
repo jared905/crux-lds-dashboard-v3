@@ -113,6 +113,31 @@ essential oils and wellness channels from exactly this position." Until that
 table exists, the proof block stays a human-filled slot and the synthesis
 prompt must forbid first-party claims outright.
 
+## Audit coverage and MCP
+
+### 11. No client has a baseline audit · surfaced 2026-09-08
+**Status:** Not started. `list_audits` returned 17 completed audits and every
+one is `audit_type: 'prospect'`. Zero `client_baseline` rows exist. The
+apostle channels, SafeStreets, Lindsey's and The Men Who Love God — the
+paying clients — have no audit at all. So the channels we know most about
+are the only ones with no baseline in the system.
+
+**Trigger:** this blocks the before/after case-study post, which needs a
+starting point to measure against. Roughly an afternoon: run a
+`client_baseline` audit per client channel. Worth doing before the next
+round of prospect outreach, since a real before/after is the proof material
+the prospect report's section 3 has no source for today (see item 10).
+
+### 12. `client_id` is a channels UUID in disguise · not urgent
+**Status:** Not started. Every MCP tool takes `client_id`, and it is passed
+straight to `.eq('channel_id', ...)` — there is no client id concept in the
+schema at all; `audits` has no `client_id` column. The name is a landmine
+the day a real client-id concept appears.
+
+**Trigger:** rename the parameter to `channel_id` and keep `client_id` as a
+deprecated alias accepted by every tool, before any work introduces a
+genuine client identifier. Not urgent while the two are the same value.
+
 ## Killed / probably won't do
 
 ### Phase 1 fixture-based tests against SafeStreets numbers
