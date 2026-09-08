@@ -225,6 +225,10 @@ export default function AuditReportBuilder({ audit, isOpen, onClose, onSaved }) 
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:600px;text-align:center;">
           <div style="font-size:14px;color:#666;letter-spacing:2px;text-transform:uppercase;margin-bottom:16px;">External Report</div>
           <div style="font-size:36px;font-weight:800;color:#1a1a2e;margin-bottom:8px;">${esc(report.channel_name)}</div>
+          ${report.recipient?.name ? `
+            <div style="font-size:15px;color:#444;margin-bottom:4px;">Prepared for ${esc(report.recipient.name)}</div>
+            ${report.recipient.title ? `<div style="font-size:13px;color:#888;margin-bottom:10px;">${esc(report.recipient.title)}</div>` : ''}
+          ` : ''}
           <div style="font-size:14px;color:#999;margin-bottom:8px;">Prepared by CRUX Media</div>
           <div style="font-size:13px;color:#aaa;">
             ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}

@@ -6,6 +6,7 @@
 import claudeAPI from './claudeAPI';
 import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 import { addAuditCost } from './auditDatabase';
+import { NO_FIRST_PARTY_CLAIMS } from './auditPromptGuards.js';
 
 const LANDSCAPE_SYSTEM_PROMPT = `You are the top YouTube competitive strategist in the world, working as a senior analyst at CRUX Media (a video strategy agency with 15+ years and 3B+ views managed).
 
@@ -117,6 +118,7 @@ Return a landscape analysis in this JSON format:
     auditStructure,
     '--- LANDSCAPE INSTRUCTIONS BELOW ---',
     LANDSCAPE_SYSTEM_PROMPT,
+    NO_FIRST_PARTY_CLAIMS,
   ].filter(Boolean).join('\n\n');
 
   const result = await claudeAPI.call(

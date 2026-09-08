@@ -7,6 +7,7 @@ import claudeAPI from './claudeAPI';
 import { parseClaudeJSON } from '../lib/parseClaudeJSON';
 import { addAuditCost, updateAuditSection, updateAuditProgress } from './auditDatabase';
 import { getBrandContextWithSignals } from './brandContextService';
+import { NO_FIRST_PARTY_CLAIMS } from './auditPromptGuards.js';
 
 const RECOMMENDATIONS_SYSTEM_PROMPT = `You are the top YouTube strategist in the world, with deep expertise in platform algorithm behavior, audience psychology, retention mechanics, and content packaging across every vertical and channel size. You understand how YouTube's recommendation engine weighs watch time, session depth, click-through rate, and audience satisfaction signals at a granular level.
 
@@ -68,6 +69,7 @@ export async function generateRecommendations(auditId, context) {
       '--- RECOMMENDATIONS INSTRUCTIONS BELOW ---',
       RECOMMENDATIONS_SYSTEM_PROMPT,
       brandContextBlock || null,
+      NO_FIRST_PARTY_CLAIMS,
     ].filter(Boolean).join('\n\n');
 
     // Identify underperforming content — split by format

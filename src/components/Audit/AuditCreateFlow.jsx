@@ -66,6 +66,15 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
   const [brandIntent, setBrandIntent] = useState("");
   const [brandIntentStakeholder, setBrandIntentStakeholder] = useState("");
   const [brandIntentTimeline, setBrandIntentTimeline] = useState("");
+  // The strategist's own read, captured BEFORE synthesis. Everything else
+  // on this screen is the client's material (their site, their stated
+  // intent) or ours (competitors, config) — nothing carried what the
+  // person running the audit already knows. Without it the model frames
+  // the document first and the strategist edits afterwards, which is
+  // correction, not collaboration.
+  const [strategistContext, setStrategistContext] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientTitle, setRecipientTitle] = useState("");
   const [paidContentSignals, setPaidContentSignals] = useState("");
   const [paidContentOverride, setPaidContentOverride] = useState("");
   const [paidDurationRules, setPaidDurationRules] = useState([
@@ -271,6 +280,9 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
           brandIntent: brandIntent.trim() || null,
           brandIntentStakeholder: brandIntentStakeholder.trim() || null,
           brandIntentTimeline: brandIntentTimeline.trim() || null,
+          strategistContext: strategistContext.trim() || null,
+          recipientName: recipientName.trim() || null,
+          recipientTitle: recipientTitle.trim() || null,
           paidContentSignals: paidContentSignals.trim()
             ? paidContentSignals.split(',').map(s => s.trim()).filter(Boolean)
             : null,
@@ -800,6 +812,71 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
                     value={brandIntentTimeline}
                     onChange={e => setBrandIntentTimeline(e.target.value)}
                     placeholder="e.g. Q3 launch, ongoing"
+                    style={{
+                      width: "100%", padding: "8px 10px", background: "var(--input-bg)",
+                      border: "1px solid #444", borderRadius: "6px", color: "var(--text)",
+                      fontSize: "12px", outline: "none",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* What the strategist knows that the data does not */}
+          <div style={{
+            background: "var(--card)", borderRadius: "24px", border: "1px solid var(--border)",
+            padding: "32px", marginTop: "16px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <Crosshair size={20} style={{ color: "var(--accent-text)" }} />
+              <div style={{ fontSize: "16px", fontWeight: "600" }}>Your read</div>
+              <span style={{ fontSize: "11px", color: "var(--muted)", background: "var(--outline-variant)", padding: "2px 8px", borderRadius: "4px" }}>
+                Optional
+              </span>
+            </div>
+            <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "16px" }}>
+              What do you know that the data does not? This reaches the analysis before it is
+              written, so the draft argues your point instead of you rewriting it afterwards.
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <textarea
+                value={strategistContext}
+                onChange={e => setStrategistContext(e.target.value)}
+                placeholder="e.g. 'Their best videos are all from one host who left in March — nothing since has matched. The team thinks it is a thumbnail problem.'"
+                rows={3}
+                style={{
+                  width: "100%", padding: "10px 12px", background: "var(--input-bg)",
+                  border: "1px solid #444", borderRadius: "8px", color: "var(--text)",
+                  fontSize: "13px", resize: "vertical", outline: "none",
+                }}
+              />
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <label style={{ fontSize: "11px", color: "var(--outline)", display: "block", marginBottom: "4px" }}>
+                    Report is addressed to
+                  </label>
+                  <input
+                    value={recipientName}
+                    onChange={e => setRecipientName(e.target.value)}
+                    placeholder="e.g. Dana Whitfield"
+                    style={{
+                      width: "100%", padding: "8px 10px", background: "var(--input-bg)",
+                      border: "1px solid #444", borderRadius: "6px", color: "var(--text)",
+                      fontSize: "12px", outline: "none",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "11px", color: "var(--outline)", display: "block", marginBottom: "4px" }}>
+                    Their title
+                  </label>
+                  <input
+                    value={recipientTitle}
+                    onChange={e => setRecipientTitle(e.target.value)}
+                    placeholder="e.g. VP Brand Marketing"
                     style={{
                       width: "100%", padding: "8px 10px", background: "var(--input-bg)",
                       border: "1px solid #444", borderRadius: "6px", color: "var(--text)",

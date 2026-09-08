@@ -48,7 +48,7 @@ export async function analyzeOpportunities(auditId, context) {
   await updateAuditProgress(auditId, { step: 'opportunity_analysis', pct: 57, message: 'Analyzing opportunities...' });
 
   try {
-    const { channelId, channelSnapshot, seriesSummary, benchmarkData, competitorData, longFormVideos = [], shortFormVideos = [], formatMix = {}, brandIntent = null, paidContentSummary = null, auditVoice, audienceBlock, auditStructure } = context;
+    const { channelId, channelSnapshot, seriesSummary, benchmarkData, competitorData, longFormVideos = [], shortFormVideos = [], formatMix = {}, brandIntent = null, strategistContext = null, paidContentSummary = null, auditVoice, audienceBlock, auditStructure } = context;
 
     // Fetch brand context for prompt enrichment
     let brandContextBlock = '';
@@ -152,6 +152,21 @@ The client has expressed this direction for their YouTube presence:
 "${brandIntent}"
 
 Compare this stated intent against what the data shows audiences actually respond to. Your analysis should surface whether the brand intent aligns with audience demand, partially overlaps, or is in tension with what performs.` : ''}
+${strategistContext ? `
+## Strategist's read (first-hand)
+The strategist running this audit knows the following, which is NOT in the data:
+"${strategistContext}"
+
+Treat this as first-hand observation and weight it above anything you infer
+from the metrics alone — it explains causes the numbers can only hint at.
+Where it conflicts with a pattern in the data, say so plainly rather than
+quietly picking one.
+
+Two limits. Do not repeat it back as its own finding; use it to sharpen the
+findings you draw from the data. And it is knowledge about THIS CHANNEL only
+-- never convert it, or anything else, into a claim about Crux's track
+record, past clients, or results. Statements about what Crux has done before
+are supplied by a human and must never be generated.` : ''}
 ${paidContentSummary?.paid > 0 ? `
 ## Paid Content Note
 ${paidContentSummary.paid} videos (${((paidContentSummary.paid / paidContentSummary.total) * 100).toFixed(1)}% of library) were identified as paid/boosted content and EXCLUDED from all metrics above. All baselines, averages, and benchmarks reflect organic performance only.` : ''}

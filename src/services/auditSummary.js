@@ -7,6 +7,7 @@
 import claudeAPI from './claudeAPI';
 import { addAuditCost, updateAuditSection, updateAuditProgress } from './auditDatabase';
 import { getBrandContextWithSignals } from './brandContextService';
+import { NO_FIRST_PARTY_CLAIMS } from './auditPromptGuards.js';
 
 const AUDIT_SUMMARY_IDENTITY = `You are the top YouTube strategist in the world, with deep expertise in platform algorithm behavior, audience psychology, retention mechanics, and content packaging across every vertical and channel size.
 
@@ -134,6 +135,7 @@ ${isProspect
       '--- EXECUTIVE SUMMARY INSTRUCTIONS BELOW ---',
       basePrompt,
       brandContextBlock || null,
+      NO_FIRST_PARTY_CLAIMS,
     ].filter(Boolean).join('\n\n');
 
     const result = await claudeAPI.call(

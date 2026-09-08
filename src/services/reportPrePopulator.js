@@ -38,6 +38,12 @@ export function prePopulateReport(audit) {
     audit_type: audit.audit_type || 'prospect',
     channel_name: snapshot.name || '',
     channel_thumbnail_url: snapshot.thumbnail_url || '',
+    // Captured at audit creation. The report had no notion of who it was
+    // for, so "Prepared for <name>" could not be rendered at all.
+    recipient: {
+      name: audit.config?.recipientName || '',
+      title: audit.config?.recipientTitle || '',
+    },
     generated_at: new Date().toISOString(),
     last_edited_at: new Date().toISOString(),
     edited_by: null,
