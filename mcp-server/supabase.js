@@ -348,16 +348,62 @@ export async function getBrandContext(channelId) {
   };
 }
 
+// Columns every audit-summary response formats from. Kept in one place so
+// the by-channel and by-id lookups can never drift apart.
+const AUDIT_SUMMARY_COLUMNS =
+  'id, audit_type, status, created_at, completed_at, channel_id, ' +
+  'channel_snapshot, executive_summary, benchmark_data, opportunities, ' +
+  'recommendations, series_summary, channel:channels(id, name, is_client)';
+
 export async function getAuditSummary(channelId) {
   const { data: audit } = await supabase
     .from('audits')
-    .select('id, audit_type, status, created_at, channel_snapshot, executive_summary, benchmark_data, opportunities, recommendations, series_summary')
+    .select(AUDIT_SUMMARY_COLUMNS)
     .eq('channel_id', channelId)
     .eq('status', 'completed')
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
   return audit;
+}
+
+/**
+ * One audit by its own id, whoever it belongs to.
+ *
+ * getAuditSummary keys on channel_id, and the only way to learn a channel
+ * UUID through this server was listClients() — which filters is_client =
+ * true. Prospect audits target channels that are not clients, so their
+ * audits existed but had no reachable handle. This is that handle.
+ */
+export async function getAuditById(auditId) {
+  const { data: audit } = await supabase
+    .from('audits')
+    .select(AUDIT_SUMMARY_COLUMNS)
+    .eq('id', auditId)
+    .single();
+  return audit;
+}
+
+/**
+ * Every audit, newest completion first — the same shape the Channel Audits
+ * page lists from (auditDatabase.listAudits), minus the payload columns.
+ *
+ * Ordered by completed_at rather than created_at: a long-running audit can
+ * finish out of creation order, and completion is what the caller means by
+ * "the latest audit". Rows whose completed_at is null (created/running/
+ * failed) sort last rather than leading the list.
+ */
+export async function listAudits({ status = 'completed', limit = 50 } = {}) {
+  let query = supabase
+    .from('audits')
+    .select('id, audit_type, status, created_at, completed_at, channel_id, channel:channels(id, name, is_client, youtube_channel_id)')
+    .order('completed_at', { ascending: false, nullsFirst: false })
+    .limit(limit);
+
+  if (status) query = query.eq('status', status);
+
+  const { data } = await query;
+  return data || [];
 }
 
 export async function getQuarterlyData(channelIds, year, quarter) {

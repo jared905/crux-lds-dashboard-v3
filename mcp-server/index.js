@@ -9,6 +9,8 @@ import {
   getCompetitorLandscape,
   getBrandContext,
   getAuditSummary,
+  getAuditById,
+  listAudits,
   getQuarterlyData,
   searchVideos,
   getClientMeta,
@@ -291,14 +293,109 @@ server.tool(
   }
 );
 
+// ── Shared: audit summary formatting ──
+/**
+ * Render one audit. Shared so the by-id and by-channel lookups can never
+ * drift into two different-looking answers for the same audit.
+ */
+function formatAuditSummary(audit) {
+  const parts = [];
+  const name = audit.channel?.name || audit.channel_snapshot?.name || 'Unknown channel';
+  // completed_at is the honest date for a line that says "completed";
+  // created_at is the fallback for rows written before it was populated.
+  const when = audit.completed_at || audit.created_at;
+  parts.push(`AUDIT: ${name} — ${audit.audit_type} (completed ${new Date(when).toLocaleDateString()})`);
+
+  if (audit.executive_summary) {
+    const summary = typeof audit.executive_summary === 'string' ? audit.executive_summary : audit.executive_summary?.summary || '';
+    if (summary) parts.push(`\nEXECUTIVE SUMMARY\n${summary}`);
+  }
+
+  if (audit.channel_snapshot) {
+    const s = audit.channel_snapshot;
+    parts.push(`\nCHANNEL SNAPSHOT\nSubscribers: ${(s.subscriber_count || 0).toLocaleString()}\nSize Tier: ${s.size_tier || '—'}\nTotal Videos Analyzed: ${s.total_videos_analyzed || 0}\nRecent Videos (90d): ${s.recent_videos_90d || 0}\nAvg Views (90d): ${(s.avg_views_recent || 0).toLocaleString()}\nAvg Engagement: ${((s.avg_engagement_recent || 0) * 100).toFixed(2)}%`);
+  }
+
+  if (audit.benchmark_data?.comparison?.overallScore) {
+    parts.push(`\nBENCHMARK SCORE: ${audit.benchmark_data.comparison.overallScore}x peer median`);
+  }
+
+  if (audit.opportunities) {
+    const gaps = audit.opportunities.content_gaps || [];
+    const levers = audit.opportunities.growth_levers || [];
+    if (gaps.length) parts.push(`\nCONTENT GAPS\n${gaps.map(g => `• ${g.gap} (${g.potential_impact} impact)`).join('\n')}`);
+    if (levers.length) parts.push(`\nGROWTH LEVERS\n${levers.map(l => `• ${l.lever} (${l.priority} priority)`).join('\n')}`);
+  }
+
+  if (audit.recommendations) {
+    const r = audit.recommendations;
+    const sections = [
+      { label: 'STOP', items: r.stop || [] },
+      { label: 'START', items: r.start || [] },
+      { label: 'OPTIMIZE', items: r.optimize || [] },
+    ].filter(s => s.items.length);
+    if (sections.length) {
+      parts.push('\nRECOMMENDATIONS');
+      for (const sec of sections) {
+        parts.push(`${sec.label}:\n${sec.items.map(i => `• ${i.action} — ${i.rationale || ''}`).join('\n')}`);
+      }
+    }
+  }
+
+  return parts.join('\n');
+}
+
+// ── Tool: list_audits ──
+server.tool(
+  'list_audits',
+  'List channel audits newest-completed first, with the audit_id needed by get_audit_summary. Includes prospect audits whose subject is not a client — those are invisible to list_clients, so this is the only way to reach them.',
+  {
+    status: z.enum(['completed', 'running', 'failed', 'created']).default('completed').describe('Filter by audit status (default completed)'),
+    limit: z.number().default(50).describe('Maximum audits to return (default 50)'),
+  },
+  async ({ status, limit }) => {
+    const audits = await listAudits({ status, limit });
+    if (!audits.length) {
+      return { content: [{ type: 'text', text: `No ${status} audits found.` }] };
+    }
+    const lines = audits.map(a => {
+      const name = a.channel?.name || 'Unknown channel';
+      const when = a.completed_at || a.created_at;
+      const date = when ? new Date(when).toLocaleDateString() : '—';
+      const kind = a.audit_type === 'prospect' ? 'prospect' : 'client baseline';
+      // client_id is the channel UUID, but only meaningful when the channel
+      // is actually a client — that is the id the other tools accept.
+      const client = a.channel?.is_client ? `client_id: ${a.channel.id}` : 'no client record';
+      return `${name} (${kind}, ${date}) — audit_id: ${a.id} — ${client}`;
+    }).join('\n');
+    return { content: [{ type: 'text', text: `${audits.length} ${status} audits:\n\n${lines}` }] };
+  }
+);
+
 // ── Tool: get_audit_summary ──
 server.tool(
   'get_audit_summary',
-  'Get the most recent completed audit for a channel — includes executive summary, benchmarks, opportunities, and recommendations',
+  'Get a completed audit — executive summary, benchmarks, opportunities, and recommendations. Pass audit_id for one specific audit (from list_audits), or client_id for the most recent completed audit on that client channel. At least one is required.',
   {
-    client_id: z.string().describe('Client channel ID (UUID)'),
+    audit_id: z.string().optional().describe('Audit ID (UUID) from list_audits — use this for prospect audits with no client record'),
+    client_id: z.string().optional().describe('Client channel ID (UUID) — returns that channel\'s most recent completed audit'),
   },
-  async ({ client_id }) => {
+  async ({ audit_id, client_id }) => {
+    if (!audit_id && !client_id) {
+      return { content: [{ type: 'text', text: 'Provide audit_id or client_id. Use list_audits to find an audit_id — that covers prospect audits, which have no client record.' }] };
+    }
+
+    if (audit_id) {
+      const audit = await getAuditById(audit_id);
+      if (!audit) {
+        return { content: [{ type: 'text', text: `No audit found with ID "${audit_id}". Use list_audits to see available audits.` }] };
+      }
+      if (audit.status !== 'completed') {
+        return { content: [{ type: 'text', text: `Audit "${audit_id}" is ${audit.status}, not completed — there is no summary to return yet.` }] };
+      }
+      return { content: [{ type: 'text', text: formatAuditSummary(audit) }] };
+    }
+
     const [meta, audit] = await Promise.all([
       getClientMeta(client_id),
       getAuditSummary(client_id),
@@ -310,46 +407,7 @@ server.tool(
       return { content: [{ type: 'text', text: `No completed audit found for "${meta?.name || 'this channel'}". Run a repositioning audit at Strategy → Repositioning when the channel has ~10+ recent videos.` }] };
     }
 
-    const parts = [];
-    parts.push(`AUDIT: ${audit.audit_type} (completed ${new Date(audit.created_at).toLocaleDateString()})`);
-
-    if (audit.executive_summary) {
-      const summary = typeof audit.executive_summary === 'string' ? audit.executive_summary : audit.executive_summary?.summary || '';
-      if (summary) parts.push(`\nEXECUTIVE SUMMARY\n${summary}`);
-    }
-
-    if (audit.channel_snapshot) {
-      const s = audit.channel_snapshot;
-      parts.push(`\nCHANNEL SNAPSHOT\nSubscribers: ${(s.subscriber_count || 0).toLocaleString()}\nSize Tier: ${s.size_tier || '—'}\nTotal Videos Analyzed: ${s.total_videos_analyzed || 0}\nRecent Videos (90d): ${s.recent_videos_90d || 0}\nAvg Views (90d): ${(s.avg_views_recent || 0).toLocaleString()}\nAvg Engagement: ${((s.avg_engagement_recent || 0) * 100).toFixed(2)}%`);
-    }
-
-    if (audit.benchmark_data?.comparison?.overallScore) {
-      parts.push(`\nBENCHMARK SCORE: ${audit.benchmark_data.comparison.overallScore}x peer median`);
-    }
-
-    if (audit.opportunities) {
-      const gaps = audit.opportunities.content_gaps || [];
-      const levers = audit.opportunities.growth_levers || [];
-      if (gaps.length) parts.push(`\nCONTENT GAPS\n${gaps.map(g => `• ${g.gap} (${g.potential_impact} impact)`).join('\n')}`);
-      if (levers.length) parts.push(`\nGROWTH LEVERS\n${levers.map(l => `• ${l.lever} (${l.priority} priority)`).join('\n')}`);
-    }
-
-    if (audit.recommendations) {
-      const r = audit.recommendations;
-      const sections = [
-        { label: 'STOP', items: r.stop || [] },
-        { label: 'START', items: r.start || [] },
-        { label: 'OPTIMIZE', items: r.optimize || [] },
-      ].filter(s => s.items.length);
-      if (sections.length) {
-        parts.push('\nRECOMMENDATIONS');
-        for (const sec of sections) {
-          parts.push(`${sec.label}:\n${sec.items.map(i => `• ${i.action} — ${i.rationale || ''}`).join('\n')}`);
-        }
-      }
-    }
-
-    return { content: [{ type: 'text', text: parts.join('\n') }] };
+    return { content: [{ type: 'text', text: formatAuditSummary(audit) }] };
   }
 );
 

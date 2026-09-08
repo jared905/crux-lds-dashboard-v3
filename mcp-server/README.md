@@ -66,7 +66,21 @@ In Claude Desktop: Restart the app — you should see tools in the toolbar.
 | `get_quarterly_report` | Quarter-over-quarter performance comparison |
 | `get_competitors` | Competitive landscape — how a client stacks up against category peers |
 | `get_brand_context` | Brand intelligence profile (voice, audience, themes, goals) |
-| `get_audit_summary` | Most recent audit with executive summary, benchmarks, and recommendations |
+| `list_audits` | Every audit newest-completed first, with the `audit_id` each one needs. Includes prospect audits, which `list_clients` cannot reach |
+| `get_audit_summary` | One audit — executive summary, benchmarks, and recommendations. Takes `audit_id` **or** `client_id` |
+
+### Reaching prospect audits
+
+`get_audit_summary` originally took only a `client_id`, which is a **channels**
+UUID. The audit query itself never cared whether that channel was a client —
+but the only way to discover a channel UUID through this server was
+`list_clients`, which filters `is_client = true`. Audits of prospects
+(doTERRA, Cotopaxi, Utah Jazz and the rest) target channels that are not
+clients, so their audits were unreachable even though the rows existed.
+
+`list_audits` closes that: it lists audits directly and hands back an
+`audit_id`, which `get_audit_summary` now accepts. `client_id` still works
+and still means "the most recent completed audit for that client channel".
 
 ## Example Prompts
 
@@ -77,6 +91,7 @@ Once connected, try asking Claude:
 - "How did [client] do in Q1 2026 compared to Q4 2025?"
 - "What does the competitive landscape look like for [client]?"
 - "What did the last audit recommend for [client]?"
+- "List every completed audit" — then "pull up the doTERRA one"
 - "Search for videos about [topic] across [client]'s channels"
 
 ## Architecture
