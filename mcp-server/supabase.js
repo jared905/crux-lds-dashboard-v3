@@ -406,6 +406,79 @@ export async function listAudits({ status = 'completed', limit = 50 } = {}) {
   return data || [];
 }
 
+/**
+ * Month-by-month upload and performance history for one channel.
+ *
+ * The audit itself is temporally flat: channel_snapshot carries a single
+ * 90-day average and nothing else, so an audit summary can say a channel
+ * is underperforming but not WHEN it started, or which format stopped
+ * working. That history is sitting in the videos table the whole time.
+ *
+ * Median rather than mean per month, deliberately: one launch or one
+ * viral Short drags a mean up and hides the trend underneath it.
+ */
+export async function getChannelTimeline(channelId, months = 18) {
+  const since = new Date();
+  since.setMonth(since.getMonth() - months);
+
+  const { data } = await supabase
+    .from('videos')
+    .select('title, published_at, view_count, is_short, engagement_rate, is_paid')
+    .eq('channel_id', channelId)
+    .gte('published_at', since.toISOString())
+    .order('published_at', { ascending: true });
+
+  const rows = data || [];
+  const buckets = new Map();
+
+  for (const v of rows) {
+    if (!v.published_at) continue;
+    const key = String(v.published_at).slice(0, 7); // YYYY-MM
+    if (!buckets.has(key)) {
+      buckets.set(key, { month: key, long: 0, short: 0, paid: 0, longViews: [], shortViews: [], best: null });
+    }
+    const b = buckets.get(key);
+    if (v.is_short) b.short += 1; else b.long += 1;
+    // Paid/boosted videos are excluded from the median, matching how every
+    // other baseline in the audit is computed. Leaving them in makes a
+    // promoted month look like a breakout: lululemon's August 2026 median
+    // reads 930K with one 17M promoted video in the bucket, which says
+    // nothing about whether the channel is working. Still counted as
+    // uploads, and reported, because "they promoted 4 videos" is itself
+    // a finding.
+    // Medians are kept PER FORMAT. A blended median is a composition
+    // artifact: the month a channel starts publishing Shorts, the median
+    // relocates into them and reads as a performance collapse even when
+    // long-form is unchanged. doTERRA's 2025-04 looks like a 96% drop
+    // blended, and like a flat long-form month split.
+    if (v.is_paid) b.paid += 1;
+    else if (v.is_short) b.shortViews.push(v.view_count || 0);
+    else b.longViews.push(v.view_count || 0);
+    if (!v.is_paid && (!b.best || (v.view_count || 0) > (b.best.view_count || 0))) b.best = v;
+  }
+
+  const median = (arr) => {
+    if (!arr.length) return 0;
+    const s = [...arr].sort((x, y) => x - y);
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
+  };
+
+  return [...buckets.values()]
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .map(b => ({
+      month: b.month,
+      uploads: b.long + b.short,
+      long: b.long,
+      short: b.short,
+      paid: b.paid,
+      organic: b.longViews.length + b.shortViews.length,
+      medianLongViews: b.longViews.length ? median(b.longViews) : null,
+      medianShortViews: b.shortViews.length ? median(b.shortViews) : null,
+      best: b.best ? { title: b.best.title, views: b.best.view_count || 0, isShort: !!b.best.is_short } : null,
+    }));
+}
+
 export async function getQuarterlyData(channelIds, year, quarter) {
   const qStart = new Date(year, (quarter - 1) * 3, 1).toISOString();
   const qEnd = new Date(year, quarter * 3, 0, 23, 59, 59).toISOString();

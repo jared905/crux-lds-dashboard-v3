@@ -68,6 +68,7 @@ In Claude Desktop: Restart the app — you should see tools in the toolbar.
 | `get_brand_context` | Brand intelligence profile (voice, audience, themes, goals) |
 | `list_audits` | Every audit newest-completed first, with the `audit_id` each one needs. Includes prospect audits, which `list_clients` cannot reach |
 | `get_audit_summary` | One audit — executive summary, benchmarks, and recommendations. Takes `audit_id` **or** `client_id` |
+| `get_audit_timeline` | Month-by-month uploads and median views **per format**, plus publishing gaps. Answers *when* something started or stopped working |
 
 ### Reaching prospect audits
 
@@ -92,6 +93,7 @@ Once connected, try asking Claude:
 - "What does the competitive landscape look like for [client]?"
 - "What did the last audit recommend for [client]?"
 - "List every completed audit" — then "pull up the doTERRA one"
+- "Show me doTERRA's month-by-month history — when did long-form stop working?"
 - "Search for videos about [topic] across [client]'s channels"
 
 ## Architecture

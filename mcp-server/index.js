@@ -11,6 +11,7 @@ import {
   getAuditSummary,
   getAuditById,
   listAudits,
+  getChannelTimeline,
   getQuarterlyData,
   searchVideos,
   getClientMeta,
@@ -365,10 +366,59 @@ server.tool(
       const kind = a.audit_type === 'prospect' ? 'prospect' : 'client baseline';
       // client_id is the channel UUID, but only meaningful when the channel
       // is actually a client — that is the id the other tools accept.
-      const client = a.channel?.is_client ? `client_id: ${a.channel.id}` : 'no client record';
-      return `${name} (${kind}, ${date}) — audit_id: ${a.id} — ${client}`;
+      // channel_id is what get_top_videos, search_videos and
+      // get_audit_timeline all key on. Without it here, a prospect's
+      // videos are unreachable: list_clients only returns clients, so
+      // there was no other way to learn the UUID.
+      const client = a.channel?.is_client ? ', is a client' : ', no client record';
+      return `${name} (${kind}, ${date})\n  audit_id: ${a.id}\n  channel_id: ${a.channel?.id || a.channel_id || '—'}${client}`;
     }).join('\n');
     return { content: [{ type: 'text', text: `${audits.length} ${status} audits:\n\n${lines}` }] };
+  }
+);
+
+// ── Tool: get_audit_timeline ──
+server.tool(
+  'get_audit_timeline',
+  'Month-by-month upload and performance history for a channel — uploads split by format, median views per month, and that month\'s best video. Use this to say WHEN something started or stopped working; the audit summary only carries a single 90-day average.',
+  {
+    channel_id: z.string().describe('Channel ID (UUID) — from list_audits or list_clients'),
+    months: z.number().default(18).describe('How many months back to cover (default 18)'),
+  },
+  async ({ channel_id, months }) => {
+    const timeline = await getChannelTimeline(channel_id, months);
+    if (!timeline.length) {
+      return { content: [{ type: 'text', text: `No videos in the last ${months} months for this channel. Either nothing was published, or the channel has not been synced.` }] };
+    }
+
+    const lines = timeline.map(m => {
+      const mix = [m.long ? `${m.long} long` : null, m.short ? `${m.short} short` : null].filter(Boolean).join(' + ') || 'none';
+      const best = m.best ? ` · best: "${m.best.title}" ${m.best.views.toLocaleString()}${m.best.isShort ? ' (Short)' : ''}` : '';
+      const paid = m.paid ? ` · ${m.paid} paid, excluded` : '';
+      const meds = [
+        m.medianLongViews != null ? `long ${m.medianLongViews.toLocaleString()}` : null,
+        m.medianShortViews != null ? `short ${m.medianShortViews.toLocaleString()}` : null,
+      ].filter(Boolean).join(' / ');
+      const med = meds ? `median ${meds}` : 'no organic videos';
+      return `${m.month}: ${m.uploads} upload${m.uploads === 1 ? '' : 's'} (${mix}) · ${med}${paid}${best}`;
+    }).join('\n');
+
+    const totalUploads = timeline.reduce((n, m) => n + m.uploads, 0);
+    const totalShorts = timeline.reduce((n, m) => n + m.short, 0);
+    const header = `${timeline.length} months with uploads · ${totalUploads} videos (${totalShorts} Shorts, ${totalUploads - totalShorts} long-form)`;
+    // Months with zero uploads are absent rather than zero-filled — a gap
+    // in the sequence IS the finding, and saying so beats a reader having
+    // to notice it.
+    const gaps = [];
+    for (let i = 1; i < timeline.length; i++) {
+      const prev = new Date(timeline[i - 1].month + '-01');
+      const cur = new Date(timeline[i].month + '-01');
+      const diff = (cur.getFullYear() - prev.getFullYear()) * 12 + (cur.getMonth() - prev.getMonth());
+      if (diff > 1) gaps.push(`${timeline[i - 1].month} → ${timeline[i].month} (${diff - 1} month${diff === 2 ? '' : 's'} with no uploads)`);
+    }
+    const gapNote = gaps.length ? `\n\nPUBLISHING GAPS\n${gaps.map(g => `• ${g}`).join('\n')}` : '';
+
+    return { content: [{ type: 'text', text: `${header}\n\n${lines}${gapNote}` }] };
   }
 );
 
