@@ -138,6 +138,19 @@ the day a real client-id concept appears.
 deprecated alias accepted by every tool, before any work introduces a
 genuine client identifier. Not urgent while the two are the same value.
 
+### 13. Hosted HTTP/SSE MCP endpoint · deliberately deferred 2026-09-08
+**Status:** Not building. The MCP server is a local stdio process
+(`StdioServerTransport`, launched by Claude Desktop from
+`claude_desktop_config.json`). That is the right shape for a one-seat tool:
+no hosting, no auth surface, no service key leaving the machine.
+
+**Trigger:** build it when FVA needs to be reachable by someone who is not
+Jared at his desk — a strategist on the team, Pearl 27, or Jared from
+mobile. That means an HTTP/SSE transport, a hosted deployment, and real
+auth, because the server currently runs with the Supabase service key and
+no per-user authorization of any kind. Until then the local process is
+strictly less to secure.
+
 ## Killed / probably won't do
 
 ### Phase 1 fixture-based tests against SafeStreets numbers
