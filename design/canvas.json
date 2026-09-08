@@ -1,0 +1,41 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 816,
+      "h": 1580,
+      "title": "The Document",
+      "print": "flow"
+    },
+    {
+      "file": "Provenance.dc.html",
+      "x": 936,
+      "y": 0,
+      "w": 560,
+      "h": 1000,
+      "title": "Who writes what",
+      "print": "fixed"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "structure-note",
+      "x": 936,
+      "y": 1060,
+      "w": 560,
+      "text": "Your four sections are all here, plus a one-line opener before them.\n\nThe opener exists because a stranger who leads with 'here is what is wrong with you' reads as criticism. Establish what is valuable first, then earn the critique."
+    },
+    {
+      "id": "proof-note",
+      "x": 0,
+      "y": 1650,
+      "w": 816,
+      "text": "Section 3 is the risk. There is no store of Crux case studies anywhere in the codebase, which is why the model invented 'CRUX has scaled essential oils and wellness channels from exactly this position'. Until a proof library exists, that block stays a human-filled slot."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

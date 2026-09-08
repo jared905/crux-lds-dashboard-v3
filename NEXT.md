@@ -73,6 +73,46 @@ Last updated: 2026-06-11
 
 ---
 
+## Prospect report (external audit document)
+
+### 9. Visual lift on the prospect one-pager · deferred 2026-09-08
+**Status:** Structure approved, design explicitly deferred. The four-part
+format — problem / opportunity / how we fix / offer, with a one-line opener
+before them — is settled and mocked
+(artifact `c1c93bd2-7e3e-4eb5-ac68-cd7a4b6566a4`, working files in `design/`).
+Jared: "I like the format, but the design needs a lift."
+
+**Trigger:** pick this up before the next prospect send, or alongside the
+strategist-input build below — not on its own. Two known specifics: the mock
+uses Barlow Condensed + Inter to match `Shared/PDFExport.jsx`, while the brand
+direction is Gotham Ultra/Book (already self-hosted in `public/fonts`, unused
+by any renderer); and both export paths still render through
+jsPDF + html2canvas at A4 `scale: 2`, so the output is image-only and heavy
+whichever document you send.
+
+### 10. Strategist input, so the report is a collaboration · not started
+**Status:** Not built. `AuditReportBuilder` lets a strategist edit and toggle
+sections AFTER synthesis, but nothing lets them feed context in BEFORE it —
+so the model has already framed the document and the human is rewriting, not
+collaborating. Build order, cheapest first:
+
+1. Recipient fields (name, title) — nothing captures them today, so
+   "Prepared for" cannot be rendered at all.
+2. Per-metric `consequence` prompts — the fields already exist on every
+   metric in `reportPrePopulator` and ship empty. A number is a dashboard; a
+   number plus its consequence is an argument.
+3. A strategist context box at audit creation ("what do you know that the
+   data does not?") feeding the synthesis prompt.
+4. A proof-point table (client, category, tier, before/after metric,
+   permission-to-name) so "what Crux has done before" is SELECTED, never
+   generated.
+
+**Why 4 matters most:** there is no store of Crux results anywhere in the
+codebase, which is why an audit shipped the sentence "CRUX has scaled
+essential oils and wellness channels from exactly this position." Until that
+table exists, the proof block stays a human-filled slot and the synthesis
+prompt must forbid first-party claims outright.
+
 ## Killed / probably won't do
 
 ### Phase 1 fixture-based tests against SafeStreets numbers

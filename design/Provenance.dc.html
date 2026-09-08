@@ -1,0 +1,133 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; background: #f2f7f9; }
+    a { color: #0083ad; } a:hover { color: #075a78; }
+    .kick { font-family: 'Barlow Condensed', 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.14em; font-weight: 600; }
+  </style>
+</helmet>
+
+<div style="width: 560px; background: #f2f7f9; font-family: Inter, 'Helvetica Neue', Arial, sans-serif; color: #12222a; padding: 44px 40px 48px; box-sizing: border-box;">
+
+  <div style="display: flex; flex-direction: column; gap: 6px; padding-bottom: 20px;">
+    <div class="kick" style="font-size: 16px; letter-spacing: 0.16em;">Who writes what</div>
+    <div style="font-size: 13px; line-height: 1.55; color: #5a6b73;">
+      Every zone of the document, and where its words come from.
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div style="display: flex; flex-direction: column; gap: 9px; background: #ffffff; padding: 16px 18px; border: 1px solid #d9e3e8;">
+    <div style="display: flex; align-items: flex-start; gap: 11px;">
+      <div style="width: 4px; height: 30px; background: #0083ad; flex-shrink: 0;"></div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="kick" style="font-size: 11px; color: #0083ad;">AI-drafted</div>
+        <div style="font-size: 11px; color: #5a6b73; line-height: 1.45;">Generated from audit data. Editable, but it arrives written.</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: flex-start; gap: 11px;">
+      <div style="width: 4px; height: 30px; background: #5f7300; flex-shrink: 0;"></div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="kick" style="font-size: 11px; color: #5f7300;">Strategist-supplied</div>
+        <div style="font-size: 11px; color: #5a6b73; line-height: 1.45;">You write it. Export is blocked until it exists.</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: flex-start; gap: 11px;">
+      <div style="width: 4px; height: 30px; background: #12222a; flex-shrink: 0;"></div>
+      <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div class="kick" style="font-size: 11px; color: #12222a;">Locked</div>
+        <div style="font-size: 11px; color: #5a6b73; line-height: 1.45;">Never AI-generated. Claims about Crux come from the proof library only.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zone map -->
+  <div style="display: flex; flex-direction: column; gap: 0; margin-top: 22px; background: #ffffff; border: 1px solid #d9e3e8;">
+
+    <div style="display: flex; align-items: center; gap: 13px; padding: 13px 16px; border-bottom: 1px solid #e9f1f4;">
+      <div style="width: 4px; align-self: stretch; background: #5f7300; flex-shrink: 0;"></div>
+      <div style="flex-grow: 1; font-size: 13px; font-weight: 600;">Recipient &mdash; name, title, company</div>
+      <div class="kick" style="font-size: 9px; color: #5f7300;">Required</div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 13px; padding: 13px 16px; border-bottom: 1px solid #e9f1f4;">
+      <div style="width: 4px; align-self: stretch; background: #0083ad; flex-shrink: 0;"></div>
+      <div style="flex-grow: 1; font-size: 13px; font-weight: 600;">Opener &mdash; what is valuable here</div>
+      <div class="kick" style="font-size: 9px; color: #8698a0;">brand_moment</div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 13px; padding: 13px 16px; border-bottom: 1px solid #e9f1f4;">
+      <div style="width: 4px; align-self: stretch; background: #0083ad; flex-shrink: 0;"></div>
+      <div style="flex-grow: 1; font-size: 13px; font-weight: 600;">Problem headlines &amp; numbers</div>
+      <div class="kick" style="font-size: 9px; color: #8698a0;">alignment</div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 13px; padding: 13px 16px; border-bottom: 1px solid #e9f1f4; background: #f7fadf;">
+      <div style="width: 4px; align-self: stretch; background: #5f7300; flex-shrink: 0;"></div>
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;">
+        <div style="font-size: 13px; font-weight: 600;">The consequence line, per problem</div>
+        <div style="font-size: 11px; color: #5a6b73; line-height: 1.45;">A number is a dashboard. A number plus its consequence is an argument.</div>
+      </div>
+      <div class="kick" style="font-size: 9px; color: #5f7300;">Required</div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 13px; padding: 13px 16px; border-bottom: 1px solid #e9f1f4;">
+      <div style="width: 4px; align-self: stretch; background: #0083ad; flex-shrink: 0;"></div>
+      <div style="flex-grow: 1; font-size: 13px; font-weight: 600;">The prize &mdash; one number, one derivation</div>
+      <div class="kick" style="font-size: 9px; color: #8698a0;">benchmark</div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 13px; padding: 13px 16px; border-bottom: 1px solid #e9f1f4;">
+      <div style="width: 4px; align-self: stretch; background: #0083ad; flex-shrink: 0;"></div>
+      <div style="flex-grow: 1; font-size: 13px; font-weight: 600;">The three fixes &mdash; headlines only</div>
+      <div class="kick" style="font-size: 9px; color: #8698a0;">what_we_build</div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 13px; padding: 13px 16px; border-bottom: 1px solid #e9f1f4; background: #f2f7f9;">
+      <div style="width: 4px; align-self: stretch; background: #12222a; flex-shrink: 0;"></div>
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;">
+        <div style="font-size: 13px; font-weight: 600;">Proof point &mdash; what Crux has done before</div>
+        <div style="font-size: 11px; color: #5a6b73; line-height: 1.45;">The model invented a track record here once. It does not get to write this.</div>
+      </div>
+      <div class="kick" style="font-size: 9px; color: #12222a;">Locked</div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 13px; padding: 13px 16px; border-bottom: 1px solid #e9f1f4;">
+      <div style="width: 4px; align-self: stretch; background: #5f7300; flex-shrink: 0;"></div>
+      <div style="flex-grow: 1; font-size: 13px; font-weight: 600;">The offer, sender and booking link</div>
+      <div class="kick" style="font-size: 9px; color: #5f7300;">Required</div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 13px; padding: 13px 16px;">
+      <div style="width: 4px; align-self: stretch; background: #5f7300; flex-shrink: 0;"></div>
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;">
+        <div style="font-size: 13px; font-weight: 600;">The closing question</div>
+        <div style="font-size: 11px; color: #5a6b73; line-height: 1.45;">Only you know which unanswered thing is worth asking.</div>
+      </div>
+      <div class="kick" style="font-size: 9px; color: #5f7300;">Required</div>
+    </div>
+
+  </div>
+
+  <!-- The input that does not exist yet -->
+  <div style="margin-top: 22px; border: 1px dashed #8698a0; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; background: #ffffff;">
+    <div class="kick" style="font-size: 10px; color: #12222a;">Missing today</div>
+    <div style="font-size: 13px; line-height: 1.6; color: #12222a;">
+      A strategist context box, captured <strong>before</strong> synthesis runs &mdash; &ldquo;what do
+      you know that the data does not?&rdquo; Everything above is editing the model&rsquo;s output
+      after it has already framed the document. This is the input that makes it a collaboration.
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

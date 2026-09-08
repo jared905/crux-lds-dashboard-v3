@@ -39,3 +39,9 @@ coverage/
 *.tmp
 *.temp
 .vercel
+
+# Seeded design-canvas output — regenerated from the .dc.html artboards
+# beside it, and ~2.4MB of embedded editor code. Keep the sources, not
+# the build.
+design/*.html
+!design/*.dc.html
