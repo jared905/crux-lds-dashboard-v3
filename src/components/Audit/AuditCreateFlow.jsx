@@ -15,6 +15,7 @@ import {
   Map,
 } from "lucide-react";
 import { youtubeAPI } from "../../services/youtubeAPI";
+import { discoverCompetitors } from "../../services/competitorDiscoveryService";
 import { classifySizeTier, getTierConfig } from "../../services/auditIngestion";
 import { runAudit } from "../../services/auditOrchestrator";
 import {
@@ -86,6 +87,13 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
   // Competitors (step 4)
   const [competitorUrl, setCompetitorUrl] = useState("");
   const [resolvedCompetitors, setResolvedCompetitors] = useState([]);
+  // AI competitor discovery. Nothing here is applied automatically —
+  // every proposal rests on a model's recall of who competes with whom
+  // plus a name match against YouTube search, and both can be wrong in
+  // ways that look confident.
+  const [discovering, setDiscovering] = useState(false);
+  const [discovery, setDiscovery] = useState(null);
+  const [discoveryError, setDiscoveryError] = useState("");
   const [competitorSuggestions, setCompetitorSuggestions] = useState([]);
   const [competitorResolving, setCompetitorResolving] = useState(false);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
@@ -225,6 +233,48 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
     if (resolvedCompetitors.some(c => c.youtube_channel_id === channel.youtube_channel_id)) return;
     setResolvedCompetitors(prev => [...prev, channel]);
     setCompetitorSuggestions(prev => prev.filter(c => c.id !== channel.id));
+  };
+
+  const handleDiscoverCompetitors = async () => {
+    setDiscovering(true);
+    setDiscoveryError("");
+    setDiscovery(null);
+    try {
+      const result = await discoverCompetitors({
+        brandName: channelPreview?.name || channelPreview?.title || channelInput.trim(),
+        description: channelPreview?.description || "",
+        category: channelPreview?.category || "",
+        auditedSubscriberCount: channelPreview?.subscriber_count || channelPreview?.subscriberCount || 0,
+        excludeChannelIds: [
+          channelPreview?.youtube_channel_id,
+          ...resolvedCompetitors.map(c => c.youtube_channel_id),
+        ].filter(Boolean),
+      });
+      if (!result.ok) setDiscoveryError(result.error || "Discovery failed.");
+      setDiscovery(result);
+    } catch (err) {
+      setDiscoveryError(err.message || "Could not find competitors.");
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
+  // A confirmed candidate goes through the SAME resolution path as a
+  // pasted URL, so discovered and hand-added competitors are identical
+  // downstream — no second shape to handle.
+  const handleConfirmDiscovered = async (candidate) => {
+    if (resolvedCompetitors.length >= 5) return;
+    if (resolvedCompetitors.some(c => c.youtube_channel_id === candidate.channelId)) return;
+    try {
+      const details = await youtubeAPI.fetchChannelDetails(candidate.channelId);
+      setResolvedCompetitors(prev => [...prev, details]);
+      setDiscovery(prev => prev && ({
+        ...prev,
+        proposals: prev.proposals.filter(pr => pr.best?.channelId !== candidate.channelId),
+      }));
+    } catch (err) {
+      setDiscoveryError(err.message || "Could not add that channel.");
+    }
   };
 
   const handleRemoveCompetitor = (ytChannelId) => {
@@ -1018,6 +1068,127 @@ export default function AuditCreateFlow({ onBack, onAuditStarted, activeClient }
             </div>
             <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "20px" }}>
               Add up to 5 competitor channels for head-to-head benchmarking. Paste YouTube URLs or select from your tracked competitors.
+            </div>
+
+            {/* AI discovery — proposals only, never auto-applied */}
+            <div style={{ border: "1px solid var(--border)", borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                <div style={{ fontSize: "13px", color: "var(--muted)" }}>
+                  Find this brand&rsquo;s business competitors automatically.
+                </div>
+                <button
+                  onClick={handleDiscoverCompetitors}
+                  disabled={discovering || resolvedCompetitors.length >= 5}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "6px", flexShrink: 0,
+                    padding: "8px 14px", background: "var(--accent-text)", border: "none",
+                    borderRadius: "8px", color: "var(--bg)", cursor: "pointer",
+                    fontWeight: "700", fontSize: "12px",
+                    opacity: discovering || resolvedCompetitors.length >= 5 ? 0.5 : 1,
+                  }}
+                >
+                  {discovering
+                    ? <Loader size={13} style={{ animation: "spin 1s linear infinite" }} />
+                    : <Sparkles size={13} />}
+                  {discovering ? "Searching\u2026" : "Find competitors"}
+                </button>
+              </div>
+
+              {discoveryError && (
+                <div style={{ fontSize: "12px", color: "var(--neg-text)", marginTop: "10px" }}>{discoveryError}</div>
+              )}
+
+              {discovery?.note && (
+                <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "10px" }}>{discovery.note}</div>
+              )}
+
+              {discovery?.proposals?.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "12px" }}>
+                  {discovery.proposals.map((pr) => {
+                    const best = pr.best;
+                    const confirmed = pr.verdict === "confirmed";
+                    return (
+                      <div key={pr.brand} style={{
+                        border: "1px solid var(--border)", borderRadius: "10px", padding: "12px",
+                        background: "var(--input-bg)",
+                      }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap" }}>
+                          <div style={{ fontSize: "13px", fontWeight: "700" }}>{pr.brand}</div>
+                          <div style={{
+                            fontSize: "10px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.06em",
+                            padding: "1px 7px", borderRadius: "999px",
+                            color: confirmed ? "var(--pos-text)" : "var(--warn-text)",
+                            border: `1px solid ${confirmed ? "var(--pos-border)" : "var(--warn-border)"}`,
+                          }}>
+                            {confirmed ? "Match" : pr.verdict === "review" ? "Check this" : "No channel found"}
+                          </div>
+                          {pr.ambiguous && (
+                            <div style={{ fontSize: "10px", color: "var(--warn-text)" }}>
+                              two close matches
+                            </div>
+                          )}
+                        </div>
+                        {pr.reason && (
+                          <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "3px" }}>{pr.reason}</div>
+                        )}
+
+                        {best ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "10px" }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: "13px", fontWeight: "600" }}>{best.name}</div>
+                              <div style={{ fontSize: "11px", color: "var(--muted)" }}>
+                                {(best.subscriberCount || 0).toLocaleString()} subs
+                                {best.customUrl ? ` \u00b7 ${best.customUrl}` : ""}
+                              </div>
+                              {/* The signals behind the verdict. "Trust this, it
+                                  scored 0.9" is not something a strategist can check. */}
+                              <div style={{ display: "flex", gap: "6px", marginTop: "5px", flexWrap: "wrap" }}>
+                                {[
+                                  ["name", best.signals.titleScore >= 0.8],
+                                  ["handle", best.signals.handleMatch],
+                                  ["described", best.signals.descMatch],
+                                  ...(best.signals.regional ? [["regional arm", false]] : []),
+                                ].map(([label, on]) => (
+                                  <span key={label} style={{
+                                    fontSize: "10px", padding: "1px 6px", borderRadius: "4px",
+                                    color: on ? "var(--pos-text)" : "var(--outline)",
+                                    border: `1px solid ${on ? "var(--pos-border)" : "var(--border)"}`,
+                                  }}>
+                                    {on ? "\u2713 " : ""}{label}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleConfirmDiscovered(best)}
+                              disabled={resolvedCompetitors.length >= 5}
+                              style={{
+                                flexShrink: 0, display: "flex", alignItems: "center", gap: "5px",
+                                padding: "7px 12px", background: "transparent",
+                                border: "1px solid var(--blue)", borderRadius: "8px",
+                                color: "var(--accent-text)", cursor: "pointer",
+                                fontWeight: "600", fontSize: "12px",
+                              }}
+                            >
+                              <Check size={12} /> Use
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: "11px", color: "var(--outline)", marginTop: "8px" }}>
+                            No channel cleared the identity checks
+                            {pr.candidates?.[0]?.disqualifiers?.[0] ? ` \u2014 ${pr.candidates[0].disqualifiers[0].toLowerCase()}` : "."}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {discovery.quotaSpent > 0 && (
+                    <div style={{ fontSize: "10px", color: "var(--outline)" }}>
+                      {discovery.quotaSpent.toLocaleString()} YouTube quota units used \u00b7 results cached 30 days
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Manual URL input */}
