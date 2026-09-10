@@ -488,7 +488,17 @@ export default async function handler(req, res) {
 
   // Time budget: Vercel functions cap at 300s, leave 30s buffer for cleanup
   const startTime = Date.now();
-  const TIME_BUDGET_MS = 270_000;
+  // 240s, not 270. The budget is checked BEFORE a worker picks up a
+  // channel, so with concurrency 3 up to three channels can already be in
+  // flight when it trips, and a channel can take 20-30s. Every completed
+  // hop in the Sep 2026 sync_log ran 273-296s against a 270s budget; the
+  // ones that crossed Vercel's 300s hard cap were killed before writing
+  // their sync_log row (left "running", channels_synced=0) and before
+  // reaching the chain block — so on those nights the chain was never
+  // attempted at all. 240s leaves room for the in-flight tail plus the
+  // awaited CHAIN_HANDOFF_MS below. Fewer channels per hop is fine now
+  // that hops reliably chain.
+  const TIME_BUDGET_MS = 240_000;
   // Skip channels synced within this window (let the next invocation handle stale ones)
   const skipIfSyncedWithinHours = Number(req.query?.skipIfFreshHours || 12);
   const skipIfSyncedCutoff = Date.now() - skipIfSyncedWithinHours * 3600_000;
@@ -580,12 +590,29 @@ export default async function handler(req, res) {
 
   // ── Cron self-chain ──
   // When called by the Vercel cron (not manual), if the queue still has
-  // channels to process, fire-and-forget a follow-up invocation. This
-  // makes the daily cron drain the whole queue overnight without the
-  // user having to babysit the Refresh button. Bounded by chainDepth to
-  // prevent runaway loops.
+  // channels to process, trigger a follow-up invocation so the daily cron
+  // drains the whole queue overnight without anyone babysitting the
+  // Refresh button. Bounded by chainDepth to prevent runaway loops.
+  //
+  // 2026-09-10: the hand-off is AWAITED, time-boxed, not fire-and-forget.
+  // The previous `fetch(url).catch(...)` was issued and then the handler
+  // returned `res.json()` on the next line. Vercel freezes a function the
+  // moment its response is sent, so an outbound request that had not yet
+  // left the process was simply dropped. It got out sometimes — the
+  // 2026-09-10 run chained exactly once (bursts at 06:00 and 06:10, then
+  // nothing) and left ~200 of 392 channels for the next day. Every
+  // competitor synced roughly every other night while the cron looked
+  // healthy.
+  //
+  // We only need the next hop to RECEIVE the request — it runs to
+  // completion on its own once invoked (the fan-out orchestrator relies on
+  // the same behaviour). So we wait a few seconds for the connection to be
+  // accepted, then abort our side of it and return. An AbortError here
+  // means "handed off", not "failed".
   const chainDepth = Number(req.query?.chainDepth || 0);
   const CHAIN_MAX = 20;
+  const CHAIN_HANDOFF_MS = 5_000;
+  let chainHandoff = 'not_needed';
   // Only self-chain on an actual cron run. A human clicking Refresh should
   // get one pass, not kick off a 20-deep chain. (This used to read
   // `!manualTrigger`, from the query-param auth that was removed.)
@@ -604,11 +631,31 @@ export default async function handler(req, res) {
       || (requestHost ? `${proto}://${requestHost}` : null);
     if (baseUrl && process.env.CRON_SECRET) {
       const url = `${baseUrl}/api/sync-competitors?chainDepth=${chainDepth + 1}`;
-      console.log(`[sync chain] depth ${chainDepth + 1} → ${baseUrl}`);
-      fetch(url, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
-      }).catch(err => console.warn('[sync chain] follow-up failed:', err.message));
+      console.log(`[sync chain] depth ${chainDepth + 1} → ${baseUrl} (${results.channels_remaining} remaining)`);
+      const controller = new AbortController();
+      const handoffTimer = setTimeout(() => controller.abort(), CHAIN_HANDOFF_MS);
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+          signal: controller.signal,
+        });
+        // Only reachable if the next hop finished inside the hand-off
+        // window — a tiny queue, or a fast failure. Either way it ran.
+        chainHandoff = resp.ok ? 'completed' : `rejected_http_${resp.status}`;
+      } catch (err) {
+        if (err?.name === 'AbortError') {
+          chainHandoff = 'sent';   // request accepted; downstream is running
+        } else {
+          chainHandoff = 'failed';
+          console.warn('[sync chain] follow-up failed:', err.message);
+        }
+      } finally {
+        clearTimeout(handoffTimer);
+      }
+    } else {
+      chainHandoff = 'skipped_no_base_url_or_secret';
+      console.warn('[sync chain] cannot chain: baseUrl or CRON_SECRET missing');
     }
   }
 
@@ -616,7 +663,7 @@ export default async function handler(req, res) {
     success: true,
     handles_skipped: results.handles_skipped,
     chain_depth: chainDepth,
-    chain_continued: isCronRun && results.channels_remaining > 0 && chainDepth < CHAIN_MAX,
+    chain_handoff: chainHandoff,
     ...results,
   });
 }
