@@ -1,8 +1,12 @@
 /**
  * ChannelIssuesModal — lists channels in trouble so you can act on them.
  *
- * view === 'failing'  → channels with last_sync_error populated
- * view === 'handles'  → channels with youtube_channel_id LIKE 'handle_%'
+ * view === 'failing'      → channels with last_sync_error populated
+ * view === 'handles'      → channels with youtube_channel_id LIKE 'handle_%'
+ * view === 'quarantined'  → channels the sync switched off after repeated
+ *                           hard failures (migration 117), or an operator
+ *                           archived. Nothing here is deleted; Retry puts a
+ *                           channel back in the queue with a clean slate.
  *
  * When `clientId` is provided, the 'failing' view scopes to that client's
  * pinned competitor cohort instead of the whole pipeline. Used from the
@@ -17,7 +21,7 @@
 import {useEffect, useState} from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../services/supabaseClient';
-import { AlertTriangle, Archive, ExternalLink, Loader, Wand2, X } from 'lucide-react';
+import { AlertTriangle, Archive, ExternalLink, Loader, RotateCcw, Wand2, X } from 'lucide-react';
 
 export default function ChannelIssuesModal({ view, clientId, clientName, onClose, onChanged }) {
   const [rows, setRows] = useState(null); // null = loading, [] = empty, [...] = list
@@ -43,10 +47,21 @@ export default function ChannelIssuesModal({ view, clientId, clientName, onClose
 
       let q;
       if (view === 'failing') {
+        // Only channels the sync is still trying. Quarantined ones have
+        // their own view — mixing them here is how a list of 13 "failures"
+        // hides the one that actually needs a human today.
         q = supabase.from('channels')
-          .select('id, name, custom_url, youtube_channel_id, thumbnail_url, last_sync_error, last_sync_attempt_at, tier')
+          .select('id, name, custom_url, youtube_channel_id, thumbnail_url, last_sync_error, last_sync_attempt_at, tier, consecutive_sync_failures')
           .not('last_sync_error', 'is', null)
+          .eq('sync_enabled', true)
           .order('last_sync_attempt_at', { ascending: false });
+        if (cohortIds) q = q.in('id', cohortIds);
+      } else if (view === 'quarantined') {
+        q = supabase.from('channels')
+          .select('id, name, custom_url, youtube_channel_id, thumbnail_url, last_sync_error, last_sync_attempt_at, tier, consecutive_sync_failures, sync_disabled_at, sync_disabled_reason')
+          .eq('sync_enabled', false)
+          .not('sync_disabled_at', 'is', null)
+          .order('sync_disabled_at', { ascending: false });
         if (cohortIds) q = q.in('id', cohortIds);
       } else {
         q = supabase.from('channels')
@@ -54,31 +69,84 @@ export default function ChannelIssuesModal({ view, clientId, clientName, onClose
           .like('youtube_channel_id', 'handle_%')
           .order('tracked_since', { ascending: false });
       }
-      const { data } = await q;
+      let { data, error } = await q;
+      if (error && /consecutive_sync_failures|sync_disabled/.test(error.message || '')) {
+        // Migration 117 not applied yet — fall back to the columns that exist.
+        if (view === 'quarantined') { data = []; }
+        else if (view === 'failing') {
+          let fq = supabase.from('channels')
+            .select('id, name, custom_url, youtube_channel_id, thumbnail_url, last_sync_error, last_sync_attempt_at, tier')
+            .not('last_sync_error', 'is', null)
+            .order('last_sync_attempt_at', { ascending: false });
+          if (cohortIds) fq = fq.in('id', cohortIds);
+          ({ data } = await fq);
+        }
+      }
       if (!cancelled) setRows(data || []);
     })();
     return () => { cancelled = true; };
   }, [view, clientId]);
 
+  // Writes that touch migration-117 columns fall back to the pre-117 shape
+  // if the database doesn't have them yet, so the button never dead-ends.
+  const updateTolerant = async (id, patch) => {
+    let { error } = await supabase.from('channels').update(patch).eq('id', id);
+    if (error && /consecutive_sync_failures|sync_disabled|sync_enabled/.test(error.message || '')) {
+      const fb = { ...patch };
+      for (const k of ['consecutive_sync_failures', 'sync_disabled_at', 'sync_disabled_reason', 'sync_enabled']) delete fb[k];
+      if (Object.keys(fb).length) ({ error } = await supabase.from('channels').update(fb).eq('id', id));
+    }
+    return error;
+  };
+
   const archive = async (id) => {
     if (busyId) return;
     setBusyId(id);
     try {
-      await supabase.from('channels').update({ tier: 'archive' }).eq('id', id);
+      // tier alone never stopped the sync — archived channels were still
+      // retried every night with backoff. Archiving now also switches the
+      // sync off and records why, so the channel shows under Quarantined
+      // rather than silently consuming attempts.
+      await updateTolerant(id, {
+        tier: 'archive',
+        sync_enabled: false,
+        sync_disabled_at: new Date().toISOString(),
+        sync_disabled_reason: 'Archived by operator',
+      });
       setRows(prev => prev.filter(r => r.id !== id));
       onChanged?.();
     } finally { setBusyId(null); }
   };
 
-  const scopedToClient = view === 'failing' && clientId;
+  const retry = async (id) => {
+    if (busyId) return;
+    setBusyId(id);
+    try {
+      await updateTolerant(id, {
+        sync_enabled: true,
+        consecutive_sync_failures: 0,
+        sync_disabled_at: null,
+        sync_disabled_reason: null,
+        last_sync_error: null,
+      });
+      setRows(prev => prev.filter(r => r.id !== id));
+      onChanged?.();
+    } finally { setBusyId(null); }
+  };
+
+  const scopedToClient = (view === 'failing' || view === 'quarantined') && clientId;
   const title = view === 'failing'
     ? (scopedToClient ? `Failing sync · ${clientName || 'Client cohort'}` : 'Failing sync')
-    : 'Unresolved handles';
+    : view === 'quarantined'
+      ? (scopedToClient ? `Quarantined · ${clientName || 'Client cohort'}` : 'Quarantined')
+      : 'Unresolved handles';
   const subtitle = view === 'failing'
     ? (scopedToClient
-        ? `Pinned competitor channels in this client's cohort whose last YouTube fetch failed. Sync retries automatically every 2h; archive a channel to stop trying entirely.`
-        : "Channels where the last YouTube fetch failed. Sync retries automatically every 2h — archive a channel to stop trying.")
-    : "Channels imported by @handle but never resolved to a real YouTube channel id. The 'Resolve handles' button on the Landscape header does a bulk lookup.";
+        ? `Pinned competitor channels in this client's cohort whose last YouTube fetch failed. Sync retries automatically every 2h; after 7 hard failures in a row a channel is quarantined.`
+        : "Channels where the last YouTube fetch failed. Sync retries automatically every 2h — after 7 hard failures in a row (channel not found, handle unresolvable) the channel is quarantined and stops being tried.")
+    : view === 'quarantined'
+      ? "Channels the sync has switched off — after repeated hard failures, or archived by an operator. Nothing here is deleted. Fix the id or handle on YouTube, then Retry to put it back in the queue with a clean slate."
+      : "Channels imported by @handle but never resolved to a real YouTube channel id. The 'Resolve handles' button on the Landscape header does a bulk lookup.";
 
   return createPortal(
     <div
@@ -141,12 +209,43 @@ export default function ChannelIssuesModal({ view, clientId, clientName, onClose
                     <span style={{ fontSize: 11, color: 'var(--faint)', fontWeight: 400 }}>· {r.custom_url}</span>
                   )}
                 </div>
-                <div style={{ fontSize: 11, color: view === 'failing' ? "var(--neg-text)" : "var(--warn-text)", marginTop: 3, wordBreak: 'break-word' }}>
+                <div style={{ fontSize: 11, color: view === 'handles' ? "var(--warn-text)" : "var(--neg-text)", marginTop: 3, wordBreak: 'break-word' }}>
                   {view === 'failing'
                     ? r.last_sync_error || '(no error message)'
-                    : `Stored as ${r.youtube_channel_id} — not yet resolved`}
+                    : view === 'quarantined'
+                      ? (r.sync_disabled_reason || r.last_sync_error || '(no reason recorded)')
+                      : `Stored as ${r.youtube_channel_id} — not yet resolved`}
                 </div>
+                {view === 'failing' && (r.consecutive_sync_failures || 0) > 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--faint)', marginTop: 2 }}>
+                    {r.consecutive_sync_failures} of 7 hard failures before quarantine
+                  </div>
+                )}
+                {view === 'quarantined' && r.sync_disabled_at && (
+                  <div style={{ fontSize: 10, color: 'var(--faint)', marginTop: 2 }}>
+                    Since {new Date(r.sync_disabled_at).toLocaleDateString()}
+                  </div>
+                )}
               </div>
+              {view === 'quarantined' && (
+                <>
+                  {r.youtube_channel_id?.startsWith('UC') && (
+                    <a href={`https://youtube.com/channel/${r.youtube_channel_id}`} target="_blank" rel="noreferrer"
+                       title="Open on YouTube — check the id still points somewhere" style={iconLink}>
+                      <ExternalLink size={13} />
+                    </a>
+                  )}
+                  <button
+                    onClick={() => retry(r.id)}
+                    disabled={busyId === r.id}
+                    title="Put this channel back in the sync queue with the failure count reset"
+                    style={archiveBtn}
+                  >
+                    {busyId === r.id ? <Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <RotateCcw size={11} />}
+                    Retry
+                  </button>
+                </>
+              )}
               {view === 'failing' && (
                 <>
                   {r.youtube_channel_id?.startsWith('UC') && (

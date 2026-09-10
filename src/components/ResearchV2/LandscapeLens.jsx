@@ -39,10 +39,10 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
   const [classifying, setClassifying] = useState(false);
   const [classifyStatus, setClassifyStatus] = useState(null);
   const [healthCounts, setHealthCounts] = useState({
-    handles: 0, errors: 0, total: 0, fresh24h: 0, latestSync: null, oldestSync: null,
+    handles: 0, errors: 0, quarantined: 0, total: 0, fresh24h: 0, latestSync: null, oldestSync: null,
   });
   const [showHealthDetail, setShowHealthDetail] = useState(false);
-  const [issueView, setIssueView] = useState(null); // 'failing' | 'handles' | null
+  const [issueView, setIssueView] = useState(null); // 'failing' | 'handles' | 'quarantined' | null
   const [resolving, setResolving] = useState(false);
   const [resolveStatus, setResolveStatus] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -100,13 +100,22 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
     (async () => {
       if (!supabase) return;
       const dayAgo = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-      const [handlesRes, errorsRes, totalRes, freshRes, syncsRes] = await Promise.all([
+      const [handlesRes, errorsRes, quarantinedRes, totalRes, freshRes, syncsRes] = await Promise.all([
         supabase.from('channels')
           .select('id', { count: 'exact', head: true })
           .like('youtube_channel_id', 'handle_%'),
+        // "Failing" = still being retried. Quarantined channels are counted
+        // separately below, so this badge matches what the modal lists.
         supabase.from('channels')
           .select('id', { count: 'exact', head: true })
-          .not('last_sync_error', 'is', null),
+          .not('last_sync_error', 'is', null)
+          .eq('sync_enabled', true),
+        // Migration 117. Before it is applied this query errors and count
+        // is null, which reads as 0 — no crash, no phantom badge.
+        supabase.from('channels')
+          .select('id', { count: 'exact', head: true })
+          .eq('sync_enabled', false)
+          .not('sync_disabled_at', 'is', null),
         supabase.from('channels')
           .select('id', { count: 'exact', head: true })
           .eq('is_competitor', true)
@@ -135,6 +144,7 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
         setHealthCounts({
           handles: handlesRes.count || 0,
           errors: errorsRes.count || 0,
+          quarantined: quarantinedRes.count || 0,
           total: totalRes.count || 0,
           fresh24h: freshRes.count || 0,
           latestSync: syncsRes.data?.[0]?.last_synced_at || null,
@@ -566,7 +576,7 @@ function Row({ channel, norms, selected, onSelect, onOpen }) {
 // Subcomponents
 // ───────────────────────────────────────────
 function PipelineHealth({ counts, freshnessPct, expanded, onToggle, onOpenIssues }) {
-  const { total, fresh24h, latestSync, oldestSync, handles, errors } = counts;
+  const { total, fresh24h, latestSync, oldestSync, handles, errors, quarantined } = counts;
   if (total === 0) return null;
 
   const pctColor = freshnessPct >= 90 ? 'var(--pos)' : freshnessPct >= 70 ? 'var(--warn)' : 'var(--neg)';
@@ -602,6 +612,9 @@ function PipelineHealth({ counts, freshnessPct, expanded, onToggle, onOpenIssues
           {handles > 0 && (
             <span>· <button onClick={() => onOpenIssues('handles')} style={linkBtn("var(--warn-text)")} title="See which @handles couldn't be resolved to a YouTube channel ID">{handles} unresolved handle{handles === 1 ? '' : 's'}</button></span>
           )}
+          {quarantined > 0 && (
+            <span>· <button onClick={() => onOpenIssues('quarantined')} style={linkBtn("var(--faint)")} title="Channels the sync has switched off after repeated hard failures, or that were archived. Nothing deleted — fix and Retry.">{quarantined} quarantined</button></span>
+          )}
         </div>
         <button onClick={onToggle} style={{
           background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
@@ -627,6 +640,10 @@ function PipelineHealth({ counts, freshnessPct, expanded, onToggle, onOpenIssues
             label="Unresolved handles"
             value={handles > 0 ? <button onClick={() => onOpenIssues('handles')} style={linkBtn("var(--warn-text)")}>{handles} — view</button> : '0'}
             valueColor={handles > 0 ? 'var(--warn-text)' : undefined}
+          />
+          <DetailStat
+            label="Quarantined"
+            value={quarantined > 0 ? <button onClick={() => onOpenIssues('quarantined')} style={linkBtn("var(--faint)")}>{quarantined} — view</button> : '0'}
           />
         </div>
       )}

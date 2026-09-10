@@ -215,6 +215,39 @@ function detectContentFormat(title) {
 }
 
 /**
+ * Quarantine (migration 117).
+ *
+ * Only HARD failures count: the channel id or handle does not resolve.
+ * Quota, 5xx and network errors are transient and never increment the
+ * counter — otherwise a quota-heavy week would quarantine real channels.
+ * Unknown error shapes are treated as transient for the same reason:
+ * the counter should only move on failures we understand.
+ */
+const QUARANTINE_AFTER = 7;
+const HARD_FAILURE = /channel not found|handle resolution failed|not found on youtube|invalid channel id|playlist not found/i;
+
+function isHardFailure(msg) {
+  return HARD_FAILURE.test(msg || '');
+}
+
+/**
+ * Update a channel, dropping the migration-117 columns and retrying if the
+ * database has not had that migration applied yet. Keeps the sync working
+ * against an older schema the same way the network_tag and views_at_48h
+ * writes already do.
+ */
+async function updateChannelTolerant(id, patch) {
+  const OPTIONAL = ['consecutive_sync_failures', 'sync_disabled_at', 'sync_disabled_reason', 'sync_enabled'];
+  let { error } = await supabase.from('channels').update(patch).eq('id', id);
+  if (error && OPTIONAL.some(k => (error.message || '').includes(k))) {
+    const fallback = { ...patch };
+    for (const k of OPTIONAL) delete fallback[k];
+    ({ error } = await supabase.from('channels').update(fallback).eq('id', id));
+  }
+  return error;
+}
+
+/**
  * Sync a single channel
  */
 async function syncChannel(channel, apiKey) {
@@ -229,14 +262,26 @@ async function syncChannel(channel, apiKey) {
     channelDetails = await fetchChannelDetails(channel.youtube_channel_id, apiKey);
   } catch (err) {
     const msg = (err.message || String(err)).slice(0, 500);
-    await supabase
-      .from('channels')
-      .update({
-        last_sync_attempt_at: attemptAt,
-        last_sync_error: msg,
-        last_data_api_pull_error: msg,
-      })
-      .eq('id', channel.id);
+    const patch = {
+      last_sync_attempt_at: attemptAt,
+      last_sync_error: msg,
+      last_data_api_pull_error: msg,
+    };
+    if (isHardFailure(msg)) {
+      const failures = (channel.consecutive_sync_failures || 0) + 1;
+      patch.consecutive_sync_failures = failures;
+      if (failures >= QUARANTINE_AFTER) {
+        // Stop spending attempts on it. Nothing is deleted — the row and
+        // everything cascading from it stay exactly as they are, and the
+        // channel appears under Quarantined in the Failing sync modal
+        // where a human can fix the id, re-resolve, or archive.
+        patch.sync_enabled = false;
+        patch.sync_disabled_at = attemptAt;
+        patch.sync_disabled_reason = `Quarantined after ${failures} consecutive failures — last: ${msg.slice(0, 200)}`;
+        console.warn(`[sync-competitors] quarantined "${channel.name}" (${channel.youtube_channel_id}) after ${failures} hard failures: ${msg}`);
+      }
+    }
+    await updateChannelTolerant(channel.id, patch);
     throw err;
   }
 
@@ -256,6 +301,11 @@ async function syncChannel(channel, apiKey) {
       last_data_api_pull_error: null,
     })
     .eq('id', channel.id);
+  // A successful fetch ends any failure streak (tolerant of the column
+  // not existing yet).
+  if (channel.consecutive_sync_failures) {
+    await updateChannelTolerant(channel.id, { consecutive_sync_failures: 0 });
+  }
 
   // Fetch and update videos. Window is wider for client channels: a
   // competitor's 2019 archive is noise for the cohort analysis, but
