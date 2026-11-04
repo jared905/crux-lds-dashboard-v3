@@ -62,7 +62,8 @@ export async function getSessionUser(req) {
   }
 }
 
-/** True when the given user id has role='admin' in user_profiles. */
+/** True when the given auth user id has role='admin' in user_profiles.
+ * Matches on user_id (the auth.users FK), not id (the row's own random PK). */
 export async function isAdmin(userId) {
   if (!userId || !supabaseUrl || !serviceKey) return false;
   try {
@@ -70,7 +71,7 @@ export async function isAdmin(userId) {
     const { data, error } = await supabase
       .from('user_profiles')
       .select('role')
-      .eq('id', userId)
+      .eq('user_id', userId)
       .single();
     if (error) return false;
     return data?.role === 'admin';
