@@ -2,12 +2,18 @@
  * AddChannelsModal — single + bulk add of competitor or non-OAuth client
  * channels. Paste URLs, @handles, or UC… IDs (one per line), pick the
  * kind, hit Add. Results show per-input outcome (added / skipped / error).
+ *
+ * Competitor adds can also assign a category, a client and tags in the
+ * same step (pre-filled from the current scope). Assignments apply to the
+ * newly added channels AND to inputs skipped as "already in DB", so
+ * pasting an existing channel is a quick way to file it too.
  */
-import {useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
+import { supabase } from '../../services/supabaseClient';
 import { createPortal } from 'react-dom';
 import { Briefcase, Loader, Users, X,Check, AlertTriangle} from 'lucide-react';
 
-export default function AddChannelsModal({ onClose, onAdded }) {
+export default function AddChannelsModal({ onClose, onAdded, scope }) {
   const [kind, setKind] = useState('competitor'); // 'competitor' | 'client'
   const [tier, setTier] = useState('tracked');
   const [text, setText] = useState('');
@@ -15,6 +21,88 @@ export default function AddChannelsModal({ onClose, onAdded }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+
+  // ── Assign-on-add (competitor only) ──
+  // Defaults come from the scope the user is looking at: filtered to a
+  // client → pin to that client; filtered to exactly one category → file
+  // under it.
+  const [categories, setCategories] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [tagVocab, setTagVocab] = useState([]);
+  const [categoryId, setCategoryId] = useState(
+    !scope?.uncategorized && scope?.categoryIds?.length === 1 ? scope.categoryIds[0] : ''
+  );
+  const [clientId, setClientId] = useState(scope?.clientId || '');
+  const [tags, setTags] = useState([]);
+  const [assignNote, setAssignNote] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [c, cl, t] = await Promise.all([
+        supabase.from('categories').select('id, name, parent_id').order('name'),
+        supabase.from('channels').select('id, name').eq('is_client', true).order('name'),
+        supabase.from('tag_vocabulary').select('facet, value').order('facet').order('sort_order'),
+      ]);
+      if (cancelled) return;
+      setCategories(c.data || []);
+      setClients(cl.data || []);
+      setTagVocab(t.data || []);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Parents, each followed by its sub-categories, for a single <select>.
+  const categoryOptions = useMemo(() => {
+    const parents = categories.filter(c => !c.parent_id);
+    return parents.flatMap(p => [
+      { id: p.id, label: p.name },
+      ...categories.filter(c => c.parent_id === p.id).map(c => ({ id: c.id, label: `\u00A0\u00A0↳ ${c.name}` })),
+    ]);
+  }, [categories]);
+
+  const tagsByFacet = useMemo(() => {
+    const out = {};
+    for (const t of tagVocab) (out[t.facet] ||= []).push(t.value);
+    return out;
+  }, [tagVocab]);
+
+  const toggleTag = (v) => setTags(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
+  const hasAssignments = kind === 'competitor' && (categoryId || clientId || tags.length > 0);
+
+  // Same writes the drawer / bulk sheet make. Manual category or tag
+  // assignment locks classification so the auto-classifier won't undo it.
+  const applyAssignments = async (channelIds) => {
+    if (!channelIds.length || !hasAssignments) return null;
+    const done = [];
+    if (categoryId) {
+      const { error: e } = await supabase.from('channel_categories').upsert(
+        channelIds.map(channel_id => ({ channel_id, category_id: categoryId, assigned_by_classifier: false })),
+        { onConflict: 'channel_id,category_id' }
+      );
+      if (e) throw new Error(`Category: ${e.message}`);
+      done.push(categories.find(c => c.id === categoryId)?.name || 'category');
+    }
+    if (tags.length) {
+      const rows = channelIds.flatMap(channel_id =>
+        tags.map(tag => ({ channel_id, tag, assigned_by_classifier: false })));
+      const { error: e } = await supabase.from('channel_tags').upsert(rows, { onConflict: 'channel_id,tag' });
+      if (e) throw new Error(`Tags: ${e.message}`);
+      done.push(tags.join(', '));
+    }
+    if (categoryId || tags.length) {
+      await supabase.from('channels').update({ classification_locked: true }).in('id', channelIds);
+    }
+    if (clientId) {
+      const { error: e } = await supabase.from('client_channels').upsert(
+        channelIds.map(channel_id => ({ client_id: clientId, channel_id })),
+        { onConflict: 'client_id,channel_id' }
+      );
+      if (e) throw new Error(`Client: ${e.message}`);
+      done.push(`pinned to ${clients.find(c => c.id === clientId)?.name || 'client'}`);
+    }
+    return done;
+  };
 
   const inputs = text.split('\n').map(s => s.trim()).filter(Boolean);
   const canSubmit = kind === 'competitor'
@@ -38,7 +126,20 @@ export default function AddChannelsModal({ onClose, onAdded }) {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
       setResult(data);
-      if (data.counts.added > 0) onAdded?.(data.added);
+      setAssignNote(null);
+      if (kind === 'competitor' && hasAssignments) {
+        const ids = [
+          ...data.added.map(r => r.id),
+          ...data.skipped.map(r => r.channel_id),
+        ].filter(Boolean);
+        try {
+          const done = await applyAssignments([...new Set(ids)]);
+          if (done) setAssignNote({ ok: true, message: `${ids.length} channel${ids.length === 1 ? '' : 's'} → ${done.join(' · ')}` });
+        } catch (e) {
+          setAssignNote({ ok: false, message: `Added, but assigning failed — ${e.message}` });
+        }
+      }
+      if (data.counts.added > 0 || hasAssignments) onAdded?.(data.added);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -170,6 +271,41 @@ export default function AddChannelsModal({ onClose, onAdded }) {
             )}
           </div>
 
+          {kind === 'competitor' && (
+            <div style={{ marginTop: 16 }}>
+              <SectionLabel>Assign on add (optional)</SectionLabel>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                <select value={categoryId} onChange={e => setCategoryId(e.target.value)} style={selectStyle}>
+                  <option value="">No category</option>
+                  {categoryOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
+                <select value={clientId} onChange={e => setClientId(e.target.value)} style={selectStyle}>
+                  <option value="">No client</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              {Object.entries(tagsByFacet).map(([facet, values]) => (
+                <div key={facet} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+                  <span style={{ fontSize: 10, color: 'var(--faint)', width: 56, textTransform: 'capitalize' }}>{facet}</span>
+                  {values.map(v => {
+                    const on = tags.includes(v);
+                    return (
+                      <button key={v} onClick={() => toggleTag(v)} style={{
+                        padding: '3px 9px', borderRadius: 999, fontSize: 11, fontFamily: 'inherit', cursor: 'pointer',
+                        background: on ? 'rgba(0,209,255,0.12)' : 'var(--card)',
+                        color: on ? 'var(--accent-text)' : 'var(--muted)',
+                        border: `1px solid ${on ? 'var(--blue)' : 'var(--surface-high)'}`,
+                      }}>{v}</button>
+                    );
+                  })}
+                </div>
+              ))}
+              <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 4 }}>
+                Also applies to pasted channels that are already tracked.
+              </div>
+            </div>
+          )}
+
           {error && (
             <div style={{
               padding: '8px 12px', marginTop: 12,
@@ -188,6 +324,11 @@ export default function AddChannelsModal({ onClose, onAdded }) {
               <ResultList icon={Check} color="#dcff45" label="Added" rows={result.added.map(r => `${r.name} — ${r.youtube_channel_id}`)} />
               <ResultList icon={AlertTriangle} color="#fbbf24" label="Skipped" rows={result.skipped.map(r => `${r.input}: ${r.reason}`)} />
               <ResultList icon={AlertTriangle} color="#ff8375" label="Errors" rows={result.errors.map(r => `${r.input}: ${r.reason}`)} />
+              {assignNote && (
+                <div style={{ marginTop: 8, fontSize: 12, color: assignNote.ok ? 'var(--pos-text)' : 'var(--neg-text)' }}>
+                  {assignNote.ok ? '✓ ' : ''}{assignNote.message}
+                </div>
+              )}
             </div>
           )}
 
@@ -258,6 +399,12 @@ function ResultList({ icon: Icon, color, label, rows }) {
     </div>
   );
 }
+
+const selectStyle = {
+  flex: '1 1 200px', minWidth: 0, padding: '8px 10px', borderRadius: 6,
+  background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--ink)',
+  fontSize: 13, fontFamily: 'inherit', outline: 'none',
+};
 
 const iconBtn = {
   background: 'transparent', border: 'none', color: 'var(--outline)',

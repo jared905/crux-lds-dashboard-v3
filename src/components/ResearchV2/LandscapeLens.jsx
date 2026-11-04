@@ -443,6 +443,7 @@ export default function LandscapeLens({ scope, refreshKey = 0 }) {
 
       {showAddModal && (
         <AddChannelsModal
+          scope={scope}
           onClose={() => setShowAddModal(false)}
           onAdded={async () => {
             const fresh = await fetchLandscapeChannels(scope);
