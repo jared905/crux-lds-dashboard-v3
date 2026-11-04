@@ -13,7 +13,7 @@ export default function WhiteSpaceLens({ scope, refreshKey = 0 }) {
 
   // The scope object's identity churns per render; this serialized key covers
   // every scope field the fetch reads, so it stands in as the dependency.
-  const scopeKey = [scope.categoryIds?.join(','), scope.tags?.join(','), scope.tiers?.join(','), scope.clientId, scope.windowDays].join('|');
+  const scopeKey = [scope.uncategorized ? 'uncat' : '', scope.categoryIds?.join(','), scope.tags?.join(','), scope.tiers?.join(','), scope.clientId, scope.windowDays].join('|');
   useEffect(() => {
     let cancelled = false;
     setLoading(true);

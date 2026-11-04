@@ -105,7 +105,7 @@ export default function ResearchV2() {
   // Keep the alert badge in sync with current scope
   // The scope object's identity churns per render; this serialized key covers
   // every scope field the fetch reads, so it stands in as the dependency.
-  const scopeKey = [scope.categoryIds?.join(','), scope.tags?.join(','), scope.tiers?.join(','), scope.clientId].join('|');
+  const scopeKey = [scope.uncategorized ? 'uncat' : '', scope.categoryIds?.join(','), scope.tags?.join(','), scope.tiers?.join(','), scope.clientId].join('|');
   useEffect(() => {
     let cancelled = false;
     (async () => {

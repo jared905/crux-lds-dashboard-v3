@@ -42,7 +42,7 @@ export default function MovementLens({ scope, refreshKey = 0 }) {
   // Load alerts on scope change
   // The scope object's identity churns per render; this serialized key covers
   // every scope field the fetch reads, so it stands in as the dependency.
-  const scopeKey = [scope.categoryIds?.join(','), scope.tags?.join(','), scope.tiers?.join(','), scope.clientId].join('|');
+  const scopeKey = [scope.uncategorized ? 'uncat' : '', scope.categoryIds?.join(','), scope.tags?.join(','), scope.tiers?.join(','), scope.clientId].join('|');
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
