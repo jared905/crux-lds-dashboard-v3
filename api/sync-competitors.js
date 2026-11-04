@@ -1,15 +1,10 @@
 /**
- * Vercel Cron Job: Daily Competitor Sync
+ * Vercel Cron Job: Hourly Competitor Sync
  * Full View Analytics - Crux Media
  *
- * Runs daily at 6:00 AM UTC to sync all tracked competitors
- * Configure in vercel.json with:
- * {
- *   "crons": [{
- *     "path": "/api/sync-competitors",
- *     "schedule": "0 6 * * *"
- *   }]
- * }
+ * Runs every hour (vercel.json "0 * * * *"). Each run syncs the
+ * least-recently-synced channels it can fit in its time budget, skipping
+ * any synced in the last 12h, so all channels refresh about twice a day.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -666,8 +661,13 @@ export default async function handler(req, res) {
   // Only self-chain on an actual cron run. A human clicking Refresh should
   // get one pass, not kick off a 20-deep chain. (This used to read
   // `!manualTrigger`, from the query-param auth that was removed.)
+  // 2026-11-04: chaining is OFF. The cron now fires hourly and each run
+  // takes the stalest channels, so no hand-off is needed and a failed hop
+  // costs an hour, not a night. Chained hops would also overlap the next
+  // hourly run and sync the same channels twice. Flip to re-enable.
+  const CHAIN_ENABLED = false;
   const isCronRun = caller.via === 'cron';
-  if (isCronRun && results.channels_remaining > 0 && chainDepth < CHAIN_MAX) {
+  if (CHAIN_ENABLED && isCronRun && results.channels_remaining > 0 && chainDepth < CHAIN_MAX) {
     // 2026-06-30 fix: prefer VERCEL_PROJECT_PRODUCTION_URL over the
     // request's host header. When Vercel cron triggers this endpoint,
     // req.headers.host is the per-deployment URL (deployment protection

@@ -16,7 +16,7 @@
   "crons": [
     {
       "path": "/api/sync-competitors",
-      "schedule": "0 6 * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron/sync-fanout",
